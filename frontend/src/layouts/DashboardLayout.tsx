@@ -9,7 +9,7 @@ const menuItems = [
     { name: "Dashboard", path: "/" },
     { name: "Inventory", path: "/inventory" },
     { name: "Automation", path: "/automation" },
-    { name: "Cancellations", path: "/cancellations" },
+    { name: "Cancellation", path: "/cancellation" },
     { name: "Records", path: "/records" },
     { name: "Reports", path: "/reports" },
     { name: "Settings", path: "/settings" },
