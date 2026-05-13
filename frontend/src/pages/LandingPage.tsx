@@ -104,16 +104,15 @@ export default function LandingPage() {
                 <section className="mx-auto grid min-h-[calc(100vh-88px)] w-full max-w-7xl items-center gap-10 px-6 pb-14 pt-8 lg:grid-cols-[1.02fr_0.98fr] lg:px-8 lg:pb-16">
                     <div className="max-w-3xl">
                         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
-                            Cancellation Monitoring System
+                            Small Town Lottery
                         </p>
 
                         <h1 className="mt-5 max-w-4xl text-5xl font-bold leading-[1.02] text-gray-800 sm:text-6xl lg:text-7xl">
-                            Monitor cancellations with calm, real-time control.
+                            Hexaprime Inc.
                         </h1>
 
                         <p className="mt-6 max-w-2xl text-lg leading-8 text-gray-600">
-                            Hexaprime teams can review every request, spot pending work, and keep
-                            resolution data ready without losing the clean dashboard experience.
+                            Sharing Care, Beyond the line with Hexaprime!
                         </p>
 
                         <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -187,41 +186,12 @@ export default function LandingPage() {
                                 "0 20px 60px rgba(31, 38, 135, 0.14), inset 0 1px 0 rgba(255,255,255,0.65)",
                         }}
                     >
-                        <div
-                            className="absolute -left-4 top-10 hidden rounded-3xl px-5 py-4 shadow-xl backdrop-blur-xl sm:block"
-                            style={{
-                                background: "rgba(255, 255, 255, 0.42)",
-                                border: "1px solid rgba(255, 255, 255, 0.55)",
-                            }}
-                        >
-                            <p className="text-xs font-semibold uppercase tracking-[0.15em] text-gray-500">
-                                Pending
-                            </p>
-                            <p className="mt-1 text-3xl font-bold" style={{ color: "#92C7CF" }}>
-                                32
-                            </p>
-                        </div>
 
                         <img
                             src={heroImage}
                             alt="Cancellation monitoring dashboard preview"
                             className="h-full max-h-[620px] min-h-[360px] w-full rounded-[1.25rem] object-cover"
                         />
-
-                        <div
-                            className="absolute bottom-7 right-7 rounded-3xl px-5 py-4 shadow-xl backdrop-blur-xl"
-                            style={{
-                                background: "rgba(255, 255, 255, 0.44)",
-                                border: "1px solid rgba(255, 255, 255, 0.55)",
-                            }}
-                        >
-                            <p className="text-xs font-semibold uppercase tracking-[0.15em] text-gray-500">
-                                Resolved
-                            </p>
-                            <p className="mt-1 text-3xl font-bold" style={{ color: "#92C7CF" }}>
-                                96
-                            </p>
-                        </div>
                     </div>
                 </section>
             </main>
