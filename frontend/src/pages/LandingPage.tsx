@@ -74,19 +74,19 @@ export default function LandingPage() {
                 </span>
 
                 <nav className="hidden items-center gap-7 text-sm font-medium text-gray-600 md:flex">
-                    <button onClick={() => requireAuth("/dashboard")} className="transition-colors hover:text-gray-900">
+                    <Link to="/dashboard" className="transition-colors hover:text-gray-900">
                         Dashboard
-                    </button>
-                    <button onClick={() => requireAuth("/records")} className="transition-colors hover:text-gray-900">
+                    </Link>
+                    <Link to="/records" className="transition-colors hover:text-gray-900">
                         Records
-                    </button>
-                    <button onClick={() => requireAuth("/reports")} className="transition-colors hover:text-gray-900">
+                    </Link>
+                    <Link to="/reports" className="transition-colors hover:text-gray-900">
                         Reports
-                    </button>
+                    </Link>
                 </nav>
 
-                <button
-                    onClick={() => requireAuth("/dashboard")}
+                <Link
+                    to="/dashboard"
                     className="inline-flex h-11 items-center gap-2 rounded-2xl px-4 text-sm font-semibold text-gray-800 transition-transform hover:-translate-y-0.5"
                     style={{
                         background: "rgba(255, 255, 255, 0.38)",
