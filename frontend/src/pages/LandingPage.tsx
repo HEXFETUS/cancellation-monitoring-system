@@ -45,20 +45,23 @@ export default function LandingPage() {
                 </Link>
 
                 <nav className="hidden items-center gap-7 text-sm font-medium text-gray-600 md:flex">
-                    <Link to="/dashboard" className="transition-colors hover:text-gray-900">
-                        Dashboard
+                    <Link to="/" className="transition-colors hover:text-gray-900">
+                        Home
                     </Link>
-                    <Link to="/records" className="transition-colors hover:text-gray-900">
-                        Records
+                    <Link to="/" className="transition-colors hover:text-gray-900">
+                        Social Responsibility
                     </Link>
-                    <Link to="/reports" className="transition-colors hover:text-gray-900">
-                        Reports
+                    <Link to="/" className="transition-colors hover:text-gray-900">
+                        Results
+                    </Link>
+                    <Link to="/" className="transition-colors hover:text-gray-900">
+                        About Us
                     </Link>
                 </nav>
 
                 <Link
                     to="/dashboard"
-                    className="inline-flex h-11 items-center gap-2 rounded-2xl px-4 text-sm font-semibold text-gray-800 transition-transform hover:-translate-y-0.5"
+                    className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl px-6 text-sm font-semibold text-white shadow-lg transition-transform hover:-translate-y-0.5"
                     style={{
                         background: "rgba(255, 255, 255, 0.38)",
                         border: "1px solid rgba(255, 255, 255, 0.55)",
