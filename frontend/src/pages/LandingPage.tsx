@@ -74,14 +74,48 @@ export default function LandingPage() {
                 </span>
 
                 <nav className="hidden items-center gap-7 text-sm font-medium text-gray-600 md:flex">
-                    <button onClick={() => requireAuth("/dashboard")} className="transition-colors hover:text-gray-900">
-                        Dashboard
+                    <button
+                        onClick={() =>
+                            document
+                                .getElementById("home")
+                                ?.scrollIntoView({ behavior: "smooth" })
+                        }
+                        className="transition-colors hover:text-gray-900"
+                    >
+                        Home
                     </button>
-                    <button onClick={() => requireAuth("/records")} className="transition-colors hover:text-gray-900">
-                        Records
+
+                    <button
+                        onClick={() =>
+                            document
+                                .getElementById("social-responsibility")
+                                ?.scrollIntoView({ behavior: "smooth" })
+                        }
+                        className="transition-colors hover:text-gray-900"
+                    >
+                        Social Responsibility
                     </button>
-                    <button onClick={() => requireAuth("/reports")} className="transition-colors hover:text-gray-900">
-                        Reports
+
+                    <button
+                        onClick={() =>
+                            document
+                                .getElementById("results")
+                                ?.scrollIntoView({ behavior: "smooth" })
+                        }
+                        className="transition-colors hover:text-gray-900"
+                    >
+                        Results
+                    </button>
+
+                    <button
+                        onClick={() =>
+                            document
+                                .getElementById("about-us")
+                                ?.scrollIntoView({ behavior: "smooth" })
+                        }
+                        className="transition-colors hover:text-gray-900"
+                    >
+                        About Us
                     </button>
                 </nav>
 
@@ -95,11 +129,13 @@ export default function LandingPage() {
                             "0 8px 28px rgba(31, 38, 135, 0.10), inset 0 1px 0 rgba(255,255,255,0.65)",
                     }}
                 >
-                    Open App
+                    Log in
                     <ArrowRight className="h-4 w-4" aria-hidden="true" />
                 </button>
             </header>
-
+            <section id="home">
+                {/* Home content */}
+            </section>
             <main>
                 <section className="mx-auto grid min-h-[calc(100vh-88px)] w-full max-w-7xl items-center gap-10 px-6 pb-14 pt-8 lg:grid-cols-[1.02fr_0.98fr] lg:px-8 lg:pb-16">
                     <div className="max-w-3xl">
@@ -115,32 +151,9 @@ export default function LandingPage() {
                             Sharing Care, Beyond the line with Hexaprime!
                         </p>
 
-                        <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                            <button
-                                onClick={() => requireAuth("/dashboard")}
-                                className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl px-6 text-sm font-semibold text-white shadow-lg transition-transform hover:-translate-y-0.5"
-                                style={{
-                                    background:
-                                        "linear-gradient(135deg, #92C7CF 0%, #AAD7D9 100%)",
-                                }}
-                            >
-                                View Dashboard
-                                <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                            </button>
-                            <button
-                                onClick={() => requireAuth("/reports")}
-                                className="inline-flex h-12 items-center justify-center rounded-2xl px-6 text-sm font-semibold text-gray-700 transition-transform hover:-translate-y-0.5"
-                                style={{
-                                    background: "rgba(255, 255, 255, 0.34)",
-                                    border: "1px solid rgba(255, 255, 255, 0.52)",
-                                    boxShadow:
-                                        "0 8px 28px rgba(31, 38, 135, 0.08), inset 0 1px 0 rgba(255,255,255,0.65)",
-                                }}
-                            >
-                                Review Reports
-                            </button>
-                        </div>
-
+                        <section id="social-responsibility">
+                            {/* Social Responsibility content */}
+                        </section>
                         <div className="mt-11 grid gap-4 sm:grid-cols-3">
                             {highlights.map((item) => {
                                 const Icon = item.icon;
@@ -193,6 +206,12 @@ export default function LandingPage() {
                             className="h-full max-h-[620px] min-h-[360px] w-full rounded-[1.25rem] object-cover"
                         />
                     </div>
+                </section>
+                <section id="results">
+                    {/* Results content */}
+                </section>
+                <section id="about-us">
+                    {/* About Us content */}
                 </section>
             </main>
         </div>
