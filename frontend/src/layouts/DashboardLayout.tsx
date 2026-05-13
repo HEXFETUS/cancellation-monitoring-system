@@ -6,7 +6,7 @@ interface Props {
 }
 
 const menuItems = [
-    { name: "Dashboard", path: "/" },
+    { name: "Dashboard", path: "/dashboard" },
     { name: "Inventory", path: "/inventory" },
     { name: "Automation", path: "/automation" },
     { name: "Cancellation", path: "/cancellation" },
@@ -44,7 +44,8 @@ export default function DashboardLayout({ children }: Props) {
                 >
                     {/* Logo / Title */}
                     <div className="mb-10">
-                        <div
+                        <Link
+                            to="/"
                             className="inline-flex items-center justify-center w-51 h-12 rounded-2xl shadow-lg mb-4"
                             style={{
                                 background:
@@ -54,7 +55,7 @@ export default function DashboardLayout({ children }: Props) {
                             <span className="text-white font-bold text-lg">
                                 Hexaprime Inc.
                             </span>
-                        </div>
+                        </Link>
 
                     </div>
 
@@ -95,11 +96,10 @@ export default function DashboardLayout({ children }: Props) {
                                     />
 
                                     <span
-                                        className={`font-medium transition-colors duration-300 ${
-                                            isActive
+                                        className={`font-medium transition-colors duration-300 ${isActive
                                                 ? "text-gray-800"
                                                 : "text-gray-600 group-hover:text-gray-800"
-                                        }`}
+                                            }`}
                                     >
                                         {item.name}
                                     </span>
