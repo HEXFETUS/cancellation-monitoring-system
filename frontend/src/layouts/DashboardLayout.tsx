@@ -42,14 +42,14 @@ export default function DashboardLayout({ children }: Props) {
                     {/* Logo / Title */}
                     <div className="mb-10">
                         <div
-                            className="inline-flex items-center justify-center w-12 h-12 rounded-2xl shadow-lg mb-4"
+                            className="inline-flex items-center justify-center w-51 h-12 rounded-2xl shadow-lg mb-4"
                             style={{
                                 background:
                                     "linear-gradient(135deg, #92C7CF 0%, #AAD7D9 100%)",
                             }}
                         >
                             <span className="text-white font-bold text-lg">
-                                HP
+                                Hexaprime Inc.
                             </span>
                         </div>
 
