@@ -1,7 +1,10 @@
+import { useState } from "react";
 import { ArrowRight, BarChart3, BellRing, FileCheck2 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 
 import heroImage from "../assets/hero.png";
+import { useAuth } from "../context/AuthContext";
+import LoginModal from "../components/LoginModal";
 
 const highlights = [
     {
@@ -22,6 +25,31 @@ const highlights = [
 ];
 
 export default function LandingPage() {
+    const { isAuthenticated } = useAuth();
+    const navigate = useNavigate();
+    const [loginOpen, setLoginOpen] = useState(false);
+    const [pendingRoute, setPendingRoute] = useState<string | null>(null);
+
+    const requireAuth = (path: string) => {
+        if (isAuthenticated) {
+            navigate(path);
+        } else {
+            setPendingRoute(path);
+            setLoginOpen(true);
+        }
+    };
+
+    const handleLoginSuccess = () => {
+        setLoginOpen(false);
+        navigate(pendingRoute || "/dashboard");
+        setPendingRoute(null);
+    };
+
+    const handleClose = () => {
+        setLoginOpen(false);
+        setPendingRoute(null);
+    };
+
     return (
         <div
             className="min-h-screen overflow-hidden text-gray-800"
@@ -33,35 +61,33 @@ export default function LandingPage() {
                 `,
             }}
         >
+            <LoginModal open={loginOpen} onClose={handleClose} onSuccess={handleLoginSuccess} />
+
             <header className="mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-5 lg:px-8">
-                <Link
-                    to="/"
+                <span
                     className="inline-flex h-12 items-center rounded-2xl px-5 text-lg font-bold text-white shadow-lg"
                     style={{
                         background: "linear-gradient(135deg, #92C7CF 0%, #AAD7D9 100%)",
                     }}
                 >
                     Hexaprime Inc.
-                </Link>
+                </span>
 
                 <nav className="hidden items-center gap-7 text-sm font-medium text-gray-600 md:flex">
-                    <Link to="/" className="transition-colors hover:text-gray-900">
-                        Home
-                    </Link>
-                    <Link to="/" className="transition-colors hover:text-gray-900">
-                        Social Responsibility
-                    </Link>
-                    <Link to="/" className="transition-colors hover:text-gray-900">
-                        Results
-                    </Link>
-                    <Link to="/" className="transition-colors hover:text-gray-900">
-                        About Us
-                    </Link>
+                    <button onClick={() => requireAuth("/dashboard")} className="transition-colors hover:text-gray-900">
+                        Dashboard
+                    </button>
+                    <button onClick={() => requireAuth("/records")} className="transition-colors hover:text-gray-900">
+                        Records
+                    </button>
+                    <button onClick={() => requireAuth("/reports")} className="transition-colors hover:text-gray-900">
+                        Reports
+                    </button>
                 </nav>
 
-                <Link
-                    to="/dashboard"
-                    className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl px-6 text-sm font-semibold text-white shadow-lg transition-transform hover:-translate-y-0.5"
+                <button
+                    onClick={() => requireAuth("/dashboard")}
+                    className="inline-flex h-11 items-center gap-2 rounded-2xl px-4 text-sm font-semibold text-gray-800 transition-transform hover:-translate-y-0.5"
                     style={{
                         background: "rgba(255, 255, 255, 0.38)",
                         border: "1px solid rgba(255, 255, 255, 0.55)",
@@ -71,7 +97,7 @@ export default function LandingPage() {
                 >
                     Open App
                     <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                </Link>
+                </button>
             </header>
 
             <main>
@@ -90,8 +116,8 @@ export default function LandingPage() {
                         </p>
 
                         <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                            <Link
-                                to="/dashboard"
+                            <button
+                                onClick={() => requireAuth("/dashboard")}
                                 className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl px-6 text-sm font-semibold text-white shadow-lg transition-transform hover:-translate-y-0.5"
                                 style={{
                                     background:
@@ -100,9 +126,9 @@ export default function LandingPage() {
                             >
                                 View Dashboard
                                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                            </Link>
-                            <Link
-                                to="/reports"
+                            </button>
+                            <button
+                                onClick={() => requireAuth("/reports")}
                                 className="inline-flex h-12 items-center justify-center rounded-2xl px-6 text-sm font-semibold text-gray-700 transition-transform hover:-translate-y-0.5"
                                 style={{
                                     background: "rgba(255, 255, 255, 0.34)",
@@ -112,7 +138,7 @@ export default function LandingPage() {
                                 }}
                             >
                                 Review Reports
-                            </Link>
+                            </button>
                         </div>
 
                         <div className="mt-11 grid gap-4 sm:grid-cols-3">

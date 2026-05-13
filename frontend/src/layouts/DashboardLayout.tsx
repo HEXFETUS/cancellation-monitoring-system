@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { LogOut } from "lucide-react";
+import { useAuth } from "../context/AuthContext";
 
 interface Props {
     children: ReactNode;
@@ -17,6 +19,13 @@ const menuItems = [
 
 export default function DashboardLayout({ children }: Props) {
     const location = useLocation();
+    const { logout } = useAuth();
+    const navigate = useNavigate();
+
+    const handleLogout = () => {
+        logout();
+        navigate("/");
+    };
 
     return (
         <div
@@ -108,9 +117,18 @@ export default function DashboardLayout({ children }: Props) {
                         })}
                     </nav>
 
+                    {/* Logout */}
+                    <button
+                        onClick={handleLogout}
+                        className="flex items-center w-full px-4 py-3 rounded-2xl transition-all duration-300 text-gray-600 hover:text-gray-800 hover:bg-white/20 border border-transparent hover:border-white/30"
+                    >
+                        <LogOut className="h-4 w-4 mr-3" />
+                        <span className="font-medium text-sm">Sign Out</span>
+                    </button>
+
                     {/* Footer */}
                     <div
-                        className="mt-6 rounded-2xl p-4 border"
+                        className="mt-3 rounded-2xl p-4 border"
                         style={{
                             background: "rgba(255, 255, 255, 0.20)",
                             border: "1px solid rgba(255, 255, 255, 0.35)",
