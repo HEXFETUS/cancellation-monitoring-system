@@ -2,7 +2,7 @@ import { useState } from "react";
 import { ArrowRight, BarChart3, BellRing, FileCheck2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
-import heroImage from "../assets/hero.png";
+import heroImage from "../assets/hero2.png";
 import { useAuth } from "../context/AuthContext";
 import LoginModal from "../components/LoginModal";
 
@@ -191,7 +191,7 @@ export default function LandingPage() {
                     </div>
 
                     <div
-                        className="relative rounded-3xl p-3 shadow-2xl backdrop-blur-2xl"
+                        className="relative rounded-sx"
                         style={{
                             background: "rgba(255, 255, 255, 0.28)",
                             border: "1px solid rgba(255, 255, 255, 0.48)",
@@ -203,7 +203,7 @@ export default function LandingPage() {
                         <img
                             src={heroImage}
                             alt="Cancellation monitoring dashboard preview"
-                            className="h-full max-h-[620px] min-h-[360px] w-full rounded-[1.25rem] object-cover"
+                            className="h-full max-h-[620px] min-h-[360px] w-full rounded-xs object-cover"
                         />
                     </div>
                 </section>
