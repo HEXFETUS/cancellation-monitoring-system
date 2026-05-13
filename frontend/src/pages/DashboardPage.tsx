@@ -18,6 +18,24 @@ export default function DashboardPage() {
             description: "Successfully completed requests",
             accent: "#92C7CF",
         },
+                {
+            title: "Automation Status",
+            value: "Running",
+            description: "Cartracker",
+            accent: "#92C7CF",
+        },
+        {
+            title: "Active Booths",
+            value: "1324",
+            description: "Running POS terminals",
+            accent: "#AAD7D9",
+        },
+        {
+            title: "Under Repair",
+            value: "30",
+            description: "POS terminals requiring maintenance",
+            accent: "#92C7CF",
+        },
     ];
 
     return (
@@ -89,7 +107,6 @@ export default function DashboardPage() {
                     </div>
                 ))}
             </div>
-
             {/* Overview Panel */}
             <div
                 className="mt-8 rounded-3xl p-6 border shadow-2xl backdrop-blur-xl"
@@ -105,12 +122,6 @@ export default function DashboardPage() {
                 <h3 className="text-xl font-semibold text-gray-800">
                     System Overview
                 </h3>
-                <p className="mt-3 text-gray-600 leading-relaxed">
-                    Monitor cancellation requests in real time with a modern
-                    glassmorphism interface. Soft gradients, subtle blur, and
-                    transparent panels create a clean and professional dashboard
-                    experience.
-                </p>
             </div>
         </div>
     );
