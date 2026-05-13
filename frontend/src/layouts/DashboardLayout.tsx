@@ -1,51 +1,42 @@
-export default function DashboardLayout() {
+import type { ReactNode } from "react";
+import { Link } from "react-router-dom";
+
+interface Props {
+    children: ReactNode;
+}
+
+export default function DashboardLayout({ children }: Props) {
     return (
         <div className="flex h-screen">
 
             {/* Sidebar */}
-            <aside className="w-64 bg-gray-900 text-white p-5">
-                <h1 className="text-xl font-bold mb-6">
+            <aside className="w-64 bg-gray-900 text-white p-4 space-y-4">
+                <h1 className="text-xl font-bold">
                     Cancellation System
                 </h1>
 
-                <nav className="space-y-3">
-                    <div className="p-2 rounded hover:bg-gray-800 cursor-pointer">
+                <nav className="space-y-2">
+                    <Link to="/" className="block hover:text-gray-300">
                         Dashboard
-                    </div>
-                    <div className="p-2 rounded hover:bg-gray-800 cursor-pointer">
+                    </Link>
+
+                    <Link to="/records" className="block hover:text-gray-300">
                         Records
-                    </div>
-                    <div className="p-2 rounded hover:bg-gray-800 cursor-pointer">
+                    </Link>
+
+                    <Link to="/reports" className="block hover:text-gray-300">
                         Reports
-                    </div>
+                    </Link>
+
+                    <Link to="/settings" className="block hover:text-gray-300">
+                        Settings
+                    </Link>
                 </nav>
             </aside>
 
-            {/* Main content */}
-            <main className="flex-1 p-6 bg-gray-100">
-                <h2 className="text-2xl font-bold">
-                    Dashboard Overview
-                </h2>
-
-                <div className="grid grid-cols-3 gap-4 mt-6">
-
-                    <div className="bg-white p-4 rounded shadow">
-                        <p>Total Cancellations</p>
-                        <h3 className="text-2xl font-bold">128</h3>
-                    </div>
-
-                    <div className="bg-white p-4 rounded shadow">
-                        <p>Pending</p>
-                        <h3 className="text-2xl font-bold text-yellow-500">34</h3>
-                    </div>
-
-                    <div className="bg-white p-4 rounded shadow">
-                        <p>Resolved</p>
-                        <h3 className="text-2xl font-bold text-green-500">94</h3>
-                    </div>
-
-                </div>
-
+            {/* Main Content */}
+            <main className="flex-1 bg-gray-100 p-6 overflow-auto">
+                {children}
             </main>
 
         </div>
