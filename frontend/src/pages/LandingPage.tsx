@@ -9,6 +9,8 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+
+import heroImage from "../assets/hero.png";
 import { useAuth } from "../context/AuthContext";
 import LoginModal from "../components/LoginModal";
 
@@ -453,87 +455,30 @@ export default function LandingPage() {
               </p>
             </div>
 
-            <div className="mt-12 grid gap-6 md:grid-cols-2 max-w-2xl mx-auto">
-              {[
-                { label: "3D", value: "128", desc: "Lucky Pick" },
-                { label: "STL", value: "143", desc: "Direct Draw" },
-              ].map(({ label, value, desc }) => (
-                <div
-                  key={label}
-                  className="rounded-2xl border border-gray-200 bg-white p-8 text-center hover:shadow-md transition-all"
-                >
-                  <span className="text-xs font-semibold tracking-wider text-blue-500 uppercase">
-                    {desc}
-                  </span>
-                  <p className="mt-1 text-sm text-gray-500 font-medium">
-                    {label}
-                  </p>
-                  <p className="mt-3 text-5xl sm:text-6xl font-bold tracking-tight text-gray-900">
-                    {value}
-                  </p>
-                  <p className="mt-4 text-xs text-gray-400">
-                    Draw Date: {new Date().toLocaleDateString("en-US", {
-                      month: "long",
-                      day: "numeric",
-                      year: "numeric",
-                    })}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
+                    <div
+                        className="relative rounded-3xl p-3 shadow-2xl backdrop-blur-2xl"
+                        style={{
+                            background: "rgba(255, 255, 255, 0.28)",
+                            border: "1px solid rgba(255, 255, 255, 0.48)",
+                            boxShadow:
+                                "0 20px 60px rgba(31, 38, 135, 0.14), inset 0 1px 0 rgba(255,255,255,0.65)",
+                        }}
+                    >
 
-        {/* ─── ABOUT US ─── */}
-        <section id="about-us" className="py-24 sm:py-32">
-          <div
-            className={`mx-auto max-w-7xl px-6 lg:px-8 transition-all duration-700 ${
-              inView["about-us"]
-                ? "opacity-100 translate-y-0"
-                : "opacity-0 translate-y-10"
-            }`}
-          >
-            <div className="mx-auto max-w-3xl text-center">
-              <span className="text-xs font-semibold tracking-[0.2em] text-blue-500 uppercase">
-                Who We Are
-              </span>
-              <h2 className="mt-3 text-3xl sm:text-4xl font-bold tracking-tight text-gray-900">
-                About Hexaprime
-              </h2>
-              <p className="mt-6 text-gray-500 leading-relaxed text-base sm:text-lg">
-                Hexaprime Inc. builds secure and transparent STL systems across
-                the Philippines. We are dedicated to providing fair, regulated
-                gaming experiences while channeling resources back into
-                community development and disaster response initiatives.
-              </p>
-              <div className="mt-10 flex justify-center gap-3">
-                <div className="flex items-center gap-2 rounded-full bg-gray-100 px-4 py-2 text-sm text-gray-700">
-                  <TrendingUp className="h-4 w-4 text-blue-500" />
-                  Trusted by 15+ LGUs
-                </div>
-                <div className="flex items-center gap-2 rounded-full bg-gray-100 px-4 py-2 text-sm text-gray-700">
-                  <Shield className="h-4 w-4 text-blue-500" />
-                  Fully Compliant
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-      </main>
-
-      {/* ─── FOOTER ─── */}
-      <footer className="border-t border-gray-100 bg-gray-50">
-        <div className="mx-auto max-w-7xl px-6 py-10 lg:px-8">
-          <div className="flex flex-col items-center gap-4 sm:flex-row sm:justify-between">
-            <span className="text-sm font-bold tracking-tight text-gray-900">
-              Hexaprime<span className="text-blue-500">.</span>
-            </span>
-            <p className="text-xs text-gray-400">
-              &copy; {new Date().getFullYear()} Hexaprime Inc. All rights reserved.
-            </p>
-          </div>
+                        <img
+                            src={heroImage}
+                            alt="Cancellation monitoring dashboard preview"
+                            className="h-full max-h-[620px] min-h-[360px] w-full rounded-[1.25rem] object-cover"
+                        />
+                    </div>
+                </section>
+                <section id="results">
+                    {/* Results content */}
+                </section>
+                <section id="about-us">
+                    {/* About Us content */}
+                </section>
+            </main>
         </div>
-      </footer>
-    </div>
-  );
+    );
 }
