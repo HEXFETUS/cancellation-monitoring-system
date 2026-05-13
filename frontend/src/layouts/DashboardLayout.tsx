@@ -53,15 +53,6 @@ export default function DashboardLayout({ children }: Props) {
                             </span>
                         </div>
 
-                        <h1 className="text-2xl font-bold text-gray-800 leading-tight">
-                            Cancellation
-                            <br />
-                            System
-                        </h1>
-
-                        <p className="mt-2 text-sm text-gray-500">
-                            Monitoring Dashboard
-                        </p>
                     </div>
 
                     {/* Navigation */}
