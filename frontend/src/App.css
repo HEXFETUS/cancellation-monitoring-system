@@ -1,3 +1,18 @@
+/* Hide scrollbar (Chrome, Edge, Safari) */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Hide scrollbar (Firefox) */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+/* Ensure scrolling still works */
+html, body {
+  overflow-y: scroll;
+}
 .counter {
   font-size: 16px;
   padding: 5px 10px;

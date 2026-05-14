@@ -1,5 +1,11 @@
-import { useState } from "react";
-import { ArrowRight, BarChart3, BellRing, FileCheck2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import {
+    ArrowRight,
+    BarChart3,
+    BellRing,
+    FileCheck2,
+    ShieldCheck,
+} from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 import heroImage from "../assets/hero.png";
@@ -46,6 +52,36 @@ const socialImpact = [
 >>>>>>> 3bd9ac7 (add content and header animation)
     },
 ];
+
+/* ---------------- IN VIEW HOOK ---------------- */
+const useInView = () => {
+    const [visible, setVisible] = useState<Record<string, boolean>>({});
+
+    useEffect(() => {
+        const observer = new IntersectionObserver(
+            (entries) => {
+                entries.forEach((entry) => {
+                    setVisible((prev) => ({
+                        ...prev,
+                        [entry.target.id]: entry.isIntersecting,
+                    }));
+                });
+            },
+            { threshold: 0.15 }
+        );
+
+        const ids = ["home", "social-responsibility", "results", "about-us"];
+
+        ids.forEach((id) => {
+            const el = document.getElementById(id);
+            if (el) observer.observe(el);
+        });
+
+        return () => observer.disconnect();
+    }, []);
+
+    return visible;
+};
 
 export default function LandingPage() {
     const { isAuthenticated } = useAuth();
@@ -110,9 +146,16 @@ export default function LandingPage() {
     const [isScrolled, setIsScrolled] = useState(false);
     const [isCompact, setIsCompact] = useState(false);
     const [activeSection, setActiveSection] = useState("home");
-
-    /* 🌊 PARALLAX DRIVER */
     const [scrollY, setScrollY] = useState(0);
+
+    const sectionInView = useInView();
+
+    const navItems = [
+        { id: "home", label: "Home" },
+        { id: "social-responsibility", label: "Social Responsibility" },
+        { id: "results", label: "Results" },
+        { id: "about-us", label: "About Us" },
+    ];
 
     const requireAuth = (path: string) => {
         if (isAuthenticated) navigate(path);
@@ -129,22 +172,28 @@ export default function LandingPage() {
         });
     };
 
-    /* ---------------- SCROLL SYSTEM ---------------- */
+    const sectionAnim = (id: string) =>
+        `transition-all duration-700 ease-out ${
+            sectionInView[id]
+                ? "opacity-100 translate-y-0"
+                : "opacity-0 translate-y-10"
+        }`;
+
+    const navItemClass = (id: string) =>
+        `transition-colors ${
+            activeSection === id
+                ? "text-gray-900 font-semibold"
+                : "text-gray-600 hover:text-gray-900"
+        }`;
+
+    /* ---------------- SCROLL + OBSERVER ---------------- */
     useEffect(() => {
-        const sectionIds = [
-            "home",
-            "social-responsibility",
-            "results",
-            "about-us",
-        ];
+        const sectionIds = navItems.map((n) => n.id);
 
         const onScroll = () => {
             const y = window.scrollY;
-
-            setIsScrolled(y > 40);
-            setIsCompact(y > 80);
-
-            /* 🌊 parallax driver */
+            setIsScrolled(y > 30);
+            setIsCompact(y > 70);
             setScrollY(y);
         };
 
@@ -155,18 +204,15 @@ export default function LandingPage() {
             (entries) => {
                 const visible = entries
                     .filter((e) => e.isIntersecting)
-                    .sort(
-                        (a, b) =>
-                            b.intersectionRatio - a.intersectionRatio
-                    );
+                    .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
 
-                if (visible.length > 0) {
+                if (visible.length) {
                     setActiveSection(visible[0].target.id);
                 }
             },
             {
                 threshold: [0.2, 0.5, 0.8],
-                rootMargin: "-20% 0px -50% 0px",
+                rootMargin: "-20% 0px -45% 0px",
             }
         );
 
@@ -181,15 +227,9 @@ export default function LandingPage() {
         };
     }, []);
 
-    const navItemClass = (id: string) =>
-        `transition-colors ${
-            activeSection === id
-                ? "text-gray-900 font-semibold"
-                : "text-gray-600 hover:text-gray-900"
-        }`;
-
     return (
-        <div className="min-h-screen overflow-x-hidden text-gray-800 bg-gradient-to-br from-[#FBF9F1] to-[#E5E1DA]">
+        <div className="min-h-screen overflow-x-hidden text-gray-800 bg-gradient-to-br from-[#FBF9F1] to-[#E5E1DA] no-scrollbar">
+
             <LoginModal
                 open={loginOpen}
                 onClose={() => setLoginOpen(false)}
@@ -201,21 +241,19 @@ export default function LandingPage() {
 
             {/* HEADER */}
             <header
-                className={`fixed top-0 left-0 z-50 w-full backdrop-blur-xl border-b transition-all duration-500 ${
+                className={`fixed top-0 left-0 z-50 w-full backdrop-blur-xl border-b transition-all duration-300 ${
                     isScrolled
                         ? "bg-transparent border-white/20"
                         : "bg-white/40 border-white/30"
                 }`}
             >
                 <div
-                    className={`mx-auto flex max-w-7xl items-center justify-between px-6 lg:px-8 transition-all duration-500 ${
-                        isCompact ? "py-2" : "py-5"
+                    className={`mx-auto flex max-w-7xl items-center justify-between px-6 lg:px-8 ${
+                        isCompact ? "py-2" : "py-4"
                     }`}
                 >
                     <span
-                        className={`text-white font-semibold rounded-2xl shadow-lg flex items-center transition-all ${
-                            isCompact ? "px-4 h-9 text-sm" : "px-5 h-12"
-                        }`}
+                        className="text-white font-semibold rounded-2xl shadow-lg flex items-center px-4 h-10 text-sm"
                         style={{
                             background:
                                 "linear-gradient(135deg,#92C7CF,#AAD7D9)",
@@ -224,28 +262,21 @@ export default function LandingPage() {
                         Hexaprime Inc.
                     </span>
 
-                    <nav className="hidden md:flex gap-7 text-sm font-semibold">
-                        {[
-                            "home",
-                            "social-responsibility",
-                            "results",
-                            "about-us",
-                        ].map((id) => (
+                    <nav className="hidden md:flex gap-6 text-sm font-semibold">
+                        {navItems.map((item) => (
                             <button
-                                key={id}
-                                onClick={() => scrollToSection(id)}
-                                className={navItemClass(id)}
+                                key={item.id}
+                                onClick={() => scrollToSection(item.id)}
+                                className={navItemClass(item.id)}
                             >
-                                {id.replace("-", " ")}
+                                {item.label}
                             </button>
                         ))}
                     </nav>
 
                     <button
                         onClick={() => requireAuth("/dashboard")}
-                        className={`rounded-2xl font-semibold text-sm transition-all bg-white/40 border border-white/50 ${
-                            isCompact ? "px-4 h-9" : "px-5 h-10"
-                        }`}
+                        className="px-4 h-10 rounded-2xl text-sm font-semibold bg-white/40 border border-white/50"
                     >
                         Log In <ArrowRight className="inline h-4 w-4" />
 >>>>>>> 3bd9ac7 (add content and header animation)
@@ -300,39 +331,25 @@ export default function LandingPage() {
                     <ArrowRight className="h-4 w-4" aria-hidden="true" />
                 </button>
             </header>
-            <section id="home">
-                {/* Home content */}
-            </section>
-            <main>
-                <section className="mx-auto grid min-h-[calc(100vh-88px)] w-full max-w-7xl items-center gap-10 px-6 pb-14 pt-8 lg:grid-cols-[1.02fr_0.98fr] lg:px-8 lg:pb-16">
-                    <div className="max-w-3xl">
-                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
-=======
+
             <main className="pt-[88px]">
                 {/* 🌊 PARALLAX HERO */}
                 <section
                     id="home"
-                    className="relative mx-auto grid min-h-[95vh] max-w-7xl items-center gap-14 px-6 lg:grid-cols-2 lg:px-8 overflow-hidden"
+                    className={`relative mx-auto grid min-h-[88vh] max-w-7xl items-center gap-10 px-6 lg:grid-cols-2 lg:px-8 overflow-hidden ${sectionAnim(
+                        "home"
+                    )}`}
                 >
-                    {/* BACKGROUND LAYERS */}
                     <div
                         className="absolute inset-0 -z-10"
-                        style={{
-                            transform: `translateY(${scrollY * 0.15}px)`,
-                        }}
+                        style={{ transform: `translateY(${scrollY * 0.12}px)` }}
                     >
-                        <div className="absolute -top-32 -left-32 h-[400px] w-[400px] rounded-full bg-[#92C7CF]/30 blur-3xl" />
-                        <div className="absolute top-40 right-[-100px] h-[500px] w-[500px] rounded-full bg-[#AAD7D9]/30 blur-3xl" />
+                        <div className="absolute -top-24 -left-24 h-[320px] w-[320px] rounded-full bg-[#92C7CF]/30 blur-3xl" />
+                        <div className="absolute top-32 right-[-80px] h-[420px] w-[420px] rounded-full bg-[#AAD7D9]/30 blur-3xl" />
                     </div>
 
-                    {/* TEXT LAYER */}
-                    <div
-                        style={{
-                            transform: `translateY(${scrollY * 0.08}px)`,
-                        }}
-                        className="max-w-3xl"
-                    >
-                        <div className="inline-flex items-center gap-2 rounded-full border border-white/50 bg-white/50 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-gray-600 backdrop-blur-md">
+                    <div style={{ transform: `translateY(${scrollY * 0.06}px)` }}>
+                        <div className="inline-flex items-center gap-2 rounded-full bg-white/50 px-4 py-2 text-xs font-semibold tracking-[0.15em] text-gray-600 backdrop-blur-md">
                             <ShieldCheck className="h-4 w-4 text-[#5f9da7]" />
 >>>>>>> 3bd9ac7 (add content and header animation)
                             Small Town Lottery
@@ -386,13 +403,6 @@ export default function LandingPage() {
                         </div>
                     </div>
 
-                    <div>
-                        <img
-                            src={heroImage}
-                            alt="Cancellation monitoring dashboard preview"
-                            className="h-full max-h-[620px] min-h-[360px] w-full rounded-xs object-cover"
-                        />
-=======
                         <h1 className="mt-6 text-5xl font-bold leading-tight text-gray-800 sm:text-6xl lg:text-7xl">
                             Sharing Care Beyond the Line
                             <span
@@ -405,10 +415,6 @@ export default function LandingPage() {
                                 with Hexaprime
                             </span>
                         </h1>
-
-                        <p className="mt-6 text-lg text-gray-600">
-                            Transparent STL systems with community-driven impact across the Philippines.
-                        </p>
                     </div>
 
                     {/* IMAGE LAYER */}
@@ -426,35 +432,35 @@ export default function LandingPage() {
                         </div>
 
                         <div className="absolute -bottom-10 -right-10 h-40 w-40 rounded-full bg-[#92C7CF]/30 blur-3xl" />
->>>>>>> 3bd9ac7 (add content and header animation)
                     </div>
                 </section>
 
-                {/* SOCIAL RESPONSIBILITY */}
+                {/* SOCIAL */}
                 <section
                     id="social-responsibility"
-                    className="mx-auto max-w-7xl px-6 py-20"
+                    className={`mx-auto max-w-7xl px-6 py-4 ${sectionAnim(
+                        "social-responsibility"
+                    )}`}
                 >
-                    <div className="rounded-[3rem] bg-white/30 border border-white/40 backdrop-blur-xl p-12">
-                        <h2 className="text-4xl font-bold">
+                    <div className="rounded-[2.5rem] bg-white/30 border border-white/40 backdrop-blur-xl p-10">
+                        <h2 className="text-3xl font-bold">
                             Social Responsibility
                         </h2>
 
-                        <div className="mt-10 grid md:grid-cols-3 gap-6">
+                        <div className="mt-8 grid md:grid-cols-3 gap-6">
                             {socialImpact.map((item) => (
                                 <div
                                     key={item.title}
-                                    className="p-6 rounded-3xl bg-white/40 border border-white/50 backdrop-blur-xl"
+                                    className="p-6 rounded-2xl bg-white/40 border border-white/50"
                                 >
-                                    <h3 className="font-semibold text-lg">
+                                    <h3 className="font-semibold">
                                         {item.title}
                                     </h3>
                                     <p className="text-sm mt-3 text-gray-600">
                                         {item.description}
                                     </p>
-                                    <p className="mt-4 text-sm">
-                                        <b>People Helped:</b>{" "}
-                                        {item.peopleHelped}
+                                    <p className="mt-3 text-sm">
+                                        <b>Helped:</b> {item.peopleHelped}
                                     </p>
                                     <p className="text-sm">
                                         <b>Location:</b> {item.location}
@@ -466,14 +472,53 @@ export default function LandingPage() {
                 </section>
 
                 {/* RESULTS */}
-                <section id="results" className="mx-auto max-w-7xl px-6 py-20">
-                    <h2 className="text-4xl font-bold">Results</h2>
+                <section
+                    id="results"
+                    className={`mx-auto max-w-7xl px-6 py-4 ${sectionAnim(
+                        "results"
+                    )}`}
+                >
+                    <div className="rounded-[2.5rem] border border-white/40 bg-white/30 backdrop-blur-xl p-10">
+                        <h2 className="text-3xl font-bold">Today's Result</h2>
+
+                        <div className="mt-8 grid md:grid-cols-2 gap-6">
+                            {[
+                                ["3D", "128"],
+                                ["STL", "143"],
+                            ].map(([label, value]) => (
+                                <div
+                                    key={label}
+                                    className="p-6 rounded-2xl bg-white/40 border border-white/50"
+                                >
+                                    <p className="text-sm text-gray-600">{label}</p>
+                                    <p className="text-3xl font-bold mt-2">
+                                        {value}
+                                    </p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
                 </section>
 
                 {/* ABOUT */}
-                <section id="about-us" className="mx-auto max-w-7xl px-6 py-20">
-                    <h2 className="text-4xl font-bold">About Us</h2>
+                <section
+                    id="about-us"
+                    className={`mx-auto max-w-7xl px-6 py-4 ${sectionAnim(
+                        "about-us"
+                    )}`}
+                >
+                    <div className="rounded-[2.5rem] border border-white/40 bg-white/30 backdrop-blur-xl p-10">
+                        <h2 className="text-3xl font-bold">
+                            About Hexaprime
+                        </h2>
+
+                        <p className="mt-4 text-gray-600 text-sm leading-6 max-w-3xl">
+                            Hexaprime Inc. builds secure and transparent STL systems
+                            across the Philippines.
+                        </p>
+                    </div>
                 </section>
+
             </main>
         </div>
     );
