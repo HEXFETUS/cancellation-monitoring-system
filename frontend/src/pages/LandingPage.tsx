@@ -1,229 +1,333 @@
-import { useState } from "react";
-import { ArrowRight, BarChart3, BellRing, FileCheck2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ArrowRight, ShieldCheck } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 import heroImage from "../assets/hero.png";
 import { useAuth } from "../context/AuthContext";
 import LoginModal from "../components/LoginModal";
 
-const highlights = [
+/* ---------------- DATA ---------------- */
+const socialImpact = [
     {
-        title: "Live queue visibility",
-        description: "Track requests, status changes, and response times from one calm workspace.",
-        icon: BellRing,
+        title: "Typhoon Relief Operations",
+        description:
+            "Distributed food packs and emergency supplies to families affected by severe flooding and strong winds.",
+        peopleHelped: "2,450+ individuals",
+        location: "Davao Region",
     },
     {
-        title: "Auditable records",
-        description: "Keep every cancellation decision organized for fast review and reporting.",
-        icon: FileCheck2,
+        title: "Flood Evacuation Support",
+        description:
+            "Provided temporary shelter assistance and basic needs for displaced communities during heavy flooding.",
+        peopleHelped: "1,800+ individuals",
+        location: "Mindanao Areas",
     },
     {
-        title: "Operational reporting",
-        description: "Turn daily activity into clean summaries your team can act on immediately.",
-        icon: BarChart3,
+        title: "Earthquake Response Aid",
+        description:
+            "Delivered essential kits and medical support to affected barangays after seismic activity.",
+        peopleHelped: "3,120+ individuals",
+        location: "Southern Philippines",
     },
 ];
+
+/* ---------------- IN VIEW HOOK ---------------- */
+const useInView = () => {
+    const [visible, setVisible] = useState<Record<string, boolean>>({});
+
+    useEffect(() => {
+        const observer = new IntersectionObserver(
+            (entries) => {
+                entries.forEach((entry) => {
+                    setVisible((prev) => ({
+                        ...prev,
+                        [entry.target.id]: entry.isIntersecting,
+                    }));
+                });
+            },
+            { threshold: 0.15 }
+        );
+
+        const ids = ["home", "social-responsibility", "results", "about-us"];
+
+        ids.forEach((id) => {
+            const el = document.getElementById(id);
+            if (el) observer.observe(el);
+        });
+
+        return () => observer.disconnect();
+    }, []);
+
+    return visible;
+};
 
 export default function LandingPage() {
     const { isAuthenticated } = useAuth();
     const navigate = useNavigate();
+
     const [loginOpen, setLoginOpen] = useState(false);
     const [pendingRoute, setPendingRoute] = useState<string | null>(null);
 
+    const [isScrolled, setIsScrolled] = useState(false);
+    const [isCompact, setIsCompact] = useState(false);
+    const [activeSection, setActiveSection] = useState("home");
+    const [scrollY, setScrollY] = useState(0);
+
+    const sectionInView = useInView();
+
+    const navItems = [
+        { id: "home", label: "Home" },
+        { id: "social-responsibility", label: "Social Responsibility" },
+        { id: "results", label: "Results" },
+        { id: "about-us", label: "About Us" },
+    ];
+
     const requireAuth = (path: string) => {
-        if (isAuthenticated) {
-            navigate(path);
-        } else {
+        if (isAuthenticated) navigate(path);
+        else {
             setPendingRoute(path);
             setLoginOpen(true);
         }
     };
 
-    const handleLoginSuccess = () => {
-        setLoginOpen(false);
-        navigate(pendingRoute || "/dashboard");
-        setPendingRoute(null);
+    const scrollToSection = (id: string) => {
+        document.getElementById(id)?.scrollIntoView({
+            behavior: "smooth",
+            block: "start",
+        });
     };
 
-    const handleClose = () => {
-        setLoginOpen(false);
-        setPendingRoute(null);
-    };
+    const sectionAnim = (id: string) =>
+        `transition-all duration-700 ease-out ${
+            sectionInView[id]
+                ? "opacity-100 translate-y-0"
+                : "opacity-0 translate-y-10"
+        }`;
+
+    const navItemClass = (id: string) =>
+        `transition-colors ${
+            activeSection === id
+                ? "text-gray-900 font-semibold"
+                : "text-gray-600 hover:text-gray-900"
+        }`;
+
+    /* ---------------- SCROLL + OBSERVER ---------------- */
+    useEffect(() => {
+        const sectionIds = navItems.map((n) => n.id);
+
+        const onScroll = () => {
+            const y = window.scrollY;
+            setIsScrolled(y > 30);
+            setIsCompact(y > 70);
+            setScrollY(y);
+        };
+
+        window.addEventListener("scroll", onScroll);
+        onScroll();
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                const visible = entries
+                    .filter((e) => e.isIntersecting)
+                    .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
+
+                if (visible.length) {
+                    setActiveSection(visible[0].target.id);
+                }
+            },
+            {
+                threshold: [0.2, 0.5, 0.8],
+                rootMargin: "-20% 0px -45% 0px",
+            }
+        );
+
+        sectionIds.forEach((id) => {
+            const el = document.getElementById(id);
+            if (el) observer.observe(el);
+        });
+
+        return () => {
+            window.removeEventListener("scroll", onScroll);
+            observer.disconnect();
+        };
+    }, []);
 
     return (
-        <div
-            className="min-h-screen overflow-hidden text-gray-800"
-            style={{
-                background: `
-                    radial-gradient(circle at top left, rgba(146,199,207,0.38), transparent 34%),
-                    radial-gradient(circle at 85% 18%, rgba(170,215,217,0.34), transparent 30%),
-                    linear-gradient(135deg, #FBF9F1 0%, #E5E1DA 100%)
-                `,
-            }}
-        >
-            <LoginModal open={loginOpen} onClose={handleClose} onSuccess={handleLoginSuccess} />
+        <div className="min-h-screen overflow-x-hidden text-gray-800 bg-gradient-to-br from-[#FBF9F1] to-[#E5E1DA] no-scrollbar">
 
-            <header className="mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-5 lg:px-8">
-                <span
-                    className="inline-flex h-12 items-center rounded-2xl px-5 text-lg font-bold text-white shadow-lg"
-                    style={{
-                        background: "linear-gradient(135deg, #92C7CF 0%, #AAD7D9 100%)",
-                    }}
+            <LoginModal
+                open={loginOpen}
+                onClose={() => setLoginOpen(false)}
+                onSuccess={() => {
+                    setLoginOpen(false);
+                    navigate(pendingRoute || "/dashboard");
+                }}
+            />
+
+            {/* HEADER */}
+            <header
+                className={`fixed top-0 left-0 z-50 w-full backdrop-blur-xl border-b transition-all duration-300 ${
+                    isScrolled
+                        ? "bg-transparent border-white/20"
+                        : "bg-white/40 border-white/30"
+                }`}
+            >
+                <div
+                    className={`mx-auto flex max-w-7xl items-center justify-between px-6 lg:px-8 ${
+                        isCompact ? "py-2" : "py-4"
+                    }`}
                 >
-                    Hexaprime Inc.
-                </span>
-
-                <nav className="hidden items-center gap-7 text-sm font-medium text-gray-600 md:flex">
-                    <button onClick={() => requireAuth("/dashboard")} className="transition-colors hover:text-gray-900">
-                        Dashboard
-                    </button>
-                    <button onClick={() => requireAuth("/records")} className="transition-colors hover:text-gray-900">
-                        Records
-                    </button>
-                    <button onClick={() => requireAuth("/reports")} className="transition-colors hover:text-gray-900">
-                        Reports
-                    </button>
-                </nav>
-
-                <button
-                    onClick={() => requireAuth("/dashboard")}
-                    className="inline-flex h-11 items-center gap-2 rounded-2xl px-4 text-sm font-semibold text-gray-800 transition-transform hover:-translate-y-0.5"
-                    style={{
-                        background: "rgba(255, 255, 255, 0.38)",
-                        border: "1px solid rgba(255, 255, 255, 0.55)",
-                        boxShadow:
-                            "0 8px 28px rgba(31, 38, 135, 0.10), inset 0 1px 0 rgba(255,255,255,0.65)",
-                    }}
-                >
-                    Open App
-                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                </button>
-            </header>
-
-            <main>
-                <section className="mx-auto grid min-h-[calc(100vh-88px)] w-full max-w-7xl items-center gap-10 px-6 pb-14 pt-8 lg:grid-cols-[1.02fr_0.98fr] lg:px-8 lg:pb-16">
-                    <div className="max-w-3xl">
-                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
-                            Cancellation Monitoring System
-                        </p>
-
-                        <h1 className="mt-5 max-w-4xl text-5xl font-bold leading-[1.02] text-gray-800 sm:text-6xl lg:text-7xl">
-                            Monitor cancellations with calm, real-time control.
-                        </h1>
-
-                        <p className="mt-6 max-w-2xl text-lg leading-8 text-gray-600">
-                            Hexaprime teams can review every request, spot pending work, and keep
-                            resolution data ready without losing the clean dashboard experience.
-                        </p>
-
-                        <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                            <button
-                                onClick={() => requireAuth("/dashboard")}
-                                className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl px-6 text-sm font-semibold text-white shadow-lg transition-transform hover:-translate-y-0.5"
-                                style={{
-                                    background:
-                                        "linear-gradient(135deg, #92C7CF 0%, #AAD7D9 100%)",
-                                }}
-                            >
-                                View Dashboard
-                                <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                            </button>
-                            <button
-                                onClick={() => requireAuth("/reports")}
-                                className="inline-flex h-12 items-center justify-center rounded-2xl px-6 text-sm font-semibold text-gray-700 transition-transform hover:-translate-y-0.5"
-                                style={{
-                                    background: "rgba(255, 255, 255, 0.34)",
-                                    border: "1px solid rgba(255, 255, 255, 0.52)",
-                                    boxShadow:
-                                        "0 8px 28px rgba(31, 38, 135, 0.08), inset 0 1px 0 rgba(255,255,255,0.65)",
-                                }}
-                            >
-                                Review Reports
-                            </button>
-                        </div>
-
-                        <div className="mt-11 grid gap-4 sm:grid-cols-3">
-                            {highlights.map((item) => {
-                                const Icon = item.icon;
-
-                                return (
-                                    <article
-                                        key={item.title}
-                                        className="rounded-3xl p-5 backdrop-blur-xl"
-                                        style={{
-                                            background: "rgba(255, 255, 255, 0.28)",
-                                            border: "1px solid rgba(255, 255, 255, 0.45)",
-                                            boxShadow:
-                                                "0 8px 32px rgba(31, 38, 135, 0.08), inset 0 1px 0 rgba(255,255,255,0.6)",
-                                        }}
-                                    >
-                                        <span
-                                            className="inline-flex h-10 w-10 items-center justify-center rounded-2xl"
-                                            style={{
-                                                background: "rgba(146, 199, 207, 0.22)",
-                                                color: "#5f9da7",
-                                            }}
-                                        >
-                                            <Icon className="h-5 w-5" aria-hidden="true" />
-                                        </span>
-                                        <h2 className="mt-4 text-base font-semibold text-gray-800">
-                                            {item.title}
-                                        </h2>
-                                        <p className="mt-2 text-sm leading-6 text-gray-600">
-                                            {item.description}
-                                        </p>
-                                    </article>
-                                );
-                            })}
-                        </div>
-                    </div>
-
-                    <div
-                        className="relative rounded-3xl p-3 shadow-2xl backdrop-blur-2xl"
+                    <span
+                        className="text-white font-semibold rounded-2xl shadow-lg flex items-center px-4 h-10 text-sm"
                         style={{
-                            background: "rgba(255, 255, 255, 0.28)",
-                            border: "1px solid rgba(255, 255, 255, 0.48)",
-                            boxShadow:
-                                "0 20px 60px rgba(31, 38, 135, 0.14), inset 0 1px 0 rgba(255,255,255,0.65)",
+                            background:
+                                "linear-gradient(135deg,#92C7CF,#AAD7D9)",
                         }}
                     >
-                        <div
-                            className="absolute -left-4 top-10 hidden rounded-3xl px-5 py-4 shadow-xl backdrop-blur-xl sm:block"
-                            style={{
-                                background: "rgba(255, 255, 255, 0.42)",
-                                border: "1px solid rgba(255, 255, 255, 0.55)",
-                            }}
-                        >
-                            <p className="text-xs font-semibold uppercase tracking-[0.15em] text-gray-500">
-                                Pending
-                            </p>
-                            <p className="mt-1 text-3xl font-bold" style={{ color: "#92C7CF" }}>
-                                32
-                            </p>
+                        Hexaprime Inc.
+                    </span>
+
+                    <nav className="hidden md:flex gap-6 text-sm font-semibold">
+                        {navItems.map((item) => (
+                            <button
+                                key={item.id}
+                                onClick={() => scrollToSection(item.id)}
+                                className={navItemClass(item.id)}
+                            >
+                                {item.label}
+                            </button>
+                        ))}
+                    </nav>
+
+                    <button
+                        onClick={() => requireAuth("/dashboard")}
+                        className="px-4 h-10 rounded-2xl text-sm font-semibold bg-white/40 border border-white/50"
+                    >
+                        Log In <ArrowRight className="inline h-4 w-4" />
+                    </button>
+                </div>
+            </header>
+
+            <main className="pt-[76px]">
+
+                {/* HERO */}
+                <section
+                    id="home"
+                    className={`relative mx-auto grid min-h-[88vh] max-w-7xl items-center gap-10 px-6 lg:grid-cols-2 lg:px-8 overflow-hidden ${sectionAnim(
+                        "home"
+                    )}`}
+                >
+                    <div
+                        className="absolute inset-0 -z-10"
+                        style={{ transform: `translateY(${scrollY * 0.12}px)` }}
+                    >
+                        <div className="absolute -top-24 -left-24 h-[320px] w-[320px] rounded-full bg-[#92C7CF]/30 blur-3xl" />
+                        <div className="absolute top-32 right-[-80px] h-[420px] w-[420px] rounded-full bg-[#AAD7D9]/30 blur-3xl" />
+                    </div>
+
+                    <div style={{ transform: `translateY(${scrollY * 0.06}px)` }}>
+                        <div className="inline-flex items-center gap-2 rounded-full bg-white/50 px-4 py-2 text-xs font-semibold tracking-[0.15em] text-gray-600 backdrop-blur-md">
+                            <ShieldCheck className="h-4 w-4 text-[#5f9da7]" />
+                            Small Town Lottery
                         </div>
 
+                        <h1 className="mt-5 text-5xl font-bold leading-tight sm:text-6xl lg:text-7xl">
+                            Sharing Care, Beyond the Line With Hexaprime
+                        </h1>
+                    </div>
+
+                    <div style={{ transform: `translateY(${scrollY * -0.04}px)` }}>
                         <img
                             src={heroImage}
-                            alt="Cancellation monitoring dashboard preview"
-                            className="h-full max-h-[620px] min-h-[360px] w-full rounded-[1.25rem] object-cover"
+                            className="rounded-[2rem] w-full object-cover"
                         />
+                    </div>
+                </section>
 
-                        <div
-                            className="absolute bottom-7 right-7 rounded-3xl px-5 py-4 shadow-xl backdrop-blur-xl"
-                            style={{
-                                background: "rgba(255, 255, 255, 0.44)",
-                                border: "1px solid rgba(255, 255, 255, 0.55)",
-                            }}
-                        >
-                            <p className="text-xs font-semibold uppercase tracking-[0.15em] text-gray-500">
-                                Resolved
-                            </p>
-                            <p className="mt-1 text-3xl font-bold" style={{ color: "#92C7CF" }}>
-                                96
-                            </p>
+                {/* SOCIAL */}
+                <section
+                    id="social-responsibility"
+                    className={`mx-auto max-w-7xl px-6 py-4 ${sectionAnim(
+                        "social-responsibility"
+                    )}`}
+                >
+                    <div className="rounded-[2.5rem] bg-white/30 border border-white/40 backdrop-blur-xl p-10">
+                        <h2 className="text-3xl font-bold">
+                            Social Responsibility
+                        </h2>
+
+                        <div className="mt-8 grid md:grid-cols-3 gap-6">
+                            {socialImpact.map((item) => (
+                                <div
+                                    key={item.title}
+                                    className="p-6 rounded-2xl bg-white/40 border border-white/50"
+                                >
+                                    <h3 className="font-semibold">
+                                        {item.title}
+                                    </h3>
+                                    <p className="text-sm mt-3 text-gray-600">
+                                        {item.description}
+                                    </p>
+                                    <p className="mt-3 text-sm">
+                                        <b>Helped:</b> {item.peopleHelped}
+                                    </p>
+                                    <p className="text-sm">
+                                        <b>Location:</b> {item.location}
+                                    </p>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 </section>
+
+                {/* RESULTS */}
+                <section
+                    id="results"
+                    className={`mx-auto max-w-7xl px-6 py-4 ${sectionAnim(
+                        "results"
+                    )}`}
+                >
+                    <div className="rounded-[2.5rem] border border-white/40 bg-white/30 backdrop-blur-xl p-10">
+                        <h2 className="text-3xl font-bold">Today's Result</h2>
+
+                        <div className="mt-8 grid md:grid-cols-2 gap-6">
+                            {[
+                                ["3D", "128"],
+                                ["STL", "143"],
+                            ].map(([label, value]) => (
+                                <div
+                                    key={label}
+                                    className="p-6 rounded-2xl bg-white/40 border border-white/50"
+                                >
+                                    <p className="text-sm text-gray-600">{label}</p>
+                                    <p className="text-3xl font-bold mt-2">
+                                        {value}
+                                    </p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </section>
+
+                {/* ABOUT */}
+                <section
+                    id="about-us"
+                    className={`mx-auto max-w-7xl px-6 py-4 ${sectionAnim(
+                        "about-us"
+                    )}`}
+                >
+                    <div className="rounded-[2.5rem] border border-white/40 bg-white/30 backdrop-blur-xl p-10">
+                        <h2 className="text-3xl font-bold">
+                            About Hexaprime
+                        </h2>
+
+                        <p className="mt-4 text-gray-600 text-sm leading-6 max-w-3xl">
+                            Hexaprime Inc. builds secure and transparent STL systems
+                            across the Philippines.
+                        </p>
+                    </div>
+                </section>
+
             </main>
         </div>
     );
