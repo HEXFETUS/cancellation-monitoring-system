@@ -456,7 +456,7 @@ export default function LandingPage() {
             </div>
 
                     <div
-                        className="relative rounded-3xl p-3 shadow-2xl backdrop-blur-2xl"
+                        className="relative rounded-sx"
                         style={{
                             background: "rgba(255, 255, 255, 0.28)",
                             border: "1px solid rgba(255, 255, 255, 0.48)",
