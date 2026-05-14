@@ -12,24 +12,28 @@ import heroImage from "../assets/hero.png";
 import { useAuth } from "../context/AuthContext";
 import LoginModal from "../components/LoginModal";
 
-const highlights = [
+/* ---------------- DATA ---------------- */
+const socialImpact = [
     {
-        title: "Real-Time Monitoring",
+        title: "Typhoon Relief Operations",
         description:
-            "Track cancellation requests, approvals, and operational activities in one unified dashboard.",
-        icon: BellRing,
+            "Distributed food packs and emergency supplies to families affected by severe flooding and strong winds.",
+        peopleHelped: "2,450+ individuals",
+        location: "Davao Region",
     },
     {
-        title: "Secure Audit Trail",
+        title: "Flood Evacuation Support",
         description:
-            "Maintain complete and traceable records for every transaction and decision.",
-        icon: FileCheck2,
+            "Provided temporary shelter assistance and basic needs for displaced communities during heavy flooding.",
+        peopleHelped: "1,800+ individuals",
+        location: "Mindanao Areas",
     },
     {
-        title: "Actionable Reports",
+        title: "Earthquake Response Aid",
         description:
-            "Generate insightful summaries that help management make faster and better decisions.",
-        icon: BarChart3,
+            "Delivered essential kits and medical support to affected barangays after seismic activity.",
+        peopleHelped: "3,120+ individuals",
+        location: "Southern Philippines",
     },
 ];
 
@@ -44,24 +48,15 @@ export default function LandingPage() {
     const [isCompact, setIsCompact] = useState(false);
     const [activeSection, setActiveSection] = useState("home");
 
+    /* 🌊 PARALLAX DRIVER */
+    const [scrollY, setScrollY] = useState(0);
+
     const requireAuth = (path: string) => {
-        if (isAuthenticated) {
-            navigate(path);
-        } else {
+        if (isAuthenticated) navigate(path);
+        else {
             setPendingRoute(path);
             setLoginOpen(true);
         }
-    };
-
-    const handleLoginSuccess = () => {
-        setLoginOpen(false);
-        navigate(pendingRoute || "/dashboard");
-        setPendingRoute(null);
-    };
-
-    const handleClose = () => {
-        setLoginOpen(false);
-        setPendingRoute(null);
     };
 
     const scrollToSection = (id: string) => {
@@ -71,7 +66,7 @@ export default function LandingPage() {
         });
     };
 
-    // 🔥 Apple-style scroll + intersection observer
+    /* ---------------- SCROLL SYSTEM ---------------- */
     useEffect(() => {
         const sectionIds = [
             "home",
@@ -81,9 +76,13 @@ export default function LandingPage() {
         ];
 
         const onScroll = () => {
-            const scrolled = window.scrollY > 40;
-            setIsScrolled(scrolled);
-            setIsCompact(window.scrollY > 80);
+            const y = window.scrollY;
+
+            setIsScrolled(y > 40);
+            setIsCompact(y > 80);
+
+            /* 🌊 parallax driver */
+            setScrollY(y);
         };
 
         window.addEventListener("scroll", onScroll);
@@ -92,7 +91,7 @@ export default function LandingPage() {
         const observer = new IntersectionObserver(
             (entries) => {
                 const visible = entries
-                    .filter((entry) => entry.isIntersecting)
+                    .filter((e) => e.isIntersecting)
                     .sort(
                         (a, b) =>
                             b.intersectionRatio - a.intersectionRatio
@@ -103,8 +102,8 @@ export default function LandingPage() {
                 }
             },
             {
-                threshold: [0.25, 0.5, 0.75],
-                rootMargin: "-20% 0px -55% 0px",
+                threshold: [0.2, 0.5, 0.8],
+                rootMargin: "-20% 0px -50% 0px",
             }
         );
 
@@ -127,118 +126,93 @@ export default function LandingPage() {
         }`;
 
     return (
-        <div
-            className="min-h-screen overflow-x-hidden text-gray-800"
-            style={{
-                background: `
-                    radial-gradient(circle at top left, rgba(146,199,207,0.38), transparent 34%),
-                    radial-gradient(circle at 85% 18%, rgba(170,215,217,0.34), transparent 30%),
-                    linear-gradient(135deg, #FBF9F1 0%, #E5E1DA 100%)
-                `,
-            }}
-        >
+        <div className="min-h-screen overflow-x-hidden text-gray-800 bg-gradient-to-br from-[#FBF9F1] to-[#E5E1DA]">
             <LoginModal
                 open={loginOpen}
-                onClose={handleClose}
-                onSuccess={handleLoginSuccess}
+                onClose={() => setLoginOpen(false)}
+                onSuccess={() => {
+                    setLoginOpen(false);
+                    navigate(pendingRoute || "/dashboard");
+                }}
             />
 
-            {/* HEADER (Apple-style morphing) */}
+            {/* HEADER */}
             <header
-                className={`fixed top-0 left-0 z-50 w-full border-b backdrop-blur-xl transition-all duration-500 ease-in-out ${
+                className={`fixed top-0 left-0 z-50 w-full backdrop-blur-xl border-b transition-all duration-500 ${
                     isScrolled
-                        ? "bg-white/70 shadow-md border-white/50"
+                        ? "bg-transparent border-white/20"
                         : "bg-white/40 border-white/30"
                 }`}
             >
                 <div
-                    className={`mx-auto flex w-full max-w-7xl items-center justify-between px-6 lg:px-8 transition-all duration-500 ease-in-out ${
+                    className={`mx-auto flex max-w-7xl items-center justify-between px-6 lg:px-8 transition-all duration-500 ${
                         isCompact ? "py-2" : "py-5"
                     }`}
                 >
-                    {/* LOGO */}
                     <span
-                        className={`inline-flex items-center rounded-2xl font-semibold text-white shadow-lg transition-all duration-500 ease-in-out ${
-                            isCompact
-                                ? "h-9 px-4 text-sm scale-95"
-                                : "h-12 px-5 text-lg scale-100"
+                        className={`text-white font-semibold rounded-2xl shadow-lg flex items-center transition-all ${
+                            isCompact ? "px-4 h-9 text-sm" : "px-5 h-12"
                         }`}
                         style={{
                             background:
-                                "linear-gradient(135deg, #92C7CF 0%, #AAD7D9 100%)",
+                                "linear-gradient(135deg,#92C7CF,#AAD7D9)",
                         }}
                     >
                         Hexaprime Inc.
                     </span>
 
-                    {/* NAV */}
-                    <nav
-                        className={`hidden md:flex items-center font-semibold transition-all duration-500 ease-in-out ${
-                            isCompact ? "gap-4 text-xs" : "gap-7 text-sm"
-                        }`}
-                    >
-                        <button
-                            onClick={() => scrollToSection("home")}
-                            className={navItemClass("home")}
-                        >
-                            Home
-                        </button>
-
-                        <button
-                            onClick={() =>
-                                scrollToSection("social-responsibility")
-                            }
-                            className={navItemClass("social-responsibility")}
-                        >
-                            Social Responsibility
-                        </button>
-
-                        <button
-                            onClick={() => scrollToSection("results")}
-                            className={navItemClass("results")}
-                        >
-                            Results
-                        </button>
-
-                        <button
-                            onClick={() => scrollToSection("about-us")}
-                            className={navItemClass("about-us")}
-                        >
-                            About Us
-                        </button>
+                    <nav className="hidden md:flex gap-7 text-sm font-semibold">
+                        {[
+                            "home",
+                            "social-responsibility",
+                            "results",
+                            "about-us",
+                        ].map((id) => (
+                            <button
+                                key={id}
+                                onClick={() => scrollToSection(id)}
+                                className={navItemClass(id)}
+                            >
+                                {id.replace("-", " ")}
+                            </button>
+                        ))}
                     </nav>
 
-                    {/* BUTTON */}
                     <button
                         onClick={() => requireAuth("/dashboard")}
-                        className={`inline-flex items-center gap-2 rounded-2xl font-semibold text-gray-800 transition-all duration-500 ease-in-out ${
-                            isCompact
-                                ? "h-9 px-4 text-xs"
-                                : "h-10 px-5 text-sm"
+                        className={`rounded-2xl font-semibold text-sm transition-all bg-white/40 border border-white/50 ${
+                            isCompact ? "px-4 h-9" : "px-5 h-10"
                         }`}
-                        style={{
-                            background: "rgba(255, 255, 255, 0.38)",
-                            border: "1px solid rgba(255, 255, 255, 0.55)",
-                        }}
                     >
-                        Log In
-                        <ArrowRight
-                            className={`transition-all duration-500 ${
-                                isCompact ? "h-3 w-3" : "h-4 w-4"
-                            }`}
-                        />
+                        Log In <ArrowRight className="inline h-4 w-4" />
                     </button>
                 </div>
             </header>
 
-            {/* MAIN (IMPORTANT FIX: prevents header overlap) */}
             <main className="pt-[88px]">
-                {/* HERO */}
+                {/* 🌊 PARALLAX HERO */}
                 <section
                     id="home"
-                    className="mx-auto grid min-h-[calc(100vh-88px)] w-full max-w-7xl items-center gap-14 px-6 py-16 lg:grid-cols-[1.05fr_0.95fr] lg:px-8"
+                    className="relative mx-auto grid min-h-[95vh] max-w-7xl items-center gap-14 px-6 lg:grid-cols-2 lg:px-8 overflow-hidden"
                 >
-                    <div className="max-w-3xl">
+                    {/* BACKGROUND LAYERS */}
+                    <div
+                        className="absolute inset-0 -z-10"
+                        style={{
+                            transform: `translateY(${scrollY * 0.15}px)`,
+                        }}
+                    >
+                        <div className="absolute -top-32 -left-32 h-[400px] w-[400px] rounded-full bg-[#92C7CF]/30 blur-3xl" />
+                        <div className="absolute top-40 right-[-100px] h-[500px] w-[500px] rounded-full bg-[#AAD7D9]/30 blur-3xl" />
+                    </div>
+
+                    {/* TEXT LAYER */}
+                    <div
+                        style={{
+                            transform: `translateY(${scrollY * 0.08}px)`,
+                        }}
+                        className="max-w-3xl"
+                    >
                         <div className="inline-flex items-center gap-2 rounded-full border border-white/50 bg-white/50 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-gray-600 backdrop-blur-md">
                             <ShieldCheck className="h-4 w-4 text-[#5f9da7]" />
                             Small Town Lottery
@@ -250,50 +224,79 @@ export default function LandingPage() {
                                 className="block bg-gradient-to-r bg-clip-text text-transparent"
                                 style={{
                                     backgroundImage:
-                                        "linear-gradient(135deg, #5f9da7 0%, #92C7CF 45%, #AAD7D9 100%)",
+                                        "linear-gradient(135deg,#5f9da7,#92C7CF,#AAD7D9)",
                                 }}
                             >
                                 with Hexaprime
                             </span>
                         </h1>
+
+                        <p className="mt-6 text-lg text-gray-600">
+                            Transparent STL systems with community-driven impact across the Philippines.
+                        </p>
                     </div>
 
-                    <div className="relative">
-                        <img
-                            src={heroImage}
-                            className="rounded-[2rem] object-cover"
-                        />
+                    {/* IMAGE LAYER */}
+                    <div
+                        style={{
+                            transform: `translateY(${-scrollY * 0.05}px) scale(${1 + scrollY * 0.0001})`,
+                        }}
+                        className="relative"
+                    >
+                        <div className="rounded-[2.5rem] border border-white/40 bg-white/30 p-3 backdrop-blur-xl shadow-2xl">
+                            <img
+                                src={heroImage}
+                                className="rounded-[2rem] w-full object-cover"
+                            />
+                        </div>
+
+                        <div className="absolute -bottom-10 -right-10 h-40 w-40 rounded-full bg-[#92C7CF]/30 blur-3xl" />
                     </div>
                 </section>
 
-                {/* SECTIONS */}
+                {/* SOCIAL RESPONSIBILITY */}
                 <section
                     id="social-responsibility"
-                    className="mx-auto max-w-7xl px-6 py-4 lg:px-8"
+                    className="mx-auto max-w-7xl px-6 py-20"
                 >
-                    <div className="rounded-[2.5rem] border border-white/40 bg-white/35 p-12 backdrop-blur-xl">
+                    <div className="rounded-[3rem] bg-white/30 border border-white/40 backdrop-blur-xl p-12">
                         <h2 className="text-4xl font-bold">
                             Social Responsibility
                         </h2>
+
+                        <div className="mt-10 grid md:grid-cols-3 gap-6">
+                            {socialImpact.map((item) => (
+                                <div
+                                    key={item.title}
+                                    className="p-6 rounded-3xl bg-white/40 border border-white/50 backdrop-blur-xl"
+                                >
+                                    <h3 className="font-semibold text-lg">
+                                        {item.title}
+                                    </h3>
+                                    <p className="text-sm mt-3 text-gray-600">
+                                        {item.description}
+                                    </p>
+                                    <p className="mt-4 text-sm">
+                                        <b>People Helped:</b>{" "}
+                                        {item.peopleHelped}
+                                    </p>
+                                    <p className="text-sm">
+                                        <b>Location:</b> {item.location}
+                                    </p>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 </section>
 
-                <section
-                    id="results"
-                    className="mx-auto max-w-7xl px-6 py-4 lg:px-8"
-                >
-                    <div className="rounded-[2.5rem] border border-white/40 bg-white/35 p-12 backdrop-blur-xl">
-                        <h2 className="text-4xl font-bold">Results</h2>
-                    </div>
+                {/* RESULTS */}
+                <section id="results" className="mx-auto max-w-7xl px-6 py-20">
+                    <h2 className="text-4xl font-bold">Results</h2>
                 </section>
 
-                <section
-                    id="about-us"
-                    className="mx-auto max-w-7xl px-6 py-4 lg:px-8"
-                >
-                    <div className="rounded-[2.5rem] border border-white/40 bg-white/35 p-12 backdrop-blur-xl">
-                        <h2 className="text-4xl font-bold">About Us</h2>
-                    </div>
+                {/* ABOUT */}
+                <section id="about-us" className="mx-auto max-w-7xl px-6 py-20">
+                    <h2 className="text-4xl font-bold">About Us</h2>
                 </section>
             </main>
         </div>
