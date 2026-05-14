@@ -1,5 +1,11 @@
-import { useState } from "react";
-import { ArrowRight, BarChart3, BellRing, FileCheck2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import {
+    ArrowRight,
+    BarChart3,
+    BellRing,
+    FileCheck2,
+    ShieldCheck,
+} from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 import heroImage from "../assets/hero.png";
@@ -8,18 +14,21 @@ import LoginModal from "../components/LoginModal";
 
 const highlights = [
     {
-        title: "Live queue visibility",
-        description: "Track requests, status changes, and response times from one calm workspace.",
+        title: "Real-Time Monitoring",
+        description:
+            "Track cancellation requests, approvals, and operational activities in one unified dashboard.",
         icon: BellRing,
     },
     {
-        title: "Auditable records",
-        description: "Keep every cancellation decision organized for fast review and reporting.",
+        title: "Secure Audit Trail",
+        description:
+            "Maintain complete and traceable records for every transaction and decision.",
         icon: FileCheck2,
     },
     {
-        title: "Operational reporting",
-        description: "Turn daily activity into clean summaries your team can act on immediately.",
+        title: "Actionable Reports",
+        description:
+            "Generate insightful summaries that help management make faster and better decisions.",
         icon: BarChart3,
     },
 ];
@@ -27,8 +36,13 @@ const highlights = [
 export default function LandingPage() {
     const { isAuthenticated } = useAuth();
     const navigate = useNavigate();
+
     const [loginOpen, setLoginOpen] = useState(false);
     const [pendingRoute, setPendingRoute] = useState<string | null>(null);
+
+    const [isScrolled, setIsScrolled] = useState(false);
+    const [isCompact, setIsCompact] = useState(false);
+    const [activeSection, setActiveSection] = useState("home");
 
     const requireAuth = (path: string) => {
         if (isAuthenticated) {
@@ -50,9 +64,71 @@ export default function LandingPage() {
         setPendingRoute(null);
     };
 
+    const scrollToSection = (id: string) => {
+        document.getElementById(id)?.scrollIntoView({
+            behavior: "smooth",
+            block: "start",
+        });
+    };
+
+    // 🔥 Apple-style scroll + intersection observer
+    useEffect(() => {
+        const sectionIds = [
+            "home",
+            "social-responsibility",
+            "results",
+            "about-us",
+        ];
+
+        const onScroll = () => {
+            const scrolled = window.scrollY > 40;
+            setIsScrolled(scrolled);
+            setIsCompact(window.scrollY > 80);
+        };
+
+        window.addEventListener("scroll", onScroll);
+        onScroll();
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                const visible = entries
+                    .filter((entry) => entry.isIntersecting)
+                    .sort(
+                        (a, b) =>
+                            b.intersectionRatio - a.intersectionRatio
+                    );
+
+                if (visible.length > 0) {
+                    setActiveSection(visible[0].target.id);
+                }
+            },
+            {
+                threshold: [0.25, 0.5, 0.75],
+                rootMargin: "-20% 0px -55% 0px",
+            }
+        );
+
+        sectionIds.forEach((id) => {
+            const el = document.getElementById(id);
+            if (el) observer.observe(el);
+        });
+
+        return () => {
+            window.removeEventListener("scroll", onScroll);
+            observer.disconnect();
+        };
+    }, []);
+
+    const navItemClass = (id: string) =>
+        `transition-colors ${
+            activeSection === id
+                ? "text-gray-900 font-semibold"
+                : "text-gray-600 hover:text-gray-900"
+        }`;
+
     return (
         <div
-            className="min-h-screen overflow-hidden text-gray-800"
+            className="min-h-screen overflow-x-hidden text-gray-800"
             style={{
                 background: `
                     radial-gradient(circle at top left, rgba(146,199,207,0.38), transparent 34%),
@@ -61,148 +137,163 @@ export default function LandingPage() {
                 `,
             }}
         >
-            <LoginModal open={loginOpen} onClose={handleClose} onSuccess={handleLoginSuccess} />
+            <LoginModal
+                open={loginOpen}
+                onClose={handleClose}
+                onSuccess={handleLoginSuccess}
+            />
 
-            <header className="mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-5 lg:px-8">
-                <span
-                    className="inline-flex h-12 items-center rounded-2xl px-5 text-lg font-bold text-white shadow-lg"
-                    style={{
-                        background: "linear-gradient(135deg, #92C7CF 0%, #AAD7D9 100%)",
-                    }}
+            {/* HEADER (Apple-style morphing) */}
+            <header
+                className={`fixed top-0 left-0 z-50 w-full border-b backdrop-blur-xl transition-all duration-500 ease-in-out ${
+                    isScrolled
+                        ? "bg-white/70 shadow-md border-white/50"
+                        : "bg-white/40 border-white/30"
+                }`}
+            >
+                <div
+                    className={`mx-auto flex w-full max-w-7xl items-center justify-between px-6 lg:px-8 transition-all duration-500 ease-in-out ${
+                        isCompact ? "py-2" : "py-5"
+                    }`}
                 >
-                    Hexaprime Inc.
-                </span>
-
-                <nav className="hidden items-center gap-7 text-sm font-medium text-gray-600 md:flex">
-                    <button
-                        onClick={() =>
-                            document
-                                .getElementById("home")
-                                ?.scrollIntoView({ behavior: "smooth" })
-                        }
-                        className="transition-colors hover:text-gray-900"
+                    {/* LOGO */}
+                    <span
+                        className={`inline-flex items-center rounded-2xl font-semibold text-white shadow-lg transition-all duration-500 ease-in-out ${
+                            isCompact
+                                ? "h-9 px-4 text-sm scale-95"
+                                : "h-12 px-5 text-lg scale-100"
+                        }`}
+                        style={{
+                            background:
+                                "linear-gradient(135deg, #92C7CF 0%, #AAD7D9 100%)",
+                        }}
                     >
-                        Home
-                    </button>
+                        Hexaprime Inc.
+                    </span>
 
-                    <button
-                        onClick={() =>
-                            document
-                                .getElementById("social-responsibility")
-                                ?.scrollIntoView({ behavior: "smooth" })
-                        }
-                        className="transition-colors hover:text-gray-900"
+                    {/* NAV */}
+                    <nav
+                        className={`hidden md:flex items-center font-semibold transition-all duration-500 ease-in-out ${
+                            isCompact ? "gap-4 text-xs" : "gap-7 text-sm"
+                        }`}
                     >
-                        Social Responsibility
-                    </button>
+                        <button
+                            onClick={() => scrollToSection("home")}
+                            className={navItemClass("home")}
+                        >
+                            Home
+                        </button>
 
+                        <button
+                            onClick={() =>
+                                scrollToSection("social-responsibility")
+                            }
+                            className={navItemClass("social-responsibility")}
+                        >
+                            Social Responsibility
+                        </button>
+
+                        <button
+                            onClick={() => scrollToSection("results")}
+                            className={navItemClass("results")}
+                        >
+                            Results
+                        </button>
+
+                        <button
+                            onClick={() => scrollToSection("about-us")}
+                            className={navItemClass("about-us")}
+                        >
+                            About Us
+                        </button>
+                    </nav>
+
+                    {/* BUTTON */}
                     <button
-                        onClick={() =>
-                            document
-                                .getElementById("results")
-                                ?.scrollIntoView({ behavior: "smooth" })
-                        }
-                        className="transition-colors hover:text-gray-900"
+                        onClick={() => requireAuth("/dashboard")}
+                        className={`inline-flex items-center gap-2 rounded-2xl font-semibold text-gray-800 transition-all duration-500 ease-in-out ${
+                            isCompact
+                                ? "h-9 px-4 text-xs"
+                                : "h-10 px-5 text-sm"
+                        }`}
+                        style={{
+                            background: "rgba(255, 255, 255, 0.38)",
+                            border: "1px solid rgba(255, 255, 255, 0.55)",
+                        }}
                     >
-                        Results
+                        Log In
+                        <ArrowRight
+                            className={`transition-all duration-500 ${
+                                isCompact ? "h-3 w-3" : "h-4 w-4"
+                            }`}
+                        />
                     </button>
-
-                    <button
-                        onClick={() =>
-                            document
-                                .getElementById("about-us")
-                                ?.scrollIntoView({ behavior: "smooth" })
-                        }
-                        className="transition-colors hover:text-gray-900"
-                    >
-                        About Us
-                    </button>
-                </nav>
-
-                <button
-                    onClick={() => requireAuth("/dashboard")}
-                    className="inline-flex h-11 items-center gap-2 rounded-2xl px-4 text-sm font-semibold text-gray-800 transition-transform hover:-translate-y-0.5"
-                    style={{
-                        background: "rgba(255, 255, 255, 0.38)",
-                        border: "1px solid rgba(255, 255, 255, 0.55)",
-                        boxShadow:
-                            "0 8px 28px rgba(31, 38, 135, 0.10), inset 0 1px 0 rgba(255,255,255,0.65)",
-                    }}
-                >
-                    Log in
-                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                </button>
+                </div>
             </header>
-            <section id="home">
-                {/* Home content */}
-            </section>
-            <main>
-                <section className="mx-auto grid min-h-[calc(100vh-88px)] w-full max-w-7xl items-center gap-10 px-6 pb-14 pt-8 lg:grid-cols-[1.02fr_0.98fr] lg:px-8 lg:pb-16">
+
+            {/* MAIN (IMPORTANT FIX: prevents header overlap) */}
+            <main className="pt-[88px]">
+                {/* HERO */}
+                <section
+                    id="home"
+                    className="mx-auto grid min-h-[calc(100vh-88px)] w-full max-w-7xl items-center gap-14 px-6 py-16 lg:grid-cols-[1.05fr_0.95fr] lg:px-8"
+                >
                     <div className="max-w-3xl">
-                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
+                        <div className="inline-flex items-center gap-2 rounded-full border border-white/50 bg-white/50 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-gray-600 backdrop-blur-md">
+                            <ShieldCheck className="h-4 w-4 text-[#5f9da7]" />
                             Small Town Lottery
-                        </p>
-
-                        <h1 className="mt-5 max-w-4xl text-5xl font-bold leading-[1.02] text-gray-800 sm:text-6xl lg:text-7xl">
-                            Hexaprime Inc.
-                        </h1>
-
-                        <p className="mt-6 max-w-2xl text-lg leading-8 text-gray-600">
-                            Sharing Care, Beyond the line with Hexaprime!
-                        </p>
-
-                        <section id="social-responsibility">
-                            {/* Social Responsibility content */}
-                        </section>
-                        <div className="mt-11 grid gap-4 sm:grid-cols-3">
-                            {highlights.map((item) => {
-                                const Icon = item.icon;
-
-                                return (
-                                    <article
-                                        key={item.title}
-                                        className="rounded-3xl p-5 backdrop-blur-xl"
-                                        style={{
-                                            background: "rgba(255, 255, 255, 0.28)",
-                                            border: "1px solid rgba(255, 255, 255, 0.45)",
-                                            boxShadow:
-                                                "0 8px 32px rgba(31, 38, 135, 0.08), inset 0 1px 0 rgba(255,255,255,0.6)",
-                                        }}
-                                    >
-                                        <span
-                                            className="inline-flex h-10 w-10 items-center justify-center rounded-2xl"
-                                            style={{
-                                                background: "rgba(146, 199, 207, 0.22)",
-                                                color: "#5f9da7",
-                                            }}
-                                        >
-                                            <Icon className="h-5 w-5" aria-hidden="true" />
-                                        </span>
-                                        <h2 className="mt-4 text-base font-semibold text-gray-800">
-                                            {item.title}
-                                        </h2>
-                                        <p className="mt-2 text-sm leading-6 text-gray-600">
-                                            {item.description}
-                                        </p>
-                                    </article>
-                                );
-                            })}
                         </div>
+
+                        <h1 className="mt-6 text-5xl font-bold leading-tight text-gray-800 sm:text-6xl lg:text-7xl">
+                            Sharing Care Beyond the Line
+                            <span
+                                className="block bg-gradient-to-r bg-clip-text text-transparent"
+                                style={{
+                                    backgroundImage:
+                                        "linear-gradient(135deg, #5f9da7 0%, #92C7CF 45%, #AAD7D9 100%)",
+                                }}
+                            >
+                                with Hexaprime
+                            </span>
+                        </h1>
                     </div>
 
-                    <div>
+                    <div className="relative">
                         <img
                             src={heroImage}
-                            alt="Cancellation monitoring dashboard preview"
-                            className="h-full max-h-[620px] min-h-[360px] w-full rounded-xs object-cover"
+                            className="rounded-[2rem] object-cover"
                         />
                     </div>
                 </section>
-                <section id="results">
-                    {/* Results content */}
+
+                {/* SECTIONS */}
+                <section
+                    id="social-responsibility"
+                    className="mx-auto max-w-7xl px-6 py-4 lg:px-8"
+                >
+                    <div className="rounded-[2.5rem] border border-white/40 bg-white/35 p-12 backdrop-blur-xl">
+                        <h2 className="text-4xl font-bold">
+                            Social Responsibility
+                        </h2>
+                    </div>
                 </section>
-                <section id="about-us">
-                    {/* About Us content */}
+
+                <section
+                    id="results"
+                    className="mx-auto max-w-7xl px-6 py-4 lg:px-8"
+                >
+                    <div className="rounded-[2.5rem] border border-white/40 bg-white/35 p-12 backdrop-blur-xl">
+                        <h2 className="text-4xl font-bold">Results</h2>
+                    </div>
+                </section>
+
+                <section
+                    id="about-us"
+                    className="mx-auto max-w-7xl px-6 py-4 lg:px-8"
+                >
+                    <div className="rounded-[2.5rem] border border-white/40 bg-white/35 p-12 backdrop-blur-xl">
+                        <h2 className="text-4xl font-bold">About Us</h2>
+                    </div>
                 </section>
             </main>
         </div>
