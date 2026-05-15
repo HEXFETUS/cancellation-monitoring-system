@@ -24,7 +24,7 @@ import LogoOnly from "../assets/LogoOnly.webp";
 
 /* ---------------- SLIDESHOW IMAGES ---------------- */
 const slideshowImages = [
-  "/slideshow/slide1.png",
+  "/slideshow/slide1.jpg",
   "/slideshow/slide2.jpg",
   "/slideshow/slide3.jpg",
   "/slideshow/slide4.jpg",
