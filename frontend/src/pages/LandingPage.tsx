@@ -300,7 +300,7 @@ export default function LandingPage() {
             ))}
             <button
               onClick={() => requireAuth("/dashboard")}
-              className="w-full rounded-full px-5 py-2.5 text-sm font-semibold text-white transition-all"
+              className="w-full rounded-sm px-5 py-2.5 text-sm font-semibold text-white transition-all"
               style={{ backgroundColor: "#92C7CF" }}
             >
               Dashboard
@@ -393,24 +393,7 @@ export default function LandingPage() {
                 >
                   Learn More
                 </button>
-                <button
-                  onClick={() => requireAuth("/dashboard")}
-                  className="rounded-full border px-7 py-3 text-sm font-semibold transition-all"
-                  style={{
-                    backgroundColor: "rgba(255, 255, 255, 0.15)",
-                    backdropFilter: "blur(8px)",
-                    color: "white",
-                    borderColor: "rgba(255, 255, 255, 0.3)",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = "rgba(255, 255, 255, 0.25)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = "rgba(255, 255, 255, 0.15)";
-                  }}
-                >
-                  Dashboard <ArrowRight className="inline h-4 w-4 ml-1" />
-                </button>
+
               </div>
             </div>
           </div>
@@ -581,10 +564,17 @@ export default function LandingPage() {
               </p>
             </div>
 
-            <div className="mt-12 grid gap-6 md:grid-cols-2 max-w-2xl mx-auto">
+            <div className="mt-12 grid gap-6 md:grid-cols-3 max-w-8xl mx-auto">
               {[
-                { label: "3D", value: "128", desc: "Lucky Pick" },
-                { label: "STL", value: "143", desc: "Direct Draw" },
+                { label: "3D 1st Draw (2 PM)", value: "128", desc: "National" },
+                { label: "STL 1st Draw (11 AM)", value: "143", desc: "Local CDO" },
+                { label: "STL 1st Draw (11 AM)", value: "123", desc: "Local MISOR" },
+                { label: "3D 1st Draw (5 PM)", value: "TBA", desc: "National" },
+                { label: "STL 1st Draw (4 PM)", value: "TBA", desc: "Local CDO" },
+                { label: "STL 1st Draw (4 PM)", value: "TBA", desc: "Local MISOR" },
+                { label: "3D 1st Draw (9 PM)", value: "TBA", desc: "National" },
+                { label: "STL 1st Draw (8 PM)", value: "TBA", desc: "Local CDO" },
+                { label: "STL 1st Draw (8 PM)", value: "TBA", desc: "Local MISOR" },
               ].map(({ label, value, desc }) => (
                 <div
                   key={label}
