@@ -682,7 +682,7 @@ export default function LandingPage() {
       >
         <div className="mx-auto max-w-7xl px-6 lg:px-8">
           <div className="flex flex-col items-center gap-4 sm:flex-row sm:justify-between">
-            <img src={LogoOnly} alt="Hexaprime" className="h-8 w-auto" />
+            <img src={LogoWithName} alt="Hexaprime" className="h-8 w-auto" />
             <p className="text-xs text-gray-400">
               &copy; {new Date().getFullYear()} Hexaprime Inc. All rights
               reserved.
