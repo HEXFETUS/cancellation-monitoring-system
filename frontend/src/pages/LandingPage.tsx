@@ -14,6 +14,14 @@ import LoginModal from "../components/LoginModal";
 import LogoWithName from "../assets/LogoWithName.webp";
 import LogoOnly from "../assets/LogoOnly.webp";
 
+/* ---------------- COLOR PALETTE ---------------- */
+/* 
+  #92C7CF  – primary teal
+  #AAD7D9  – light teal  
+  #FBF9F1  – cream bg
+  #E5E1DA  – warm gray
+*/
+
 /* ---------------- SLIDESHOW IMAGES ---------------- */
 const slideshowImages = [
   "/slideshow/slide1.jpg",
@@ -159,7 +167,10 @@ export default function LandingPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-white font-sans antialiased text-gray-900">
+    <div
+      className="min-h-screen font-sans antialiased"
+      style={{ backgroundColor: "#FBF9F1", color: "#4a4a4a" }}
+    >
       <LoginModal
         open={loginOpen}
         onClose={() => setLoginOpen(false)}
@@ -173,13 +184,25 @@ export default function LandingPage() {
       <header
         className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
           scrolled
-            ? "bg-white/90 backdrop-blur-md shadow-sm border-b border-gray-100 py-2"
-            : "bg-transparent py-4"
+            ? "py-2 shadow-lg"
+            : "py-4"
         }`}
+        style={{
+          backgroundColor: scrolled ? "rgba(251, 249, 241, 0.85)" : "transparent",
+          backdropFilter: scrolled ? "blur(16px)" : "none",
+          WebkitBackdropFilter: scrolled ? "blur(16px)" : "none",
+          borderBottom: scrolled ? "1px solid rgba(229, 225, 218, 0.6)" : "none",
+        }}
       >
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 lg:px-8">
           {/* Logo: switches on scroll */}
-          <a href="#hero" onClick={(e) => { e.preventDefault(); scrollTo("hero"); }}>
+          <a
+            href="#hero"
+            onClick={(e) => {
+              e.preventDefault();
+              scrollTo("hero");
+            }}
+          >
             <img
               src={scrolled ? LogoOnly : LogoWithName}
               alt="Hexaprime"
@@ -195,14 +218,29 @@ export default function LandingPage() {
               <button
                 key={item.id}
                 onClick={() => scrollTo(item.id)}
-                className="text-gray-600 hover:text-gray-900 transition-colors font-medium"
+                className="transition-colors duration-200 font-medium"
+                style={{
+                  color: scrolled ? "#4a4a4a" : "white",
+                  textShadow: scrolled ? "none" : "0 1px 3px rgba(0,0,0,0.3)",
+                }}
               >
                 {item.label}
               </button>
             ))}
             <button
               onClick={() => requireAuth("/dashboard")}
-              className="ml-4 inline-flex items-center gap-2 rounded-full bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-gray-800 transition-all"
+              className="ml-4 inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition-all"
+              style={{
+                backgroundColor: scrolled ? "#92C7CF" : "rgba(146, 199, 207, 0.9)",
+                color: scrolled ? "#1a2e32" : "white",
+                boxShadow: scrolled ? "0 2px 8px rgba(146, 199, 207, 0.3)" : "0 2px 8px rgba(0,0,0,0.15)",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "#7db8c0";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = scrolled ? "#92C7CF" : "rgba(146, 199, 207, 0.9)";
+              }}
             >
               Dashboard <ArrowRight className="h-4 w-4" />
             </button>
@@ -210,7 +248,8 @@ export default function LandingPage() {
 
           {/* Mobile toggle */}
           <button
-            className="md:hidden p-2 text-gray-600"
+            className="md:hidden p-2 rounded-lg transition-colors"
+            style={{ color: scrolled ? "#4a4a4a" : "white" }}
             onClick={() => setMobileOpen(!mobileOpen)}
             aria-label="Menu"
           >
@@ -241,19 +280,28 @@ export default function LandingPage() {
 
         {/* Mobile menu */}
         {mobileOpen && (
-          <div className="md:hidden bg-white border-t border-gray-100 px-6 py-4 space-y-3 shadow-lg">
+          <div
+            className="md:hidden px-6 py-4 space-y-3"
+            style={{
+              backgroundColor: "#FBF9F1",
+              borderTop: "1px solid #E5E1DA",
+              boxShadow: "0 8px 24px rgba(0,0,0,0.08)",
+            }}
+          >
             {navItems.map((item) => (
               <button
                 key={item.id}
                 onClick={() => scrollTo(item.id)}
-                className="block w-full text-left text-sm text-gray-600 hover:text-gray-900 py-2 font-medium"
+                className="block w-full text-left py-2 font-medium transition-colors"
+                style={{ color: "#4a4a4a" }}
               >
                 {item.label}
               </button>
             ))}
             <button
               onClick={() => requireAuth("/dashboard")}
-              className="w-full rounded-full bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-gray-800 transition-all"
+              className="w-full rounded-full px-5 py-2.5 text-sm font-semibold text-white transition-all"
+              style={{ backgroundColor: "#92C7CF" }}
             >
               Dashboard
             </button>
@@ -265,7 +313,8 @@ export default function LandingPage() {
         {/* ─── HERO / SLIDESHOW ─── */}
         <section
           id="hero"
-          className="relative min-h-screen flex items-center overflow-hidden bg-gray-50"
+          className="relative min-h-screen flex items-center overflow-hidden"
+          style={{ backgroundColor: "#E5E1DA" }}
         >
           {/* Background slideshow */}
           <div className="absolute inset-0">
@@ -281,7 +330,8 @@ export default function LandingPage() {
                   alt={`Slide ${i + 1}`}
                   className="h-full w-full object-cover"
                 />
-                <div className="absolute inset-0 bg-gradient-to-r from-white/80 via-white/40 to-transparent" />
+                {/* Dark overlay for text readability */}
+                <div className="absolute inset-0 bg-gradient-to-r from-black/50 via-black/25 to-transparent" />
               </div>
             ))}
           </div>
@@ -295,17 +345,31 @@ export default function LandingPage() {
                   : "opacity-0 translate-y-8"
               }`}
             >
-              <span className="inline-flex items-center gap-2 rounded-full bg-white/70 backdrop-blur-sm px-4 py-1.5 text-xs font-semibold tracking-wider text-gray-700 border border-gray-200">
-                <Shield className="h-3.5 w-3.5 text-blue-500" />
+              <span
+                className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-semibold tracking-wider border"
+                style={{
+                  backgroundColor: "rgba(251, 249, 241, 0.2)",
+                  backdropFilter: "blur(8px)",
+                  color: "white",
+                  borderColor: "rgba(255, 255, 255, 0.2)",
+                }}
+              >
+                <Shield className="h-3.5 w-3.5" style={{ color: "#AAD7D9" }} />
                 Small Town Lottery
               </span>
 
-              <h1 className="mt-8 text-4xl sm:text-5xl lg:text-6xl font-bold leading-tight tracking-tight text-gray-900">
+              <h1
+                className="mt-8 text-4xl sm:text-5xl lg:text-6xl font-bold leading-tight tracking-tight"
+                style={{ color: "white", textShadow: "0 2px 12px rgba(0,0,0,0.3)" }}
+              >
                 Sharing Care Beyond the Line{" "}
-                <span className="text-blue-500">with Hexaprime</span>
+                <span style={{ color: "#AAD7D9" }}>with Hexaprime</span>
               </h1>
 
-              <p className="mt-5 text-base sm:text-lg text-gray-600 leading-relaxed max-w-lg">
+              <p
+                className="mt-5 text-base sm:text-lg leading-relaxed max-w-lg"
+                style={{ color: "rgba(255,255,255,0.85)", textShadow: "0 1px 6px rgba(0,0,0,0.2)" }}
+              >
                 Building secure, transparent STL systems that uplift communities
                 across the Philippines through responsible gaming and social
                 responsibility.
@@ -314,13 +378,36 @@ export default function LandingPage() {
               <div className="mt-8 flex flex-wrap gap-4">
                 <button
                   onClick={() => scrollTo("social-responsibility")}
-                  className="rounded-full bg-gray-900 px-7 py-3 text-sm font-semibold text-white hover:bg-gray-800 transition-all shadow-lg shadow-gray-900/10"
+                  className="rounded-full px-7 py-3 text-sm font-semibold transition-all shadow-lg"
+                  style={{
+                    backgroundColor: "#92C7CF",
+                    color: "#1a2e32",
+                    boxShadow: "0 4px 14px rgba(146, 199, 207, 0.35)",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = "#7db8c0";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = "#92C7CF";
+                  }}
                 >
                   Learn More
                 </button>
                 <button
                   onClick={() => requireAuth("/dashboard")}
-                  className="rounded-full border border-gray-300 bg-white/60 backdrop-blur-sm px-7 py-3 text-sm font-semibold text-gray-800 hover:bg-white hover:border-gray-400 transition-all"
+                  className="rounded-full border px-7 py-3 text-sm font-semibold transition-all"
+                  style={{
+                    backgroundColor: "rgba(255, 255, 255, 0.15)",
+                    backdropFilter: "blur(8px)",
+                    color: "white",
+                    borderColor: "rgba(255, 255, 255, 0.3)",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = "rgba(255, 255, 255, 0.25)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = "rgba(255, 255, 255, 0.15)";
+                  }}
                 >
                   Dashboard <ArrowRight className="inline h-4 w-4 ml-1" />
                 </button>
@@ -332,7 +419,12 @@ export default function LandingPage() {
           <div className="absolute bottom-10 left-1/2 -translate-x-1/2 z-20 flex items-center gap-4">
             <button
               onClick={slide.prev}
-              className="rounded-full bg-white/70 backdrop-blur-sm p-2 text-gray-700 hover:bg-white transition-all shadow-sm"
+              className="rounded-full p-2 transition-all shadow-sm"
+              style={{
+                backgroundColor: "rgba(251, 249, 241, 0.2)",
+                backdropFilter: "blur(8px)",
+                color: "white",
+              }}
               aria-label="Previous"
             >
               <ChevronLeft className="h-4 w-4" />
@@ -343,11 +435,13 @@ export default function LandingPage() {
                 <button
                   key={i}
                   onClick={() => slide.setCurrent(i)}
-                  className={`rounded-full transition-all ${
-                    i === slide.current
-                      ? "bg-gray-900 w-8 h-2"
-                      : "bg-gray-400 w-2 h-2 hover:bg-gray-600"
-                  }`}
+                  className="rounded-full transition-all"
+                  style={{
+                    width: i === slide.current ? "32px" : "8px",
+                    height: "8px",
+                    backgroundColor:
+                      i === slide.current ? "#92C7CF" : "rgba(255,255,255,0.5)",
+                  }}
                   aria-label={`Go to slide ${i + 1}`}
                 />
               ))}
@@ -355,7 +449,12 @@ export default function LandingPage() {
 
             <button
               onClick={slide.next}
-              className="rounded-full bg-white/70 backdrop-blur-sm p-2 text-gray-700 hover:bg-white transition-all shadow-sm"
+              className="rounded-full p-2 transition-all shadow-sm"
+              style={{
+                backgroundColor: "rgba(251, 249, 241, 0.2)",
+                backdropFilter: "blur(8px)",
+                color: "white",
+              }}
               aria-label="Next"
             >
               <ChevronRight className="h-4 w-4" />
@@ -373,13 +472,16 @@ export default function LandingPage() {
             }`}
           >
             <div className="mx-auto max-w-2xl text-center">
-              <span className="text-xs font-semibold tracking-[0.2em] text-blue-500 uppercase">
+              <span
+                className="text-xs font-semibold tracking-[0.2em] uppercase"
+                style={{ color: "#92C7CF" }}
+              >
                 Our Impact
               </span>
-              <h2 className="mt-3 text-3xl sm:text-4xl font-bold tracking-tight text-gray-900">
+              <h2 className="mt-3 text-3xl sm:text-4xl font-bold tracking-tight text-gray-800">
                 Social Responsibility
               </h2>
-              <p className="mt-4 text-gray-500 leading-relaxed">
+              <p className="mt-4 leading-relaxed" style={{ color: "#6b6b6b" }}>
                 Committed to giving back to the communities we serve through
                 meaningful disaster relief and support programs.
               </p>
@@ -391,25 +493,40 @@ export default function LandingPage() {
                 return (
                   <div
                     key={item.title}
-                    className="group rounded-2xl border border-gray-100 bg-white p-8 hover:border-gray-200 hover:shadow-lg transition-all duration-300"
+                    className="group rounded-2xl p-8 transition-all duration-300"
+                    style={{
+                      backgroundColor: "white",
+                      border: "1px solid #E5E1DA",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = "#92C7CF";
+                      e.currentTarget.style.boxShadow = "0 8px 30px rgba(146, 199, 207, 0.15)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = "#E5E1DA";
+                      e.currentTarget.style.boxShadow = "none";
+                    }}
                   >
-                    <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 text-blue-600 group-hover:bg-blue-100 transition-colors">
+                    <div
+                      className="mb-5 flex h-12 w-12 items-center justify-center rounded-xl transition-colors"
+                      style={{ backgroundColor: "#FBF9F1", color: "#92C7CF" }}
+                    >
                       <Icon className="h-6 w-6" />
                     </div>
-                    <h3 className="text-lg font-semibold text-gray-900">
+                    <h3 className="text-lg font-semibold text-gray-800">
                       {item.title}
                     </h3>
-                    <p className="mt-3 text-sm text-gray-500 leading-relaxed">
+                    <p className="mt-3 text-sm leading-relaxed" style={{ color: "#6b6b6b" }}>
                       {item.description}
                     </p>
-                    <div className="mt-5 pt-5 border-t border-gray-100 space-y-1">
-                      <p className="text-sm text-gray-700">
-                        <span className="font-semibold">Helped:</span>{" "}
-                        {item.peopleHelped}
+                    <div className="mt-5 pt-5 space-y-1" style={{ borderTop: "1px solid #E5E1DA" }}>
+                      <p className="text-sm">
+                        <span className="font-semibold" style={{ color: "#4a4a4a" }}>Helped:</span>{" "}
+                        <span style={{ color: "#6b6b6b" }}>{item.peopleHelped}</span>
                       </p>
-                      <p className="text-sm text-gray-700">
-                        <span className="font-semibold">Location:</span>{" "}
-                        {item.location}
+                      <p className="text-sm">
+                        <span className="font-semibold" style={{ color: "#4a4a4a" }}>Location:</span>{" "}
+                        <span style={{ color: "#6b6b6b" }}>{item.location}</span>
                       </p>
                     </div>
                   </div>
@@ -422,12 +539,16 @@ export default function LandingPage() {
               {stats.map((stat) => (
                 <div
                   key={stat.label}
-                  className="rounded-xl bg-gray-50 border border-gray-100 p-6 text-center"
+                  className="rounded-xl p-6 text-center"
+                  style={{
+                    backgroundColor: "rgba(146, 199, 207, 0.08)",
+                    border: "1px solid rgba(146, 199, 207, 0.15)",
+                  }}
                 >
-                  <p className="text-2xl sm:text-3xl font-bold text-gray-900">
+                  <p className="text-2xl sm:text-3xl font-bold" style={{ color: "#92C7CF" }}>
                     {stat.value}
                   </p>
-                  <p className="mt-1 text-xs text-gray-500 font-medium uppercase tracking-wide">
+                  <p className="mt-1 text-xs font-medium uppercase tracking-wide" style={{ color: "#6b6b6b" }}>
                     {stat.label}
                   </p>
                 </div>
@@ -437,7 +558,7 @@ export default function LandingPage() {
         </section>
 
         {/* ─── RESULTS ─── */}
-        <section id="results" className="py-24 sm:py-32 bg-gray-50">
+        <section id="results" className="py-24 sm:py-32" style={{ backgroundColor: "#E5E1DA" }}>
           <div
             className={`mx-auto max-w-7xl px-6 lg:px-8 transition-all duration-700 ${
               inView.results
@@ -446,13 +567,16 @@ export default function LandingPage() {
             }`}
           >
             <div className="mx-auto max-w-2xl text-center">
-              <span className="text-xs font-semibold tracking-[0.2em] text-blue-500 uppercase">
+              <span
+                className="text-xs font-semibold tracking-[0.2em] uppercase"
+                style={{ color: "#92C7CF" }}
+              >
                 Latest Draw
               </span>
-              <h2 className="mt-3 text-3xl sm:text-4xl font-bold tracking-tight text-gray-900">
+              <h2 className="mt-3 text-3xl sm:text-4xl font-bold tracking-tight text-gray-800">
                 Today's Result
               </h2>
-              <p className="mt-4 text-gray-500 leading-relaxed">
+              <p className="mt-4 leading-relaxed" style={{ color: "#6b6b6b" }}>
                 Check the latest winning numbers for our lottery draws.
               </p>
             </div>
@@ -464,18 +588,36 @@ export default function LandingPage() {
               ].map(({ label, value, desc }) => (
                 <div
                   key={label}
-                  className="rounded-2xl border border-gray-200 bg-white p-8 text-center hover:shadow-md transition-all"
+                  className="rounded-2xl p-8 text-center transition-all"
+                  style={{
+                    backgroundColor: "white",
+                    border: "1px solid rgba(229, 225, 218, 0.5)",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.boxShadow = "0 8px 30px rgba(146, 199, 207, 0.15)";
+                    e.currentTarget.style.borderColor = "#92C7CF";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.boxShadow = "none";
+                    e.currentTarget.style.borderColor = "rgba(229, 225, 218, 0.5)";
+                  }}
                 >
-                  <span className="text-xs font-semibold tracking-wider text-blue-500 uppercase">
+                  <span
+                    className="text-xs font-semibold tracking-wider uppercase"
+                    style={{ color: "#92C7CF" }}
+                  >
                     {desc}
                   </span>
-                  <p className="mt-1 text-sm text-gray-500 font-medium">
+                  <p className="mt-1 text-sm font-medium" style={{ color: "#6b6b6b" }}>
                     {label}
                   </p>
-                  <p className="mt-3 text-5xl sm:text-6xl font-bold tracking-tight text-gray-900">
+                  <p
+                    className="mt-3 text-5xl sm:text-6xl font-bold tracking-tight"
+                    style={{ color: "#4a4a4a" }}
+                  >
                     {value}
                   </p>
-                  <p className="mt-4 text-xs text-gray-400">
+                  <p className="mt-4 text-xs" style={{ color: "#999" }}>
                     Draw Date:{" "}
                     {new Date().toLocaleDateString("en-US", {
                       month: "long",
@@ -499,25 +641,42 @@ export default function LandingPage() {
             }`}
           >
             <div className="mx-auto max-w-3xl text-center">
-              <span className="text-xs font-semibold tracking-[0.2em] text-blue-500 uppercase">
+              <span
+                className="text-xs font-semibold tracking-[0.2em] uppercase"
+                style={{ color: "#92C7CF" }}
+              >
                 Who We Are
               </span>
-              <h2 className="mt-3 text-3xl sm:text-4xl font-bold tracking-tight text-gray-900">
+              <h2 className="mt-3 text-3xl sm:text-4xl font-bold tracking-tight text-gray-800">
                 About Hexaprime
               </h2>
-              <p className="mt-6 text-gray-500 leading-relaxed text-base sm:text-lg">
+              <p className="mt-6 leading-relaxed text-base sm:text-lg" style={{ color: "#6b6b6b" }}>
                 Hexaprime Inc. builds secure and transparent STL systems across
                 the Philippines. We are dedicated to providing fair, regulated
                 gaming experiences while channeling resources back into
                 community development and disaster response initiatives.
               </p>
               <div className="mt-10 flex justify-center gap-3 flex-wrap">
-                <div className="flex items-center gap-2 rounded-full bg-gray-100 px-4 py-2 text-sm text-gray-700">
-                  <TrendingUp className="h-4 w-4 text-blue-500" />
+                <div
+                  className="flex items-center gap-2 rounded-full px-4 py-2 text-sm"
+                  style={{
+                    backgroundColor: "rgba(146, 199, 207, 0.1)",
+                    color: "#4a4a4a",
+                    border: "1px solid rgba(146, 199, 207, 0.2)",
+                  }}
+                >
+                  <TrendingUp className="h-4 w-4" style={{ color: "#92C7CF" }} />
                   Trusted by 15+ LGUs
                 </div>
-                <div className="flex items-center gap-2 rounded-full bg-gray-100 px-4 py-2 text-sm text-gray-700">
-                  <Shield className="h-4 w-4 text-blue-500" />
+                <div
+                  className="flex items-center gap-2 rounded-full px-4 py-2 text-sm"
+                  style={{
+                    backgroundColor: "rgba(146, 199, 207, 0.1)",
+                    color: "#4a4a4a",
+                    border: "1px solid rgba(146, 199, 207, 0.2)",
+                  }}
+                >
+                  <Shield className="h-4 w-4" style={{ color: "#92C7CF" }} />
                   Fully Compliant
                 </div>
               </div>
@@ -527,11 +686,14 @@ export default function LandingPage() {
       </main>
 
       {/* ─── FOOTER ─── */}
-      <footer className="border-t border-gray-100 bg-gray-50">
-        <div className="mx-auto max-w-7xl px-6 py-10 lg:px-8">
+      <footer
+        className="border-t py-10"
+        style={{ backgroundColor: "#FBF9F1", borderColor: "#E5E1DA" }}
+      >
+        <div className="mx-auto max-w-7xl px-6 lg:px-8">
           <div className="flex flex-col items-center gap-4 sm:flex-row sm:justify-between">
-            <img src={LogoOnly} alt="Hexaprime" className="h-8 w-auto" />
-            <p className="text-xs text-gray-400">
+            <img src={LogoWithName} alt="Hexaprime" className="h-8 w-auto" />
+            <p className="text-xs" style={{ color: "#999" }}>
               &copy; {new Date().getFullYear()} Hexaprime Inc. All rights
               reserved.
             </p>
