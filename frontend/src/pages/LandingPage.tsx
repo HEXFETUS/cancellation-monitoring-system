@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
-import { ArrowRight, ShieldCheck } from "lucide-react";
+import {
+    ArrowRight,
+    ShieldCheck,
+} from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 import heroImage from "../assets/hero.png";
@@ -154,7 +157,6 @@ export default function LandingPage() {
 
     return (
         <div className="min-h-screen overflow-x-hidden text-gray-800 bg-gradient-to-br from-[#FBF9F1] to-[#E5E1DA] no-scrollbar">
-
             <LoginModal
                 open={loginOpen}
                 onClose={() => setLoginOpen(false)}
@@ -209,7 +211,6 @@ export default function LandingPage() {
             </header>
 
             <main className="pt-[76px]">
-
                 {/* HERO */}
                 <section
                     id="home"
@@ -225,22 +226,47 @@ export default function LandingPage() {
                         <div className="absolute top-32 right-[-80px] h-[420px] w-[420px] rounded-full bg-[#AAD7D9]/30 blur-3xl" />
                     </div>
 
-                    <div style={{ transform: `translateY(${scrollY * 0.06}px)` }}>
+                    <div
+                        style={{
+                            transform: `translateY(${scrollY * 0.06}px)`,
+                        }}
+                    >
                         <div className="inline-flex items-center gap-2 rounded-full bg-white/50 px-4 py-2 text-xs font-semibold tracking-[0.15em] text-gray-600 backdrop-blur-md">
                             <ShieldCheck className="h-4 w-4 text-[#5f9da7]" />
                             Small Town Lottery
                         </div>
 
                         <h1 className="mt-5 text-5xl font-bold leading-tight sm:text-6xl lg:text-7xl">
-                            Sharing Care, Beyond the Line With Hexaprime
+                            Sharing Care Beyond the Line
+                            <span
+                                className="block bg-gradient-to-r bg-clip-text text-transparent"
+                                style={{
+                                    backgroundImage:
+                                        "linear-gradient(135deg,#5f9da7,#92C7CF,#AAD7D9)",
+                                }}
+                            >
+                                with Hexaprime
+                            </span>
                         </h1>
+
+                        <p className="mt-6 max-w-2xl text-lg leading-8 text-gray-600">
+                            Delivering transparent, secure, and community-driven
+                            lottery systems across the Philippines.
+                        </p>
                     </div>
 
-                    <div style={{ transform: `translateY(${scrollY * -0.04}px)` }}>
-                        <img
-                            src={heroImage}
-                            className="rounded-[2rem] w-full object-cover"
-                        />
+                    <div
+                        style={{
+                            transform: `translateY(${-scrollY * 0.04}px)`,
+                        }}
+                    >
+                        <div className="rounded-[2.5rem] border border-white/40 bg-white/30 p-3 backdrop-blur-xl shadow-2xl">
+                            <img
+                                src={heroImage}
+                                alt="Hero"
+                                className="rounded-[2rem] w-full object-cover"
+                            />
+                        </div>
                     </div>
                 </section>
 
@@ -265,12 +291,15 @@ export default function LandingPage() {
                                     <h3 className="font-semibold">
                                         {item.title}
                                     </h3>
+
                                     <p className="text-sm mt-3 text-gray-600">
                                         {item.description}
                                     </p>
+
                                     <p className="mt-3 text-sm">
                                         <b>Helped:</b> {item.peopleHelped}
                                     </p>
+
                                     <p className="text-sm">
                                         <b>Location:</b> {item.location}
                                     </p>
@@ -299,7 +328,10 @@ export default function LandingPage() {
                                     key={label}
                                     className="p-6 rounded-2xl bg-white/40 border border-white/50"
                                 >
-                                    <p className="text-sm text-gray-600">{label}</p>
+                                    <p className="text-sm text-gray-600">
+                                        {label}
+                                    </p>
+
                                     <p className="text-3xl font-bold mt-2">
                                         {value}
                                     </p>
@@ -322,12 +354,13 @@ export default function LandingPage() {
                         </h2>
 
                         <p className="mt-4 text-gray-600 text-sm leading-6 max-w-3xl">
-                            Hexaprime Inc. builds secure and transparent STL systems
-                            across the Philippines.
+                            Hexaprime Inc. builds secure and transparent STL
+                            systems across the Philippines while supporting
+                            communities through social responsibility programs
+                            and humanitarian initiatives.
                         </p>
                     </div>
                 </section>
-
             </main>
         </div>
     );
