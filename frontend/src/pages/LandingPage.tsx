@@ -70,7 +70,7 @@ const socialImpact: ImpactItem[] = [
 const stats = [
   { label: "Communities Served", value: "120+" },
   { label: "Individuals Helped", value: "7,370+" },
-  { label: "Years of Service", value: "8+" },
+  { label: "Years of Service", value: "3+" },
   { label: "Partner LGUs", value: "15+" },
 ];
 
@@ -182,11 +182,10 @@ export default function LandingPage() {
 
       {/* ─── HEADER ─── */}
       <header
-        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-          scrolled
+        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled
             ? "py-2 shadow-lg"
             : "py-4"
-        }`}
+          }`}
         style={{
           backgroundColor: scrolled ? "rgba(251, 249, 241, 0.85)" : "transparent",
           backdropFilter: scrolled ? "blur(16px)" : "none",
@@ -206,9 +205,8 @@ export default function LandingPage() {
             <img
               src={scrolled ? LogoOnly : LogoWithName}
               alt="Hexaprime"
-              className={`transition-all duration-300 ${
-                scrolled ? "h-8 w-auto" : "h-10 w-auto"
-              }`}
+              className={`transition-all duration-300 ${scrolled ? "h-8 w-auto" : "h-10 w-auto"
+                }`}
             />
           </a>
 
@@ -321,9 +319,8 @@ export default function LandingPage() {
             {slideshowImages.map((src, i) => (
               <div
                 key={src}
-                className={`absolute inset-0 transition-opacity duration-1000 ${
-                  i === slide.current ? "opacity-100" : "opacity-0"
-                }`}
+                className={`absolute inset-0 transition-opacity duration-1000 ${i === slide.current ? "opacity-100" : "opacity-0"
+                  }`}
               >
                 <img
                   src={src}
@@ -339,11 +336,10 @@ export default function LandingPage() {
           {/* Content */}
           <div className="relative z-10 mx-auto max-w-7xl px-6 lg:px-8 w-full">
             <div
-              className={`max-w-2xl transition-all duration-700 ${
-                inView.hero
+              className={`max-w-2xl transition-all duration-700 ${inView.hero
                   ? "opacity-100 translate-y-0"
                   : "opacity-0 translate-y-8"
-              }`}
+                }`}
             >
               <span
                 className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-semibold tracking-wider border"
@@ -362,8 +358,8 @@ export default function LandingPage() {
                 className="mt-8 text-4xl sm:text-5xl lg:text-6xl font-bold leading-tight tracking-tight"
                 style={{ color: "white", textShadow: "0 2px 12px rgba(0,0,0,0.3)" }}
               >
-                Sharing Care Beyond the Line{" "}
-                <span style={{ color: "#AAD7D9" }}>with Hexaprime</span>
+                Sharing Care Beyond the line with {""}
+                <span style={{ color: "#AAD7D9" }}>Hexaprime</span>
               </h1>
 
               <p
@@ -448,11 +444,10 @@ export default function LandingPage() {
         {/* ─── SOCIAL RESPONSIBILITY ─── */}
         <section id="social-responsibility" className="py-24 sm:py-32">
           <div
-            className={`mx-auto max-w-7xl px-6 lg:px-8 transition-all duration-700 ${
-              inView["social-responsibility"]
+            className={`mx-auto max-w-7xl px-6 lg:px-8 transition-all duration-700 ${inView["social-responsibility"]
                 ? "opacity-100 translate-y-0"
                 : "opacity-0 translate-y-10"
-            }`}
+              }`}
           >
             <div className="mx-auto max-w-2xl text-center">
               <span
@@ -543,11 +538,10 @@ export default function LandingPage() {
         {/* ─── RESULTS ─── */}
         <section id="results" className="py-24 sm:py-32" style={{ backgroundColor: "#E5E1DA" }}>
           <div
-            className={`mx-auto max-w-7xl px-6 lg:px-8 transition-all duration-700 ${
-              inView.results
+            className={`mx-auto max-w-7xl px-6 lg:px-8 transition-all duration-700 ${inView.results
                 ? "opacity-100 translate-y-0"
                 : "opacity-0 translate-y-10"
-            }`}
+              }`}
           >
             <div className="mx-auto max-w-2xl text-center">
               <span
@@ -564,24 +558,24 @@ export default function LandingPage() {
               </p>
             </div>
 
-            <div className="mt-12 grid gap-6 md:grid-cols-3 max-w-8xl mx-auto">
+            <div className="mt-12 grid gap-6 md:grid-cols-3 max-w-4xl mx-auto">
               {[
                 { label: "3D 1st Draw (2 PM)", value: "128", desc: "National" },
                 { label: "STL 1st Draw (11 AM)", value: "143", desc: "Local CDO" },
                 { label: "STL 1st Draw (11 AM)", value: "123", desc: "Local MISOR" },
-                { label: "3D 1st Draw (5 PM)", value: "TBA", desc: "National" },
-                { label: "STL 1st Draw (4 PM)", value: "TBA", desc: "Local CDO" },
-                { label: "STL 1st Draw (4 PM)", value: "TBA", desc: "Local MISOR" },
-                { label: "3D 1st Draw (9 PM)", value: "TBA", desc: "National" },
-                { label: "STL 1st Draw (8 PM)", value: "TBA", desc: "Local CDO" },
-                { label: "STL 1st Draw (8 PM)", value: "TBA", desc: "Local MISOR" },
+                { label: "3D 2nd Draw (5 PM)", value: "TBA", desc: "National" },
+                { label: "STL 2nd Draw (4 PM)", value: "TBA", desc: "Local CDO" },
+                { label: "STL 2nd Draw (4 PM)", value: "TBA", desc: "Local MISOR" },
+                { label: "3D 3rd Draw (9 PM)", value: "TBA", desc: "National" },
+                { label: "STL 3rd Draw (8 PM)", value: "TBA", desc: "Local CDO" },
+                { label: "STL 3rd Draw (8 PM)", value: "TBA", desc: "Local MISOR" },
               ].map(({ label, value, desc }) => (
                 <div
                   key={label}
-                  className="rounded-2xl p-8 text-center transition-all"
+                  className="rounded-2xl p-3 text-center transition-all"
                   style={{
                     backgroundColor: "white",
-                    border: "1px solid rgba(229, 225, 218, 0.5)",
+                    border: ".5px solid rgba(229, 225, 218, 0.5)",
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.boxShadow = "0 8px 30px rgba(146, 199, 207, 0.15)";
@@ -593,16 +587,16 @@ export default function LandingPage() {
                   }}
                 >
                   <span
-                    className="text-xs font-semibold tracking-wider uppercase"
+                    className="text-sm font-semibold tracking-wider uppercase"
                     style={{ color: "#92C7CF" }}
                   >
                     {desc}
                   </span>
-                  <p className="mt-1 text-sm font-medium" style={{ color: "#6b6b6b" }}>
+                  <p className="mt-1 text-xs font-medium" style={{ color: "#6b6b6b" }}>
                     {label}
                   </p>
                   <p
-                    className="mt-3 text-5xl sm:text-6xl font-bold tracking-tight"
+                    className="mt-3 text-5xl sm:text-4xl font-bold tracking-tight"
                     style={{ color: "#4a4a4a" }}
                   >
                     {value}
@@ -624,11 +618,10 @@ export default function LandingPage() {
         {/* ─── ABOUT US ─── */}
         <section id="about-us" className="py-24 sm:py-32">
           <div
-            className={`mx-auto max-w-7xl px-6 lg:px-8 transition-all duration-700 ${
-              inView["about-us"]
+            className={`mx-auto max-w-7xl px-6 lg:px-8 transition-all duration-700 ${inView["about-us"]
                 ? "opacity-100 translate-y-0"
                 : "opacity-0 translate-y-10"
-            }`}
+              }`}
           >
             <div className="mx-auto max-w-3xl text-center">
               <span
