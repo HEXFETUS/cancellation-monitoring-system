@@ -1,9 +1,6 @@
 import { useEffect, useState } from "react";
 import {
     ArrowRight,
-    BarChart3,
-    BellRing,
-    FileCheck2,
     ShieldCheck,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -15,21 +12,6 @@ import LoginModal from "../components/LoginModal";
 /* ---------------- DATA ---------------- */
 const socialImpact = [
     {
-<<<<<<< HEAD
-        title: "Live queue visibility",
-        description: "Track requests, status changes, and response times from one calm workspace.",
-        icon: BellRing,
-    },
-    {
-        title: "Auditable records",
-        description: "Keep every cancellation decision organized for fast review and reporting.",
-        icon: FileCheck2,
-    },
-    {
-        title: "Operational reporting",
-        description: "Turn daily activity into clean summaries your team can act on immediately.",
-        icon: BarChart3,
-=======
         title: "Typhoon Relief Operations",
         description:
             "Distributed food packs and emergency supplies to families affected by severe flooding and strong winds.",
@@ -49,7 +31,6 @@ const socialImpact = [
             "Delivered essential kits and medical support to affected barangays after seismic activity.",
         peopleHelped: "3,120+ individuals",
         location: "Southern Philippines",
->>>>>>> 3bd9ac7 (add content and header animation)
     },
 ];
 
@@ -86,63 +67,10 @@ const useInView = () => {
 export default function LandingPage() {
     const { isAuthenticated } = useAuth();
     const navigate = useNavigate();
+
     const [loginOpen, setLoginOpen] = useState(false);
     const [pendingRoute, setPendingRoute] = useState<string | null>(null);
 
-<<<<<<< HEAD
-  const requireAuth = (path: string) => {
-    if (isAuthenticated) navigate(path);
-    else {
-      setPendingRoute(path);
-      setLoginOpen(true);
-    }
-  };
-
-    const handleLoginSuccess = () => {
-        setLoginOpen(false);
-        navigate(pendingRoute || "/dashboard");
-        setPendingRoute(null);
-    };
-
-    const handleClose = () => {
-        setLoginOpen(false);
-        setPendingRoute(null);
-    };
-
-    return (
-        <div
-            className="min-h-screen overflow-hidden text-gray-800"
-            style={{
-                background: `
-                    radial-gradient(circle at top left, rgba(146,199,207,0.38), transparent 34%),
-                    radial-gradient(circle at 85% 18%, rgba(170,215,217,0.34), transparent 30%),
-                    linear-gradient(135deg, #FBF9F1 0%, #E5E1DA 100%)
-                `,
-            }}
-        >
-            <LoginModal open={loginOpen} onClose={handleClose} onSuccess={handleLoginSuccess} />
-
-            <header className="mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-5 lg:px-8">
-                <span
-                    className="inline-flex h-12 items-center rounded-2xl px-5 text-lg font-bold text-white shadow-lg"
-                    style={{
-                        background: "linear-gradient(135deg, #92C7CF 0%, #AAD7D9 100%)",
-                    }}
-                >
-                    Hexaprime Inc.
-                </span>
-
-                <nav className="hidden items-center gap-7 text-sm font-medium text-gray-600 md:flex">
-                    <button
-                        onClick={() =>
-                            document
-                                .getElementById("home")
-                                ?.scrollIntoView({ behavior: "smooth" })
-                        }
-                        className="transition-colors hover:text-gray-900"
-                    >
-                        Home
-=======
     const [isScrolled, setIsScrolled] = useState(false);
     const [isCompact, setIsCompact] = useState(false);
     const [activeSection, setActiveSection] = useState("home");
@@ -229,7 +157,6 @@ export default function LandingPage() {
 
     return (
         <div className="min-h-screen overflow-x-hidden text-gray-800 bg-gradient-to-br from-[#FBF9F1] to-[#E5E1DA] no-scrollbar">
-
             <LoginModal
                 open={loginOpen}
                 onClose={() => setLoginOpen(false)}
@@ -279,61 +206,12 @@ export default function LandingPage() {
                         className="px-4 h-10 rounded-2xl text-sm font-semibold bg-white/40 border border-white/50"
                     >
                         Log In <ArrowRight className="inline h-4 w-4" />
->>>>>>> 3bd9ac7 (add content and header animation)
                     </button>
-
-<<<<<<< HEAD
-                    <button
-                        onClick={() =>
-                            document
-                                .getElementById("social-responsibility")
-                                ?.scrollIntoView({ behavior: "smooth" })
-                        }
-                        className="transition-colors hover:text-gray-900"
-                    >
-                        Social Responsibility
-                    </button>
-
-                    <button
-                        onClick={() =>
-                            document
-                                .getElementById("results")
-                                ?.scrollIntoView({ behavior: "smooth" })
-                        }
-                        className="transition-colors hover:text-gray-900"
-                    >
-                        Results
-                    </button>
-
-                    <button
-                        onClick={() =>
-                            document
-                                .getElementById("about-us")
-                                ?.scrollIntoView({ behavior: "smooth" })
-                        }
-                        className="transition-colors hover:text-gray-900"
-                    >
-                        About Us
-                    </button>
-                </nav>
-
-                <button
-                    onClick={() => requireAuth("/dashboard")}
-                    className="inline-flex h-11 items-center gap-2 rounded-2xl px-4 text-sm font-semibold text-gray-800 transition-transform hover:-translate-y-0.5"
-                    style={{
-                        background: "rgba(255, 255, 255, 0.38)",
-                        border: "1px solid rgba(255, 255, 255, 0.55)",
-                        boxShadow:
-                            "0 8px 28px rgba(31, 38, 135, 0.10), inset 0 1px 0 rgba(255,255,255,0.65)",
-                    }}
-                >
-                    Log in
-                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                </button>
+                </div>
             </header>
 
-            <main className="pt-[88px]">
-                {/* 🌊 PARALLAX HERO */}
+            <main className="pt-[76px]">
+                {/* HERO */}
                 <section
                     id="home"
                     className={`relative mx-auto grid min-h-[88vh] max-w-7xl items-center gap-10 px-6 lg:grid-cols-2 lg:px-8 overflow-hidden ${sectionAnim(
@@ -348,62 +226,17 @@ export default function LandingPage() {
                         <div className="absolute top-32 right-[-80px] h-[420px] w-[420px] rounded-full bg-[#AAD7D9]/30 blur-3xl" />
                     </div>
 
-                    <div style={{ transform: `translateY(${scrollY * 0.06}px)` }}>
+                    <div
+                        style={{
+                            transform: `translateY(${scrollY * 0.06}px)`,
+                        }}
+                    >
                         <div className="inline-flex items-center gap-2 rounded-full bg-white/50 px-4 py-2 text-xs font-semibold tracking-[0.15em] text-gray-600 backdrop-blur-md">
                             <ShieldCheck className="h-4 w-4 text-[#5f9da7]" />
->>>>>>> 3bd9ac7 (add content and header animation)
                             Small Town Lottery
-                        </p>
-
-<<<<<<< HEAD
-                        <h1 className="mt-5 max-w-4xl text-5xl font-bold leading-[1.02] text-gray-800 sm:text-6xl lg:text-7xl">
-                            Hexaprime Inc.
-                        </h1>
-
-                        <p className="mt-6 max-w-2xl text-lg leading-8 text-gray-600">
-                            Sharing Care, Beyond the line with Hexaprime!
-                        </p>
-
-                        <section id="social-responsibility">
-                            {/* Social Responsibility content */}
-                        </section>
-                        <div className="mt-11 grid gap-4 sm:grid-cols-3">
-                            {highlights.map((item) => {
-                                const Icon = item.icon;
-
-                                return (
-                                    <article
-                                        key={item.title}
-                                        className="rounded-3xl p-5 backdrop-blur-xl"
-                                        style={{
-                                            background: "rgba(255, 255, 255, 0.28)",
-                                            border: "1px solid rgba(255, 255, 255, 0.45)",
-                                            boxShadow:
-                                                "0 8px 32px rgba(31, 38, 135, 0.08), inset 0 1px 0 rgba(255,255,255,0.6)",
-                                        }}
-                                    >
-                                        <span
-                                            className="inline-flex h-10 w-10 items-center justify-center rounded-2xl"
-                                            style={{
-                                                background: "rgba(146, 199, 207, 0.22)",
-                                                color: "#5f9da7",
-                                            }}
-                                        >
-                                            <Icon className="h-5 w-5" aria-hidden="true" />
-                                        </span>
-                                        <h2 className="mt-4 text-base font-semibold text-gray-800">
-                                            {item.title}
-                                        </h2>
-                                        <p className="mt-2 text-sm leading-6 text-gray-600">
-                                            {item.description}
-                                        </p>
-                                    </article>
-                                );
-                            })}
                         </div>
-                    </div>
 
-                        <h1 className="mt-6 text-5xl font-bold leading-tight text-gray-800 sm:text-6xl lg:text-7xl">
+                        <h1 className="mt-5 text-5xl font-bold leading-tight sm:text-6xl lg:text-7xl">
                             Sharing Care Beyond the Line
                             <span
                                 className="block bg-gradient-to-r bg-clip-text text-transparent"
@@ -415,23 +248,25 @@ export default function LandingPage() {
                                 with Hexaprime
                             </span>
                         </h1>
+
+                        <p className="mt-6 max-w-2xl text-lg leading-8 text-gray-600">
+                            Delivering transparent, secure, and community-driven
+                            lottery systems across the Philippines.
+                        </p>
                     </div>
 
-                    {/* IMAGE LAYER */}
                     <div
                         style={{
-                            transform: `translateY(${-scrollY * 0.05}px) scale(${1 + scrollY * 0.0001})`,
+                            transform: `translateY(${-scrollY * 0.04}px)`,
                         }}
-                        className="relative"
                     >
                         <div className="rounded-[2.5rem] border border-white/40 bg-white/30 p-3 backdrop-blur-xl shadow-2xl">
                             <img
                                 src={heroImage}
+                                alt="Hero"
                                 className="rounded-[2rem] w-full object-cover"
                             />
                         </div>
-
-                        <div className="absolute -bottom-10 -right-10 h-40 w-40 rounded-full bg-[#92C7CF]/30 blur-3xl" />
                     </div>
                 </section>
 
@@ -456,12 +291,15 @@ export default function LandingPage() {
                                     <h3 className="font-semibold">
                                         {item.title}
                                     </h3>
+
                                     <p className="text-sm mt-3 text-gray-600">
                                         {item.description}
                                     </p>
+
                                     <p className="mt-3 text-sm">
                                         <b>Helped:</b> {item.peopleHelped}
                                     </p>
+
                                     <p className="text-sm">
                                         <b>Location:</b> {item.location}
                                     </p>
@@ -490,7 +328,10 @@ export default function LandingPage() {
                                     key={label}
                                     className="p-6 rounded-2xl bg-white/40 border border-white/50"
                                 >
-                                    <p className="text-sm text-gray-600">{label}</p>
+                                    <p className="text-sm text-gray-600">
+                                        {label}
+                                    </p>
+
                                     <p className="text-3xl font-bold mt-2">
                                         {value}
                                     </p>
@@ -513,12 +354,13 @@ export default function LandingPage() {
                         </h2>
 
                         <p className="mt-4 text-gray-600 text-sm leading-6 max-w-3xl">
-                            Hexaprime Inc. builds secure and transparent STL systems
-                            across the Philippines.
+                            Hexaprime Inc. builds secure and transparent STL
+                            systems across the Philippines while supporting
+                            communities through social responsibility programs
+                            and humanitarian initiatives.
                         </p>
                     </div>
                 </section>
-
             </main>
         </div>
     );
