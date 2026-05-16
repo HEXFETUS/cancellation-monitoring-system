@@ -41,7 +41,7 @@ export default function LoginModal({ open, onClose, onSuccess }: Props) {
             <div
                 className="relative w-full max-w-md rounded-3xl border shadow-2xl backdrop-blur-2xl p-8 mx-4"
                 style={{
-                    background: "rgba(255, 255, 255, 0.30)",
+                    background: "rgba(255, 255, 255, 0.66)",
                     border: "1px solid rgba(255, 255, 255, 0.50)",
                     boxShadow:
                         "0 20px 60px rgba(31, 38, 135, 0.18), inset 0 1px 0 rgba(255,255,255,0.65)",
@@ -126,11 +126,6 @@ export default function LoginModal({ open, onClose, onSuccess }: Props) {
                     {error && (
                         <p className="text-sm font-medium text-red-600">{error}</p>
                     )}
-
-                    {/* Hint */}
-                    <p className="text-xs text-gray-500">
-                        Demo credentials: <strong>admin</strong> / <strong>admin123</strong>
-                    </p>
 
                     {/* Submit */}
                     <button
