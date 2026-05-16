@@ -71,8 +71,8 @@ export default function DashboardPage() {
                             <p className="text-sm font-medium text-gray-500">
                                 Welcome back,
                             </p>
-                            <h1 className="text-3xl font-bold tracking-tight text-gray-800">
-                                Kedev Boo
+                            <h1 className="text-2xl font-semibold tracking-tight text-gray-800">
+                                KhedBoo
                             </h1>
                             <p className="mt-1 text-sm text-gray-600">
                                 IT Manager • Hexaprime Inc.
@@ -150,7 +150,7 @@ export default function DashboardPage() {
                             </p>
 
                             <h2
-                                className="mt-4 text-5xl font-bold"
+                                className="mt-2 text-3xl font-bold"
                                 style={{ color: card.accent }}
                             >
                                 {card.value}
