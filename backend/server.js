@@ -3,6 +3,8 @@ import cors from "cors";
 import dotenv from "dotenv";
 
 import healthRoutes from "./src/routes/health.routes.js";
+import userRoutes from "./src/routes/user.routes.js";
+import initDatabase from "./src/config/init.js";
 
 dotenv.config();
 
@@ -13,7 +15,12 @@ app.use(express.json());
 
 // routes
 app.use("/api/health", healthRoutes);
+app.use("/api/users", userRoutes);
 
-app.listen(5000, () => {
-    console.log("Server running on port 5000");
+const PORT = process.env.PORT || 5000;
+
+initDatabase().then(() => {
+    app.listen(PORT, () => {
+        console.log(`Server running on port ${PORT}`);
+    });
 });

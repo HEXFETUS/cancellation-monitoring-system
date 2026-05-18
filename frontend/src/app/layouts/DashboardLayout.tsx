@@ -1,19 +1,25 @@
 import { Link, useLocation, useNavigate, Outlet } from "react-router-dom";
-import { LogOut } from "lucide-react";
+import { LogOut, ChevronDown, ChevronRight, Settings } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
+import { useState } from "react";
 
 const menuItems = [
     { name: "Dashboard", path: "/app/dashboard" },
     { name: "POS System", path: "/app/pos" },
     { name: "Cancellation", path: "/app/cancellation" },
     { name: "Reports", path: "/app/reports" },
-    { name: "Settings", path: "/app/settings" },
+];
+
+const settingsSubItems = [
+    { name: "User Accounts", path: "/app/settings/user-accounts" },
 ];
 
 export default function DashboardLayout() {
     const location = useLocation();
     const { logout } = useAuth();
     const navigate = useNavigate();
+    const settingsExpandedDefault = location.pathname.startsWith("/app/settings");
+    const [settingsExpanded, setSettingsExpanded] = useState(settingsExpandedDefault);
 
     const handleLogout = () => {
         logout();
@@ -105,6 +111,64 @@ export default function DashboardLayout() {
                                 </Link>
                             );
                         })}
+
+                        {/* Settings with sub-menu */}
+                        <div>
+                            <button
+                                onClick={() => setSettingsExpanded((v) => !v)}
+                                className="group relative flex items-center w-full px-4 py-2 rounded-2xl transition-all duration-300"
+                                style={{
+                                    background: location.pathname.startsWith("/app/settings")
+                                        ? "rgba(146, 199, 207, 0.20)"
+                                        : "transparent",
+                                    border: location.pathname.startsWith("/app/settings")
+                                        ? "1px solid rgba(146, 199, 207, 0.35)"
+                                        : "1px solid transparent",
+                                    boxShadow: location.pathname.startsWith("/app/settings")
+                                        ? "inset 0 .5px 0 rgba(255,255,255,0.5)"
+                                        : "none",
+                                }}
+                            >
+                                <Settings className="w-4 h-4 mr-2" style={{ color: location.pathname.startsWith("/app/settings") ? "#92C7CF" : "#D1D5DB" }} />
+                                <span
+                                    className={`flex-1 text-left font-xs transition-colors duration-300 ${location.pathname.startsWith("/app/settings")
+                                        ? "text-gray-800"
+                                        : "text-gray-600 group-hover:text-gray-800"
+                                        }`}
+                                >
+                                    Settings
+                                </span>
+                                {settingsExpanded ? (
+                                    <ChevronDown className="w-4 h-4 text-gray-400" />
+                                ) : (
+                                    <ChevronRight className="w-4 h-4 text-gray-400" />
+                                )}
+                            </button>
+
+                            {settingsExpanded && (
+                                <div className="ml-6 mt-1 space-y-1">
+                                    {settingsSubItems.map((sub) => {
+                                        const isSubActive = location.pathname === sub.path;
+                                        return (
+                                            <Link
+                                                key={sub.path}
+                                                to={sub.path}
+                                                className="block px-3 py-1.5 rounded-xl text-sm transition-all duration-300"
+                                                style={{
+                                                    background: isSubActive
+                                                        ? "rgba(146, 199, 207, 0.20)"
+                                                        : "transparent",
+                                                    color: isSubActive ? "#2c3e50" : "#6b7280",
+                                                    fontWeight: isSubActive ? 600 : 400,
+                                                }}
+                                            >
+                                                {sub.name}
+                                            </Link>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
                     </nav>
 
                     {/* Logout */}
