@@ -10,7 +10,7 @@ export const router = createBrowserRouter([
     {
         path: "/",
         element: <LandingPage />,
-    },git stu
+    },
     {
         path: "/app",
         element: <DashboardLayout />,
