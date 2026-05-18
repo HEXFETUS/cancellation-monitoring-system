@@ -12,6 +12,20 @@ interface User {
 const USERTYPES = ["admin", "csr", "operator"] as const;
 
 const ALPHANUMERIC = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
+
+function apiUrl(path: string) {
+    return `${API_BASE_URL}${path}`;
+}
+
+async function getErrorMessage(res: Response, fallback: string) {
+    try {
+        const data = await res.json();
+        return data.error || data.message || fallback;
+    } catch {
+        return fallback;
+    }
+}
 
 function generatePassword(length = 10): string {
     let password = "";
@@ -143,8 +157,8 @@ export default function UserAccountsPage() {
     const fetchUsers = async () => {
         try {
             setError("");
-            const res = await fetch("/api/users");
-            if (!res.ok) throw new Error("Failed to fetch users");
+            const res = await fetch(apiUrl("/api/users"));
+            if (!res.ok) throw new Error(await getErrorMessage(res, "Failed to fetch users"));
             const data = await res.json();
             setUsers(data);
         } catch (err: any) {
@@ -172,12 +186,12 @@ export default function UserAccountsPage() {
             message: "Are you sure you want to save these changes?",
             onConfirm: async () => {
                 try {
-                    const res = await fetch(`/api/users/${id}`, {
+                    const res = await fetch(apiUrl(`/api/users/${id}`), {
                         method: "PUT",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify(editForm),
                     });
-                    if (!res.ok) throw new Error("Failed to update user");
+                    if (!res.ok) throw new Error(await getErrorMessage(res, "Failed to update user"));
                     await fetchUsers();
                     setEditingId(null);
                 } catch (err: any) {
@@ -195,8 +209,8 @@ export default function UserAccountsPage() {
             message: `Are you sure you want to delete "${user?.name}"?`,
             onConfirm: async () => {
                 try {
-                    const res = await fetch(`/api/users/${id}`, { method: "DELETE" });
-                    if (!res.ok) throw new Error("Failed to delete user");
+                    const res = await fetch(apiUrl(`/api/users/${id}`), { method: "DELETE" });
+                    if (!res.ok) throw new Error(await getErrorMessage(res, "Failed to delete user"));
                     await fetchUsers();
                 } catch (err: any) {
                     setError(err.message);
@@ -210,12 +224,12 @@ export default function UserAccountsPage() {
     const handleChangePasswordSave = async (newPassword: string) => {
         if (!passwordModalUser) return;
         try {
-            const res = await fetch(`/api/users/${passwordModalUser.id}/password`, {
+            const res = await fetch(apiUrl(`/api/users/${passwordModalUser.id}/password`), {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ newPassword }),
             });
-            if (!res.ok) throw new Error("Failed to change password");
+            if (!res.ok) throw new Error(await getErrorMessage(res, "Failed to change password"));
             setPasswordModalUser(null);
         } catch (err: any) {
             setError(err.message);
