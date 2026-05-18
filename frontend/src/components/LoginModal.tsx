@@ -17,7 +17,7 @@ export default function LoginModal({ open, onClose, onSuccess }: Props) {
 
     if (!open) return null;
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError("");
 
@@ -26,13 +26,13 @@ export default function LoginModal({ open, onClose, onSuccess }: Props) {
             return;
         }
 
-        const success = login(username.trim(), password);
+        const success = await login(username.trim(), password);
         if (success) {
             setUsername("");
             setPassword("");
             onSuccess();
         } else {
-            setError("Invalid username or password.");
+            setError("Invalid email or password.");
         }
     };
 
@@ -70,15 +70,15 @@ export default function LoginModal({ open, onClose, onSuccess }: Props) {
                             htmlFor="login-username"
                             className="block text-sm font-semibold text-gray-700 mb-1.5"
                         >
-                            Username
+                            Email
                         </label>
                         <input
                             id="login-username"
-                            type="text"
+                            type="email"
                             value={username}
                             onChange={(e) => setUsername(e.target.value)}
-                            placeholder="Enter your username"
-                            autoComplete="username"
+                            placeholder="Enter your email"
+                            autoComplete="email"
                             className="w-full rounded-2xl border bg-white/40 px-4 py-3 text-sm text-gray-800 placeholder-gray-400 outline-none transition-all focus:border-gray-400 focus:bg-white/60 focus:ring-2 focus:ring-gray-300/50"
                             style={{
                                 border: "1px solid rgba(255, 255, 255, 0.50)",
