@@ -3,8 +3,8 @@ import LandingPage from "../../pages/LandingPage";
 import DashboardLayout from "../layouts/DashboardLayout";
 import DashboardHome from "../../pages/dashboard/DashboardHome";
 import ProductsPage from "../../modules/pos/pages/ProductsPage";
-import SettingsPage from "../../pages/SettingsPage";
-import UserAccountsPage from "../../pages/UserAccountsPage";
+import SettingsPage from "../../modules/settings/pages/SettingsPage";
+import UserAccountsPage from "../../modules/settings/user-accounts/pages/UserAccountsPage";
 
 export const router = createBrowserRouter([
     {

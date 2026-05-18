@@ -3,11 +3,21 @@ import pool from "../config/db.js";
 
 const router = express.Router();
 
+const VALID_USER_TYPES = new Set(["admin", "csr", "operator"]);
+
+function validateUserInput({ name, email, usertype }) {
+    if (!name?.trim() || !email?.trim() || !VALID_USER_TYPES.has(usertype)) {
+        return "Name, email, and a valid user type are required";
+    }
+
+    return null;
+}
+
 // GET /api/users - Get all users
 router.get("/", async (req, res) => {
     try {
         const result = await pool.query(
-            "SELECT id, name, email, usertype, created_at FROM users ORDER BY id ASC"
+            "SELECT id, name, email, usertype FROM users ORDER BY id ASC"
         );
         res.json(result.rows);
     } catch (err) {
@@ -21,10 +31,15 @@ router.put("/:id", async (req, res) => {
     try {
         const { id } = req.params;
         const { name, email, usertype } = req.body;
+        const validationError = validateUserInput({ name, email, usertype });
+
+        if (validationError) {
+            return res.status(400).json({ error: validationError });
+        }
 
         const result = await pool.query(
-            "UPDATE users SET name = $1, email = $2, usertype = $3 WHERE id = $4 RETURNING id, name, email, usertype, created_at",
-            [name, email, usertype, id]
+            "UPDATE users SET name = $1, email = $2, usertype = $3 WHERE id = $4 RETURNING id, name, email, usertype",
+            [name.trim(), email.trim(), usertype, id]
         );
 
         if (result.rows.length === 0) {
@@ -44,9 +59,13 @@ router.patch("/:id/password", async (req, res) => {
         const { id } = req.params;
         const { newPassword } = req.body;
 
+        if (!newPassword?.trim()) {
+            return res.status(400).json({ error: "New password is required" });
+        }
+
         const result = await pool.query(
             "UPDATE users SET password = $1 WHERE id = $2 RETURNING id, name, email, usertype",
-            [newPassword, id]
+            [newPassword.trim(), id]
         );
 
         if (result.rows.length === 0) {
