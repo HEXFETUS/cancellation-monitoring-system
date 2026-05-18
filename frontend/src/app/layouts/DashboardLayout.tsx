@@ -1,23 +1,16 @@
-import type { ReactNode } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate, Outlet } from "react-router-dom";
 import { LogOut } from "lucide-react";
-import { useAuth } from "../context/AuthContext";
-
-interface Props {
-    children: ReactNode;
-}
+import { useAuth } from "../../context/AuthContext";
 
 const menuItems = [
-    { name: "Dashboard", path: "/dashboard" },
-    { name: "Inventory", path: "/inventory" },
-    { name: "Automation", path: "/automation" },
-    { name: "Cancellation", path: "/cancellation" },
-    { name: "Records", path: "/records" },
-    { name: "Reports", path: "/reports" },
-    { name: "Settings", path: "/settings" },
+    { name: "Dashboard", path: "/app/dashboard" },
+    { name: "POS System", path: "/app/pos" },
+    { name: "Cancellation", path: "/app/cancellation" },
+    { name: "Reports", path: "/app/reports" },
+    { name: "Settings", path: "/app/settings" },
 ];
 
-export default function DashboardLayout({ children }: Props) {
+export default function DashboardLayout() {
     const location = useLocation();
     const { logout } = useAuth();
     const navigate = useNavigate();
@@ -51,7 +44,7 @@ export default function DashboardLayout({ children }: Props) {
                         WebkitBackdropFilter: "blur(20px)",
                     }}
                 >
-                    {/* Logo / Title */}
+                    {/* Logo */}
                     <div className="mb-10">
                         <Link
                             to="/"
@@ -65,14 +58,12 @@ export default function DashboardLayout({ children }: Props) {
                                 Hexaprime Inc.
                             </span>
                         </Link>
-
                     </div>
 
                     {/* Navigation */}
                     <nav className="space-y-3 flex-1">
                         {menuItems.map((item) => {
-                            const isActive =
-                                location.pathname === item.path;
+                            const isActive = location.pathname === item.path;
 
                             return (
                                 <Link
@@ -91,7 +82,6 @@ export default function DashboardLayout({ children }: Props) {
                                             : "none",
                                     }}
                                 >
-                                    {/* Accent Dot */}
                                     <span
                                         className="w-2 h-2 rounded-full mr-3 transition-all duration-300"
                                         style={{
@@ -106,8 +96,8 @@ export default function DashboardLayout({ children }: Props) {
 
                                     <span
                                         className={`font-xs transition-colors duration-300 ${isActive
-                                                ? "text-gray-800"
-                                                : "text-gray-600 group-hover:text-gray-800"
+                                            ? "text-gray-800"
+                                            : "text-gray-600 group-hover:text-gray-800"
                                             }`}
                                     >
                                         {item.name}
@@ -126,7 +116,7 @@ export default function DashboardLayout({ children }: Props) {
                         <span className="font-medium text-sm">Sign Out</span>
                     </button>
 
-                    {/* Footer */}
+                    {/* Status */}
                     <div
                         className="mt-3 rounded-2xl p-4 border"
                         style={{
@@ -157,7 +147,7 @@ export default function DashboardLayout({ children }: Props) {
                         WebkitBackdropFilter: "blur(20px)",
                     }}
                 >
-                    {children}
+                    <Outlet />
                 </div>
             </main>
         </div>

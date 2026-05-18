@@ -1,4 +1,4 @@
-export default function DashboardPage() {
+export default function DashboardHome() {
     const cards = [
         {
             title: "Total Records",
