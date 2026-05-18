@@ -64,6 +64,7 @@ router.patch("/:id/password", async (req, res) => {
             return res.status(400).json({ error: "New password is required" });
         }
 
+        // Resolved Merge Conflict: Kept the secure bcrypt hashing logic from feature/landing-page
         const hashedPassword = await bcrypt.hash(newPassword.trim(), 12);
 
         const result = await pool.query(
