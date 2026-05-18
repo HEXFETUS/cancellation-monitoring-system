@@ -18,6 +18,12 @@ import ChangeDeviceLogsPage from "../../modules/pos/pages/ChangeDeviceLogsPage";
 import ChangeDeviceMonitoringPage from "../../modules/pos/pages/ChangeDeviceMonitoringPage";
 import PosStatusLogsPage from "../../modules/pos/pages/PosStatusLogsPage";
 
+import CancellationPage from "../../modules/cancellation/pages/CancellationPage";
+import CancellationRecordsPage from "../../modules/cancellation/pages/CancellationRecordsPage";
+import DailyReportPage from "../../modules/cancellation/pages/DailyReportPage";
+import MonthlyReportPage from "../../modules/cancellation/pages/MonthlyReportPage";
+import YearlyReportPage from "../../modules/cancellation/pages/YearlyReportPage";
+
 import SettingsPage from "../../modules/settings/pages/SettingsPage";
 import UserAccountsPage from "../../modules/settings/user-accounts/pages/UserAccountsPage";
 
@@ -61,8 +67,19 @@ export const router = createBrowserRouter([
             },
 
             {
+                path: "cancellation",
+                element: <Outlet />,
+                children: [
+                    { index: true, element: <Navigate to="records" replace /> },
+                    { path: "records", element: <CancellationRecordsPage /> },
+                    { path: "daily-report", element: <DailyReportPage /> },
+                    { path: "monthly-report", element: <MonthlyReportPage /> },
+                    { path: "yearly-report", element: <YearlyReportPage /> },
+                ],
+            },
+
+            {
                 path: "settings",
-                element: <SettingsPage />,
                 children: [
                     // default route → redirects to user accounts
                     { index: true, element: <Navigate to="user-accounts" replace /> },

@@ -5,7 +5,6 @@ import { useState } from "react";
 
 const menuItems = [
     { name: "Dashboard", path: "/app/dashboard" },
-    { name: "Cancellation", path: "/app/cancellation" },
 ];
 
 const posSubItems = [
@@ -24,6 +23,13 @@ const posSubItems = [
     { name: "POS Status Logs", path: "/app/pos/reports/pos-status-logs" },
 ];
 
+const cancellationSubItems = [
+    { name: "Cancellation Records", path: "/app/cancellation/records" },
+    { name: "Daily Report", path: "/app/cancellation/daily-report" },
+    { name: "Monthly Report", path: "/app/cancellation/monthly-report" },
+    { name: "Yearly Report", path: "/app/cancellation/yearly-report" },
+];
+
 const settingsSubItems = [
     { name: "User Accounts", path: "/app/settings/user-accounts" },
 ];
@@ -36,6 +42,8 @@ export default function DashboardLayout() {
     const [settingsExpanded, setSettingsExpanded] = useState(settingsExpandedDefault);
     const posExpandedDefault = location.pathname.startsWith("/app/pos");
     const [posExpanded, setPosExpanded] = useState(posExpandedDefault);
+    const cancellationExpandedDefault = location.pathname.startsWith("/app/cancellation");
+    const [cancellationExpanded, setCancellationExpanded] = useState(cancellationExpandedDefault);
 
     const handleLogout = () => {
         logout();
@@ -164,6 +172,63 @@ export default function DashboardLayout() {
                             {posExpanded && (
                                 <div className="ml-6 mt-1 space-y-1">
                                     {posSubItems.map((sub) => {
+                                        const isSubActive = location.pathname === sub.path;
+                                        return (
+                                            <Link
+                                                key={sub.path}
+                                                to={sub.path}
+                                                className="block px-3 py-1.5 rounded-xl text-sm transition-all duration-300"
+                                                style={{
+                                                    background: isSubActive
+                                                        ? "rgba(146, 199, 207, 0.20)"
+                                                        : "transparent",
+                                                    color: isSubActive ? "#2c3e50" : "#6b7280",
+                                                    fontWeight: isSubActive ? 600 : 400,
+                                                }}
+                                            >
+                                                {sub.name}
+                                            </Link>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Cancellation Monitoring (after POS Inventory) */}
+                        <div>
+                            <button
+                                onClick={() => setCancellationExpanded((v) => !v)}
+                                className="group relative flex items-center w-full px-4 py-2 rounded-2xl transition-all duration-300"
+                                style={{
+                                    background: location.pathname.startsWith("/app/cancellation")
+                                        ? "rgba(146, 199, 207, 0.20)"
+                                        : "transparent",
+                                    border: location.pathname.startsWith("/app/cancellation")
+                                        ? "1px solid rgba(146, 199, 207, 0.35)"
+                                        : "1px solid transparent",
+                                    boxShadow: location.pathname.startsWith("/app/cancellation")
+                                        ? "inset 0 .5px 0 rgba(255,255,255,0.5)"
+                                        : "none",
+                                }}
+                            >
+                                <span className="w-2 h-2 rounded-full mr-3" style={{ backgroundColor: location.pathname.startsWith("/app/cancellation") ? "#92C7CF" : "#D1D5DB" }} />
+                                <span className={`flex-1 text-left font-xs transition-colors duration-300 ${location.pathname.startsWith("/app/cancellation")
+                                    ? "text-gray-800"
+                                    : "text-gray-600 group-hover:text-gray-800"
+                                    }`}
+                                >
+                                    Cancellation Monitoring
+                                </span>
+                                {cancellationExpanded ? (
+                                    <ChevronDown className="w-4 h-4 text-gray-400" />
+                                ) : (
+                                    <ChevronRight className="w-4 h-4 text-gray-400" />
+                                )}
+                            </button>
+
+                            {cancellationExpanded && (
+                                <div className="ml-6 mt-1 space-y-1">
+                                    {cancellationSubItems.map((sub) => {
                                         const isSubActive = location.pathname === sub.path;
                                         return (
                                             <Link
