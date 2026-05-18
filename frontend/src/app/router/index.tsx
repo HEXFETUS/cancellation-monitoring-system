@@ -3,6 +3,7 @@ import LandingPage from "../../pages/LandingPage";
 import DashboardLayout from "../layouts/DashboardLayout";
 import DashboardHome from "../../pages/dashboard/DashboardHome";
 import ProductsPage from "../../modules/pos/pages/ProductsPage";
+import SettingsPage from "../../pages/LandingPage";
 
 export const router = createBrowserRouter([
     {
