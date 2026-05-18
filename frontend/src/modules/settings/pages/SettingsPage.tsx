@@ -1,4 +1,4 @@
-import { Link, Navigate, Outlet, useLocation } from "react-router-dom";
+import { Link, Outlet, useLocation } from "react-router-dom";
 
 const settingsMenu = [
     { name: "User Accounts", path: "/app/settings/user-accounts" },
@@ -7,14 +7,14 @@ const settingsMenu = [
 export default function SettingsPage() {
     const location = useLocation();
 
-    if (location.pathname === "/app/settings") {
-        return <Navigate to="/app/settings/user-accounts" replace />;
-    }
-
     return (
         <div className="flex h-full gap-6">
+            {/* Sidebar */}
             <nav className="w-56 shrink-0">
-                <h2 className="mb-4 text-lg font-semibold text-gray-800">Settings</h2>
+                <h2 className="mb-4 text-lg font-semibold text-gray-800">
+                    Settings
+                </h2>
+
                 <ul className="space-y-1">
                     {settingsMenu.map((item) => {
                         const isActive = location.pathname === item.path;
@@ -36,6 +36,7 @@ export default function SettingsPage() {
                 </ul>
             </nav>
 
+            {/* Content */}
             <div className="min-w-0 flex-1">
                 <Outlet />
             </div>
