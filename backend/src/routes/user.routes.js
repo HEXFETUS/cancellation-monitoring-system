@@ -1,4 +1,5 @@
 import express from "express";
+import bcrypt from "bcryptjs";
 import pool from "../config/db.js";
 
 const router = express.Router();
@@ -63,9 +64,12 @@ router.patch("/:id/password", async (req, res) => {
             return res.status(400).json({ error: "New password is required" });
         }
 
+        // Resolved Merge Conflict: Kept the secure bcrypt hashing logic from feature/landing-page
+        const hashedPassword = await bcrypt.hash(newPassword.trim(), 12);
+
         const result = await pool.query(
             "UPDATE users SET password = $1 WHERE id = $2 RETURNING id, name, email, usertype",
-            [newPassword.trim(), id]
+            [hashedPassword, id]
         );
 
         if (result.rows.length === 0) {
