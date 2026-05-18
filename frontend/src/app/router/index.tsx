@@ -18,12 +18,6 @@ import ChangeDeviceLogsPage from "../../modules/pos/pages/ChangeDeviceLogsPage";
 import ChangeDeviceMonitoringPage from "../../modules/pos/pages/ChangeDeviceMonitoringPage";
 import PosStatusLogsPage from "../../modules/pos/pages/PosStatusLogsPage";
 
-import CancellationPage from "../../modules/cancellation/pages/CancellationPage";
-import CancellationRecordsPage from "../../modules/cancellation/pages/CancellationRecordsPage";
-import DailyReportPage from "../../modules/cancellation/pages/DailyReportPage";
-import MonthlyReportPage from "../../modules/cancellation/pages/MonthlyReportPage";
-import YearlyReportPage from "../../modules/cancellation/pages/YearlyReportPage";
-
 import SettingsPage from "../../modules/settings/pages/SettingsPage";
 import UserAccountsPage from "../../modules/settings/user-accounts/pages/UserAccountsPage";
 
