@@ -183,8 +183,8 @@ export default function LandingPage() {
       {/* ─── HEADER ─── */}
       <header
         className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled
-            ? "py-2 shadow-lg"
-            : "py-4"
+          ? "py-2 shadow-lg"
+          : "py-4"
           }`}
         style={{
           backgroundColor: scrolled ? "rgba(251, 249, 241, 0.85)" : "transparent",
@@ -226,18 +226,22 @@ export default function LandingPage() {
               </button>
             ))}
             <button
-              onClick={() => requireAuth("/dashboard")}
+              onClick={() => requireAuth("/app/dashboard")}
               className="ml-4 inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition-all"
               style={{
                 backgroundColor: scrolled ? "#92C7CF" : "rgba(146, 199, 207, 0.9)",
                 color: scrolled ? "#1a2e32" : "white",
-                boxShadow: scrolled ? "0 2px 8px rgba(146, 199, 207, 0.3)" : "0 2px 8px rgba(0,0,0,0.15)",
+                boxShadow: scrolled
+                  ? "0 2px 8px rgba(146, 199, 207, 0.3)"
+                  : "0 2px 8px rgba(0,0,0,0.15)",
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.backgroundColor = "#7db8c0";
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = scrolled ? "#92C7CF" : "rgba(146, 199, 207, 0.9)";
+                e.currentTarget.style.backgroundColor = scrolled
+                  ? "#92C7CF"
+                  : "rgba(146, 199, 207, 0.9)";
               }}
             >
               Dashboard <ArrowRight className="h-4 w-4" />
@@ -337,8 +341,8 @@ export default function LandingPage() {
           <div className="relative z-10 mx-auto max-w-7xl px-6 lg:px-8 w-full">
             <div
               className={`max-w-2xl transition-all duration-700 ${inView.hero
-                  ? "opacity-100 translate-y-0"
-                  : "opacity-0 translate-y-8"
+                ? "opacity-100 translate-y-0"
+                : "opacity-0 translate-y-8"
                 }`}
             >
               <span
@@ -445,8 +449,8 @@ export default function LandingPage() {
         <section id="social-responsibility" className="py-24 sm:py-32">
           <div
             className={`mx-auto max-w-7xl px-6 lg:px-8 transition-all duration-700 ${inView["social-responsibility"]
-                ? "opacity-100 translate-y-0"
-                : "opacity-0 translate-y-10"
+              ? "opacity-100 translate-y-0"
+              : "opacity-0 translate-y-10"
               }`}
           >
             <div className="mx-auto max-w-2xl text-center">
@@ -539,8 +543,8 @@ export default function LandingPage() {
         <section id="results" className="py-24 sm:py-32" style={{ backgroundColor: "#E5E1DA" }}>
           <div
             className={`mx-auto max-w-7xl px-6 lg:px-8 transition-all duration-700 ${inView.results
-                ? "opacity-100 translate-y-0"
-                : "opacity-0 translate-y-10"
+              ? "opacity-100 translate-y-0"
+              : "opacity-0 translate-y-10"
               }`}
           >
             <div className="mx-auto max-w-2xl text-center">
@@ -619,8 +623,8 @@ export default function LandingPage() {
         <section id="about-us" className="py-24 sm:py-32">
           <div
             className={`mx-auto max-w-7xl px-6 lg:px-8 transition-all duration-700 ${inView["about-us"]
-                ? "opacity-100 translate-y-0"
-                : "opacity-0 translate-y-10"
+              ? "opacity-100 translate-y-0"
+              : "opacity-0 translate-y-10"
               }`}
           >
             <div className="mx-auto max-w-3xl text-center">
