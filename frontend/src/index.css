@@ -1,5 +1,47 @@
 @import "tailwindcss";
 
+/* ---------------- BRAND COLOR PALETTE ----------------
+ * #92C7CF – primary teal
+ * #AAD7D9 – light teal
+ * #FBF9F1 – cream bg
+ * #E5E1DA – warm gray
+ *
+ * Registering these as Tailwind v4 theme tokens lets you
+ * use them anywhere as utilities, e.g.
+ *   bg-cream            → background #FBF9F1
+ *   text-teal           → color #92C7CF
+ *   border-warm         → border #E5E1DA
+ *   bg-teal/10          → 10% opacity teal background
+ *   hover:bg-teal-dark  → darker teal on hover
+ *
+ * Semantic aliases (bg-surface, text-ink, etc.) are also
+ * provided so pages don't need to know the brand names.
+ * ----------------------------------------------------- */
+@theme {
+  /* Brand colors */
+  --color-teal: #92C7CF;
+  --color-teal-light: #AAD7D9;
+  --color-teal-dark: #7db8c0;
+  --color-cream: #FBF9F1;
+  --color-warm: #E5E1DA;
+
+  /* Pastel accents that harmonize with the brand palette */
+  --color-rose: #E8B4B8;          /* destructive (delete) */
+  --color-rose-dark: #D69CA0;     /* hover */
+  --color-peach: #F2D7B5;         /* warning / sensitive (change password) */
+  --color-peach-dark: #E5C599;    /* hover */
+
+  /* Semantic aliases — prefer these in pages */
+  --color-surface: #FBF9F1;       /* page background */
+  --color-surface-alt: #E5E1DA;   /* alternate section background */
+  --color-card: #FFFFFF;          /* card background */
+  --color-border-soft: #E5E1DA;   /* subtle borders */
+  --color-ink: #4a4a4a;           /* primary text */
+  --color-ink-muted: #6b6b6b;     /* secondary text */
+  --color-ink-subtle: #999999;    /* tertiary text */
+}
+
+/* Apply brand defaults globally so every page starts cream + ink */
 body {
-  @apply bg-gray-100 text-gray-900;
+  @apply bg-surface text-ink antialiased;
 }

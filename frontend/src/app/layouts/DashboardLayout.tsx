@@ -30,6 +30,15 @@ const cancellationSubItems = [
     { name: "Yearly Report", path: "/app/cancellation/yearly-report" },
 ];
 
+const assetInventorySubItems = [
+    { name: "Summary", path: "/app/asset-inventory/summary" },
+    { name: "Office", path: "/app/asset-inventory/office" },
+    { name: "Payout", path: "/app/asset-inventory/payout" },
+    { name: "Drawcourt", path: "/app/asset-inventory/drawcourt" },
+    { name: "OBS", path: "/app/asset-inventory/obs" },
+    { name: "Asset Coding", path: "/app/asset-inventory/asset-coding" },
+];
+
 const settingsSubItems = [
     { name: "User Accounts", path: "/app/settings/user-accounts" },
 ];
@@ -44,6 +53,8 @@ export default function DashboardLayout() {
     const [posExpanded, setPosExpanded] = useState(posExpandedDefault);
     const cancellationExpandedDefault = location.pathname.startsWith("/app/cancellation");
     const [cancellationExpanded, setCancellationExpanded] = useState(cancellationExpandedDefault);
+    const assetInventoryExpandedDefault = location.pathname.startsWith("/app/asset-inventory");
+    const [assetInventoryExpanded, setAssetInventoryExpanded] = useState(assetInventoryExpandedDefault);
 
     const handleLogout = () => {
         logout();
@@ -229,6 +240,63 @@ export default function DashboardLayout() {
                             {cancellationExpanded && (
                                 <div className="ml-6 mt-1 space-y-1">
                                     {cancellationSubItems.map((sub) => {
+                                        const isSubActive = location.pathname === sub.path;
+                                        return (
+                                            <Link
+                                                key={sub.path}
+                                                to={sub.path}
+                                                className="block px-3 py-1.5 rounded-xl text-sm transition-all duration-300"
+                                                style={{
+                                                    background: isSubActive
+                                                        ? "rgba(146, 199, 207, 0.20)"
+                                                        : "transparent",
+                                                    color: isSubActive ? "#2c3e50" : "#6b7280",
+                                                    fontWeight: isSubActive ? 600 : 400,
+                                                }}
+                                            >
+                                                {sub.name}
+                                            </Link>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Asset Inventory (after Cancellation Monitoring) */}
+                        <div>
+                            <button
+                                onClick={() => setAssetInventoryExpanded((v) => !v)}
+                                className="group relative flex items-center w-full px-4 py-2 rounded-2xl transition-all duration-300"
+                                style={{
+                                    background: location.pathname.startsWith("/app/asset-inventory")
+                                        ? "rgba(146, 199, 207, 0.20)"
+                                        : "transparent",
+                                    border: location.pathname.startsWith("/app/asset-inventory")
+                                        ? "1px solid rgba(146, 199, 207, 0.35)"
+                                        : "1px solid transparent",
+                                    boxShadow: location.pathname.startsWith("/app/asset-inventory")
+                                        ? "inset 0 .5px 0 rgba(255,255,255,0.5)"
+                                        : "none",
+                                }}
+                            >
+                                <span className="w-2 h-2 rounded-full mr-3" style={{ backgroundColor: location.pathname.startsWith("/app/asset-inventory") ? "#92C7CF" : "#D1D5DB" }} />
+                                <span className={`flex-1 text-left font-xs transition-colors duration-300 ${location.pathname.startsWith("/app/asset-inventory")
+                                    ? "text-gray-800"
+                                    : "text-gray-600 group-hover:text-gray-800"
+                                    }`}
+                                >
+                                    Asset Inventory
+                                </span>
+                                {assetInventoryExpanded ? (
+                                    <ChevronDown className="w-4 h-4 text-gray-400" />
+                                ) : (
+                                    <ChevronRight className="w-4 h-4 text-gray-400" />
+                                )}
+                            </button>
+
+                            {assetInventoryExpanded && (
+                                <div className="ml-6 mt-1 space-y-1">
+                                    {assetInventorySubItems.map((sub) => {
                                         const isSubActive = location.pathname === sub.path;
                                         return (
                                             <Link

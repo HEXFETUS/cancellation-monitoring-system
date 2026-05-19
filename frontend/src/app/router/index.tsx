@@ -24,6 +24,13 @@ import DailyReportPage from "../../modules/cancellation/pages/DailyReportPage";
 import MonthlyReportPage from "../../modules/cancellation/pages/MonthlyReportPage";
 import YearlyReportPage from "../../modules/cancellation/pages/YearlyReportPage";
 
+import SummaryPage from "../../modules/asset-inventory/pages/SummaryPage";
+import OfficePage from "../../modules/asset-inventory/pages/OfficePage";
+import PayoutPage from "../../modules/asset-inventory/pages/PayoutPage";
+import DrawcourtPage from "../../modules/asset-inventory/pages/DrawcourtPage";
+import ObsPage from "../../modules/asset-inventory/pages/ObsPage";
+import AssetCodingPage from "../../modules/asset-inventory/pages/AssetCodingPage";
+
 import SettingsPage from "../../modules/settings/pages/SettingsPage";
 import UserAccountsPage from "../../modules/settings/user-accounts/pages/UserAccountsPage";
 
@@ -75,6 +82,20 @@ export const router = createBrowserRouter([
                     { path: "daily-report", element: <DailyReportPage /> },
                     { path: "monthly-report", element: <MonthlyReportPage /> },
                     { path: "yearly-report", element: <YearlyReportPage /> },
+                ],
+            },
+
+            {
+                path: "asset-inventory",
+                element: <Outlet />,
+                children: [
+                    { index: true, element: <Navigate to="summary" replace /> },
+                    { path: "summary", element: <SummaryPage /> },
+                    { path: "office", element: <OfficePage /> },
+                    { path: "payout", element: <PayoutPage /> },
+                    { path: "drawcourt", element: <DrawcourtPage /> },
+                    { path: "obs", element: <ObsPage /> },
+                    { path: "asset-coding", element: <AssetCodingPage /> },
                 ],
             },
 

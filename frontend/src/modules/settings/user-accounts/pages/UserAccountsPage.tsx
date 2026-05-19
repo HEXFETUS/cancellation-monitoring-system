@@ -46,22 +46,22 @@ function ConfirmDialog({
 }) {
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-            <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm mx-4">
+            <div className="bg-card rounded-xl shadow-xl p-6 w-full max-w-sm mx-4 border border-warm">
                 <div className="flex items-center gap-3 mb-4">
-                    <AlertTriangle className="text-amber-500" size={24} />
-                    <h3 className="text-lg font-semibold text-gray-800">Confirm</h3>
+                    <AlertTriangle className="text-peach-dark" size={24} />
+                    <h3 className="text-lg font-semibold text-ink">Confirm</h3>
                 </div>
-                <p className="text-gray-600 mb-6">{message}</p>
+                <p className="text-ink-muted mb-6">{message}</p>
                 <div className="flex justify-end gap-3">
                     <button
                         onClick={onCancel}
-                        className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 transition cursor-pointer"
+                        className="px-4 py-2 rounded-lg border border-warm text-ink hover:bg-warm/50 transition cursor-pointer"
                     >
                         Cancel
                     </button>
                     <button
                         onClick={onConfirm}
-                        className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition cursor-pointer"
+                        className="px-4 py-2 rounded-lg bg-teal text-ink font-medium hover:bg-teal-dark transition cursor-pointer"
                     >
                         Confirm
                     </button>
@@ -88,20 +88,20 @@ function ChangePasswordModal({
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-            <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md mx-4">
+            <div className="bg-card rounded-xl shadow-xl p-6 w-full max-w-md mx-4 border border-warm">
                 <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-gray-800">
+                    <h3 className="text-lg font-semibold text-ink">
                         Change Password – {user.name}
                     </h3>
                     <button
                         onClick={onClose}
-                        className="text-gray-400 hover:text-gray-600 transition cursor-pointer"
+                        className="text-ink-subtle hover:text-ink transition cursor-pointer"
                     >
                         <X size={20} />
                     </button>
                 </div>
                 <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-ink mb-1">
                         New Password
                     </label>
                     <input
@@ -109,26 +109,26 @@ function ChangePasswordModal({
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="Enter or generate a password"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-3 py-2 border border-warm rounded-lg bg-card text-ink focus:outline-none focus:ring-2 focus:ring-teal focus:border-teal"
                     />
                 </div>
                 <button
                     onClick={handleGenerate}
-                    className="w-full mb-4 px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 transition cursor-pointer"
+                    className="w-full mb-4 px-4 py-2 rounded-lg border border-warm text-ink hover:bg-warm/50 transition cursor-pointer"
                 >
                     Generate Password
                 </button>
                 <div className="flex justify-end gap-3">
                     <button
                         onClick={onClose}
-                        className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 transition cursor-pointer"
+                        className="px-4 py-2 rounded-lg border border-warm text-ink hover:bg-warm/50 transition cursor-pointer"
                     >
                         Cancel
                     </button>
                     <button
                         onClick={() => onSave(password)}
                         disabled={!password}
-                        className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition cursor-pointer"
+                        className="px-4 py-2 rounded-lg bg-teal text-ink font-medium hover:bg-teal-dark disabled:opacity-50 disabled:cursor-not-allowed transition cursor-pointer"
                     >
                         Save
                     </button>
@@ -239,14 +239,14 @@ export default function UserAccountsPage() {
     if (loading) {
         return (
             <div className="flex items-center justify-center h-48">
-                <div className="text-gray-400 text-lg">Loading users...</div>
+                <div className="text-ink-subtle text-lg">Loading users...</div>
             </div>
         );
     }
 
     return (
         <div>
-            <h2 className="text-lg font-semibold text-gray-800 mb-4">User Accounts</h2>
+            <h2 className="text-lg font-semibold text-ink mb-4">User Accounts</h2>
 
             {error && (
                 <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
@@ -273,19 +273,19 @@ export default function UserAccountsPage() {
             )}
 
             {/* Users Table */}
-            <div className="overflow-x-auto bg-white rounded-xl shadow-sm border border-gray-200">
+            <div className="overflow-x-auto bg-card rounded-xl shadow-sm border border-warm">
                 <table className="w-full text-left">
                     <thead>
-                        <tr className="bg-gray-50 border-b border-gray-200">
-                            <th className="px-4 py-3 text-sm font-semibold text-gray-600">Name</th>
-                            <th className="px-4 py-3 text-sm font-semibold text-gray-600">Email</th>
-                            <th className="px-4 py-3 text-sm font-semibold text-gray-600">User Type</th>
-                            <th className="px-4 py-3 text-sm font-semibold text-gray-600 text-right">Actions</th>
+                        <tr className="bg-cream border-b border-warm">
+                            <th className="px-4 py-3 text-sm font-semibold text-ink-muted">Name</th>
+                            <th className="px-4 py-3 text-sm font-semibold text-ink-muted">Email</th>
+                            <th className="px-4 py-3 text-sm font-semibold text-ink-muted">User Type</th>
+                            <th className="px-4 py-3 text-sm font-semibold text-ink-muted text-right">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         {users.map((user) => (
-                            <tr key={user.id} className="border-b border-gray-100 hover:bg-gray-50 transition">
+                            <tr key={user.id} className="border-b border-warm/60 hover:bg-cream transition">
                                 {editingId === user.id ? (
                                     <>
                                         <td className="px-4 py-3">
@@ -293,7 +293,7 @@ export default function UserAccountsPage() {
                                                 type="text"
                                                 value={editForm.name}
                                                 onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
-                                                className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                className="w-full px-2 py-1 border border-warm rounded bg-card text-ink focus:outline-none focus:ring-2 focus:ring-teal focus:border-teal"
                                             />
                                         </td>
                                         <td className="px-4 py-3">
@@ -301,7 +301,7 @@ export default function UserAccountsPage() {
                                                 type="email"
                                                 value={editForm.email}
                                                 onChange={(e) => setEditForm((f) => ({ ...f, email: e.target.value }))}
-                                                className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                className="w-full px-2 py-1 border border-warm rounded bg-card text-ink focus:outline-none focus:ring-2 focus:ring-teal focus:border-teal"
                                             />
                                         </td>
                                         <td className="px-4 py-3">
@@ -313,7 +313,7 @@ export default function UserAccountsPage() {
                                                         usertype: e.target.value as User["usertype"],
                                                     }))
                                                 }
-                                                className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                                                className="w-full px-2 py-1 border border-warm rounded bg-card text-ink focus:outline-none focus:ring-2 focus:ring-teal focus:border-teal"
                                             >
                                                 {USERTYPES.map((type) => (
                                                     <option key={type} value={type}>
@@ -326,14 +326,14 @@ export default function UserAccountsPage() {
                                             <div className="flex justify-end gap-2">
                                                 <button
                                                     onClick={() => handleSaveEdit(user.id)}
-                                                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-green-600 text-white text-sm hover:bg-green-700 transition cursor-pointer"
+                                                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-teal text-ink font-medium text-sm hover:bg-teal-dark transition cursor-pointer"
                                                 >
                                                     <Check size={16} />
                                                     Save
                                                 </button>
                                                 <button
                                                     onClick={handleCancelEdit}
-                                                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-gray-200 text-gray-700 text-sm hover:bg-gray-300 transition cursor-pointer"
+                                                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-warm text-ink text-sm hover:bg-warm/70 transition cursor-pointer"
                                                 >
                                                     <X size={16} />
                                                     Cancel
@@ -343,10 +343,10 @@ export default function UserAccountsPage() {
                                     </>
                                 ) : (
                                     <>
-                                        <td className="px-4 py-3 text-gray-800">{user.name}</td>
-                                        <td className="px-4 py-3 text-gray-600">{user.email}</td>
+                                        <td className="px-4 py-3 text-ink">{user.name}</td>
+                                        <td className="px-4 py-3 text-ink-muted">{user.email}</td>
                                         <td className="px-4 py-3">
-                                            <span className="inline-block px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700 capitalize">
+                                            <span className="inline-block px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-light/40 text-ink capitalize border border-teal/30">
                                                 {user.usertype}
                                             </span>
                                         </td>
@@ -354,21 +354,21 @@ export default function UserAccountsPage() {
                                             <div className="flex justify-end gap-2">
                                                 <button
                                                     onClick={() => handleEdit(user)}
-                                                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700 transition cursor-pointer"
+                                                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-teal text-ink font-medium text-sm hover:bg-teal-dark transition cursor-pointer"
                                                 >
                                                     <Pencil size={16} />
                                                     Edit
                                                 </button>
                                                 <button
                                                     onClick={() => handleDelete(user.id)}
-                                                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-red-600 text-white text-sm hover:bg-red-700 transition cursor-pointer"
+                                                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-rose text-ink font-medium text-sm hover:bg-rose-dark transition cursor-pointer"
                                                 >
                                                     <Trash2 size={16} />
                                                     Delete
                                                 </button>
                                                 <button
                                                     onClick={() => setPasswordModalUser(user)}
-                                                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-500 text-white text-sm hover:bg-amber-600 transition cursor-pointer"
+                                                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-peach text-ink font-medium text-sm hover:bg-peach-dark transition cursor-pointer"
                                                 >
                                                     <Key size={16} />
                                                     Change Password
@@ -381,7 +381,7 @@ export default function UserAccountsPage() {
                         ))}
                         {users.length === 0 && (
                             <tr>
-                                <td colSpan={4} className="px-4 py-6 text-center text-gray-400">
+                                <td colSpan={4} className="px-4 py-6 text-center text-ink-subtle">
                                     No user accounts found.
                                 </td>
                             </tr>
