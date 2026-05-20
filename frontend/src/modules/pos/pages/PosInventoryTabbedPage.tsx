@@ -1,17 +1,34 @@
 import { useState } from "react";
-import { Monitor, Users, Store, Menu } from "lucide-react";
-import AllPosPage from "./AllPosPage";
+import { Monitor, Activity, RotateCcw, Users, Store, BarChart3, Menu } from "lucide-react";
+import ProductsPage from "./ProductsPage";
+import PosStatusPage from "./PosStatusPage";
+import RequestResetPage from "./RequestResetPage";
 import OperatorsPage from "./OperatorsPage";
 import OutletsPage from "./OutletsPage";
+import ChangeDeviceMonitoringPage from "./ChangeDeviceMonitoringPage";
+import ChangeDeviceLogsPage from "./ChangeDeviceLogsPage";
+import ConvertAreaLogsPage from "./ConvertAreaLogsPage";
+import PosStatusLogsPage from "./PosStatusLogsPage";
 
 const leftTabs = [
-    { id: "all-pos", label: "ALL POS", icon: Monitor },
+    { id: "pos", label: "POS", icon: Monitor },
+    { id: "pos-status", label: "POS STATUS", icon: Activity },
+    { id: "request-reset", label: "REQUEST RESET DEVICE", icon: RotateCcw },
     { id: "operators", label: "ALL OPERATORS", icon: Users },
     { id: "outlets", label: "ALL OUTLETS", icon: Store },
+    { id: "reports", label: "REPORTS", icon: BarChart3 },
+];
+
+const reportSubTabs = [
+    { id: "change-device-monitoring", label: "Change Device Monitoring" },
+    { id: "change-device-logs", label: "Change Device Logs" },
+    { id: "convert-area-logs", label: "Convert Area Logs" },
+    { id: "pos-status-logs", label: "POS Status Logs" },
 ];
 
 export default function PosInventoryTabbedPage() {
-    const [activeTab, setActiveTab] = useState("all-pos");
+    const [activeTab, setActiveTab] = useState("pos");
+    const [activeReportSubTab, setActiveReportSubTab] = useState("change-device-monitoring");
     const [sidebarOpen, setSidebarOpen] = useState(true);
 
     return (
@@ -24,18 +41,17 @@ export default function PosInventoryTabbedPage() {
                         : "lg:w-20 lg:shrink-0"
                 }`}
             >
-                {/* Toggle button above the tabs */}
-                <div className="mb-4 hidden lg:flex lg:items-center">
+                <div className="flex gap-2 overflow-x-auto pb-2 lg:flex-col lg:space-y-3 lg:overflow-visible lg:pb-0">
+                    {/* Collapse toggle button — icon only */}
                     <button
                         onClick={() => setSidebarOpen((v) => !v)}
-                        className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white p-2 text-slate-500 hover:text-slate-800 hover:shadow-sm transition-all"
+                        className={`hidden lg:flex shrink-0 items-center gap-2 rounded-2xl px-4 py-2.5 text-left text-sm font-medium transition-all duration-200 lg:w-full lg:gap-3 lg:px-4 lg:py-3 text-slate-600 hover:bg-slate-100 hover:text-slate-800`}
                         title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
                     >
-                        <Menu className="h-5 w-5" />
+                        <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
+                            <Menu className="h-5 w-5" />
+                        </span>
                     </button>
-                </div>
-
-                <div className="flex gap-2 overflow-x-auto pb-2 lg:flex-col lg:space-y-3 lg:overflow-visible lg:pb-0">
                     {leftTabs.map((tab) => {
                         const Icon = tab.icon;
                         const isActive = activeTab === tab.id;
@@ -74,9 +90,40 @@ export default function PosInventoryTabbedPage() {
 
             {/* Main content area */}
             <div className="flex-1 min-w-0">
-                {activeTab === "all-pos" && <AllPosPage />}
+                {activeTab === "pos" && <ProductsPage />}
+                {activeTab === "pos-status" && <PosStatusPage />}
+                {activeTab === "request-reset" && <RequestResetPage />}
                 {activeTab === "operators" && <OperatorsPage />}
                 {activeTab === "outlets" && <OutletsPage />}
+                {activeTab === "reports" && (
+                    <div>
+                        <div className="mb-6 flex gap-2 overflow-x-auto border-b border-slate-200 pb-2">
+                            {reportSubTabs.map((tab) => {
+                                const isActive = activeReportSubTab === tab.id;
+                                return (
+                                    <button
+                                        key={tab.id}
+                                        onClick={() => setActiveReportSubTab(tab.id)}
+                                        className={`shrink-0 rounded-xl px-3 py-2 text-xs font-medium transition-all duration-200 sm:px-4 sm:text-sm ${
+                                            isActive
+                                                ? "bg-sky-50 text-sky-700 shadow-sm ring-1 ring-sky-200"
+                                                : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                                        }`}
+                                    >
+                                        {tab.label}
+                                    </button>
+                                );
+                            })}
+                        </div>
+
+                        <div>
+                            {activeReportSubTab === "change-device-monitoring" && <ChangeDeviceMonitoringPage />}
+                            {activeReportSubTab === "change-device-logs" && <ChangeDeviceLogsPage />}
+                            {activeReportSubTab === "convert-area-logs" && <ConvertAreaLogsPage />}
+                            {activeReportSubTab === "pos-status-logs" && <PosStatusLogsPage />}
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );

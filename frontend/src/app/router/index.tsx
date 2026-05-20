@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate, Outlet } from "react-router-dom";
+import { createBrowserRouter, Outlet } from "react-router-dom";
 
 import LandingPage from "../../pages/LandingPage";
 import DashboardLayout from "../../app/layouts/DashboardLayout";
@@ -10,7 +10,7 @@ import PosRepairRequestPage from "../../modules/pos-repair/pages/PosRepairReques
 import CancellationTabbedPage from "../../modules/cancellation/pages/CancellationTabbedPage";
 import AssetInventoryTabbedPage from "../../modules/asset-inventory/pages/AssetInventoryTabbedPage";
 
-import UserAccountsPage from "../../modules/settings/user-accounts/pages/UserAccountsPage";
+import SettingsPage from "../../modules/settings/pages/SettingsPage";
 
 export const router = createBrowserRouter([
     {
@@ -44,13 +44,7 @@ export const router = createBrowserRouter([
 
             {
                 path: "settings",
-                children: [
-                    { index: true, element: <Navigate to="user-accounts" replace /> },
-                    {
-                        path: "user-accounts",
-                        element: <UserAccountsPage />,
-                    },
-                ],
+                element: <SettingsPage />,
             },
 
         ],
