@@ -5,6 +5,11 @@ import DailyReportPage from "./DailyReportPage";
 import MonthlyReportPage from "./MonthlyReportPage";
 import YearlyReportPage from "./YearlyReportPage";
 
+const teal = "#92C7CF";
+const tealLight = "#AAD7D9";
+const cream = "#FBF9F1";
+const warm = "#E5E1DA";
+
 const leftTabs = [
     { id: "records", label: "CANCELLATION RECORDS", icon: FileText },
     { id: "daily", label: "DAILY REPORT", icon: Calendar },
@@ -30,10 +35,15 @@ export default function CancellationTabbedPage() {
                     {/* Collapse toggle button — icon only */}
                     <button
                         onClick={() => setSidebarOpen((v) => !v)}
-                        className={`hidden lg:flex shrink-0 items-center gap-2 rounded-2xl px-4 py-2.5 text-left text-sm font-medium transition-all duration-200 lg:w-full lg:gap-3 lg:px-4 lg:py-3 text-slate-600 hover:bg-slate-100 hover:text-slate-800`}
+                        className="hidden lg:flex shrink-0 items-center gap-2 rounded-2xl px-4 py-2.5 text-left text-sm font-medium transition-all duration-200 lg:w-full lg:gap-3 lg:px-4 lg:py-3 text-slate-600 hover:bg-white/40 hover:text-slate-800"
                         title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
                     >
-                        <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
+                        <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+                            style={{
+                                background: "rgba(146,199,207,0.12)",
+                                color: teal,
+                            }}
+                        >
                             <Menu className="h-5 w-5" />
                         </span>
                     </button>
@@ -45,18 +55,38 @@ export default function CancellationTabbedPage() {
                             <button
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id)}
-                                className={`flex shrink-0 items-center gap-2 rounded-2xl px-4 py-2.5 text-left text-sm font-medium transition-all duration-200 lg:w-full lg:gap-3 lg:px-4 lg:py-3 ${
-                                    isActive
-                                        ? "bg-sky-50 text-sky-700 shadow-sm ring-1 ring-sky-200"
-                                        : "text-slate-600 hover:bg-slate-100 hover:text-slate-800"
-                                }`}
+                                className="flex shrink-0 items-center gap-2 rounded-2xl px-4 py-2.5 text-left text-sm font-medium transition-all duration-200 lg:w-full lg:gap-3 lg:px-4 lg:py-3"
+                                style={{
+                                    background: isActive
+                                        ? "rgba(146,199,207,0.15)"
+                                        : "transparent",
+                                    border: isActive
+                                        ? "1px solid rgba(146,199,207,0.25)"
+                                        : "1px solid transparent",
+                                    color: isActive ? "#1F2937" : "#6B7280",
+                                    boxShadow: isActive
+                                        ? "0 2px 8px rgba(146,199,207,0.10)"
+                                        : "none",
+                                }}
+                                onMouseEnter={(e) => {
+                                    if (!isActive) {
+                                        e.currentTarget.style.background = "rgba(146,199,207,0.06)";
+                                    }
+                                }}
+                                onMouseLeave={(e) => {
+                                    if (!isActive) {
+                                        e.currentTarget.style.background = "transparent";
+                                    }
+                                }}
                             >
                                 <span
-                                    className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
-                                        isActive
-                                            ? "bg-sky-100 text-sky-600"
-                                            : "bg-slate-100 text-slate-500"
-                                    }`}
+                                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-all duration-300"
+                                    style={{
+                                        background: isActive
+                                            ? "rgba(146,199,207,0.20)"
+                                            : "rgba(0,0,0,0.03)",
+                                        color: isActive ? teal : "#9CA3AF",
+                                    }}
                                 >
                                     <Icon className="h-5 w-5" />
                                 </span>

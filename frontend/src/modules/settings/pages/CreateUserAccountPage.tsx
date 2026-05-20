@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { UserPlus } from "lucide-react";
 
+const teal = "#92C7CF";
+
 export default function CreateUserAccountPage() {
     const [form, setForm] = useState({
         name: "",
@@ -62,7 +64,15 @@ export default function CreateUserAccountPage() {
                         type="text"
                         value={form.name}
                         onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none"
+                        onFocus={(e) => {
+                            e.currentTarget.style.borderColor = teal;
+                            e.currentTarget.style.boxShadow = `0 0 0 2px ${teal}40`;
+                        }}
+                        onBlur={(e) => {
+                            e.currentTarget.style.borderColor = "#D1D5DB";
+                            e.currentTarget.style.boxShadow = "none";
+                        }}
                         placeholder="Full name"
                     />
                 </div>
@@ -73,7 +83,15 @@ export default function CreateUserAccountPage() {
                         type="email"
                         value={form.email}
                         onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none"
+                        onFocus={(e) => {
+                            e.currentTarget.style.borderColor = teal;
+                            e.currentTarget.style.boxShadow = `0 0 0 2px ${teal}40`;
+                        }}
+                        onBlur={(e) => {
+                            e.currentTarget.style.borderColor = "#D1D5DB";
+                            e.currentTarget.style.boxShadow = "none";
+                        }}
                         placeholder="email@example.com"
                     />
                 </div>
@@ -84,7 +102,15 @@ export default function CreateUserAccountPage() {
                         type="text"
                         value={form.password}
                         onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none"
+                        onFocus={(e) => {
+                            e.currentTarget.style.borderColor = teal;
+                            e.currentTarget.style.boxShadow = `0 0 0 2px ${teal}40`;
+                        }}
+                        onBlur={(e) => {
+                            e.currentTarget.style.borderColor = "#D1D5DB";
+                            e.currentTarget.style.boxShadow = "none";
+                        }}
                         placeholder="Enter a password"
                     />
                 </div>
@@ -94,7 +120,15 @@ export default function CreateUserAccountPage() {
                     <select
                         value={form.usertype}
                         onChange={(e) => setForm((f) => ({ ...f, usertype: e.target.value }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none"
+                        onFocus={(e) => {
+                            e.currentTarget.style.borderColor = teal;
+                            e.currentTarget.style.boxShadow = `0 0 0 2px ${teal}40`;
+                        }}
+                        onBlur={(e) => {
+                            e.currentTarget.style.borderColor = "#D1D5DB";
+                            e.currentTarget.style.boxShadow = "none";
+                        }}
                     >
                         <option value="admin">Admin</option>
                         <option value="csr">CSR</option>
@@ -104,7 +138,11 @@ export default function CreateUserAccountPage() {
 
                 <button
                     type="submit"
-                    className="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg bg-sky-600 text-white font-medium hover:bg-sky-700 transition"
+                    className="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg text-white font-medium transition-all duration-300 hover:shadow-lg hover:scale-[1.02]"
+                    style={{
+                        background: `linear-gradient(135deg, ${teal}, #AAD7D9)`,
+                        boxShadow: "0 2px 12px rgba(146,199,207,0.30)",
+                    }}
                 >
                     <UserPlus className="h-4 w-4" />
                     Create User
