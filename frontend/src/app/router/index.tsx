@@ -18,7 +18,18 @@ import ChangeDeviceLogsPage from "../../modules/pos/pages/ChangeDeviceLogsPage";
 import ChangeDeviceMonitoringPage from "../../modules/pos/pages/ChangeDeviceMonitoringPage";
 import PosStatusLogsPage from "../../modules/pos/pages/PosStatusLogsPage";
 
-import SettingsPage from "../../modules/settings/pages/SettingsPage";
+import CancellationRecordsPage from "../../modules/cancellation/pages/CancellationRecordsPage";
+import DailyReportPage from "../../modules/cancellation/pages/DailyReportPage";
+import MonthlyReportPage from "../../modules/cancellation/pages/MonthlyReportPage";
+import YearlyReportPage from "../../modules/cancellation/pages/YearlyReportPage";
+
+import SummaryPage from "../../modules/asset-inventory/pages/SummaryPage";
+import OfficePage from "../../modules/asset-inventory/pages/OfficePage";
+import PayoutPage from "../../modules/asset-inventory/pages/PayoutPage";
+import DrawcourtPage from "../../modules/asset-inventory/pages/DrawcourtPage";
+import ObsPage from "../../modules/asset-inventory/pages/ObsPage";
+import AssetCodingPage from "../../modules/asset-inventory/pages/AssetCodingPage";
+
 import UserAccountsPage from "../../modules/settings/user-accounts/pages/UserAccountsPage";
 
 export const router = createBrowserRouter([
