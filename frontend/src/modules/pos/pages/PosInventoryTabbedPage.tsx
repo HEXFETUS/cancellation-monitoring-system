@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Monitor, Activity, RotateCcw, Users, Store, BarChart3, Menu } from "lucide-react";
-import ProductsPage from "./ProductsPage";
+import AllPosPage from "./AllPosPage";
 import PosStatusPage from "./PosStatusPage";
 import RequestResetPage from "./RequestResetPage";
 import OperatorsPage from "./OperatorsPage";
@@ -11,7 +11,7 @@ import ConvertAreaLogsPage from "./ConvertAreaLogsPage";
 import PosStatusLogsPage from "./PosStatusLogsPage";
 
 const leftTabs = [
-    { id: "pos", label: "POS", icon: Monitor },
+    { id: "all-pos", label: "ALL POS", icon: Monitor },
     { id: "pos-status", label: "POS STATUS", icon: Activity },
     { id: "request-reset", label: "REQUEST RESET DEVICE", icon: RotateCcw },
     { id: "operators", label: "ALL OPERATORS", icon: Users },
@@ -27,7 +27,7 @@ const reportSubTabs = [
 ];
 
 export default function PosInventoryTabbedPage() {
-    const [activeTab, setActiveTab] = useState("pos");
+    const [activeTab, setActiveTab] = useState("all-pos");
     const [activeReportSubTab, setActiveReportSubTab] = useState("change-device-monitoring");
     const [sidebarOpen, setSidebarOpen] = useState(true);
 
@@ -90,7 +90,7 @@ export default function PosInventoryTabbedPage() {
 
             {/* Main content area */}
             <div className="flex-1 min-w-0">
-                {activeTab === "pos" && <ProductsPage />}
+                {activeTab === "all-pos" && <AllPosPage />}
                 {activeTab === "pos-status" && <PosStatusPage />}
                 {activeTab === "request-reset" && <RequestResetPage />}
                 {activeTab === "operators" && <OperatorsPage />}

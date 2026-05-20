@@ -1,130 +1,62 @@
-import { useState } from "react";
-import {
-    Cpu,
-    Activity,
-    Repeat,
-    BarChart3,
-    Menu,
-} from "lucide-react";
-import ProductsPage from "./ProductsPage";
-import PosStatusPage from "./PosStatusPage";
-import RequestResetPage from "./RequestResetPage";
-import ChangeDeviceLogsPage from "./ChangeDeviceLogsPage";
-import ConvertAreaLogsPage from "./ConvertAreaLogsPage";
-import PosStatusLogsPage from "./PosStatusLogsPage";
+import { Cpu, ShieldCheck, Users, MapPin } from "lucide-react";
 
-const leftTabs = [
-    { id: "pos", label: "POS", icon: Cpu },
-    { id: "pos-status", label: "POS STATUS", icon: Activity },
-    { id: "request-reset", label: "REQUEST RESET DEVICE", icon: Repeat },
-    { id: "reports", label: "REPORTS", icon: BarChart3 },
-];
-
-const reportTabs = [
-    { id: "change-device-logs", label: "Change Device Logs" },
-    { id: "convert-area-logs", label: "Convert Area Logs" },
-    { id: "pos-status-logs", label: "POS Status Logs" },
+const summaryCards = [
+    {
+        label: "Active POS",
+        value: "128",
+        icon: Cpu,
+        accent: "from-cyan-400 to-sky-500",
+    },
+    {
+        label: "Offline Devices",
+        value: "12",
+        icon: ShieldCheck,
+        accent: "from-rose-400 to-pink-500",
+    },
+    {
+        label: "Operators",
+        value: "23",
+        icon: Users,
+        accent: "from-orange-400 to-amber-500",
+    },
+    {
+        label: "Outlets",
+        value: "18",
+        icon: MapPin,
+        accent: "from-emerald-400 to-lime-500",
+    },
 ];
 
 export default function AllPosPage() {
-    const [activeTab, setActiveTab] = useState("pos");
-    const [activeReportTab, setActiveReportTab] = useState("change-device-logs");
-    const [sidebarOpen, setSidebarOpen] = useState(true);
-
     return (
-        <div className="flex flex-col gap-6 lg:flex-row lg:gap-0">
-            {/* Left sidebar tabs — collapsible */}
-            <div
-                className={`transition-all duration-300 ${
-                    sidebarOpen
-                        ? "lg:w-56 lg:shrink-0"
-                        : "lg:w-16 lg:shrink-0"
-                }`}
-            >
-                {/* Toggle button above the tabs */}
-                <div className="mb-2 hidden lg:flex lg:items-center">
-                    <button
-                        onClick={() => setSidebarOpen((v) => !v)}
-                        className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white p-1.5 text-slate-500 hover:text-slate-800 hover:shadow-sm transition-all"
-                        title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
-                    >
-                        <Menu className="h-4 w-4" />
-                    </button>
-                </div>
+        <div className="space-y-6">
+            <header>
+                <h1 className="text-2xl font-semibold text-slate-900">All POS Devices</h1>
+                <p className="mt-1 text-sm text-slate-500">Overview of all POS terminals.</p>
+            </header>
 
-                <div className="flex gap-2 overflow-x-auto pb-2 lg:flex-col lg:space-y-2 lg:overflow-visible lg:pb-0">
-                    {leftTabs.map((tab) => {
-                        const Icon = tab.icon;
-                        const isActive = activeTab === tab.id;
-                        const isCollapsed = !sidebarOpen;
-                        return (
-                            <button
-                                key={tab.id}
-                                onClick={() => setActiveTab(tab.id)}
-                                className={`flex shrink-0 items-center gap-2 rounded-2xl px-4 py-2 text-left text-sm font-medium transition-all duration-200 lg:w-full lg:gap-3 lg:px-4 lg:py-3 ${
-                                    isActive
-                                        ? "bg-sky-50 text-sky-700 shadow-sm ring-1 ring-sky-200"
-                                        : "text-slate-600 hover:bg-slate-100 hover:text-slate-800"
-                                }`}
-                            >
-                                <span
-                                    className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl lg:h-9 lg:w-9 ${
-                                        isActive
-                                            ? "bg-sky-100 text-sky-600"
-                                            : "bg-slate-100 text-slate-500"
-                                    }`}
-                                >
-                                    <Icon className="h-4 w-4" />
-                                </span>
-                                <span
-                                    className={`whitespace-nowrap lg:whitespace-normal transition-all duration-200 ${
-                                        isCollapsed ? "hidden" : "inline"
-                                    }`}
-                                >
-                                    {tab.label}
-                                </span>
-                            </button>
-                        );
-                    })}
-                </div>
-            </div>
-
-            {/* Main content area */}
-            <div className="flex-1 min-w-0">
-                {activeTab === "pos" && <ProductsPage />}
-                {activeTab === "pos-status" && <PosStatusPage />}
-                {activeTab === "request-reset" && <RequestResetPage />}
-                {activeTab === "reports" && (
-                    <div>
-                        {/* Report sub-tabs — horizontal scroll on mobile */}
-                        <div className="mb-6 flex gap-2 overflow-x-auto border-b border-slate-200 pb-2">
-                            {reportTabs.map((tab) => {
-                                const isActive = activeReportTab === tab.id;
-                                return (
-                                    <button
-                                        key={tab.id}
-                                        onClick={() => setActiveReportTab(tab.id)}
-                                        className={`shrink-0 rounded-xl px-3 py-2 text-xs font-medium transition-all duration-200 sm:px-4 sm:text-sm ${
-                                            isActive
-                                                ? "bg-sky-50 text-sky-700 shadow-sm ring-1 ring-sky-200"
-                                                : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
-                                        }`}
-                                    >
-                                        {tab.label}
-                                    </button>
-                                );
-                            })}
+            <section className="grid gap-4 xl:grid-cols-4">
+                {summaryCards.map((card) => {
+                    const Icon = card.icon;
+                    return (
+                        <div
+                            key={card.label}
+                            className="rounded-3xl border border-slate-200 bg-gradient-to-br p-1 shadow-lg shadow-slate-200/40"
+                        >
+                            <div className="flex h-full flex-col justify-between gap-4 rounded-3xl bg-white p-6">
+                                <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-700 shadow-sm">
+                                    <Icon className="h-6 w-6" />
+                                </div>
+                                <div>
+                                    <p className="text-sm font-medium text-slate-500">{card.label}</p>
+                                    <p className="mt-3 text-3xl font-semibold text-slate-900">{card.value}</p>
+                                </div>
+                                <div className={`h-1 rounded-full bg-gradient-to-r ${card.accent}`} />
+                            </div>
                         </div>
-
-                        {/* Report content */}
-                        <div>
-                            {activeReportTab === "change-device-logs" && <ChangeDeviceLogsPage />}
-                            {activeReportTab === "convert-area-logs" && <ConvertAreaLogsPage />}
-                            {activeReportTab === "pos-status-logs" && <PosStatusLogsPage />}
-                        </div>
-                    </div>
-                )}
-            </div>
+                    );
+                })}
+            </section>
         </div>
     );
 }
