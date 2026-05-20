@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate, Outlet } from "react-router-dom";
-import { LogOut, ChevronDown, ChevronRight, Settings } from "lucide-react";
+import { LogOut, ChevronDown, ChevronRight, Settings, Menu, X } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useState } from "react";
 
@@ -8,19 +8,10 @@ const menuItems = [
 ];
 
 const posSubItems = [
-    { name: "All POS", path: "/app/pos/all-pos" },
-    { name: "POS Status", path: "/app/pos/status" },
-    { name: "All Operators", path: "/app/pos/operators" },
-    { name: "All Outlets", path: "/app/pos/outlets" },
-    { name: "Request Reset Device", path: "/app/pos/request-reset" },
-    { name: "POS Repair Request", path: "/app/pos/repair-request" },
-    { name: "POS Repair Log", path: "/app/pos/repair-log" },
-    { name: "POS Released Log", path: "/app/pos/released-log" },
-    { name: "List of Diagnosis", path: "/app/pos/diagnosis" },
-    { name: "Convert Area Logs", path: "/app/pos/reports/convert-area-logs" },
-    { name: "Change Device Logs", path: "/app/pos/reports/change-device-logs" },
-    { name: "Change Device Monitoring", path: "/app/pos/reports/change-device-monitoring" },
-    { name: "POS Status Logs", path: "/app/pos/reports/pos-status-logs" },
+    { name: "ALL POS", path: "/app/pos/all-pos" },
+    { name: "ALL OPERATORS", path: "/app/pos/operators" },
+    { name: "ALL OUTLETS", path: "/app/pos/outlets" },
+    { name: "POS REPAIR REQUEST", path: "/app/pos/repair-request" },
 ];
 
 const cancellationSubItems = [
@@ -47,6 +38,7 @@ export default function DashboardLayout() {
     const location = useLocation();
     const { logout } = useAuth();
     const navigate = useNavigate();
+    const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
     const settingsExpandedDefault = location.pathname.startsWith("/app/settings");
     const [settingsExpanded, setSettingsExpanded] = useState(settingsExpandedDefault);
     const posExpandedDefault = location.pathname.startsWith("/app/pos");
@@ -61,6 +53,8 @@ export default function DashboardLayout() {
         navigate("/");
     };
 
+    const closeMobileSidebar = () => setMobileSidebarOpen(false);
+
     return (
         <div
             className="flex h-screen"
@@ -72,12 +66,35 @@ export default function DashboardLayout() {
                 `,
             }}
         >
-            {/* Sidebar */}
-            <aside className="w-72 p-4">
+            {/* Mobile header bar */}
+            <div className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between p-3 lg:hidden">
+                <button
+                    onClick={() => setMobileSidebarOpen(true)}
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white/80 shadow-lg backdrop-blur-xl"
+                >
+                    <Menu className="h-5 w-5 text-slate-700" />
+                </button>
+            </div>
+
+            {/* Mobile sidebar overlay */}
+            {mobileSidebarOpen && (
                 <div
-                    className="h-full rounded-3xl border shadow-2xl backdrop-blur-2xl p-6 flex flex-col"
+                    className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm lg:hidden"
+                    onClick={closeMobileSidebar}
+                />
+            )}
+
+            {/* Sidebar */}
+            <aside
+                className={`
+                    fixed inset-y-0 left-0 z-50 w-72 p-4 transition-transform duration-300 lg:relative lg:translate-x-0
+                    ${mobileSidebarOpen ? "translate-x-0" : "-translate-x-full"}
+                `}
+            >
+                <div
+                    className="relative h-full rounded-3xl border shadow-2xl backdrop-blur-2xl p-6 flex flex-col"
                     style={{
-                        background: "rgba(255, 255, 255, 0.28)",
+                        background: "rgba(255, 255, 255, 0.95)",
                         border: "1px solid rgba(255, 255, 255, 0.45)",
                         boxShadow:
                             "0 8px 32px rgba(31, 38, 135, 0.12), inset 0 1px 0 rgba(255,255,255,0.65)",
@@ -85,10 +102,19 @@ export default function DashboardLayout() {
                         WebkitBackdropFilter: "blur(20px)",
                     }}
                 >
+                    {/* Mobile close button */}
+                    <button
+                        onClick={closeMobileSidebar}
+                        className="absolute top-3 right-3 inline-flex h-8 w-8 items-center justify-center rounded-xl border border-slate-200 bg-white lg:hidden"
+                    >
+                        <X className="h-4 w-4 text-slate-500" />
+                    </button>
+
                     {/* Logo */}
                     <div className="mb-10">
                         <Link
                             to="/"
+                            onClick={closeMobileSidebar}
                             className="inline-flex items-center justify-center w-51 h-12 rounded-2xl shadow-lg mb-1"
                             style={{
                                 background:
@@ -102,7 +128,7 @@ export default function DashboardLayout() {
                     </div>
 
                     {/* Navigation */}
-                    <nav className="space-y-3 flex-1">
+                    <nav className="space-y-3 flex-1 overflow-y-auto">
                         {/* Render Dashboard first */}
                         {menuItems.length > 0 && (() => {
                             const item = menuItems[0];
@@ -111,6 +137,7 @@ export default function DashboardLayout() {
                                 <Link
                                     key={item.path}
                                     to={item.path}
+                                    onClick={closeMobileSidebar}
                                     className="group relative flex items-center px-4 py-2 rounded-2xl transition-all duration-300"
                                     style={{
                                         background: isActive
@@ -188,6 +215,7 @@ export default function DashboardLayout() {
                                             <Link
                                                 key={sub.path}
                                                 to={sub.path}
+                                                onClick={closeMobileSidebar}
                                                 className="block px-3 py-1.5 rounded-xl text-sm transition-all duration-300"
                                                 style={{
                                                     background: isSubActive
@@ -245,6 +273,7 @@ export default function DashboardLayout() {
                                             <Link
                                                 key={sub.path}
                                                 to={sub.path}
+                                                onClick={closeMobileSidebar}
                                                 className="block px-3 py-1.5 rounded-xl text-sm transition-all duration-300"
                                                 style={{
                                                     background: isSubActive
@@ -302,6 +331,7 @@ export default function DashboardLayout() {
                                             <Link
                                                 key={sub.path}
                                                 to={sub.path}
+                                                onClick={closeMobileSidebar}
                                                 className="block px-3 py-1.5 rounded-xl text-sm transition-all duration-300"
                                                 style={{
                                                     background: isSubActive
@@ -327,6 +357,7 @@ export default function DashboardLayout() {
                                 <Link
                                     key={item.path}
                                     to={item.path}
+                                    onClick={closeMobileSidebar}
                                     className="group relative flex items-center px-4 py-2 rounded-2xl transition-all duration-300"
                                     style={{
                                         background: isActive
@@ -405,6 +436,7 @@ export default function DashboardLayout() {
                                             <Link
                                                 key={sub.path}
                                                 to={sub.path}
+                                                onClick={closeMobileSidebar}
                                                 className="block px-3 py-1.5 rounded-xl text-sm transition-all duration-300"
                                                 style={{
                                                     background: isSubActive
@@ -451,9 +483,9 @@ export default function DashboardLayout() {
             </aside>
 
             {/* Main Content */}
-            <main className="flex-1 p-6 overflow-auto">
+            <main className="flex-1 overflow-auto pt-16 lg:pt-0">
                 <div
-                    className="min-h-full rounded-3xl border shadow-2xl backdrop-blur-2xl p-8"
+                    className="m-3 min-h-full rounded-3xl border shadow-2xl backdrop-blur-2xl p-4 sm:p-6 lg:m-6 lg:p-8"
                     style={{
                         background: "rgba(255, 255, 255, 0.22)",
                         border: "1px solid rgba(255, 255, 255, 0.45)",
