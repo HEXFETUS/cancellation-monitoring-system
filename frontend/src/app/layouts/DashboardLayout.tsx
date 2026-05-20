@@ -1,37 +1,10 @@
 import { Link, useLocation, useNavigate, Outlet } from "react-router-dom";
-import { LogOut, ChevronDown, ChevronRight, Settings, Menu, X } from "lucide-react";
+import { LogOut, Settings, Menu, X } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useState } from "react";
 
-const menuItems = [
-    { name: "Dashboard", path: "/app/dashboard" },
-];
-
-const posSubItems = [
-    { name: "ALL POS", path: "/app/pos/all-pos" },
-    { name: "ALL OPERATORS", path: "/app/pos/operators" },
-    { name: "ALL OUTLETS", path: "/app/pos/outlets" },
-    { name: "POS REPAIR REQUEST", path: "/app/pos/repair-request" },
-];
-
-const cancellationSubItems = [
-    { name: "Cancellation Records", path: "/app/cancellation/records" },
-    { name: "Daily Report", path: "/app/cancellation/daily-report" },
-    { name: "Monthly Report", path: "/app/cancellation/monthly-report" },
-    { name: "Yearly Report", path: "/app/cancellation/yearly-report" },
-];
-
-const assetInventorySubItems = [
-    { name: "Summary", path: "/app/asset-inventory/summary" },
-    { name: "Office", path: "/app/asset-inventory/office" },
-    { name: "Payout", path: "/app/asset-inventory/payout" },
-    { name: "Drawcourt", path: "/app/asset-inventory/drawcourt" },
-    { name: "OBS", path: "/app/asset-inventory/obs" },
-    { name: "Asset Coding", path: "/app/asset-inventory/asset-coding" },
-];
-
 const settingsSubItems = [
-    { name: "User Accounts", path: "/app/settings/user-accounts" },
+    { name: "USER ACCOUNTS", path: "/app/settings/user-accounts" },
 ];
 
 export default function DashboardLayout() {
@@ -41,12 +14,6 @@ export default function DashboardLayout() {
     const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
     const settingsExpandedDefault = location.pathname.startsWith("/app/settings");
     const [settingsExpanded, setSettingsExpanded] = useState(settingsExpandedDefault);
-    const posExpandedDefault = location.pathname.startsWith("/app/pos");
-    const [posExpanded, setPosExpanded] = useState(posExpandedDefault);
-    const cancellationExpandedDefault = location.pathname.startsWith("/app/cancellation");
-    const [cancellationExpanded, setCancellationExpanded] = useState(cancellationExpandedDefault);
-    const assetInventoryExpandedDefault = location.pathname.startsWith("/app/asset-inventory");
-    const [assetInventoryExpanded, setAssetInventoryExpanded] = useState(assetInventoryExpandedDefault);
 
     const handleLogout = () => {
         logout();
@@ -54,6 +21,14 @@ export default function DashboardLayout() {
     };
 
     const closeMobileSidebar = () => setMobileSidebarOpen(false);
+
+    const navItems = [
+        { name: "Dashboard", path: "/app/dashboard" },
+        { name: "POS Inventory", path: "/app/pos" },
+        { name: "POS Repair Request", path: "/app/pos-repair" },
+        { name: "Cancellation", path: "/app/cancellation" },
+        { name: "Asset Inventory", path: "/app/asset-inventory" },
+    ];
 
     return (
         <div
@@ -128,11 +103,10 @@ export default function DashboardLayout() {
                     </div>
 
                     {/* Navigation */}
-                    <nav className="space-y-3 flex-1 overflow-y-auto">
-                        {/* Render Dashboard first */}
-                        {menuItems.length > 0 && (() => {
-                            const item = menuItems[0];
-                            const isActive = location.pathname === item.path;
+                    <nav className="space-y-5 flex-1 overflow-y-auto">
+                        {navItems.map((item) => {
+                            const isActive = location.pathname === item.path ||
+                                (item.path.startsWith("/app/pos") && location.pathname.startsWith("/app/pos"));
                             return (
                                 <Link
                                     key={item.path}
@@ -162,232 +136,12 @@ export default function DashboardLayout() {
                                                 : "none",
                                         }}
                                     />
-
                                     <span
-                                        className={`font-xs transition-colors duration-300 ${isActive
-                                            ? "text-gray-800"
-                                            : "text-gray-600 group-hover:text-gray-800"
-                                            }`}
-                                    >
-                                        {item.name}
-                                    </span>
-                                </Link>
-                            );
-                        })()}
-
-                        {/* POS Inventory (after Dashboard) */}
-                        <div>
-                            <button
-                                onClick={() => setPosExpanded((v) => !v)}
-                                className="group relative flex items-center w-full px-4 py-2 rounded-2xl transition-all duration-300"
-                                style={{
-                                    background: location.pathname.startsWith("/app/pos")
-                                        ? "rgba(146, 199, 207, 0.20)"
-                                        : "transparent",
-                                    border: location.pathname.startsWith("/app/pos")
-                                        ? "1px solid rgba(146, 199, 207, 0.35)"
-                                        : "1px solid transparent",
-                                    boxShadow: location.pathname.startsWith("/app/pos")
-                                        ? "inset 0 .5px 0 rgba(255,255,255,0.5)"
-                                        : "none",
-                                }}
-                            >
-                                <span className="w-2 h-2 rounded-full mr-3" style={{ backgroundColor: location.pathname.startsWith("/app/pos") ? "#92C7CF" : "#D1D5DB" }} />
-                                <span className={`flex-1 text-left font-xs transition-colors duration-300 ${location.pathname.startsWith("/app/pos")
-                                    ? "text-gray-800"
-                                    : "text-gray-600 group-hover:text-gray-800"
-                                    }`}
-                                >
-                                    POS Inventory
-                                </span>
-                                {posExpanded ? (
-                                    <ChevronDown className="w-4 h-4 text-gray-400" />
-                                ) : (
-                                    <ChevronRight className="w-4 h-4 text-gray-400" />
-                                )}
-                            </button>
-
-                            {posExpanded && (
-                                <div className="ml-6 mt-1 space-y-1">
-                                    {posSubItems.map((sub) => {
-                                        const isSubActive = location.pathname === sub.path;
-                                        return (
-                                            <Link
-                                                key={sub.path}
-                                                to={sub.path}
-                                                onClick={closeMobileSidebar}
-                                                className="block px-3 py-1.5 rounded-xl text-sm transition-all duration-300"
-                                                style={{
-                                                    background: isSubActive
-                                                        ? "rgba(146, 199, 207, 0.20)"
-                                                        : "transparent",
-                                                    color: isSubActive ? "#2c3e50" : "#6b7280",
-                                                    fontWeight: isSubActive ? 600 : 400,
-                                                }}
-                                            >
-                                                {sub.name}
-                                            </Link>
-                                        );
-                                    })}
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Cancellation Monitoring (after POS Inventory) */}
-                        <div>
-                            <button
-                                onClick={() => setCancellationExpanded((v) => !v)}
-                                className="group relative flex items-center w-full px-4 py-2 rounded-2xl transition-all duration-300"
-                                style={{
-                                    background: location.pathname.startsWith("/app/cancellation")
-                                        ? "rgba(146, 199, 207, 0.20)"
-                                        : "transparent",
-                                    border: location.pathname.startsWith("/app/cancellation")
-                                        ? "1px solid rgba(146, 199, 207, 0.35)"
-                                        : "1px solid transparent",
-                                    boxShadow: location.pathname.startsWith("/app/cancellation")
-                                        ? "inset 0 .5px 0 rgba(255,255,255,0.5)"
-                                        : "none",
-                                }}
-                            >
-                                <span className="w-2 h-2 rounded-full mr-3" style={{ backgroundColor: location.pathname.startsWith("/app/cancellation") ? "#92C7CF" : "#D1D5DB" }} />
-                                <span className={`flex-1 text-left font-xs transition-colors duration-300 ${location.pathname.startsWith("/app/cancellation")
-                                    ? "text-gray-800"
-                                    : "text-gray-600 group-hover:text-gray-800"
-                                    }`}
-                                >
-                                    Cancellation Monitoring
-                                </span>
-                                {cancellationExpanded ? (
-                                    <ChevronDown className="w-4 h-4 text-gray-400" />
-                                ) : (
-                                    <ChevronRight className="w-4 h-4 text-gray-400" />
-                                )}
-                            </button>
-
-                            {cancellationExpanded && (
-                                <div className="ml-6 mt-1 space-y-1">
-                                    {cancellationSubItems.map((sub) => {
-                                        const isSubActive = location.pathname === sub.path;
-                                        return (
-                                            <Link
-                                                key={sub.path}
-                                                to={sub.path}
-                                                onClick={closeMobileSidebar}
-                                                className="block px-3 py-1.5 rounded-xl text-sm transition-all duration-300"
-                                                style={{
-                                                    background: isSubActive
-                                                        ? "rgba(146, 199, 207, 0.20)"
-                                                        : "transparent",
-                                                    color: isSubActive ? "#2c3e50" : "#6b7280",
-                                                    fontWeight: isSubActive ? 600 : 400,
-                                                }}
-                                            >
-                                                {sub.name}
-                                            </Link>
-                                        );
-                                    })}
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Asset Inventory (after Cancellation Monitoring) */}
-                        <div>
-                            <button
-                                onClick={() => setAssetInventoryExpanded((v) => !v)}
-                                className="group relative flex items-center w-full px-4 py-2 rounded-2xl transition-all duration-300"
-                                style={{
-                                    background: location.pathname.startsWith("/app/asset-inventory")
-                                        ? "rgba(146, 199, 207, 0.20)"
-                                        : "transparent",
-                                    border: location.pathname.startsWith("/app/asset-inventory")
-                                        ? "1px solid rgba(146, 199, 207, 0.35)"
-                                        : "1px solid transparent",
-                                    boxShadow: location.pathname.startsWith("/app/asset-inventory")
-                                        ? "inset 0 .5px 0 rgba(255,255,255,0.5)"
-                                        : "none",
-                                }}
-                            >
-                                <span className="w-2 h-2 rounded-full mr-3" style={{ backgroundColor: location.pathname.startsWith("/app/asset-inventory") ? "#92C7CF" : "#D1D5DB" }} />
-                                <span className={`flex-1 text-left font-xs transition-colors duration-300 ${location.pathname.startsWith("/app/asset-inventory")
-                                    ? "text-gray-800"
-                                    : "text-gray-600 group-hover:text-gray-800"
-                                    }`}
-                                >
-                                    Asset Inventory
-                                </span>
-                                {assetInventoryExpanded ? (
-                                    <ChevronDown className="w-4 h-4 text-gray-400" />
-                                ) : (
-                                    <ChevronRight className="w-4 h-4 text-gray-400" />
-                                )}
-                            </button>
-
-                            {assetInventoryExpanded && (
-                                <div className="ml-6 mt-1 space-y-1">
-                                    {assetInventorySubItems.map((sub) => {
-                                        const isSubActive = location.pathname === sub.path;
-                                        return (
-                                            <Link
-                                                key={sub.path}
-                                                to={sub.path}
-                                                onClick={closeMobileSidebar}
-                                                className="block px-3 py-1.5 rounded-xl text-sm transition-all duration-300"
-                                                style={{
-                                                    background: isSubActive
-                                                        ? "rgba(146, 199, 207, 0.20)"
-                                                        : "transparent",
-                                                    color: isSubActive ? "#2c3e50" : "#6b7280",
-                                                    fontWeight: isSubActive ? 600 : 400,
-                                                }}
-                                            >
-                                                {sub.name}
-                                            </Link>
-                                        );
-                                    })}
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Render remaining menu items */}
-                        {menuItems.slice(1).map((item) => {
-                            const isActive = location.pathname === item.path;
-
-                            return (
-                                <Link
-                                    key={item.path}
-                                    to={item.path}
-                                    onClick={closeMobileSidebar}
-                                    className="group relative flex items-center px-4 py-2 rounded-2xl transition-all duration-300"
-                                    style={{
-                                        background: isActive
-                                            ? "rgba(146, 199, 207, 0.20)"
-                                            : "transparent",
-                                        border: isActive
-                                            ? "1px solid rgba(146, 199, 207, 0.35)"
-                                            : "1px solid transparent",
-                                        boxShadow: isActive
-                                            ? "inset 0 .5px 0 rgba(255,255,255,0.5)"
-                                            : "none",
-                                    }}
-                                >
-                                    <span
-                                        className="w-2 h-2 rounded-full mr-3 transition-all duration-300"
-                                        style={{
-                                            backgroundColor: isActive
-                                                ? "#92C7CF"
-                                                : "#D1D5DB",
-                                            boxShadow: isActive
-                                                ? "0 0 12px rgba(146,199,207,0.6)"
-                                                : "none",
-                                        }}
-                                    />
-
-                                    <span
-                                        className={`font-xs transition-colors duration-300 ${isActive
-                                            ? "text-gray-800"
-                                            : "text-gray-600 group-hover:text-gray-800"
-                                            }`}
+                                        className={`font-xs transition-colors duration-300 ${
+                                            isActive
+                                                ? "text-gray-800"
+                                                : "text-gray-600 group-hover:text-gray-800"
+                                        }`}
                                     >
                                         {item.name}
                                     </span>
@@ -414,17 +168,22 @@ export default function DashboardLayout() {
                             >
                                 <Settings className="w-4 h-4 mr-2" style={{ color: location.pathname.startsWith("/app/settings") ? "#92C7CF" : "#D1D5DB" }} />
                                 <span
-                                    className={`flex-1 text-left font-xs transition-colors duration-300 ${location.pathname.startsWith("/app/settings")
-                                        ? "text-gray-800"
-                                        : "text-gray-600 group-hover:text-gray-800"
-                                        }`}
+                                    className={`flex-1 text-left font-xs transition-colors duration-300 ${
+                                        location.pathname.startsWith("/app/settings")
+                                            ? "text-gray-800"
+                                            : "text-gray-600 group-hover:text-gray-800"
+                                    }`}
                                 >
                                     Settings
                                 </span>
                                 {settingsExpanded ? (
-                                    <ChevronDown className="w-4 h-4 text-gray-400" />
+                                    <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                                    </svg>
                                 ) : (
-                                    <ChevronRight className="w-4 h-4 text-gray-400" />
+                                    <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                                    </svg>
                                 )}
                             </button>
 
@@ -485,7 +244,7 @@ export default function DashboardLayout() {
             {/* Main Content */}
             <main className="flex-1 overflow-auto pt-16 lg:pt-0">
                 <div
-                    className="m-3 min-h-full rounded-3xl border shadow-2xl backdrop-blur-2xl p-4 sm:p-6 lg:m-6 lg:p-8"
+                    className="m-3 min-h-full rounded-3xl border shadow-2xl backdrop-blur-2xl p-4 sm:p-6 lg:m-8 lg:p-10"
                     style={{
                         background: "rgba(255, 255, 255, 0.22)",
                         border: "1px solid rgba(255, 255, 255, 0.45)",
