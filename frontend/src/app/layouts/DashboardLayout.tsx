@@ -1,11 +1,35 @@
 import { Link, useLocation, useNavigate, Outlet } from "react-router-dom";
-import { LogOut, Menu, X } from "lucide-react";
+import {
+    LogOut,
+    Menu,
+    X,
+    LayoutDashboard,
+    Monitor,
+    Wrench,
+    FileText,
+    Package,
+    Settings,
+    ShieldCheck,
+} from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useState } from "react";
 
+const teal = "#92C7CF";
+const tealLight = "#AAD7D9";
+const tealDark = "#7db8c0";
+
+const iconMap: Record<string, any> = {
+    Dashboard: LayoutDashboard,
+    "POS Inventory": Monitor,
+    "POS Repair Request": Wrench,
+    Cancellation: FileText,
+    "Asset Inventory": Package,
+    Settings: Settings,
+};
+
 export default function DashboardLayout() {
     const location = useLocation();
-    const { logout } = useAuth();
+    const { logout, user } = useAuth();
     const navigate = useNavigate();
     const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
@@ -16,14 +40,14 @@ export default function DashboardLayout() {
 
     const closeMobileSidebar = () => setMobileSidebarOpen(false);
 
-const navItems = [
-    { name: "Dashboard", path: "/app/dashboard" },
-    { name: "POS Inventory", path: "/app/pos" },
-    { name: "POS Repair Request", path: "/app/pos-repair" },
-    { name: "Cancellation", path: "/app/cancellation" },
-    { name: "Asset Inventory", path: "/app/asset-inventory" },
-    { name: "Settings", path: "/app/settings" },
-];
+    const navItems = [
+        { name: "Dashboard", path: "/app/dashboard" },
+        { name: "POS Inventory", path: "/app/pos" },
+        { name: "POS Repair Request", path: "/app/pos-repair" },
+        { name: "Cancellation", path: "/app/cancellation" },
+        { name: "Asset Inventory", path: "/app/asset-inventory" },
+        { name: "Settings", path: "/app/settings" },
+    ];
 
     return (
         <div
@@ -57,117 +81,254 @@ const navItems = [
             {/* Sidebar */}
             <aside
                 className={`
-                    fixed inset-y-0 left-0 z-50 w-72 p-4 transition-transform duration-300 lg:relative lg:translate-x-0
+                    fixed inset-y-0 left-0 z-50 w-72 p-3 transition-transform duration-300 lg:relative lg:translate-x-0
                     ${mobileSidebarOpen ? "translate-x-0" : "-translate-x-full"}
                 `}
             >
                 <div
-                    className="relative h-full rounded-3xl border shadow-2xl backdrop-blur-2xl p-6 flex flex-col"
+                    className="relative h-full rounded-3xl p-5 flex flex-col overflow-hidden"
                     style={{
-                        background: "rgba(255, 255, 255, 0.95)",
-                        border: "1px solid rgba(255, 255, 255, 0.45)",
-                        boxShadow:
-                            "0 8px 32px rgba(31, 38, 135, 0.12), inset 0 1px 0 rgba(255,255,255,0.65)",
-                        backdropFilter: "blur(20px)",
-                        WebkitBackdropFilter: "blur(20px)",
+                        background: `
+                            linear-gradient(
+                                160deg,
+                                rgba(255,255,255,0.98) 0%,
+                                rgba(255,255,255,0.90) 40%,
+                                rgba(251,249,241,0.95) 100%
+                            )
+                        `,
+                        border: "1px solid rgba(146,199,207,0.20)",
+                        boxShadow: `
+                            0 8px 32px rgba(31, 38, 135, 0.12),
+                            inset 0 1px 0 rgba(255,255,255,0.80),
+                            inset 0 -1px 0 rgba(146,199,207,0.06)
+                        `,
+                        backdropFilter: "blur(24px)",
+                        WebkitBackdropFilter: "blur(24px)",
                     }}
                 >
+                    {/* Decorative top-right blob */}
+                    <div
+                        className="absolute -top-16 -right-16 w-36 h-36 rounded-full opacity-10 blur-3xl pointer-events-none"
+                        style={{
+                            background: `radial-gradient(circle, ${tealLight}, ${teal})`,
+                        }}
+                    />
+                    {/* Decorative bottom-left blob */}
+                    <div
+                        className="absolute -bottom-12 -left-12 w-28 h-28 rounded-full opacity-8 blur-3xl pointer-events-none"
+                        style={{
+                            background: `radial-gradient(circle, ${teal}, ${tealLight})`,
+                        }}
+                    />
+
                     {/* Mobile close button */}
                     <button
                         onClick={closeMobileSidebar}
-                        className="absolute top-3 right-3 inline-flex h-8 w-8 items-center justify-center rounded-xl border border-slate-200 bg-white lg:hidden"
+                        className="absolute top-3 right-3 inline-flex h-8 w-8 items-center justify-center rounded-xl border border-slate-200 bg-white/80 lg:hidden"
                     >
                         <X className="h-4 w-4 text-slate-500" />
                     </button>
 
-                    {/* Logo */}
-                    <div className="mb-10">
+                    {/* ===== Logo Section ===== */}
+                    <div className="relative mb-8 mt-2">
                         <Link
                             to="/"
                             onClick={closeMobileSidebar}
-                            className="inline-flex items-center justify-center w-51 h-12 rounded-2xl shadow-lg mb-1"
+                            className="group relative flex items-center gap-3 px-4 py-3 rounded-2xl transition-all duration-300"
                             style={{
-                                background:
-                                    "linear-gradient(135deg, #92C7CF 0%, #AAD7D9 100%)",
+                                background: "linear-gradient(135deg, #92C7CF 0%, #AAD7D9 100%)",
+                                boxShadow: "0 4px 20px rgba(146,199,207,0.35)",
                             }}
                         >
-                            <span className="text-white font-bold text-lg">
-                                Hexaprime Inc.
-                            </span>
+                            {/* Glow effect */}
+                            <div
+                                className="absolute inset-0 rounded-2xl opacity-30 blur-md transition-all duration-500 group-hover:opacity-50"
+                                style={{
+                                    background: "linear-gradient(135deg, #92C7CF 0%, #AAD7D9 100%)",
+                                }}
+                            />
+                            <div className="relative flex items-center gap-3">
+                                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/25 backdrop-blur-sm shadow-inner">
+                                    <ShieldCheck className="h-5 w-5 text-white" />
+                                </div>
+                                <div>
+                                    <span className="block text-white font-bold text-[15px] tracking-tight">
+                                        Hexaprime
+                                    </span>
+                                    <span className="block text-white/70 text-[11px] font-medium tracking-wide">
+                                        Management System
+                                    </span>
+                                </div>
+                            </div>
                         </Link>
                     </div>
 
-                    {/* Navigation */}
-                    <nav className="space-y-5 flex-1 overflow-y-auto">
+                    {/* ===== Navigation ===== */}
+                    <nav className="relative flex-1 overflow-y-auto space-y-1.5">
                         {navItems.map((item) => {
                             const isActive = location.pathname === item.path;
+                            const Icon = iconMap[item.name] || LayoutDashboard;
                             return (
                                 <Link
                                     key={item.path}
                                     to={item.path}
                                     onClick={closeMobileSidebar}
-                                    className="group relative flex items-center px-4 py-2 rounded-2xl transition-all duration-300"
+                                    className="group relative flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-300"
                                     style={{
                                         background: isActive
-                                            ? "rgba(146, 199, 207, 0.20)"
+                                            ? `linear-gradient(135deg, rgba(146,199,207,0.18), rgba(170,215,217,0.08))`
                                             : "transparent",
                                         border: isActive
-                                            ? "1px solid rgba(146, 199, 207, 0.35)"
+                                            ? "1px solid rgba(146,199,207,0.25)"
                                             : "1px solid transparent",
                                         boxShadow: isActive
-                                            ? "inset 0 .5px 0 rgba(255,255,255,0.5)"
+                                            ? "0 2px 12px rgba(146,199,207,0.10), inset 0 1px 0 rgba(255,255,255,0.5)"
                                             : "none",
                                     }}
                                 >
-                                    <span
-                                        className="w-2 h-2 rounded-full mr-3 transition-all duration-300"
+                                    {/* Active indicator bar */}
+                                    {isActive && (
+                                        <span
+                                            className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 rounded-r-full"
+                                            style={{
+                                                background: `linear-gradient(180deg, ${teal}, ${tealLight})`,
+                                                boxShadow: `0 0 12px rgba(146,199,207,0.5)`,
+                                            }}
+                                        />
+                                    )}
+
+                                    {/* Icon container */}
+                                    <div
+                                        className="flex h-9 w-9 items-center justify-center rounded-lg transition-all duration-300 group-hover:scale-110"
                                         style={{
-                                            backgroundColor: isActive
-                                                ? "#92C7CF"
-                                                : "#D1D5DB",
-                                            boxShadow: isActive
-                                                ? "0 0 12px rgba(146,199,207,0.6)"
-                                                : "none",
+                                            background: isActive
+                                                ? `linear-gradient(135deg, ${teal}30, ${tealLight}20)`
+                                                : "rgba(0,0,0,0.03)",
+                                            color: isActive ? teal : "#6B7280",
                                         }}
-                                    />
+                                    >
+                                        <Icon className="h-4.5 w-4.5" />
+                                    </div>
+
+                                    {/* Label */}
                                     <span
-                                        className={`font-xs transition-colors duration-300 ${
-                                            isActive
-                                                ? "text-gray-800"
-                                                : "text-gray-600 group-hover:text-gray-800"
-                                        }`}
+                                        className="text-sm font-medium transition-colors duration-300"
+                                        style={{
+                                            color: isActive ? "#1F2937" : "#6B7280",
+                                        }}
                                     >
                                         {item.name}
                                     </span>
+
+                                    {/* Active dot */}
+                                    {isActive && (
+                                        <span
+                                            className="ml-auto w-1.5 h-1.5 rounded-full"
+                                            style={{
+                                                background: teal,
+                                                boxShadow: `0 0 8px ${teal}`,
+                                            }}
+                                        />
+                                    )}
                                 </Link>
                             );
                         })}
-
                     </nav>
 
-                    {/* Logout */}
-                    <button
-                        onClick={handleLogout}
-                        className="flex items-center w-full px-4 py-3 rounded-2xl transition-all duration-300 text-gray-600 hover:text-gray-800 hover:bg-white/20 border border-transparent hover:border-white/30"
-                    >
-                        <LogOut className="h-4 w-4 mr-3" />
-                        <span className="font-medium text-sm">Sign Out</span>
-                    </button>
-
-                    {/* Status */}
+                    {/* ===== Divider ===== */}
                     <div
-                        className="mt-3 rounded-2xl p-4 border"
+                        className="relative my-4 h-px rounded-full"
                         style={{
-                            background: "rgba(255, 255, 255, 0.20)",
-                            border: "1px solid rgba(255, 255, 255, 0.35)",
+                            background: `linear-gradient(90deg, transparent, rgba(146,199,207,0.20), transparent)`,
+                        }}
+                    />
+
+                    {/* ===== Bottom Section ===== */}
+                    <div className="relative space-y-3">
+                        {/* User info */}
+                        <div
+                            className="flex items-center gap-3 rounded-xl px-4 py-3 transition-all duration-300 hover:bg-white/30"
+                            style={{
+                                background: "rgba(146,199,207,0.06)",
+                                border: "1px solid rgba(146,199,207,0.12)",
+                            }}
+                        >
+                            <div
+                                className="flex h-9 w-9 items-center justify-center rounded-xl text-white text-sm font-bold shrink-0"
+                                style={{
+                                    background: `linear-gradient(135deg, ${teal}, ${tealLight})`,
+                                    boxShadow: `0 2px 12px rgba(146,199,207,0.30)`,
+                                }}
+                            >
+                                {user?.name?.charAt(0)?.toUpperCase() || "U"}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <p className="text-sm font-semibold text-gray-800 truncate">
+                                    {user?.name || "User"}
+                                </p>
+                                <p className="text-[11px] text-gray-500 truncate">
+                                    {user?.usertype || "Administrator"}
+                                </p>
+                            </div>
+                            {/* Online status */}
+                            <span
+                                className="inline-block w-2 h-2 rounded-full shrink-0 animate-pulse"
+                                style={{ backgroundColor: "#6BBF6B" }}
+                            />
+                        </div>
+
+                        {/* Logout */}
+                        <button
+                            onClick={handleLogout}
+                            className="group flex items-center gap-3 w-full px-4 py-2.5 rounded-xl transition-all duration-300 border border-transparent hover:border-red-200/50"
+                            style={{
+                                color: "#9CA3AF",
+                                background: "transparent",
+                            }}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.background = "rgba(232,180,184,0.10)";
+                                e.currentTarget.style.color = "#DC2626";
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.background = "transparent";
+                                e.currentTarget.style.color = "#9CA3AF";
+                            }}
+                        >
+                            <div
+                                className="flex h-9 w-9 items-center justify-center rounded-lg transition-all duration-300 group-hover:scale-110"
+                                style={{
+                                    background: "rgba(0,0,0,0.03)",
+                                }}
+                            >
+                                <LogOut className="h-4.5 w-4.5" />
+                            </div>
+                            <span className="text-sm font-medium">Sign Out</span>
+                        </button>
+                    </div>
+
+                    {/* ===== System Status Badge ===== */}
+                    <div
+                        className="relative mt-3 rounded-xl px-4 py-2.5 flex items-center gap-2.5"
+                        style={{
+                            background: "linear-gradient(135deg, rgba(107,191,107,0.08), rgba(146,199,207,0.06))",
+                            border: "1px solid rgba(107,191,107,0.15)",
                         }}
                     >
-                        <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">
-                            Status
-                        </p>
-                        <p className="mt-1 text-sm font-medium text-gray-700">
-                            System Online
-                        </p>
+                        <span
+                            className="inline-block w-2 h-2 rounded-full animate-pulse shrink-0"
+                            style={{ backgroundColor: "#6BBF6B" }}
+                        />
+                        <div className="flex-1 min-w-0">
+                            <p className="text-[11px] font-semibold text-emerald-700 truncate">
+                                All Systems Normal
+                            </p>
+                        </div>
+                        <div
+                            className="flex items-center justify-center w-5 h-5 rounded-full"
+                            style={{ background: "rgba(107,191,107,0.15)" }}
+                        >
+                            <span className="text-[9px] font-bold text-emerald-600">✓</span>
+                        </div>
                     </div>
                 </div>
             </aside>
