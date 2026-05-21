@@ -88,6 +88,15 @@ export default function OperatorsPage() {
         setCurrentPage(totalPages);
     };
 
+    const [toastVisible, setToastVisible] = useState(false);
+    const [toastMessage, setToastMessage] = useState("");
+
+    const showToast = (message: string) => {
+        setToastMessage(message);
+        setToastVisible(true);
+        setTimeout(() => setToastVisible(false), 3000);
+    };
+
     const handleView = (record: PosRecord) => {
         // View action – can be extended to open a modal or navigate
         alert(`Operator: ${record.operator}\nDevice No: ${record.device_no}\nSerial No: ${record.serial_no}\nArea: ${record.area}\nBooth Code: ${record.booth_code}`);
@@ -109,34 +118,43 @@ export default function OperatorsPage() {
 
     return (
         <div className="flex flex-col gap-6">
-            {/* Header */}
-            <div>
-                <h1 className="text-2xl font-bold text-ink">All Operators</h1>
-                <p className="text-sm text-ink-muted">Manage operators and their assigned POS devices.</p>
-            </div>
-
-            {/* Toolbar: Buttons + Search */}
+            {/* Toolbar: Toast (left) + Search & Buttons (right) */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div className="flex items-center gap-3">
-                    <button className="flex items-center gap-2 rounded-xl bg-teal px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-teal-dark focus:outline-none focus:ring-2 focus:ring-teal/50">
-                        <Plus size={16} />
-                        ADD OPERATOR
-                    </button>
-                    <button className="flex items-center gap-2 rounded-xl border border-warm bg-white px-4 py-2 text-sm font-medium text-ink shadow-sm transition hover:bg-surface focus:outline-none focus:ring-2 focus:ring-teal/50">
-                        <List size={16} />
-                        OPERATOR LIST
-                    </button>
-                </div>
+                {/* Success Toast */}
+                {toastVisible && (
+                    <div className="flex items-center gap-2 rounded-lg bg-green-100 border border-green-400 text-green-800 px-4 py-2 text-sm shadow-sm">
+                        <span>{toastMessage}</span>
+                        <button
+                            onClick={() => setToastVisible(false)}
+                            className="ml-1 text-green-600 hover:text-green-900 font-bold leading-none"
+                        >
+                            ×
+                        </button>
+                    </div>
+                )}
 
-                <div className="relative w-full sm:w-auto">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle h-4 w-4" />
-                    <input
-                        type="text"
-                        placeholder="Search operators..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full sm:w-72 rounded-lg border border-warm bg-card py-2 pl-9 pr-3 text-sm text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-1 focus:ring-teal transition-all shadow-sm"
-                    />
+                <div className="flex items-center gap-3 ml-auto">
+                    <div className="relative w-full sm:w-auto">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle h-4 w-4" />
+                        <input
+                            type="text"
+                            placeholder="Search operators..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="w-full sm:w-72 rounded-lg border border-warm bg-card py-2 pl-9 pr-3 text-sm text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-1 focus:ring-teal transition-all shadow-sm"
+                        />
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                        <button className="flex items-center gap-2 rounded-xl bg-teal px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-teal-dark focus:outline-none focus:ring-2 focus:ring-teal/50">
+                            <Plus size={16} />
+                            ADD OPERATOR
+                        </button>
+                        <button className="flex items-center gap-2 rounded-xl border border-warm bg-white px-4 py-2 text-sm font-medium text-ink shadow-sm transition hover:bg-surface focus:outline-none focus:ring-2 focus:ring-teal/50">
+                            <List size={16} />
+                            OPERATOR LIST
+                        </button>
+                    </div>
                 </div>
             </div>
 

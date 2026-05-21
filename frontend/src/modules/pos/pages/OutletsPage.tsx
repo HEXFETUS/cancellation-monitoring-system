@@ -82,6 +82,15 @@ export default function OutletsPage() {
         setCurrentPage(totalPages);
     };
 
+    const [toastVisible, setToastVisible] = useState(false);
+    const [toastMessage, setToastMessage] = useState("");
+
+    const showToast = (message: string) => {
+        setToastMessage(message);
+        setToastVisible(true);
+        setTimeout(() => setToastVisible(false), 3000);
+    };
+
     const handleEdit = (record: BoothInfo) => {
         // Edit action – can be extended to open a modal or navigate
         alert(`Edit Outlet:\nOperator: ${record.operator}\nBooth Code: ${record.booth_code}\nCoordinate: ${record.coordinate}\nLocation: ${record.booth_location}`);
@@ -103,29 +112,38 @@ export default function OutletsPage() {
 
     return (
         <div className="flex flex-col gap-6">
-            {/* Header */}
-            <div>
-                <h1 className="text-2xl font-bold text-ink">All Outlets</h1>
-                <p className="text-sm text-ink-muted">Manage outlets and their booth details.</p>
-            </div>
-
-            {/* Toolbar: Search + Add Booth Button */}
+            {/* Toolbar: Toast (left) + Search & Button (right) */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div className="relative w-full sm:w-auto">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle h-4 w-4" />
-                    <input
-                        type="text"
-                        placeholder="Search outlets..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full sm:w-72 rounded-lg border border-warm bg-card py-2 pl-9 pr-3 text-sm text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-1 focus:ring-teal transition-all shadow-sm"
-                    />
-                </div>
+                {/* Success Toast */}
+                {toastVisible && (
+                    <div className="flex items-center gap-2 rounded-lg bg-green-100 border border-green-400 text-green-800 px-4 py-2 text-sm shadow-sm">
+                        <span>{toastMessage}</span>
+                        <button
+                            onClick={() => setToastVisible(false)}
+                            className="ml-1 text-green-600 hover:text-green-900 font-bold leading-none"
+                        >
+                            ×
+                        </button>
+                    </div>
+                )}
 
-                <button className="flex items-center gap-2 rounded-xl bg-teal px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-teal-dark focus:outline-none focus:ring-2 focus:ring-teal/50">
-                    <Plus size={16} />
-                    ADD BOOTH
-                </button>
+                <div className="flex items-center gap-3 ml-auto">
+                    <div className="relative w-full sm:w-auto">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle h-4 w-4" />
+                        <input
+                            type="text"
+                            placeholder="Search outlets..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="w-full sm:w-72 rounded-lg border border-warm bg-card py-2 pl-9 pr-3 text-sm text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-1 focus:ring-teal transition-all shadow-sm"
+                        />
+                    </div>
+
+                    <button className="flex items-center gap-2 rounded-xl bg-teal px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-teal-dark focus:outline-none focus:ring-2 focus:ring-teal/50">
+                        <Plus size={16} />
+                        ADD BOOTH
+                    </button>
+                </div>
             </div>
 
             {/* Table */}

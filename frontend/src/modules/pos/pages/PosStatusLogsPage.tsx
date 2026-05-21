@@ -108,14 +108,6 @@ export default function PosStatusLogsPage() {
 
     return (
         <div className="flex flex-col gap-6">
-            {/* HEADER */}
-            <div>
-                <h1 className="text-2xl font-bold text-gray-800">POS Status Logs</h1>
-                <p className="mt-1 text-sm text-gray-500">
-                    History of all status changes for POS devices.
-                </p>
-            </div>
-
             {/* DATE FILTERS */}
             <div className="flex flex-wrap items-center gap-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
                 <div className="flex items-center gap-2">
