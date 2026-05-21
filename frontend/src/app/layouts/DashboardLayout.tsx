@@ -21,7 +21,7 @@ const tealDark = "#7db8c0";
 const iconMap: Record<string, any> = {
     Dashboard: LayoutDashboard,
     "POS Inventory": Monitor,
-    "POS Repair Request": Wrench,
+    "POS Repair": Wrench,
     Cancellation: FileText,
     "Asset Inventory": Package,
     Settings: Settings,
@@ -43,7 +43,7 @@ export default function DashboardLayout() {
     const navItems = [
         { name: "Dashboard", path: "/app/dashboard" },
         { name: "POS Inventory", path: "/app/pos" },
-        { name: "POS Repair Request", path: "/app/pos-repair" },
+        { name: "POS Repair", path: "/app/pos-repair" },
         { name: "Cancellation", path: "/app/cancellation" },
         { name: "Asset Inventory", path: "/app/asset-inventory" },
         { name: "Settings", path: "/app/settings" },

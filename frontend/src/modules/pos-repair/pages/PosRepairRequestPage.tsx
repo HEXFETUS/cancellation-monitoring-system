@@ -37,7 +37,7 @@ export default function PosRepairRequestPage() {
                     {/* Collapse toggle button — icon only */}
                     <button
                         onClick={() => setSidebarOpen((v) => !v)}
-                        className="hidden lg:flex shrink-0 items-center gap-2 rounded-2xl px-4 py-2.5 text-left text-sm font-medium transition-all duration-200 lg:w-full lg:gap-3 lg:px-4 lg:py-3 text-slate-600 hover:bg-white/40 hover:text-slate-800"
+                        className="hidden lg:flex shrink-0 items-center gap-2 rounded-2xl px-4 py-2.5 text-left text-xs font-sm transition-all duration-200 lg:w-full lg:gap-3 lg:px-3 lg:py-2 text-slate-600 hover:bg-white/40 hover:text-slate-800"
                         title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
                     >
                         <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
@@ -57,7 +57,7 @@ export default function PosRepairRequestPage() {
                             <button
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id)}
-                                className="flex shrink-0 items-center gap-2 rounded-2xl px-4 py-2.5 text-left text-sm font-medium transition-all duration-200 lg:w-full lg:gap-3 lg:px-4 lg:py-3"
+                                className="flex shrink-0 items-center gap-2 rounded-2xl px-4 py-2.5 text-left text-xs font-sm transition-all duration-200 lg:w-full lg:gap-3 lg:px-3 lg:py-2"
                                 style={{
                                     background: isActive
                                         ? "rgba(146,199,207,0.15)"
