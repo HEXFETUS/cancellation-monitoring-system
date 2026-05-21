@@ -42,10 +42,10 @@ export default function DashboardLayout() {
 
     const navItems = [
         { name: "Dashboard", path: "/app/dashboard" },
-        { name: "POS Inventory", path: "/app/pos" },
+        { name: "POS", path: "/app/pos" },
         { name: "POS Repair", path: "/app/pos-repair" },
         { name: "Cancellation", path: "/app/cancellation" },
-        { name: "Asset Inventory", path: "/app/asset-inventory" },
+        { name: "Assets", path: "/app/asset-inventory" },
         { name: "Settings", path: "/app/settings" },
     ];
 

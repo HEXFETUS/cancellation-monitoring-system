@@ -13,11 +13,11 @@ import PosStatusLogsPage from "./PosStatusLogsPage";
 const teal = "#92C7CF";
 
 const leftTabs = [
-    { id: "all-pos", label: "ALL POS", icon: Monitor },
+    { id: "all-pos", label: "POS", icon: Monitor },
     { id: "pos-status", label: "POS STATUS", icon: Activity },
     { id: "request-reset", label: "REQUEST RESET DEVICE", icon: RotateCcw },
-    { id: "operators", label: "ALL OPERATORS", icon: Users },
-    { id: "outlets", label: "ALL OUTLETS", icon: Store },
+    { id: "operators", label: "OPERATORS", icon: Users },
+    { id: "outlets", label: "OUTLETS", icon: Store },
     { id: "reports", label: "REPORTS", icon: BarChart3 },
 ];
 
