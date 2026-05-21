@@ -73,6 +73,65 @@ async function initDatabase() {
             console.log("✅ Seeded 3 initial users");
         }
 
+        // Create pos_records table
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS pos_records (
+                id SERIAL PRIMARY KEY,
+                device_no VARCHAR(100) NOT NULL,
+                serial_no VARCHAR(100) NOT NULL,
+                area VARCHAR(255),
+                operator VARCHAR(255),
+                coordinate VARCHAR(255),
+                booth_code VARCHAR(100),
+                booth_location VARCHAR(255),
+                status VARCHAR(100) DEFAULT 'Active',
+                sticker BOOLEAN DEFAULT false,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        // Add columns if missing (idempotent)
+        const columns = [
+            "device_no VARCHAR(100) NOT NULL DEFAULT ''",
+            "serial_no VARCHAR(100) NOT NULL DEFAULT ''",
+            "area VARCHAR(255)",
+            "operator VARCHAR(255)",
+            "coordinate VARCHAR(255)",
+            "booth_code VARCHAR(100)",
+            "booth_location VARCHAR(255)",
+            "status VARCHAR(100) DEFAULT 'Active'",
+            "sticker BOOLEAN DEFAULT false",
+        ];
+        for (const col of columns) {
+            const colName = col.split(" ")[0];
+            await client.query(`
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name='pos_records' AND column_name='${colName}'
+                    ) THEN
+                        ALTER TABLE pos_records ADD COLUMN ${col};
+                    END IF;
+                END $$;
+            `);
+        }
+
+        // Seed sample pos_records if table is empty
+        const posCount = await client.query("SELECT COUNT(*) FROM pos_records");
+        if (parseInt(posCount.rows[0].count) === 0) {
+            await client.query(`
+                INSERT INTO pos_records (device_no, serial_no, area, operator, coordinate, booth_code, booth_location, status, sticker) VALUES
+                ('DEV-001', 'SN-100001', 'Main Hall', 'John Doe', '14.5833,121.0000', 'BTH-A01', 'Main Hall - Booth A1', 'Active', false),
+                ('DEV-002', 'SN-100002', 'Main Hall', 'Jane Smith', '14.5834,121.0001', 'BTH-A02', 'Main Hall - Booth A2', 'Active', true),
+                ('DEV-003', 'SN-100003', 'VIP Area', 'Bob Santos', '14.5835,121.0002', 'BTH-B01', 'VIP Area - Booth B1', 'Inactive', false),
+                ('DEV-004', 'SN-100004', 'VIP Area', 'Alice Reyes', '14.5836,121.0003', 'BTH-B02', 'VIP Area - Booth B2', 'Active', false),
+                ('DEV-005', 'SN-100005', 'Annex', 'Carlos Cruz', '14.5837,121.0004', 'BTH-C01', 'Annex - Booth C1', 'Under Repair', true);
+            `);
+            console.log("✅ Seeded 5 sample POS records");
+        }
+
         console.log("✅ Database initialized successfully");
     } catch (err) {
         console.error("❌ Database initialization error:", err.message);
