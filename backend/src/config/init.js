@@ -1,5 +1,24 @@
 import pool from "./db.js";
 
+const SERIAL_TABLES = ["users", "operator_list", "booth_info", "pos_records"];
+
+async function syncSerialSequence(client, tableName) {
+    if (!SERIAL_TABLES.includes(tableName)) {
+        throw new Error(`Cannot sync unknown serial table: ${tableName}`);
+    }
+
+    await client.query(
+        `
+        SELECT setval(
+            pg_get_serial_sequence($1, 'id'),
+            COALESCE((SELECT MAX(id) FROM ${tableName}), 0) + 1,
+            false
+        );
+        `,
+        [tableName]
+    );
+}
+
 async function initDatabase() {
     const client = await pool.connect();
 
@@ -64,6 +83,10 @@ async function initDatabase() {
                 ('CSR Agent', 'csr@example.com', 'csr', 'csr123'),
                 ('Operator One', 'operator@example.com', 'operator', 'op123');
             `);
+        }
+
+        for (const tableName of SERIAL_TABLES) {
+            await syncSerialSequence(client, tableName);
         }
 
         console.log("Database initialized successfully");

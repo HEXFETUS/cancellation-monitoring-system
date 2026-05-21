@@ -25,6 +25,39 @@ const POS_SELECT = `
     LEFT JOIN operator_list o ON p.operator_id = o.id
 `;
 
+const BOOTH_INFO_SELECT = `
+    SELECT
+        b.id,
+        b.booth_code,
+        b.coordinate,
+        b.location,
+        b.location AS booth_location,
+        b.operator_id,
+        b.created_at,
+        b.updated_at,
+        o.operator
+    FROM booth_info b
+    LEFT JOIN operator_list o ON b.operator_id = o.id
+`;
+
+/* =========================
+   GET BOOTH INFO
+========================= */
+router.get("/booth-info", async (_req, res) => {
+    try {
+        const result = await pool.query(`
+            ${BOOTH_INFO_SELECT}
+            WHERE NULLIF(TRIM(b.booth_code), '') IS NOT NULL
+            ORDER BY b.booth_code ASC
+        `);
+
+        res.json(result.rows);
+    } catch (err) {
+        console.error("GET booth_info error:", err.message);
+        res.status(500).json({ error: "Failed to fetch booth info" });
+    }
+});
+
 /* =========================
    GET POS RECORDS
 ========================= */
