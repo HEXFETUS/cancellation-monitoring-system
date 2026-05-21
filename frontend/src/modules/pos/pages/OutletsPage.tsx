@@ -1,12 +1,12 @@
 import { useState, useEffect, useMemo } from "react";
 import { Search, Plus, Edit, RefreshCw, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
-import type { PosRecord } from "../types";
-import { fetchPosRecords } from "../services";
+import type { BoothInfo } from "../types";
+import { fetchBoothInfo } from "../services";
 
 const ROWS_PER_PAGE = 20;
 
 export default function OutletsPage() {
-    const [records, setRecords] = useState<PosRecord[]>([]);
+    const [records, setRecords] = useState<BoothInfo[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
@@ -20,8 +20,12 @@ export default function OutletsPage() {
         setLoading(true);
         setError(null);
         try {
-            const data = await fetchPosRecords();
-            setRecords(data);
+            const data = await fetchBoothInfo();
+            setRecords(
+                data
+                    .filter((record) => record.booth_code?.trim())
+                    .sort((a, b) => a.booth_code.localeCompare(b.booth_code, undefined, { numeric: true }))
+            );
         } catch (err: any) {
             setError(err.message || "Failed to load records");
         } finally {
@@ -43,10 +47,7 @@ export default function OutletsPage() {
                 (record.operator?.toLowerCase() || "").includes(query) ||
                 (record.booth_code?.toLowerCase() || "").includes(query) ||
                 (record.coordinate?.toLowerCase() || "").includes(query) ||
-                (record.booth_location?.toLowerCase() || "").includes(query) ||
-                (record.area?.toLowerCase() || "").includes(query) ||
-                (record.device_no?.toLowerCase() || "").includes(query) ||
-                (record.serial_no?.toLowerCase() || "").includes(query)
+                (record.booth_location?.toLowerCase() || "").includes(query)
             );
         });
     }, [records, searchQuery]);
@@ -81,7 +82,7 @@ export default function OutletsPage() {
         setCurrentPage(totalPages);
     };
 
-    const handleEdit = (record: PosRecord) => {
+    const handleEdit = (record: BoothInfo) => {
         // Edit action – can be extended to open a modal or navigate
         alert(`Edit Outlet:\nOperator: ${record.operator}\nBooth Code: ${record.booth_code}\nCoordinate: ${record.coordinate}\nLocation: ${record.booth_location}`);
     };
@@ -105,7 +106,7 @@ export default function OutletsPage() {
             {/* Header */}
             <div>
                 <h1 className="text-2xl font-bold text-ink">All Outlets</h1>
-                <p className="text-sm text-ink-muted">Manage outlets and their assigned POS devices.</p>
+                <p className="text-sm text-ink-muted">Manage outlets and their booth details.</p>
             </div>
 
             {/* Toolbar: Search + Add Booth Button */}

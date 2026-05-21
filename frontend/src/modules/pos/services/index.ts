@@ -1,4 +1,4 @@
-import type { PosRecord } from "../types";
+import type { BoothInfo, PosRecord } from "../types";
 
 const API_BASE = "/api/pos";
 
@@ -33,6 +33,11 @@ export async function fetchPosRecords(params?: {
     const url = query ? `${API_BASE}?${query}` : API_BASE;
     const response = await fetch(url);
     return handleResponse<PosRecord[]>(response);
+}
+
+export async function fetchBoothInfo(): Promise<BoothInfo[]> {
+    const response = await fetch(`${API_BASE}/booth-info`);
+    return handleResponse<BoothInfo[]>(response);
 }
 
 export async function createPosRecord(data: Partial<Omit<PosRecord, "id" | "created_at" | "updated_at">>): Promise<PosRecord> {

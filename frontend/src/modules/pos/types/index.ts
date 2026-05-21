@@ -15,3 +15,15 @@ export interface PosRecord {
     created_at: string;
     updated_at: string;
 }
+
+export interface BoothInfo {
+    id: number;
+    booth_code: string;
+    coordinate: string | null;
+    location?: string | null;
+    booth_location: string | null;
+    operator_id?: number | null;
+    operator: string | null;
+    created_at: string;
+    updated_at: string;
+}
