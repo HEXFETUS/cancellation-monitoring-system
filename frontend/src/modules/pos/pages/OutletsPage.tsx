@@ -4,8 +4,6 @@ import type { PosRecord } from "../types";
 import { fetchPosRecords } from "../services";
 
 const ROWS_PER_PAGE = 20;
-const PAGE_WINDOW = 10;
-const WINDOW_STEP = 5;
 
 export default function OutletsPage() {
     const [records, setRecords] = useState<PosRecord[]>([]);
@@ -60,37 +58,26 @@ export default function OutletsPage() {
         return filteredRecords.slice(start, start + ROWS_PER_PAGE);
     }, [filteredRecords, currentPage]);
 
-    // Pagination window logic: show 10 pages at a time, step by 5
-    const [pageWindowStart, setPageWindowStart] = useState(1);
+    // Pagination: show up to 10 page buttons centered around the current page
     const visiblePages = useMemo(() => {
-        const end = Math.min(pageWindowStart + PAGE_WINDOW - 1, totalPages);
+        const MAX_VISIBLE = 10;
+        let start = Math.max(1, currentPage - Math.floor(MAX_VISIBLE / 2));
+        let end = Math.min(totalPages, start + MAX_VISIBLE - 1);
+        if (end - start + 1 < MAX_VISIBLE) {
+            start = Math.max(1, end - MAX_VISIBLE + 1);
+        }
         const pages: number[] = [];
-        for (let i = pageWindowStart; i <= end; i++) {
+        for (let i = start; i <= end; i++) {
             pages.push(i);
         }
         return pages;
-    }, [pageWindowStart, totalPages]);
-
-    const goNextWindow = () => {
-        const nextStart = Math.min(pageWindowStart + WINDOW_STEP, totalPages);
-        setPageWindowStart(nextStart);
-        setCurrentPage(nextStart);
-    };
-
-    const goPrevWindow = () => {
-        const prevStart = Math.max(pageWindowStart - WINDOW_STEP, 1);
-        setPageWindowStart(prevStart);
-        setCurrentPage(prevStart);
-    };
+    }, [currentPage, totalPages]);
 
     const goFirstPage = () => {
-        setPageWindowStart(1);
         setCurrentPage(1);
     };
 
     const goLastPage = () => {
-        const lastWindowStart = Math.max(totalPages - PAGE_WINDOW + 1, 1);
-        setPageWindowStart(lastWindowStart);
         setCurrentPage(totalPages);
     };
 
@@ -209,13 +196,7 @@ export default function OutletsPage() {
                         </button>
                         {/* Previous */}
                         <button
-                            onClick={() => {
-                                if (currentPage === pageWindowStart) {
-                                    goPrevWindow();
-                                } else {
-                                    setCurrentPage((p) => Math.max(1, p - 1));
-                                }
-                            }}
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                             disabled={currentPage === 1}
                             className="inline-flex items-center gap-1 rounded-lg border border-warm bg-white px-2.5 py-1.5 text-xs font-medium text-ink hover:bg-surface transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
                         >
@@ -223,7 +204,7 @@ export default function OutletsPage() {
                         </button>
                         {/* Page numbers */}
                         <div className="flex items-center gap-0.5">
-                            {pageWindowStart > 1 && (
+                            {visiblePages[0] > 1 && (
                                 <span className="px-1 text-xs text-ink-subtle">…</span>
                             )}
                             {visiblePages.map((page) => (
@@ -239,19 +220,13 @@ export default function OutletsPage() {
                                     {page}
                                 </button>
                             ))}
-                            {pageWindowStart + PAGE_WINDOW - 1 < totalPages && (
+                            {visiblePages[visiblePages.length - 1] < totalPages && (
                                 <span className="px-1 text-xs text-ink-subtle">…</span>
                             )}
                         </div>
                         {/* Next */}
                         <button
-                            onClick={() => {
-                                if (currentPage === pageWindowStart + PAGE_WINDOW - 1 || currentPage === totalPages) {
-                                    goNextWindow();
-                                } else {
-                                    setCurrentPage((p) => Math.min(totalPages, p + 1));
-                                }
-                            }}
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                             disabled={currentPage === totalPages}
                             className="inline-flex items-center gap-1 rounded-lg border border-warm bg-white px-2.5 py-1.5 text-xs font-medium text-ink hover:bg-surface transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
                         >
