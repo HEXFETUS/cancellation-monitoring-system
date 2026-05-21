@@ -1,11 +1,23 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CheckCircle, ChevronDown, RefreshCw, Search, X } from "lucide-react";
+import {
+    CheckCircle,
+    ChevronDown,
+    ChevronLeft,
+    ChevronRight,
+    ChevronsLeft,
+    ChevronsRight,
+    RefreshCw,
+    Search,
+    X,
+} from "lucide-react";
 import type { PosRecord } from "../types";
 import { fetchPosRecords, updatePosRecord } from "../services";
+import { useAuth } from "../../../context/AuthContext";
 
 type SearchField = "device_no" | "serial_no" | "booth_code";
 
 const DEFAULT_STATUS_OPTIONS = ["Active", "Inactive", "For Repair"];
+const ROWS_PER_PAGE = 20;
 
 const STATUS_COLOR_PALETTE: { bg: string; text: string; dot: string }[] = [
     { bg: "bg-teal-light/20", text: "text-teal-dark", dot: "bg-teal" },
@@ -130,12 +142,14 @@ function SuccessToast({
 }
 
 export default function PosStatusPage() {
+    const { user } = useAuth();
     const [records, setRecords] = useState<PosRecord[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
     const [searchField, setSearchField] = useState<SearchField>("device_no");
     const [statusFilter, setStatusFilter] = useState("all");
+    const [currentPage, setCurrentPage] = useState(1);
     const [updatingRecordId, setUpdatingRecordId] = useState<number | null>(null);
     const [changeStatusOpen, setChangeStatusOpen] = useState<number | null>(null);
     const [pendingChange, setPendingChange] = useState<{
@@ -147,6 +161,7 @@ export default function PosStatusPage() {
 
     useEffect(() => {
         function handleClickOutside(e: MouseEvent) {
+            if (changeStatusOpen !== -1) return;
             if (
                 changeStatusRef.current &&
                 !changeStatusRef.current.contains(e.target as Node)
@@ -156,7 +171,7 @@ export default function PosStatusPage() {
         }
         document.addEventListener("mousedown", handleClickOutside);
         return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, []);
+    }, [changeStatusOpen]);
 
     const loadRecords = async () => {
         setLoading(true);
@@ -237,6 +252,39 @@ export default function PosStatusPage() {
         });
     }, [records, searchField, searchQuery, statusFilter]);
 
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchField, searchQuery, statusFilter]);
+
+    const totalPages = Math.max(1, Math.ceil(filteredRecords.length / ROWS_PER_PAGE));
+    const paginatedRecords = useMemo(() => {
+        const start = (currentPage - 1) * ROWS_PER_PAGE;
+        return filteredRecords.slice(start, start + ROWS_PER_PAGE);
+    }, [currentPage, filteredRecords]);
+
+    const visiblePages = useMemo(() => {
+        const maxVisible = 10;
+        let start = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+        const end = Math.min(totalPages, start + maxVisible - 1);
+
+        if (end - start + 1 < maxVisible) {
+            start = Math.max(1, end - maxVisible + 1);
+        }
+
+        const pages: number[] = [];
+        for (let page = start; page <= end; page += 1) {
+            pages.push(page);
+        }
+        return pages;
+    }, [currentPage, totalPages]);
+
+    useEffect(() => {
+        setCurrentPage((page) => Math.min(page, totalPages));
+    }, [totalPages]);
+
+    const goFirstPage = () => setCurrentPage(1);
+    const goLastPage = () => setCurrentPage(totalPages);
+
     const handleConfirmChange = async () => {
         if (!pendingChange) return;
         const { record, nextStatus } = pendingChange;
@@ -246,7 +294,10 @@ export default function PosStatusPage() {
         setPendingChange(null);
 
         try {
-            const updatedRecord = await updatePosRecord(record.id, { status: nextStatus });
+            const updatedRecord = await updatePosRecord(record.id, {
+                status: nextStatus,
+                changed_by: user?.name || null,
+            } as Partial<PosRecord> & { changed_by?: string | null });
             setRecords((currentRecords) =>
                 currentRecords.map((currentRecord) =>
                     currentRecord.id === record.id ? updatedRecord : currentRecord
@@ -422,7 +473,7 @@ export default function PosStatusPage() {
                                 </td>
                             </tr>
                         ) : (
-                            filteredRecords.map((record) => {
+                            paginatedRecords.map((record) => {
                                 const currentStatus = normalize(record.status) || "Inactive";
                                 const isUpdating = updatingRecordId === record.id;
                                 const isChangeOpen = changeStatusOpen === record.id;
@@ -521,11 +572,77 @@ export default function PosStatusPage() {
                 </table>
             </div>
 
-            {!loading && (
-                <p className="text-xs text-ink-subtle">
-                    Showing {filteredRecords.length} of {records.length} record
-                    {records.length === 1 ? "" : "s"}
-                </p>
+            {!loading && filteredRecords.length > 0 && (
+                <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
+                    <div className="text-xs text-ink-subtle">
+                        Showing {(currentPage - 1) * ROWS_PER_PAGE + 1}-
+                        {Math.min(currentPage * ROWS_PER_PAGE, filteredRecords.length)} of{" "}
+                        {filteredRecords.length} record
+                        {filteredRecords.length === 1 ? "" : "s"}
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                        <button
+                            type="button"
+                            onClick={goFirstPage}
+                            disabled={currentPage === 1}
+                            className="inline-flex items-center justify-center rounded-lg border border-warm bg-white px-2.5 py-1.5 text-xs font-medium text-ink shadow-sm transition hover:bg-surface disabled:cursor-not-allowed disabled:opacity-40"
+                            title="First page"
+                        >
+                            <ChevronsLeft size={14} />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                            disabled={currentPage === 1}
+                            className="inline-flex items-center gap-1 rounded-lg border border-warm bg-white px-2.5 py-1.5 text-xs font-medium text-ink shadow-sm transition hover:bg-surface disabled:cursor-not-allowed disabled:opacity-40"
+                            title="Previous page"
+                        >
+                            <ChevronLeft size={14} />
+                        </button>
+                        <div className="flex items-center gap-0.5">
+                            {visiblePages[0] > 1 && (
+                                <span className="px-1 text-xs text-ink-subtle">...</span>
+                            )}
+                            {visiblePages.map((page) => (
+                                <button
+                                    key={page}
+                                    type="button"
+                                    onClick={() => setCurrentPage(page)}
+                                    className={`min-w-8 rounded-lg px-2.5 py-1.5 text-xs font-medium shadow-sm transition ${
+                                        page === currentPage
+                                            ? "bg-teal text-white"
+                                            : "border border-warm bg-white text-ink hover:bg-surface"
+                                    }`}
+                                >
+                                    {page}
+                                </button>
+                            ))}
+                            {visiblePages[visiblePages.length - 1] < totalPages && (
+                                <span className="px-1 text-xs text-ink-subtle">...</span>
+                            )}
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() =>
+                                setCurrentPage((page) => Math.min(totalPages, page + 1))
+                            }
+                            disabled={currentPage === totalPages}
+                            className="inline-flex items-center gap-1 rounded-lg border border-warm bg-white px-2.5 py-1.5 text-xs font-medium text-ink shadow-sm transition hover:bg-surface disabled:cursor-not-allowed disabled:opacity-40"
+                            title="Next page"
+                        >
+                            <ChevronRight size={14} />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={goLastPage}
+                            disabled={currentPage === totalPages}
+                            className="inline-flex items-center justify-center rounded-lg border border-warm bg-white px-2.5 py-1.5 text-xs font-medium text-ink shadow-sm transition hover:bg-surface disabled:cursor-not-allowed disabled:opacity-40"
+                            title="Last page"
+                        >
+                            <ChevronsRight size={14} />
+                        </button>
+                    </div>
+                </div>
             )}
         </div>
     );

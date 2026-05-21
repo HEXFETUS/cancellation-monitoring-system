@@ -40,6 +40,51 @@ const BOOTH_INFO_SELECT = `
     LEFT JOIN operator_list o ON b.operator_id = o.id
 `;
 
+const SERIAL_TABLES = new Set([
+    "booth_change_logs",
+    "pos_convert_histories",
+    "area_logs",
+    "status_logs",
+]);
+
+async function syncSerialSequence(tableName) {
+    if (!SERIAL_TABLES.has(tableName)) {
+        throw new Error(`Cannot sync unknown serial table: ${tableName}`);
+    }
+
+    await pool.query(
+        `
+        SELECT setval(
+            pg_get_serial_sequence($1, 'id'),
+            COALESCE((SELECT MAX(id) FROM ${tableName}), 0) + 1,
+            false
+        );
+        `,
+        [tableName]
+    );
+}
+
+async function insertStatusLog(values) {
+    try {
+        await pool.query(
+            `INSERT INTO status_logs (pos_record_id, old_status, new_status, user_id)
+             VALUES ($1, $2, $3, $4)`,
+            values
+        );
+    } catch (err) {
+        if (err?.code !== "23505" || err?.constraint !== "status_logs_pkey") {
+            throw err;
+        }
+
+        await syncSerialSequence("status_logs");
+        await pool.query(
+            `INSERT INTO status_logs (pos_record_id, old_status, new_status, user_id)
+             VALUES ($1, $2, $3, $4)`,
+            values
+        );
+    }
+}
+
 /* =========================
    GET BOOTH INFO
 ========================= */
@@ -185,8 +230,21 @@ router.put("/:id", async (req, res) => {
             operator_id,
             status,
             sticker,
+            changed_by,
         } = req.body;
         const serialNumber = serial_number ?? serial_no;
+
+        // Fetch current record to detect status change
+        const currentRecord = await pool.query(
+            `SELECT id, device_no, status FROM pos_records WHERE id = $1::int`,
+            [id]
+        );
+
+        if (currentRecord.rows.length === 0) {
+            return res.status(404).json({ error: "POS record not found" });
+        }
+
+        const oldStatus = currentRecord.rows[0].status || null;
 
         const updateResult = await pool.query(
             `
@@ -208,7 +266,7 @@ router.put("/:id", async (req, res) => {
                 area || null,
                 booth_id || null,
                 operator_id || null,
-                status || null,
+                status ?? null,
                 sticker ?? null,
                 id
             ]
@@ -216,6 +274,25 @@ router.put("/:id", async (req, res) => {
 
         if (updateResult.rows.length === 0) {
             return res.status(404).json({ error: "POS record not found" });
+        }
+
+        const newStatus = updateResult.rows[0].status;
+
+        // Log status change if status actually changed
+        if (status !== undefined && status !== null && oldStatus !== newStatus) {
+            // Look up user_id by name
+            let userId = null;
+            if (changed_by?.trim()) {
+                const userResult = await pool.query(
+                    `SELECT id FROM users WHERE LOWER(name) = LOWER($1) LIMIT 1`,
+                    [changed_by.trim()]
+                );
+                if (userResult.rows.length > 0) {
+                    userId = userResult.rows[0].id;
+                }
+            }
+
+            await insertStatusLog([Number(id), oldStatus, newStatus, userId]);
         }
 
         const result = await pool.query(`${POS_SELECT} WHERE p.id = $1::int`, [updateResult.rows[0].id]);

@@ -1,6 +1,15 @@
 import pool from "./db.js";
 
-const SERIAL_TABLES = ["users", "operator_list", "booth_info", "pos_records"];
+const SERIAL_TABLES = [
+    "users",
+    "operator_list",
+    "booth_info",
+    "pos_records",
+    "booth_change_logs",
+    "pos_convert_histories",
+    "area_logs",
+    "status_logs",
+];
 
 async function syncSerialSequence(client, tableName) {
     if (!SERIAL_TABLES.includes(tableName)) {
