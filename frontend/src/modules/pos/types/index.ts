@@ -27,3 +27,33 @@ export interface BoothInfo {
     created_at: string;
     updated_at: string;
 }
+
+export interface BoothChangeLog {
+    id: number;
+    pos_record_id: number;
+    device_no: string;
+    old_booth_code: string;
+    new_booth_code: string;
+    changed_by: string | null;
+    date_changed: string;
+}
+
+export interface PosConvertHistory {
+    id: number;
+    pos_record_id: number;
+    device_no: string;
+    previous_area: string;
+    new_area: string;
+    changed_by: string | null;
+    date_changed: string;
+}
+
+export interface StatusLog {
+    id: number;
+    pos_record_id: number;
+    device_no: string;
+    old_status: string;
+    new_status: string;
+    changed_by: string | null;
+    date_changed: string;
+}

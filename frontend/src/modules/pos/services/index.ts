@@ -1,4 +1,4 @@
-import type { BoothInfo, PosRecord } from "../types";
+import type { BoothInfo, PosRecord, BoothChangeLog, PosConvertHistory, StatusLog } from "../types";
 
 const API_BASE = "/api/pos";
 
@@ -12,21 +12,15 @@ async function handleResponse<T>(response: Response): Promise<T> {
 
 export async function fetchPosRecords(params?: {
     device_no?: string;
-    serial_number?: string; // FIXED: Changed from serial_no to match backend
-    booth_id?: string;      // FIXED: Pass the actual booth ID string (e.g., 'BTH-A01')
-    operator_id?: string;   // FIXED: Pass the operator ID number as a string (e.g., '1')
+    serial_number?: string;
+    booth_id?: string;
+    operator_id?: string;
 }): Promise<PosRecord[]> {
     const searchParams = new URLSearchParams();
     
     if (params?.device_no) searchParams.set("device_no", params.device_no);
-    
-    // FIXED: Must match backend destructuring `const { serial_number } = req.query;`
     if (params?.serial_number) searchParams.set("serial_number", params.serial_number);
-    
-    // FIXED: Must pass the ID key string so backend filters `p.booth_id = $idx`
     if (params?.booth_id) searchParams.set("booth_id", params.booth_id);
-    
-    // FIXED: Must pass the numeric string ID so backend filters `p.operator_id = $idx::int`
     if (params?.operator_id) searchParams.set("operator_id", params.operator_id);
 
     const query = searchParams.toString();
@@ -49,6 +43,15 @@ export async function createPosRecord(data: Partial<Omit<PosRecord, "id" | "crea
     return handleResponse<PosRecord>(response);
 }
 
+export async function changePosBooth(id: number, booth_id: number, booth_code: string, changed_by?: string): Promise<PosRecord> {
+    const response = await fetch(`${API_BASE}/${id}/change-booth`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ booth_id, booth_code, changed_by }),
+    });
+    return handleResponse<PosRecord>(response);
+}
+
 export async function updatePosRecord(id: number, data: Partial<PosRecord>): Promise<PosRecord> {
     const response = await fetch(`${API_BASE}/${id}`, {
         method: "PUT",
@@ -66,4 +69,19 @@ export async function deletePosRecord(id: number): Promise<void> {
         const error = await response.json().catch(() => ({ error: "Delete failed" }));
         throw new Error(error.error || `HTTP ${response.status}`);
     }
+}
+
+export async function fetchBoothChangeLogs(): Promise<BoothChangeLog[]> {
+    const response = await fetch(`${API_BASE}/booth-change-logs`);
+    return handleResponse<BoothChangeLog[]>(response);
+}
+
+export async function fetchConvertAreaLogs(): Promise<PosConvertHistory[]> {
+    const response = await fetch(`${API_BASE}/convert-area-logs`);
+    return handleResponse<PosConvertHistory[]>(response);
+}
+
+export async function fetchStatusLogs(): Promise<StatusLog[]> {
+    const response = await fetch(`${API_BASE}/status-logs`);
+    return handleResponse<StatusLog[]>(response);
 }

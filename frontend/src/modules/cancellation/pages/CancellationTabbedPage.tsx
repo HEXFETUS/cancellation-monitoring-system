@@ -6,9 +6,6 @@ import MonthlyReportPage from "./MonthlyReportPage";
 import YearlyReportPage from "./YearlyReportPage";
 
 const teal = "#92C7CF";
-const tealLight = "#AAD7D9";
-const cream = "#FBF9F1";
-const warm = "#E5E1DA";
 
 const leftTabs = [
     { id: "records", label: "CANCELLATION RECORDS", icon: FileText },

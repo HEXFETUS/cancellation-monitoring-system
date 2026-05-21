@@ -10,13 +10,21 @@ import {
     Package,
     Settings,
     ShieldCheck,
+    User,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const teal = "#92C7CF";
 const tealLight = "#AAD7D9";
-const tealDark = "#7db8c0";
+const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
+
+type SidebarUser = {
+    id?: number;
+    name?: string;
+    email?: string;
+    usertype?: string;
+};
 
 const iconMap: Record<string, any> = {
     Dashboard: LayoutDashboard,
@@ -29,9 +37,41 @@ const iconMap: Record<string, any> = {
 
 export default function DashboardLayout() {
     const location = useLocation();
-    const { logout, user } = useAuth();
+    const { logout, user: authUser } = useAuth();
     const navigate = useNavigate();
     const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+    const [sidebarUser, setSidebarUser] = useState<SidebarUser | null>(authUser);
+
+    useEffect(() => {
+        setSidebarUser(authUser);
+
+        if (!authUser?.id) return;
+
+        let ignored = false;
+
+        fetch(`${API_BASE_URL}/api/users/me?id=${authUser.id}`)
+            .then((res) => {
+                if (!res.ok) {
+                    throw new Error("Failed to fetch current user");
+                }
+
+                return res.json();
+            })
+            .then((data: SidebarUser) => {
+                if (!ignored) {
+                    setSidebarUser({ ...authUser, ...data });
+                }
+            })
+            .catch(() => {});
+
+        return () => {
+            ignored = true;
+        };
+    }, [authUser?.id, authUser?.name, authUser?.email, authUser?.usertype]);
+
+    const displayName = sidebarUser?.name?.trim() || authUser?.name?.trim() || "User";
+    const displayUserType =
+        sidebarUser?.usertype?.trim() || authUser?.usertype?.trim() || "Unknown role";
 
     const handleLogout = () => {
         logout();
@@ -260,14 +300,14 @@ export default function DashboardLayout() {
                                     boxShadow: `0 2px 12px rgba(146,199,207,0.30)`,
                                 }}
                             >
-                                {user?.name?.charAt(0)?.toUpperCase() || "U"}
+                                <User className="h-5 w-5 text-white" />
                             </div>
                             <div className="min-w-0 flex-1">
                                 <p className="text-sm font-semibold text-gray-800 truncate">
-                                    {user?.name || "User"}
+                                    {displayName}
                                 </p>
-                                <p className="text-[11px] text-gray-500 truncate">
-                                    {user?.usertype || "Administrator"}
+                                <p className="text-[11px] text-gray-500 truncate uppercase">
+                                    {displayUserType}
                                 </p>
                             </div>
                             {/* Online status */}

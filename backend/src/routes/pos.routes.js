@@ -153,7 +153,7 @@ router.post("/", async (req, res) => {
                 serialNumber.trim(),
                 area || null,
                 booth_id || null,
-                operator_id || null, // JSON parsing usually handles numbers automatically here
+                operator_id || null,
                 status || "Active",
                 sticker ?? false
             ]
@@ -210,7 +210,7 @@ router.put("/:id", async (req, res) => {
                 operator_id || null,
                 status || null,
                 sticker ?? null,
-                id // FIX: Target where clause handles string IDs cleanly now using ::int above
+                id
             ]
         );
 
@@ -236,7 +236,6 @@ router.delete("/:id", async (req, res) => {
         const { id } = req.params;
 
         const result = await pool.query(
-            // FIX: Added ::int to ensure string parameter doesn't mismatch serial/integer primary key
             `DELETE FROM pos_records WHERE id = $1::int RETURNING id`,
             [id]
         );
@@ -250,6 +249,160 @@ router.delete("/:id", async (req, res) => {
     } catch (err) {
         console.error("DELETE POS error:", err.message);
         res.status(500).json({ error: "Failed to delete POS record" });
+    }
+});
+
+/* =========================
+   CHANGE BOOTH (with logging & operator validation)
+========================= */
+router.post("/:id/change-booth", async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { booth_id, booth_code, changed_by } = req.body;
+
+        if (!booth_id || !booth_code?.trim()) {
+            return res.status(400).json({ error: "booth_id and booth_code are required" });
+        }
+
+        // Get current record (including operator info)
+        const currentRecord = await pool.query(
+            `SELECT id, device_no, serial_number, booth_id, operator_id FROM pos_records WHERE id = $1::int`,
+            [id]
+        );
+
+        if (currentRecord.rows.length === 0) {
+            return res.status(404).json({ error: "POS record not found" });
+        }
+
+        const record = currentRecord.rows[0];
+        const oldBoothCode = record.booth_id 
+            ? (await pool.query(`SELECT booth_code FROM booth_info WHERE id = $1::int`, [record.booth_id])).rows[0]?.booth_code || "Unknown"
+            : "N/A";
+
+        // Get the new booth's operator
+        const newBoothResult = await pool.query(
+            `SELECT operator_id FROM booth_info WHERE id = $1::int`,
+            [booth_id]
+        );
+        if (newBoothResult.rows.length === 0) {
+            return res.status(400).json({ error: "Selected booth not found" });
+        }
+        const newBoothOperatorId = newBoothResult.rows[0].operator_id;
+
+        // Validate operator: if device already has an operator assigned,
+        // the new booth's operator must match
+        if (record.operator_id && newBoothOperatorId && record.operator_id !== newBoothOperatorId) {
+            // Get operator names for the error message
+            const currentOpResult = await pool.query(
+                `SELECT operator FROM operator_list WHERE id = $1::int`,
+                [record.operator_id]
+            );
+            const newOpResult = await pool.query(
+                `SELECT operator FROM operator_list WHERE id = $1::int`,
+                [newBoothOperatorId]
+            );
+            const currentOperator = currentOpResult.rows[0]?.operator || "Unknown";
+            const newOperator = newOpResult.rows[0]?.operator || "Unknown";
+            return res.status(400).json({
+                error: `Operator mismatch: Device is assigned to operator "${currentOperator}" but the selected booth is assigned to operator "${newOperator}". Only the same operator can be assigned to the device number.`
+            });
+        }
+
+        // Update booth_id and operator_id on pos_record
+        const operatorToSet = newBoothOperatorId || record.operator_id;
+        await pool.query(
+            `UPDATE pos_records SET booth_id = $1::int, operator_id = $2::int, updated_at = CURRENT_TIMESTAMP WHERE id = $3::int`,
+            [booth_id, operatorToSet, id]
+        );
+
+        await pool.query(
+            `INSERT INTO booth_change_logs (pos_record_id, device_no, old_booth_code, new_booth_code, changed_by)
+             VALUES ($1, $2, $3, $4, $5)`,
+            [record.id, record.device_no, oldBoothCode, booth_code.trim(), changed_by || null]
+        );
+
+        const result = await pool.query(`${POS_SELECT} WHERE p.id = $1::int`, [id]);
+        res.json(result.rows[0]);
+
+    } catch (err) {
+        console.error("POST change-booth error:", err.message);
+        res.status(500).json({ error: "Failed to change booth" });
+    }
+});
+
+/* =========================
+   GET booth_change_logs
+========================= */
+router.get("/booth-change-logs", async (_req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT
+                id,
+                pos_record_id,
+                device_no,
+                old_booth_code,
+                new_booth_code,
+                changed_by,
+                created_at AS date_changed
+            FROM booth_change_logs
+            ORDER BY created_at DESC
+        `);
+        res.json(result.rows);
+    } catch (err) {
+        console.error("GET booth_change_logs error:", err.message);
+        res.status(500).json({ error: "Failed to fetch booth change logs" });
+    }
+});
+
+/* =========================
+   GET area_logs (convert area logs)
+========================= */
+router.get("/convert-area-logs", async (_req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT 
+                al.id,
+                al.pos_record_id,
+                p.device_no,
+                al.previous_area,
+                al.new_area,
+                u.name AS changed_by,
+                al.created_at AS date_changed
+            FROM area_logs al
+            LEFT JOIN pos_records p ON al.pos_record_id = p.id
+            LEFT JOIN users u ON al.user_id = u.id
+            ORDER BY al.created_at DESC
+        `);
+        res.json(result.rows);
+    } catch (err) {
+        console.error("GET area_logs error:", err.message);
+        res.status(500).json({ error: "Failed to fetch convert area logs" });
+    }
+});
+
+/* =========================
+   GET status_logs
+========================= */
+router.get("/status-logs", async (_req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT 
+                sl.id,
+                sl.pos_record_id,
+                p.device_no,
+                sl.old_status,
+                sl.new_status,
+                u.name AS changed_by,
+                sl.created_at AS date_changed
+            FROM status_logs sl
+            LEFT JOIN pos_records p ON sl.pos_record_id = p.id
+            LEFT JOIN users u ON sl.user_id = u.id
+            ORDER BY sl.created_at DESC
+        `);
+        res.json(result.rows);
+    } catch (err) {
+        console.error("GET status_logs error:", err.message);
+        res.status(500).json({ error: "Failed to fetch status logs" });
     }
 });
 

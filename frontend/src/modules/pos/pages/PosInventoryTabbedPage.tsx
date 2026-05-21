@@ -5,7 +5,6 @@ import PosStatusPage from "./PosStatusPage";
 import RequestResetPage from "./RequestResetPage";
 import OperatorsPage from "./OperatorsPage";
 import OutletsPage from "./OutletsPage";
-import ChangeDeviceMonitoringPage from "./ChangeDeviceMonitoringPage";
 import ChangeDeviceLogsPage from "./ChangeDeviceLogsPage";
 import ConvertAreaLogsPage from "./ConvertAreaLogsPage";
 import PosStatusLogsPage from "./PosStatusLogsPage";
@@ -22,7 +21,6 @@ const leftTabs = [
 ];
 
 const reportSubTabs = [
-    { id: "change-device-monitoring", label: "Change Device Monitoring" },
     { id: "change-device-logs", label: "Change Device Logs" },
     { id: "convert-area-logs", label: "Convert Area Logs" },
     { id: "pos-status-logs", label: "POS Status Logs" },
@@ -30,7 +28,7 @@ const reportSubTabs = [
 
 export default function PosInventoryTabbedPage() {
     const [activeTab, setActiveTab] = useState("all-pos");
-    const [activeReportSubTab, setActiveReportSubTab] = useState("change-device-monitoring");
+    const [activeReportSubTab, setActiveReportSubTab] = useState("change-device-logs");
     const [sidebarOpen, setSidebarOpen] = useState(true);
 
     return (
@@ -161,7 +159,6 @@ export default function PosInventoryTabbedPage() {
                         </div>
 
                         <div>
-                            {activeReportSubTab === "change-device-monitoring" && <ChangeDeviceMonitoringPage />}
                             {activeReportSubTab === "change-device-logs" && <ChangeDeviceLogsPage />}
                             {activeReportSubTab === "convert-area-logs" && <ConvertAreaLogsPage />}
                             {activeReportSubTab === "pos-status-logs" && <PosStatusLogsPage />}

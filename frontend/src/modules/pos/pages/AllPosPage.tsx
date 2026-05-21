@@ -1,11 +1,13 @@
-import { useState, useEffect, useMemo } from "react";
-import { Search, Plus, Filter, Map, RefreshCw, X, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
-import type { PosRecord } from "../types";
-import { fetchPosRecords, updatePosRecord, createPosRecord } from "../services";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { Search, Plus, Filter, Map, RefreshCw, X, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Check, AlertTriangle } from "lucide-react";
+import type { PosRecord, BoothInfo } from "../types";
+import { fetchPosRecords, updatePosRecord, createPosRecord, fetchBoothInfo, changePosBooth } from "../services";
+import { useAuth } from "../../../context/AuthContext";
 
 const ROWS_PER_PAGE = 20;
 
 export default function AllPosPage() {
+    const { user } = useAuth();
     const [records, setRecords] = useState<PosRecord[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -17,6 +19,124 @@ export default function AllPosPage() {
         serial_no: "",
         area: "", // Default value
     });
+
+    // Change Booth Modal state
+    const [isChangeBoothModalOpen, setIsChangeBoothModalOpen] = useState(false);
+    const [changeBoothRecord, setChangeBoothRecord] = useState<PosRecord | null>(null);
+    const [boothList, setBoothList] = useState<BoothInfo[]>([]);
+    const [newBoothCode, setNewBoothCode] = useState("");
+    const [selectedBoothId, setSelectedBoothId] = useState<number | null>(null);
+    const [boothSearch, setBoothSearch] = useState("");
+    const [showBoothDropdown, setShowBoothDropdown] = useState(false);
+    const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+    const [successMessage, setSuccessMessage] = useState<string | null>(null);
+    const [errorBoothMessage, setErrorBoothMessage] = useState<string | null>(null);
+    const boothDropdownRef = useRef<HTMLDivElement>(null);
+
+    // Filtered booth list for autocomplete
+    const filteredBooths = useMemo(() => {
+        if (!boothSearch.trim()) return boothList;
+        const query = boothSearch.toLowerCase();
+        return boothList.filter(b => 
+            b.booth_code?.toLowerCase().includes(query) ||
+            b.booth_location?.toLowerCase().includes(query)
+        );
+    }, [boothList, boothSearch]);
+
+    // Close dropdown on click outside
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (boothDropdownRef.current && !boothDropdownRef.current.contains(e.target as Node)) {
+                setShowBoothDropdown(false);
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
+
+    const openChangeBoothModal = async (record: PosRecord) => {
+        setChangeBoothRecord(record);
+        setNewBoothCode("");
+        setSelectedBoothId(null);
+        setBoothSearch("");
+        setShowBoothDropdown(false);
+        setIsConfirmModalOpen(false);
+        // Fetch booth list if not already loaded
+        if (boothList.length === 0) {
+            try {
+                const booths = await fetchBoothInfo();
+                setBoothList(booths);
+            } catch (err: any) {
+                alert("Failed to load booth list");
+            }
+        }
+        setIsChangeBoothModalOpen(true);
+    };
+
+    const closeChangeBoothModal = () => {
+        setIsChangeBoothModalOpen(false);
+        setChangeBoothRecord(null);
+        setNewBoothCode("");
+        setSelectedBoothId(null);
+        setBoothSearch("");
+        setShowBoothDropdown(false);
+        setIsConfirmModalOpen(false);
+        setErrorBoothMessage(null);
+    };
+
+    const handleBoothSelect = (booth: BoothInfo) => {
+        setNewBoothCode(booth.booth_code);
+        setSelectedBoothId(booth.id);
+        setBoothSearch(booth.booth_code);
+        setShowBoothDropdown(false);
+        // Check if selected booth is the same as current booth
+        if (changeBoothRecord && booth.booth_code === changeBoothRecord.booth_code) {
+            setErrorBoothMessage("Selected booth is the same as the current booth.");
+        } else {
+            setErrorBoothMessage(null);
+        }
+    };
+
+    const handleBoothSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const value = e.target.value;
+        setBoothSearch(value);
+        setNewBoothCode(value);
+        setSelectedBoothId(null);
+        setShowBoothDropdown(true);
+        setErrorBoothMessage(null);
+    };
+
+    const openConfirmModal = () => {
+        setIsConfirmModalOpen(true);
+    };
+
+    const closeConfirmModal = () => {
+        setIsConfirmModalOpen(false);
+    };
+
+    const handleConfirmChangeBooth = async () => {
+        if (!changeBoothRecord || !newBoothCode.trim() || selectedBoothId === null) {
+            alert("Please select a booth from the dropdown list");
+            return;
+        }
+        try {
+            const updatedRecord = await changePosBooth(changeBoothRecord.id, selectedBoothId, newBoothCode.trim(), user?.name || "");
+            setRecords(prev =>
+                prev.map(r => (r.id === changeBoothRecord.id ? updatedRecord : r))
+            );
+            closeChangeBoothModal();
+            setSuccessMessage(`Booth for device ${changeBoothRecord.device_no} successfully changed to ${newBoothCode.trim()}`);
+            setTimeout(() => setSuccessMessage(null), 4000);
+        } catch (err: any) {
+            // Show operator mismatch error as inline toast below the New Booth Code input
+            if (err.message?.toLowerCase().includes("operator mismatch")) {
+                closeConfirmModal();
+                setErrorBoothMessage(err.message);
+            } else {
+                alert(err.message || "Failed to change booth");
+            }
+        }
+    };
 
     // RESET FORM
     const resetForm = () => {
@@ -158,13 +278,18 @@ export default function AllPosPage() {
             {/* HEADER + ACTIONS */}
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
 
-                {/* LEFT SIDE */}
-                <div>
-                    <h1 className="text-2xl font-bold text-ink">All POS Records</h1>
-                    <p className="text-sm text-ink-muted">
-                        Overview of all POS devices and their statuses.
-                    </p>
-                </div>
+                {/* LEFT SIDE - Success toast or empty space */}
+                {successMessage ? (
+                    <div className="rounded-xl bg-teal px-5 py-3 text-sm font-medium text-white shadow-lg flex items-center gap-2">
+                        <Check size={18} />
+                        <span>{successMessage}</span>
+                        <button onClick={() => setSuccessMessage(null)} className="ml-auto rounded-lg p-0.5 hover:bg-white/20 transition-colors">
+                            <X size={14} />
+                        </button>
+                    </div>
+                ) : (
+                    <div />
+                )}
 
                 {/* RIGHT SIDE */}
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
@@ -180,7 +305,7 @@ export default function AllPosPage() {
                                 placeholder="Search POS records..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-[240px] rounded-lg border border-warm bg-card py-2 pl-9 pr-3 text-sm text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-1 focus:ring-teal transition-all shadow-sm"
+                                className="w-60 rounded-lg border border-warm bg-card py-2 pl-9 pr-3 text-sm text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-1 focus:ring-teal transition-all shadow-sm"
                             />
                         </div>
 
@@ -343,7 +468,7 @@ export default function AllPosPage() {
             )}
 
             <div className="overflow-x-auto rounded-xl border border-warm bg-card shadow-sm">
-                <table className="w-full min-w-[1200px] text-left text-sm">
+                <table className="w-full min-w-300 text-left text-sm">
                     <thead>
                         <tr className="border-b border-warm bg-cream">
                             <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-ink-muted">Device No.</th>
@@ -403,7 +528,10 @@ export default function AllPosPage() {
                                     </td>
                                     <td className="px-4 py-3 text-right">
                                         <div className="flex items-center justify-end gap-2">
-                                            <button className="inline-flex items-center gap-1.5 rounded-lg border border-warm bg-white px-2.5 py-1.5 text-xs font-medium text-ink hover:bg-surface transition-colors shadow-sm">
+                                            <button
+                                                onClick={() => openChangeBoothModal(record)}
+                                                className="inline-flex items-center gap-1.5 rounded-lg border border-warm bg-white px-2.5 py-1.5 text-xs font-medium text-ink hover:bg-surface transition-colors shadow-sm"
+                                            >
                                                 <RefreshCw size={12} />
                                                 Change Booth
                                             </button>
@@ -453,7 +581,7 @@ export default function AllPosPage() {
                                 <button
                                     key={page}
                                     onClick={() => setCurrentPage(page)}
-                                    className={`min-w-[32px] rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors shadow-sm ${
+                                    className={`min-w-8 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors shadow-sm ${
                                         page === currentPage
                                             ? 'bg-teal text-white'
                                             : 'border border-warm bg-white text-ink hover:bg-surface'
@@ -483,6 +611,149 @@ export default function AllPosPage() {
                         >
                             <ChevronsRight size={14} />
                         </button>
+                    </div>
+                </div>
+            )}
+
+            {/* CHANGE BOOTH MODAL */}
+            {isChangeBoothModalOpen && changeBoothRecord && (
+                <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/30 backdrop-blur-sm pt-16 px-4">
+                    <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+                        {/* HEADER */}
+                        <div className="mb-6 flex items-center justify-between">
+                            <div>
+                                <h2 className="text-xl font-bold text-gray-800">Change Booth</h2>
+                                <p className="text-sm text-gray-500">Update the booth assignment for this device</p>
+                            </div>
+                            <button onClick={closeChangeBoothModal} className="rounded-lg p-1 hover:bg-gray-100">
+                                <X className="h-5 w-5 text-gray-600" />
+                            </button>
+                        </div>
+
+                        {/* FORM */}
+                        <div className="space-y-4">
+                            {/* DEVICE NUMBER (disabled) */}
+                            <div>
+                                <label className="mb-1 block text-sm font-medium text-gray-700">Device Number</label>
+                                <input
+                                    type="text"
+                                    value={changeBoothRecord.device_no}
+                                    disabled
+                                    className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-500 outline-none cursor-not-allowed"
+                                />
+                            </div>
+
+                            {/* CURRENT BOOTH CODE (disabled) */}
+                            <div>
+                                <label className="mb-1 block text-sm font-medium text-gray-700">Current Booth Code</label>
+                                <input
+                                    type="text"
+                                    value={changeBoothRecord.booth_code || "—"}
+                                    disabled
+                                    className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-500 outline-none cursor-not-allowed"
+                                />
+                            </div>
+
+                            {/* NEW BOOTH CODE (with autocomplete dropdown) */}
+                            <div className="relative" ref={boothDropdownRef}>
+                                <label className="mb-1 block text-sm font-medium text-gray-700">New Booth Code</label>
+                                <input
+                                    type="text"
+                                    value={boothSearch}
+                                    onChange={handleBoothSearchChange}
+                                    onFocus={() => setShowBoothDropdown(true)}
+                                    placeholder="Type booth code or location..."
+                                    className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-teal focus:ring-2 focus:ring-teal/20"
+                                />
+
+                                {/* DROPDOWN LIST */}
+                                {showBoothDropdown && filteredBooths.length > 0 && (
+                                    <div className="absolute left-0 right-0 top-full z-10 mt-1 max-h-48 overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-lg">
+                                        {filteredBooths.map((booth) => (
+                                            <button
+                                                key={booth.id}
+                                                type="button"
+                                                onClick={() => handleBoothSelect(booth)}
+                                                className="flex w-full flex-col items-start px-4 py-2.5 text-left text-sm hover:bg-teal-light/20 transition-colors border-b border-gray-100 last:border-b-0"
+                                            >
+                                                <span className="font-medium text-gray-800">{booth.booth_code}</span>
+                                                <span className="text-xs text-gray-500">{booth.booth_location || "—"}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                                {showBoothDropdown && filteredBooths.length === 0 && boothSearch.trim() && (
+                                    <div className="absolute left-0 right-0 top-full z-10 mt-1 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-500 shadow-lg">
+                                        No matching booths found
+                                    </div>
+                                )}
+
+                                {/* ERROR TOAST - displayed when selected booth matches current booth */}
+                                {errorBoothMessage && (
+                                    <div className="mt-2 rounded-xl bg-rose px-4 py-2.5 text-sm font-medium text-white flex items-center gap-2 shadow-sm">
+                                        <AlertTriangle size={16} />
+                                        <span>{errorBoothMessage}</span>
+                                        <button onClick={() => setErrorBoothMessage(null)} className="ml-auto rounded-lg p-0.5 hover:bg-white/20 transition-colors">
+                                            <X size={14} />
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* BUTTONS */}
+                            <div className="flex gap-3 pt-2">
+                                <button
+                                    type="button"
+                                    onClick={closeChangeBoothModal}
+                                    className="flex-1 rounded-xl border border-gray-300 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={openConfirmModal}
+                                    disabled={!newBoothCode.trim() || newBoothCode.trim() === (changeBoothRecord.booth_code || "")}
+                                    className="flex-1 rounded-xl bg-teal py-3 text-sm font-medium text-white hover:bg-teal-dark disabled:opacity-40 disabled:cursor-not-allowed"
+                                >
+                                    <span className="flex items-center justify-center gap-2">
+                                        <Check size={16} />
+                                        Save Change
+                                    </span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* CONFIRMATION MODAL */}
+            {isConfirmModalOpen && changeBoothRecord && (
+                <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
+                    <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
+                        <div className="flex flex-col items-center text-center">
+                            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-amber/10">
+                                <AlertTriangle className="h-7 w-7 text-amber" />
+                            </div>
+                            <h3 className="text-lg font-bold text-gray-800">Confirm Booth Change</h3>
+                            <p className="mt-2 text-sm text-gray-500">
+                                Are you sure you want to change the booth code of device <strong>{changeBoothRecord.device_no}</strong> from{" "}
+                                <strong>{changeBoothRecord.booth_code || "—"}</strong> to <strong>{newBoothCode.trim()}</strong>?
+                            </p>
+                        </div>
+                        <div className="mt-6 flex gap-3">
+                            <button
+                                onClick={closeConfirmModal}
+                                className="flex-1 rounded-xl border border-gray-300 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleConfirmChangeBooth}
+                                className="flex-1 rounded-xl bg-teal py-3 text-sm font-medium text-white hover:bg-teal-dark"
+                            >
+                                Confirm
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

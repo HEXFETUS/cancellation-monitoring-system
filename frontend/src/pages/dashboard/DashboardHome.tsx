@@ -6,7 +6,6 @@ import {
     Store,
     Wrench,
     BarChart3,
-    FileSearch,
     FileText,
     Calendar,
     PieChart,
@@ -24,9 +23,6 @@ import {
 /* ---------------- Glow & gradient helpers ---------------- */
 const teal = "#92C7CF";
 const tealLight = "#AAD7D9";
-const tealDark = "#7db8c0";
-const cream = "#FBF9F1";
-const warm = "#E5E1DA";
 
 /* ---------------- Data ---------------- */
 const kpiCards = [
@@ -114,11 +110,11 @@ function KpiCard({
 }) {
     const isPositive = change.startsWith("+");
     return (
-        <div className="group relative rounded-2xl p-[1px] bg-gradient-to-br from-white/40 to-transparent transition-all duration-500 hover:scale-[1.02]">
+        <div className="group relative rounded-2xl p-px bg-linear-to-br from-white/40 to-transparent transition-all duration-500 hover:scale-[1.02]">
             <div className="relative rounded-2xl p-5 h-full overflow-hidden backdrop-blur-xl border border-white/30 bg-white/25 shadow-lg transition-all duration-500 hover:shadow-xl">
                 {/* Gradient accent bar */}
                 <div
-                    className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${gradient} opacity-60`}
+                    className={`absolute top-0 left-0 right-0 h-1 bg-linear-to-r ${gradient} opacity-60`}
                 />
 
                 <div className="flex items-start justify-between">
@@ -171,7 +167,7 @@ function StatCard({
     color: string;
 }) {
     return (
-        <div className="group relative rounded-xl p-[1px] bg-gradient-to-br from-white/30 to-transparent transition-all duration-300 hover:scale-[1.03]">
+        <div className="group relative rounded-xl p-px bg-linear-to-br from-white/30 to-transparent transition-all duration-300 hover:scale-[1.03]">
             <div className="relative rounded-xl p-4 backdrop-blur-sm border border-white/20 bg-white/10 transition-all duration-300">
                 <div
                     className="inline-flex h-9 w-9 items-center justify-center rounded-lg mb-2.5 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md"

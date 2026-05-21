@@ -27,6 +27,27 @@ router.get("/", async (req, res) => {
     }
 });
 
+// GET /api/users/me - Get current authenticated user
+router.get("/me", async (req, res) => {
+    try {
+        const userId = req.query.id;
+        if (!userId) {
+            return res.status(400).json({ error: "User ID is required" });
+        }
+        const result = await pool.query(
+            "SELECT id, name, email, usertype FROM users WHERE id = $1",
+            [userId]
+        );
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: "User not found" });
+        }
+        res.json(result.rows[0]);
+    } catch (err) {
+        console.error("Error fetching user:", err.message);
+        res.status(500).json({ error: "Failed to fetch user" });
+    }
+});
+
 // PUT /api/users/:id - Update a user
 router.put("/:id", async (req, res) => {
     try {
