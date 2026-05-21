@@ -17,8 +17,19 @@ export default function AllPosPage() {
     const [newPos, setNewPos] = useState({
         device_no: "",
         serial_no: "",
-        area: "CDO", // Default value
+        area: "", // Default value
     });
+
+    // RESET FORM
+    const resetForm = () => {
+        setNewPos({
+            device_no: "",
+            serial_no: "",
+            area: "",
+        });
+
+        setIsModalOpen(false);
+    };
 
     // Search and filters
     const [searchQuery, setSearchQuery] = useState("");
@@ -47,22 +58,17 @@ export default function AllPosPage() {
     const handleSubmitNewPos = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            // Assuming createPosRecord only needs device_no, serial_no, and area
+            // Send fields from the form; missing fields (booth_id, operator_id, etc.)
+            // will be null, sticker defaults to false, status explicitly set to Inactive
             const createdRecord = await createPosRecord({
                 device_no: newPos.device_no,
-                serial_no: newPos.serial_no,
+                serial_number: newPos.serial_no,
                 area: newPos.area,
-                // Add other default values or make them optional in the backend
-                booth_code: "", // Default empty
-                operator: "", // Default empty
-                coordinate: "", // Default empty
-                booth_location: "", // Default empty
-                status: "Active", // Default active
-                sticker: false, // Default false
+                status: "Inactive",
+                sticker: false,
             });
             setRecords((prev) => [...prev, createdRecord]);
-            setNewPos({ device_no: "", serial_no: "", area: "CDO" }); // Reset form
-            setIsModalOpen(false);
+            resetForm();
         } catch (err: any) {
             alert(err.message || "Failed to add new POS record");
         }
@@ -161,123 +167,185 @@ export default function AllPosPage() {
 
     return (
         <div className="flex flex-col gap-6">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+
+            {/* HEADER + ACTIONS */}
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+
+                {/* LEFT SIDE */}
                 <div>
                     <h1 className="text-2xl font-bold text-ink">All POS Records</h1>
-                    <p className="text-sm text-ink-muted">Overview of all POS devices and their statuses.</p>
+                    <p className="text-sm text-ink-muted">
+                        Overview of all POS devices and their statuses.
+                    </p>
                 </div>
-                
-                <button
-                    onClick={() => setIsModalOpen(true)}
-                    className="flex items-center gap-2 rounded-xl bg-teal px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-teal-dark focus:outline-none focus:ring-2 focus:ring-teal/50"
-                >
-                    <Plus size={16} />
-                    Add New POS
-                </button>
+
+                {/* RIGHT SIDE */}
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+
+                    {/* SEARCH */}
+                    <div className="flex items-center gap-2">
+
+                        <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle h-4 w-4" />
+
+                            <input
+                                type="text"
+                                placeholder="Search POS records..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="w-[240px] rounded-lg border border-warm bg-card py-2 pl-9 pr-3 text-sm text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-1 focus:ring-teal transition-all shadow-sm"
+                            />
+                        </div>
+
+                        {/* FILTER */}
+                        <div className="relative shrink-0">
+                            <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle h-4 w-4" />
+
+                            <select
+                                value={filterField}
+                                onChange={(e) => setFilterField(e.target.value as any)}
+                                className="rounded-lg border border-warm bg-card py-2 pl-9 pr-8 text-sm text-ink focus:border-teal focus:outline-none focus:ring-1 focus:ring-teal transition-all shadow-sm appearance-none cursor-pointer"
+                            >
+                                <option value="all">All Fields</option>
+                                <option value="device_no">Device No.</option>
+                                <option value="serial_no">Serial No.</option>
+                                <option value="booth_code">Booth Code</option>
+                                <option value="operator">Operator</option>
+                            </select>
+
+                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-ink-subtle">
+                                <svg className="h-4 w-4 fill-current" viewBox="0 0 20 20">
+                                    <path
+                                        d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                                        clipRule="evenodd"
+                                        fillRule="evenodd"
+                                    />
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* BUTTON */}
+                    <button
+                        onClick={() => setIsModalOpen(true)}
+                        className="flex items-center gap-2 rounded-xl bg-teal px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-teal-dark focus:outline-none focus:ring-2 focus:ring-teal/50 whitespace-nowrap"
+                    >
+                        <Plus size={16} />
+                        Add New POS
+                    </button>
+                </div>
             </div>
 
             {isModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-                    <div
-                        className="relative w-full max-w-md rounded-3xl border shadow-2xl backdrop-blur-2xl p-8 mx-4"
-                        style={{
-                            background: "rgba(255, 255, 255, 0.66)",
-                            border: "1px solid rgba(255, 255, 255, 0.50)",
-                            boxShadow:
-                                "0 20px 60px rgba(31, 38, 135, 0.18), inset 0 1px 0 rgba(255,255,255,0.65)",
-                            backdropFilter: "blur(24px)",
-                            WebkitBackdropFilter: "blur(24px)",
-                        }}
-                    >
-                        {/* Close button */}
-                        <button
-                            onClick={() => setIsModalOpen(false)}
-                            className="absolute right-5 top-5 rounded-xl p-1.5 text-gray-500 transition-colors hover:bg-white/20 hover:text-gray-800"
-                        >
-                            <X className="h-5 w-5" />
-                        </button>
+                <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/30 backdrop-blur-sm pt-16 px-4">
 
-                        {/* Title */}
-                        <h2 className="text-2xl font-bold text-gray-800">Add New POS</h2>
-                        <p className="mt-1 text-sm text-gray-600">
-                            Enter the details of the new POS device.
-                        </p>
+                    {/* MODAL CARD */}
+                    <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
 
-                        <form onSubmit={handleSubmitNewPos} className="mt-8 space-y-5">
-                            {/* Device Number */}
+                        {/* HEADER */}
+                        <div className="mb-6 flex items-center justify-between">
                             <div>
-                                <label htmlFor="device_no" className="block text-sm font-semibold text-gray-700 mb-1.5">
+                                <h2 className="text-xl font-bold text-gray-800">
+                                    Add New POS
+                                </h2>
+
+                                <p className="text-sm text-gray-500">
+                                    Enter POS details below
+                                </p>
+                            </div>
+
+                            <button
+                                onClick={() => resetForm()}
+                                className="rounded-lg p-1 hover:bg-gray-100"
+                            >
+                                <X className="h-5 w-5 text-gray-600" />
+                            </button>
+                        </div>
+
+                        {/* FORM */}
+                        <form
+                            onSubmit={handleSubmitNewPos}
+                            className="space-y-4"
+                        >
+
+                            {/* DEVICE NUMBER */}
+                            <div>
+                                <label className="mb-1 block text-sm font-medium text-gray-700">
                                     Device Number
                                 </label>
+
                                 <input
-                                    id="device_no"
                                     type="text"
                                     value={newPos.device_no}
-                                    onChange={(e) => setNewPos({ ...newPos, device_no: e.target.value })}
+                                    onChange={(e) =>
+                                        setNewPos({
+                                            ...newPos,
+                                            device_no: e.target.value,
+                                        })
+                                    }
                                     placeholder="Enter device number"
-                                    className="w-full rounded-2xl border bg-white/40 px-4 py-3 text-sm text-gray-800 placeholder-gray-400 outline-none transition-all focus:border-gray-400 focus:bg-white/60 focus:ring-2 focus:ring-gray-300/50"
-                                    style={{
-                                        border: "1px solid rgba(255, 255, 255, 0.50)",
-                                    }}
+                                    className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-teal focus:ring-2 focus:ring-teal/20"
                                 />
                             </div>
 
-                            {/* Serial Number */}
+                            {/* SERIAL NUMBER */}
                             <div>
-                                <label htmlFor="serial_no" className="block text-sm font-semibold text-gray-700 mb-1.5">
+                                <label className="mb-1 block text-sm font-medium text-gray-700">
                                     Serial Number
                                 </label>
+
                                 <input
-                                    id="serial_no"
                                     type="text"
                                     value={newPos.serial_no}
-                                    onChange={(e) => setNewPos({ ...newPos, serial_no: e.target.value })}
+                                    onChange={(e) =>
+                                        setNewPos({
+                                            ...newPos,
+                                            serial_no: e.target.value,
+                                        })
+                                    }
                                     placeholder="Enter serial number"
-                                    className="w-full rounded-2xl border bg-white/40 px-4 py-3 text-sm text-gray-800 placeholder-gray-400 outline-none transition-all focus:border-gray-400 focus:bg-white/60 focus:ring-2 focus:ring-gray-300/50"
-                                    style={{
-                                        border: "1px solid rgba(255, 255, 255, 0.50)",
-                                    }}
+                                    className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-teal focus:ring-2 focus:ring-teal/20"
                                 />
                             </div>
 
-                            {/* Area */}
+                            {/* AREA */}
                             <div>
-                                <label htmlFor="area" className="block text-sm font-semibold text-gray-700 mb-1.5">
+                                <label className="mb-1 block text-sm font-medium text-gray-700">
                                     Select Area
                                 </label>
+
                                 <select
-                                    id="area"
                                     value={newPos.area}
-                                    onChange={(e) => setNewPos({ ...newPos, area: e.target.value })}
-                                    className="w-full rounded-2xl border bg-white/40 px-4 py-3 text-sm text-gray-800 outline-none transition-all focus:border-gray-400 focus:bg-white/60 focus:ring-2 focus:ring-gray-300/50 appearance-none cursor-pointer"
-                                    style={{
-                                        border: "1px solid rgba(255, 255, 255, 0.50)",
-                                    }}
+                                    onChange={(e) =>
+                                        setNewPos({
+                                            ...newPos,
+                                            area: e.target.value,
+                                        })
+                                    }
+                                    className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-teal focus:ring-2 focus:ring-teal/20"
                                 >
+                                    <option value="" disabled hidden>
+                                        --
+                                    </option>
+
                                     <option value="CDO">CDO</option>
                                     <option value="MISOR">MISOR</option>
                                 </select>
                             </div>
 
-                            {/* Buttons */}
+                            {/* BUTTONS */}
                             <div className="flex gap-3 pt-2">
                                 <button
                                     type="button"
-                                    onClick={() => setIsModalOpen(false)}
-                                    className="flex-1 rounded-2xl border bg-white/60 px-4 py-3 text-sm font-semibold text-gray-700 shadow-sm transition-all hover:bg-white/80"
-                                    style={{
-                                        border: "1px solid rgba(255, 255, 255, 0.50)",
-                                    }}
+                                    onClick={() => resetForm()}
+                                    className="flex-1 rounded-xl border border-gray-300 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
                                 >
                                     Cancel
                                 </button>
+
                                 <button
                                     type="submit"
-                                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl text-sm font-semibold text-white shadow-lg transition-transform hover:-translate-y-0.5"
-                                    style={{
-                                        background:
-                                            "linear-gradient(135deg, #92C7CF 0%, #AAD7D9 100%)",
-                                    }}
+                                    className="flex-1 rounded-xl bg-teal py-3 text-sm font-medium text-white hover:bg-teal-dark"
                                 >
                                     Add POS
                                 </button>
@@ -286,41 +354,6 @@ export default function AllPosPage() {
                     </div>
                 </div>
             )}
-
-            <div className="flex flex-col sm:flex-row gap-4">
-                <div className="relative flex items-center gap-2">
-                    <div className="relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle h-4 w-4" />
-                        <input
-                            type="text"
-                            placeholder="Search POS records..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-fit rounded-lg border border-warm bg-card py-2 pl-9 pr-3 text-sm text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-1 focus:ring-teal transition-all shadow-sm"
-                        />
-                    </div>
-                    
-                    <div className="relative shrink-0">
-                        <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle h-4 w-4" />
-                        <select
-                            value={filterField}
-                            onChange={(e) => setFilterField(e.target.value as any)}
-                            className="rounded-lg border border-warm bg-card py-2 pl-9 pr-8 text-sm text-ink focus:border-teal focus:outline-none focus:ring-1 focus:ring-teal transition-all shadow-sm appearance-none cursor-pointer"
-                        >
-                            <option value="all">All Fields</option>
-                            <option value="device_no">Device No.</option>
-                            <option value="serial_no">Serial No.</option>
-                            <option value="booth_code">Booth Code</option>
-                            <option value="operator">Operator</option>
-                        </select>
-                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-ink-subtle">
-                            <svg className="h-4 w-4 fill-current" viewBox="0 0 20 20">
-                                <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" fillRule="evenodd"></path>
-                            </svg>
-                        </div>
-                    </div>
-                </div>
-            </div>
 
             <div className="overflow-x-auto rounded-xl border border-warm bg-card shadow-sm">
                 <table className="w-full min-w-[1200px] text-left text-sm">
