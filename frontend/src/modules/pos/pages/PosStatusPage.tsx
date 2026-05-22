@@ -6,6 +6,7 @@ import {
     ChevronRight,
     ChevronsLeft,
     ChevronsRight,
+    Filter,
     RefreshCw,
     Search,
     X,
@@ -14,7 +15,7 @@ import type { PosRecord } from "../types";
 import { fetchPosRecords, updatePosRecord } from "../services";
 import { useAuth } from "../../../context/AuthContext";
 
-type SearchField = "device_no" | "serial_no" | "booth_code";
+type FilterField = "all" | "device_no" | "serial_no" | "booth_code";
 
 const DEFAULT_STATUS_OPTIONS = ["Active", "Inactive", "For Repair"];
 const ROWS_PER_PAGE = 20;
@@ -38,11 +39,6 @@ function getStatusColor(status: string) {
     return STATUS_COLOR_PALETTE[3 + (hash % (STATUS_COLOR_PALETTE.length - 3))];
 }
 
-const searchFieldLabels: Record<SearchField, string> = {
-    device_no: "Device Number",
-    serial_no: "Serial Number",
-    booth_code: "Booth Code",
-};
 
 function normalize(value: string | null | undefined) {
     return value?.trim() || "";
@@ -147,7 +143,7 @@ export default function PosStatusPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
-    const [searchField, setSearchField] = useState<SearchField>("device_no");
+    const [filterField, setFilterField] = useState<FilterField>("all");
     const [statusFilter, setStatusFilter] = useState("all");
     const [currentPage, setCurrentPage] = useState(1);
     const [updatingRecordId, setUpdatingRecordId] = useState<number | null>(null);
@@ -247,14 +243,22 @@ export default function PosStatusPage() {
             if (!matchesStatus) return false;
             if (!query) return true;
 
-            const fieldValue = normalize(record[searchField]).toLowerCase();
-            return fieldValue.includes(query);
+            if (filterField === "all") {
+                return (
+                    (record.device_no?.toLowerCase() || "").includes(query) ||
+                    (record.serial_no?.toLowerCase() || "").includes(query) ||
+                    (record.booth_code?.toLowerCase() || "").includes(query)
+                );
+            } else {
+                const fieldValue = normalize(record[filterField]).toLowerCase();
+                return fieldValue.includes(query);
+            }
         });
-    }, [records, searchField, searchQuery, statusFilter]);
+    }, [records, filterField, searchQuery, statusFilter]);
 
     useEffect(() => {
         setCurrentPage(1);
-    }, [searchField, searchQuery, statusFilter]);
+    }, [filterField, searchQuery, statusFilter]);
 
     const totalPages = Math.max(1, Math.ceil(filteredRecords.length / ROWS_PER_PAGE));
     const paginatedRecords = useMemo(() => {
@@ -349,29 +353,40 @@ export default function PosStatusPage() {
                     </div>
                 )}
 
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <div className="flex items-center gap-2">
                     <div className="relative w-full sm:w-72">
                         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-subtle" />
                         <input
                             type="text"
                             value={searchQuery}
                             onChange={(event) => setSearchQuery(event.target.value)}
-                            placeholder={`Search ${searchFieldLabels[searchField].toLowerCase()}...`}
+                            placeholder="Search status records..."
                             className="w-full rounded-lg border border-warm bg-card py-2 pl-9 pr-3 text-sm text-ink shadow-sm transition placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-1 focus:ring-teal"
                         />
                     </div>
 
-                    <div className="relative w-full sm:w-52">
+                    {/* FILTER */}
+                    <div className="relative shrink-0">
+                        <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle h-4 w-4" />
                         <select
-                            value={searchField}
-                            onChange={(event) => setSearchField(event.target.value as SearchField)}
-                            className="w-full cursor-pointer appearance-none rounded-lg border border-warm bg-card py-2 pl-3 pr-8 text-sm text-ink shadow-sm transition focus:border-teal focus:outline-none focus:ring-1 focus:ring-teal"
+                            value={filterField}
+                            onChange={(e) => setFilterField(e.target.value as FilterField)}
+                            className="rounded-lg border border-warm bg-card py-2 pl-9 pr-8 text-sm text-ink focus:border-teal focus:outline-none focus:ring-1 focus:ring-teal transition-all shadow-sm appearance-none cursor-pointer"
                         >
-                            <option value="device_no">Device Number</option>
-                            <option value="serial_no">Serial Number</option>
+                            <option value="all">All Fields</option>
+                            <option value="device_no">Device No.</option>
+                            <option value="serial_no">Serial No.</option>
                             <option value="booth_code">Booth Code</option>
                         </select>
-                        <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-subtle" />
+                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-ink-subtle">
+                            <svg className="h-4 w-4 fill-current" viewBox="0 0 20 20">
+                                <path
+                                    d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                                    clipRule="evenodd"
+                                    fillRule="evenodd"
+                                />
+                            </svg>
+                        </div>
                     </div>
                 </div>
             </div>
