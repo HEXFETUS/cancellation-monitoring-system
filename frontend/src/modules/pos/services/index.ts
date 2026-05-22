@@ -52,6 +52,15 @@ export async function changePosBooth(id: number, booth_id: number, booth_code: s
     return handleResponse<PosRecord>(response);
 }
 
+export async function convertPosArea(id: number, new_area: string, changed_by?: string): Promise<PosRecord> {
+    const response = await fetch(`${API_BASE}/${id}/convert-area`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ new_area, changed_by }),
+    });
+    return handleResponse<PosRecord>(response);
+}
+
 export async function updatePosRecord(id: number, data: Partial<PosRecord>): Promise<PosRecord> {
     const response = await fetch(`${API_BASE}/${id}`, {
         method: "PUT",

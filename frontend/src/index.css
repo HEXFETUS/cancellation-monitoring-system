@@ -45,3 +45,15 @@
 body {
   @apply bg-surface text-ink antialiased;
 }
+
+/* Toast slide-down animation */
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

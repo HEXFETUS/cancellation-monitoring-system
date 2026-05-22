@@ -408,6 +408,75 @@ router.post("/:id/change-booth", async (req, res) => {
 });
 
 /* =========================
+   CONVERT AREA (with logging)
+========================= */
+router.post("/:id/convert-area", async (req, res) => {
+    const client = await pool.connect();
+
+    try {
+        const { id } = req.params;
+        const { new_area, changed_by } = req.body;
+        const allowedAreas = new Set(["CDO", "MISOR"]);
+        const normalizedArea = String(new_area || "").trim().toUpperCase();
+
+        if (!allowedAreas.has(normalizedArea)) {
+            return res.status(400).json({ error: "Please select a valid new area" });
+        }
+
+        await client.query("BEGIN");
+
+        const currentResult = await client.query(
+            `SELECT id, device_no, area FROM pos_records WHERE id = $1::int FOR UPDATE`,
+            [id]
+        );
+
+        if (currentResult.rows.length === 0) {
+            await client.query("ROLLBACK");
+            return res.status(404).json({ error: "POS record not found" });
+        }
+
+        const currentArea = currentResult.rows[0].area || null;
+        if ((currentArea || "").toUpperCase() === normalizedArea) {
+            await client.query("ROLLBACK");
+            return res.status(400).json({ error: "New area must be different from the current area" });
+        }
+
+        let userId = null;
+        if (changed_by?.trim()) {
+            const userResult = await client.query(
+                `SELECT id FROM users WHERE LOWER(name) = LOWER($1) LIMIT 1`,
+                [changed_by.trim()]
+            );
+            if (userResult.rows.length > 0) {
+                userId = userResult.rows[0].id;
+            }
+        }
+
+        await client.query(
+            `UPDATE pos_records SET area = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2::int`,
+            [normalizedArea, id]
+        );
+
+        await client.query(
+            `INSERT INTO area_logs (pos_record_id, legacy_device_number, previous_area, new_area, user_id)
+             VALUES ($1, $2, $3, $4, $5)`,
+            [id, currentResult.rows[0].device_no, currentArea, normalizedArea, userId]
+        );
+
+        const result = await client.query(`${POS_SELECT} WHERE p.id = $1::int`, [id]);
+
+        await client.query("COMMIT");
+        res.json(result.rows[0]);
+    } catch (err) {
+        await client.query("ROLLBACK").catch(() => {});
+        console.error("POST convert-area error:", err.message);
+        res.status(500).json({ error: "Failed to convert area" });
+    } finally {
+        client.release();
+    }
+});
+
+/* =========================
    GET booth_change_logs
 ========================= */
 router.get("/booth-change-logs", async (_req, res) => {
@@ -440,13 +509,14 @@ router.get("/convert-area-logs", async (_req, res) => {
             SELECT 
                 al.id,
                 al.pos_record_id,
-                p.device_no,
+                COALESCE(p.device_no, p_by_device.device_no, al.legacy_device_number, al.pos_record_id::text) AS device_no,
                 al.previous_area,
                 al.new_area,
                 u.name AS changed_by,
                 al.created_at AS date_changed
             FROM area_logs al
-            LEFT JOIN pos_records p ON al.pos_record_id = p.id
+            LEFT JOIN pos_records p ON al.pos_record_id::text = p.id::text
+            LEFT JOIN pos_records p_by_device ON al.pos_record_id::text = p_by_device.device_no
             LEFT JOIN users u ON al.user_id = u.id
             ORDER BY al.created_at DESC
         `);

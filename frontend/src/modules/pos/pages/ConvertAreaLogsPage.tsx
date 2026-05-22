@@ -17,11 +17,20 @@ export default function ConvertAreaLogsPage() {
     // Pagination
     const [currentPage, setCurrentPage] = useState(1);
 
-    useEffect(() => {
+    const loadLogs = () => {
+        setLoading(true);
+        setError(null);
         fetchConvertAreaLogs()
             .then(setLogs)
             .catch((err) => setError(err.message))
             .finally(() => setLoading(false));
+    };
+
+    useEffect(() => {
+        loadLogs();
+
+        window.addEventListener("pos:convert-area", loadLogs);
+        return () => window.removeEventListener("pos:convert-area", loadLogs);
     }, []);
 
     const filteredLogs = useMemo(() => {
@@ -90,14 +99,7 @@ export default function ConvertAreaLogsPage() {
                 </div>
                 <p className="text-sm text-red-600 font-medium">Error: {error}</p>
                 <button
-                    onClick={() => {
-                        setLoading(true);
-                        setError(null);
-                        fetchConvertAreaLogs()
-                            .then(setLogs)
-                            .catch((err) => setError(err.message))
-                            .finally(() => setLoading(false));
-                    }}
+                    onClick={loadLogs}
                     className="rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
                 >
                     Retry

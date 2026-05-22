@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Search, Plus, List, Edit, RefreshCw, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, X, AlertTriangle } from "lucide-react";
+import { Search, Plus, List, Edit, RefreshCw, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, X, AlertTriangle, Check } from "lucide-react";
 import type { BoothInfo } from "../types";
 import { fetchBoothInfo } from "../services";
 
@@ -156,13 +156,16 @@ export default function OutletsPage() {
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 {/* Success Toast */}
                 {toastVisible && (
-                    <div className="flex items-center gap-2 rounded-lg bg-green-100 border border-green-400 text-green-800 px-4 py-2 text-sm shadow-sm">
+                    <div className="rounded-xl bg-teal px-5 py-3 text-sm font-medium text-white shadow-lg flex items-center gap-2 animate-[slideDown_0.3s_ease-out] ring-1 ring-teal-dark/30">
+                        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-white/20">
+                            <Check size={16} className="text-white" />
+                        </div>
                         <span>{toastMessage}</span>
                         <button
                             onClick={() => setToastVisible(false)}
-                            className="ml-1 text-green-600 hover:text-green-900 font-bold leading-none"
+                            className="ml-auto rounded-lg p-0.5 hover:bg-white/20 transition-colors"
                         >
-                            ×
+                            <X size={14} />
                         </button>
                     </div>
                 )}

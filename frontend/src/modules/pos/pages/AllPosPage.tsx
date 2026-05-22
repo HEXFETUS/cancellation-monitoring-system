@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Search, Plus, Filter, Map, RefreshCw, X, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Check, AlertTriangle } from "lucide-react";
 import type { PosRecord, BoothInfo } from "../types";
-import { fetchPosRecords, updatePosRecord, createPosRecord, fetchBoothInfo, changePosBooth } from "../services";
+import { fetchPosRecords, updatePosRecord, createPosRecord, fetchBoothInfo, changePosBooth, convertPosArea } from "../services";
 import { useAuth } from "../../../context/AuthContext";
 
 const ROWS_PER_PAGE = 20;
@@ -19,6 +19,7 @@ export default function AllPosPage() {
         serial_no: "",
         area: "", // Default value
     });
+    const [formErrors, setFormErrors] = useState<{ device_no?: string; serial_no?: string; area?: string }>({});
 
     // Change Booth Modal state
     const [isChangeBoothModalOpen, setIsChangeBoothModalOpen] = useState(false);
@@ -32,6 +33,13 @@ export default function AllPosPage() {
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
     const [errorBoothMessage, setErrorBoothMessage] = useState<string | null>(null);
     const boothDropdownRef = useRef<HTMLDivElement>(null);
+
+    // Convert Area Modal state
+    const [isConvertAreaModalOpen, setIsConvertAreaModalOpen] = useState(false);
+    const [convertAreaRecord, setConvertAreaRecord] = useState<PosRecord | null>(null);
+    const [newArea, setNewArea] = useState("");
+    const [convertAreaError, setConvertAreaError] = useState<string | null>(null);
+    const [isConvertAreaConfirmOpen, setIsConvertAreaConfirmOpen] = useState(false);
 
     // Filtered booth list for autocomplete
     const filteredBooths = useMemo(() => {
@@ -138,6 +146,63 @@ export default function AllPosPage() {
         }
     };
 
+    const openConvertAreaModal = (record: PosRecord) => {
+        setConvertAreaRecord(record);
+        setNewArea("");
+        setConvertAreaError(null);
+        setIsConvertAreaConfirmOpen(false);
+        setIsConvertAreaModalOpen(true);
+    };
+
+    const closeConvertAreaModal = () => {
+        setIsConvertAreaModalOpen(false);
+        setConvertAreaRecord(null);
+        setNewArea("");
+        setConvertAreaError(null);
+        setIsConvertAreaConfirmOpen(false);
+    };
+
+    const openConvertAreaConfirm = () => {
+        if (!newArea) {
+            setConvertAreaError("Please select a new area");
+            return;
+        }
+
+        if (convertAreaRecord?.area?.toUpperCase() === newArea) {
+            setConvertAreaError("New area must be different from the current area.");
+            return;
+        }
+
+        setConvertAreaError(null);
+        setIsConvertAreaConfirmOpen(true);
+    };
+
+    const closeConvertAreaConfirm = () => {
+        setIsConvertAreaConfirmOpen(false);
+    };
+
+    const handleConfirmConvertArea = async () => {
+        if (!convertAreaRecord || !newArea) {
+            setConvertAreaError("Please select a new area");
+            closeConvertAreaConfirm();
+            return;
+        }
+
+        try {
+            const updatedRecord = await convertPosArea(convertAreaRecord.id, newArea, user?.name || "");
+            setRecords(prev =>
+                prev.map(r => (r.id === convertAreaRecord.id ? updatedRecord : r))
+            );
+            window.dispatchEvent(new CustomEvent("pos:convert-area"));
+            closeConvertAreaModal();
+            setSuccessMessage(`Area for device ${convertAreaRecord.device_no} successfully converted to ${newArea}`);
+            setTimeout(() => setSuccessMessage(null), 4000);
+        } catch (err: any) {
+            closeConvertAreaConfirm();
+            setConvertAreaError(err.message || "Failed to convert area");
+        }
+    };
+
     // RESET FORM
     const resetForm = () => {
         setNewPos({
@@ -175,6 +240,12 @@ export default function AllPosPage() {
 
     const handleSubmitNewPos = async (e: React.FormEvent) => {
         e.preventDefault();
+        const errors: { device_no?: string; serial_no?: string; area?: string } = {};
+        if (!newPos.device_no.trim()) errors.device_no = "Device number is required";
+        if (!newPos.serial_no.trim()) errors.serial_no = "Serial number is required";
+        if (!newPos.area) errors.area = "Please select an area";
+        setFormErrors(errors);
+        if (Object.keys(errors).length > 0) return;
         try {
             // Send fields from the form; missing fields (booth_id, operator_id, etc.)
             // will be null, sticker defaults to false, status explicitly set to Inactive
@@ -186,6 +257,7 @@ export default function AllPosPage() {
                 sticker: false,
             });
             setRecords((prev) => [...prev, createdRecord]);
+            setFormErrors({});
             resetForm();
         } catch (err: any) {
             alert(err.message || "Failed to add new POS record");
@@ -280,8 +352,10 @@ export default function AllPosPage() {
 
                 {/* LEFT SIDE - Success toast or empty space */}
                 {successMessage ? (
-                    <div className="rounded-xl bg-teal px-5 py-3 text-sm font-medium text-white shadow-lg flex items-center gap-2">
-                        <Check size={18} />
+                    <div className="rounded-xl bg-teal px-5 py-3 text-sm font-medium text-white shadow-lg flex items-center gap-2 animate-[slideDown_0.3s_ease-out] ring-1 ring-teal-dark/30">
+                        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-white/20">
+                            <Check size={16} className="text-white" />
+                        </div>
                         <span>{successMessage}</span>
                         <button onClick={() => setSuccessMessage(null)} className="ml-auto rounded-lg p-0.5 hover:bg-white/20 transition-colors">
                             <X size={14} />
@@ -349,120 +423,134 @@ export default function AllPosPage() {
             </div>
 
             {isModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/30 backdrop-blur-sm pt-16 px-4">
+                <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 backdrop-blur-sm pt-16 px-4">
+                    <div className="relative w-full max-w-md animate-in fade-in zoom-in-95 duration-200 rounded-2xl bg-white shadow-2xl border border-warm overflow-hidden">
+                        {/* Header accent bar */}
+                        <div className="h-2 bg-gradient-to-r from-teal to-teal-dark" />
 
-                    {/* MODAL CARD */}
-                    <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
-
-                        {/* HEADER */}
-                        <div className="mb-6 flex items-center justify-between">
-                            <div>
-                                <h2 className="text-xl font-bold text-gray-800">
-                                    Add New POS
-                                </h2>
-
-                                <p className="text-sm text-gray-500">
-                                    Enter POS details below
-                                </p>
+                        <div className="p-6">
+                            {/* Header */}
+                            <div className="flex items-center justify-between mb-6">
+                                <div>
+                                    <h2 className="text-lg font-bold text-ink">Add New POS</h2>
+                                    <p className="text-sm text-ink-muted mt-0.5">Enter POS details below</p>
+                                </div>
+                                <button onClick={() => resetForm()} className="rounded-lg p-1.5 hover:bg-gray-100 transition-colors">
+                                    <X className="h-5 w-5 text-gray-400" />
+                                </button>
                             </div>
 
-                            <button
-                                onClick={() => resetForm()}
-                                className="rounded-lg p-1 hover:bg-gray-100"
-                            >
-                                <X className="h-5 w-5 text-gray-600" />
-                            </button>
+                            {/* Form */}
+                            <form onSubmit={handleSubmitNewPos} className="flex flex-col gap-4">
+                                <div>
+                                    <label className="block text-sm font-semibold text-ink mb-1.5">
+                                        Device Number <span className="text-rose-500">*</span>
+                                    </label>
+                                    <div className="relative">
+                                        <input
+                                            type="text"
+                                            value={newPos.device_no}
+                                            onChange={(e) => {
+                                                setNewPos({ ...newPos, device_no: e.target.value });
+                                                if (formErrors.device_no) setFormErrors(prev => ({ ...prev, device_no: undefined }));
+                                            }}
+                                            placeholder="Enter device number"
+                                            className={`w-full rounded-xl border bg-card px-4 py-3 text-sm text-ink placeholder:text-ink-subtle focus:outline-none focus:ring-2 transition-all shadow-sm ${
+                                                formErrors.device_no ? 'border-rose-400 focus:border-rose-400 focus:ring-rose/20' : 'border-warm focus:border-teal focus:ring-teal/20'
+                                            }`}
+                                        />
+                                    </div>
+                                    {formErrors.device_no && (
+                                        <p className="mt-1 text-xs text-rose-500 flex items-center gap-1">
+                                            <AlertTriangle size={12} />
+                                            {formErrors.device_no}
+                                        </p>
+                                    )}
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-semibold text-ink mb-1.5">
+                                        Serial Number <span className="text-rose-500">*</span>
+                                    </label>
+                                    <div className="relative">
+                                        <input
+                                            type="text"
+                                            value={newPos.serial_no}
+                                            onChange={(e) => {
+                                                setNewPos({ ...newPos, serial_no: e.target.value });
+                                                if (formErrors.serial_no) setFormErrors(prev => ({ ...prev, serial_no: undefined }));
+                                            }}
+                                            placeholder="Enter serial number"
+                                            className={`w-full rounded-xl border bg-card px-4 py-3 text-sm text-ink placeholder:text-ink-subtle focus:outline-none focus:ring-2 transition-all shadow-sm ${
+                                                formErrors.serial_no ? 'border-rose-400 focus:border-rose-400 focus:ring-rose/20' : 'border-warm focus:border-teal focus:ring-teal/20'
+                                            }`}
+                                        />
+                                    </div>
+                                    {formErrors.serial_no && (
+                                        <p className="mt-1 text-xs text-rose-500 flex items-center gap-1">
+                                            <AlertTriangle size={12} />
+                                            {formErrors.serial_no}
+                                        </p>
+                                    )}
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-semibold text-ink mb-1.5">
+                                        Select Area <span className="text-rose-500">*</span>
+                                    </label>
+                                    <div className="relative">
+                                        <select
+                                            value={newPos.area}
+                                            onChange={(e) => {
+                                                setNewPos({ ...newPos, area: e.target.value });
+                                                if (formErrors.area) setFormErrors(prev => ({ ...prev, area: undefined }));
+                                            }}
+                                            className={`w-full rounded-xl border bg-card px-4 py-3 text-sm text-ink placeholder:text-ink-subtle focus:outline-none focus:ring-2 transition-all shadow-sm appearance-none cursor-pointer ${
+                                                formErrors.area ? 'border-rose-400 focus:border-rose-400 focus:ring-rose/20' : 'border-warm focus:border-teal focus:ring-teal/20'
+                                            }`}
+                                        >
+                                            <option value="" disabled hidden>-- Select an area --</option>
+                                            <option value="CDO">CDO</option>
+                                            <option value="MISOR">MISOR</option>
+                                        </select>
+                                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-4 text-ink-subtle">
+                                            <svg className="h-4 w-4 fill-current" viewBox="0 0 20 20">
+                                                <path
+                                                    d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                                                    clipRule="evenodd"
+                                                    fillRule="evenodd"
+                                                />
+                                            </svg>
+                                        </div>
+                                    </div>
+                                    {formErrors.area && (
+                                        <p className="mt-1 text-xs text-rose-500 flex items-center gap-1">
+                                            <AlertTriangle size={12} />
+                                            {formErrors.area}
+                                        </p>
+                                    )}
+                                </div>
+
+                                {/* Action buttons */}
+                                <div className="flex justify-end gap-3 mt-2 pt-4 border-t border-warm/60">
+                                    <button
+                                        type="button"
+                                        onClick={() => resetForm()}
+                                        className="rounded-xl border-2 border-gray-200 px-6 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-all active:scale-[0.98]"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        disabled={!newPos.device_no.trim() || !newPos.serial_no.trim() || !newPos.area}
+                                        className="rounded-xl bg-gradient-to-r from-teal to-teal-dark px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-teal/25 hover:shadow-xl hover:shadow-teal/30 hover:from-teal-dark hover:to-teal transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none disabled:active:scale-100"
+                                    >
+                                        <span className="flex items-center justify-center gap-2">
+                                            <Plus size={16} />
+                                            Add POS
+                                        </span>
+                                    </button>
+                                </div>
+                            </form>
                         </div>
-
-                        {/* FORM */}
-                        <form
-                            onSubmit={handleSubmitNewPos}
-                            className="space-y-4"
-                        >
-
-                            {/* DEVICE NUMBER */}
-                            <div>
-                                <label className="mb-1 block text-sm font-medium text-gray-700">
-                                    Device Number
-                                </label>
-
-                                <input
-                                    type="text"
-                                    value={newPos.device_no}
-                                    onChange={(e) =>
-                                        setNewPos({
-                                            ...newPos,
-                                            device_no: e.target.value,
-                                        })
-                                    }
-                                    placeholder="Enter device number"
-                                    className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-teal focus:ring-2 focus:ring-teal/20"
-                                />
-                            </div>
-
-                            {/* SERIAL NUMBER */}
-                            <div>
-                                <label className="mb-1 block text-sm font-medium text-gray-700">
-                                    Serial Number
-                                </label>
-
-                                <input
-                                    type="text"
-                                    value={newPos.serial_no}
-                                    onChange={(e) =>
-                                        setNewPos({
-                                            ...newPos,
-                                            serial_no: e.target.value,
-                                        })
-                                    }
-                                    placeholder="Enter serial number"
-                                    className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-teal focus:ring-2 focus:ring-teal/20"
-                                />
-                            </div>
-
-                            {/* AREA */}
-                            <div>
-                                <label className="mb-1 block text-sm font-medium text-gray-700">
-                                    Select Area
-                                </label>
-
-                                <select
-                                    value={newPos.area}
-                                    onChange={(e) =>
-                                        setNewPos({
-                                            ...newPos,
-                                            area: e.target.value,
-                                        })
-                                    }
-                                    className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-teal focus:ring-2 focus:ring-teal/20"
-                                >
-                                    <option value="" disabled hidden>
-                                        --
-                                    </option>
-
-                                    <option value="CDO">CDO</option>
-                                    <option value="MISOR">MISOR</option>
-                                </select>
-                            </div>
-
-                            {/* BUTTONS */}
-                            <div className="flex gap-3 pt-2">
-                                <button
-                                    type="button"
-                                    onClick={() => resetForm()}
-                                    className="flex-1 rounded-xl border border-gray-300 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                                >
-                                    Cancel
-                                </button>
-
-                                <button
-                                    type="submit"
-                                    className="flex-1 rounded-xl bg-teal py-3 text-sm font-medium text-white hover:bg-teal-dark"
-                                >
-                                    Add POS
-                                </button>
-                            </div>
-                        </form>
                     </div>
                 </div>
             )}
@@ -535,7 +623,10 @@ export default function AllPosPage() {
                                                 <RefreshCw size={12} />
                                                 Change Booth
                                             </button>
-                                            <button className="inline-flex items-center gap-1.5 rounded-lg border border-warm bg-white px-2.5 py-1.5 text-xs font-medium text-ink hover:bg-surface transition-colors shadow-sm">
+                                            <button
+                                                onClick={() => openConvertAreaModal(record)}
+                                                className="inline-flex items-center gap-1.5 rounded-lg border border-warm bg-white px-2.5 py-1.5 text-xs font-medium text-ink hover:bg-surface transition-colors shadow-sm"
+                                            >
                                                 <Map size={12} />
                                                 Convert Area
                                             </button>
@@ -615,111 +706,282 @@ export default function AllPosPage() {
                 </div>
             )}
 
-            {/* CHANGE BOOTH MODAL */}
-            {isChangeBoothModalOpen && changeBoothRecord && (
-                <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/30 backdrop-blur-sm pt-16 px-4">
-                    <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
-                        {/* HEADER */}
-                        <div className="mb-6 flex items-center justify-between">
-                            <div>
-                                <h2 className="text-xl font-bold text-gray-800">Change Booth</h2>
-                                <p className="text-sm text-gray-500">Update the booth assignment for this device</p>
+            {/* CONVERT AREA MODAL */}
+            {isConvertAreaModalOpen && convertAreaRecord && (
+                <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 backdrop-blur-sm pt-16 px-4">
+                    <div className="relative w-full max-w-md animate-in fade-in zoom-in-95 duration-200 rounded-2xl bg-white shadow-2xl border border-warm overflow-hidden">
+                        <div className="h-2 bg-gradient-to-r from-teal to-teal-dark" />
+
+                        <div className="p-6">
+                            <div className="flex items-center justify-between mb-6">
+                                <div>
+                                    <h2 className="text-lg font-bold text-ink">Convert Area</h2>
+                                    <p className="text-sm text-ink-muted mt-0.5">Update the area assignment for this device</p>
+                                </div>
+                                <button onClick={closeConvertAreaModal} className="rounded-lg p-1.5 hover:bg-gray-100 transition-colors">
+                                    <X className="h-5 w-5 text-gray-400" />
+                                </button>
                             </div>
-                            <button onClick={closeChangeBoothModal} className="rounded-lg p-1 hover:bg-gray-100">
-                                <X className="h-5 w-5 text-gray-600" />
-                            </button>
+
+                            <div className="flex flex-col gap-4">
+                                <div>
+                                    <label className="block text-sm font-semibold text-ink mb-1.5">Device Number</label>
+                                    <div className="relative">
+                                        <input
+                                            type="text"
+                                            value={convertAreaRecord.device_no}
+                                            disabled
+                                            className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-500 outline-none cursor-not-allowed"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-semibold text-ink mb-1.5">Serial Number</label>
+                                    <div className="relative">
+                                        <input
+                                            type="text"
+                                            value={convertAreaRecord.serial_no || convertAreaRecord.serial_number || ""}
+                                            disabled
+                                            className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-500 outline-none cursor-not-allowed"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-semibold text-ink mb-1.5">
+                                        New Area <span className="text-rose-500">*</span>
+                                    </label>
+                                    <div className="relative">
+                                        <select
+                                            value={newArea}
+                                            onChange={(e) => {
+                                                setNewArea(e.target.value);
+                                                setConvertAreaError(null);
+                                            }}
+                                            className={`w-full rounded-xl border bg-card px-4 py-3 text-sm text-ink placeholder:text-ink-subtle focus:outline-none focus:ring-2 transition-all shadow-sm appearance-none cursor-pointer ${
+                                                convertAreaError ? 'border-rose-400 focus:border-rose-400 focus:ring-rose/20' : 'border-warm focus:border-teal focus:ring-teal/20'
+                                            }`}
+                                        >
+                                            <option value="" disabled hidden>-- Select an area --</option>
+                                            {["CDO", "MISOR"]
+                                                .filter(area => area !== convertAreaRecord.area?.toUpperCase())
+                                                .map(area => (
+                                                    <option key={area} value={area}>{area}</option>
+                                                ))}
+                                        </select>
+                                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-4 text-ink-subtle">
+                                            <svg className="h-4 w-4 fill-current" viewBox="0 0 20 20">
+                                                <path
+                                                    d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                                                    clipRule="evenodd"
+                                                    fillRule="evenodd"
+                                                />
+                                            </svg>
+                                        </div>
+                                    </div>
+                                    {convertAreaError && (
+                                        <p className="mt-1 text-xs text-rose-500 flex items-center gap-1">
+                                            <AlertTriangle size={12} />
+                                            {convertAreaError}
+                                        </p>
+                                    )}
+                                </div>
+
+                                <div className="flex justify-end gap-3 mt-2 pt-4 border-t border-warm/60">
+                                    <button
+                                        type="button"
+                                        onClick={closeConvertAreaModal}
+                                        className="rounded-xl border-2 border-gray-200 px-6 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-all active:scale-[0.98]"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={openConvertAreaConfirm}
+                                        disabled={!newArea || convertAreaRecord.area?.toUpperCase() === newArea}
+                                        className="rounded-xl bg-gradient-to-r from-teal to-teal-dark px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-teal/25 hover:shadow-xl hover:shadow-teal/30 hover:from-teal-dark hover:to-teal transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none disabled:active:scale-100"
+                                    >
+                                        <span className="flex items-center justify-center gap-2">
+                                            <Check size={16} />
+                                            Save Change
+                                        </span>
+                                    </button>
+                                </div>
+                            </div>
                         </div>
+                    </div>
+                </div>
+            )}
 
-                        {/* FORM */}
-                        <div className="space-y-4">
-                            {/* DEVICE NUMBER (disabled) */}
-                            <div>
-                                <label className="mb-1 block text-sm font-medium text-gray-700">Device Number</label>
-                                <input
-                                    type="text"
-                                    value={changeBoothRecord.device_no}
-                                    disabled
-                                    className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-500 outline-none cursor-not-allowed"
-                                />
+            {/* CONVERT AREA CONFIRMATION MODAL */}
+            {isConvertAreaConfirmOpen && convertAreaRecord && (
+                <div className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-black/50 backdrop-blur-sm pt-24 px-4">
+                    <div className="w-full max-w-md animate-in fade-in zoom-in-95 duration-200 rounded-2xl bg-white shadow-2xl border border-warm overflow-hidden">
+                        <div className="h-2 bg-gradient-to-r from-amber-400 to-orange-500" />
+                        
+                        <div className="p-6">
+                            <div className="flex flex-col items-center gap-4 text-center">
+                                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 ring-4 ring-amber-50">
+                                    <AlertTriangle className="h-7 w-7 text-amber-600" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-bold text-ink">Confirm Area Conversion</h3>
+                                    <p className="text-sm text-ink-muted mt-1">
+                                        Are you sure you want to convert the area of this device?
+                                    </p>
+                                </div>
+                                
+                                <div className="w-full divide-y divide-warm/60 rounded-xl bg-gradient-to-br from-cream to-amber-50/50 border border-warm/70 overflow-hidden">
+                                    <div className="flex items-center justify-between px-4 py-2.5">
+                                        <span className="text-xs font-medium text-ink-muted uppercase tracking-wider">Device</span>
+                                        <span className="text-sm font-semibold text-ink">{convertAreaRecord.device_no}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between px-4 py-2.5">
+                                        <span className="text-xs font-medium text-ink-muted uppercase tracking-wider">From</span>
+                                        <span className="text-sm font-semibold text-ink">{convertAreaRecord.area || "—"}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between px-4 py-2.5">
+                                        <span className="text-xs font-medium text-ink-muted uppercase tracking-wider">To</span>
+                                        <span className="text-sm font-semibold text-teal">{newArea}</span>
+                                    </div>
+                                </div>
                             </div>
 
-                            {/* CURRENT BOOTH CODE (disabled) */}
-                            <div>
-                                <label className="mb-1 block text-sm font-medium text-gray-700">Current Booth Code</label>
-                                <input
-                                    type="text"
-                                    value={changeBoothRecord.booth_code || "—"}
-                                    disabled
-                                    className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-500 outline-none cursor-not-allowed"
-                                />
-                            </div>
-
-                            {/* NEW BOOTH CODE (with autocomplete dropdown) */}
-                            <div className="relative" ref={boothDropdownRef}>
-                                <label className="mb-1 block text-sm font-medium text-gray-700">New Booth Code</label>
-                                <input
-                                    type="text"
-                                    value={boothSearch}
-                                    onChange={handleBoothSearchChange}
-                                    onFocus={() => setShowBoothDropdown(true)}
-                                    placeholder="Type booth code or location..."
-                                    className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-teal focus:ring-2 focus:ring-teal/20"
-                                />
-
-                                {/* DROPDOWN LIST */}
-                                {showBoothDropdown && filteredBooths.length > 0 && (
-                                    <div className="absolute left-0 right-0 top-full z-10 mt-1 max-h-48 overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-lg">
-                                        {filteredBooths.map((booth) => (
-                                            <button
-                                                key={booth.id}
-                                                type="button"
-                                                onClick={() => handleBoothSelect(booth)}
-                                                className="flex w-full flex-col items-start px-4 py-2.5 text-left text-sm hover:bg-teal-light/20 transition-colors border-b border-gray-100 last:border-b-0"
-                                            >
-                                                <span className="font-medium text-gray-800">{booth.booth_code}</span>
-                                                <span className="text-xs text-gray-500">{booth.booth_location || "—"}</span>
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
-                                {showBoothDropdown && filteredBooths.length === 0 && boothSearch.trim() && (
-                                    <div className="absolute left-0 right-0 top-full z-10 mt-1 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-500 shadow-lg">
-                                        No matching booths found
-                                    </div>
-                                )}
-
-                                {/* ERROR TOAST - displayed when selected booth matches current booth */}
-                                {errorBoothMessage && (
-                                    <div className="mt-2 rounded-xl bg-rose px-4 py-2.5 text-sm font-medium text-white flex items-center gap-2 shadow-sm">
-                                        <AlertTriangle size={16} />
-                                        <span>{errorBoothMessage}</span>
-                                        <button onClick={() => setErrorBoothMessage(null)} className="ml-auto rounded-lg p-0.5 hover:bg-white/20 transition-colors">
-                                            <X size={14} />
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* BUTTONS */}
-                            <div className="flex gap-3 pt-2">
+                            <div className="flex gap-3 mt-6">
                                 <button
-                                    type="button"
-                                    onClick={closeChangeBoothModal}
-                                    className="flex-1 rounded-xl border border-gray-300 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                                    onClick={closeConvertAreaConfirm}
+                                    className="flex-1 rounded-xl border-2 border-gray-200 py-3 text-sm font-semibold text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-all active:scale-[0.98]"
                                 >
                                     Cancel
                                 </button>
                                 <button
-                                    type="button"
-                                    onClick={openConfirmModal}
-                                    disabled={!newBoothCode.trim() || newBoothCode.trim() === (changeBoothRecord.booth_code || "")}
-                                    className="flex-1 rounded-xl bg-teal py-3 text-sm font-medium text-white hover:bg-teal-dark disabled:opacity-40 disabled:cursor-not-allowed"
+                                    onClick={handleConfirmConvertArea}
+                                    className="flex-1 rounded-xl bg-gradient-to-r from-teal to-teal-dark py-3 text-sm font-semibold text-white shadow-lg shadow-teal/25 hover:shadow-xl hover:shadow-teal/30 hover:from-teal-dark hover:to-teal transition-all active:scale-[0.98]"
                                 >
-                                    <span className="flex items-center justify-center gap-2">
-                                        <Check size={16} />
-                                        Save Change
-                                    </span>
+                                    Confirm
                                 </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* CHANGE BOOTH MODAL */}
+            {isChangeBoothModalOpen && changeBoothRecord && (
+                <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 backdrop-blur-sm pt-16 px-4">
+                    <div className="relative w-full max-w-md animate-in fade-in zoom-in-95 duration-200 rounded-2xl bg-white shadow-2xl border border-warm overflow-hidden">
+                        {/* Header accent bar */}
+                        <div className="h-2 bg-gradient-to-r from-teal to-teal-dark" />
+
+                        <div className="p-6">
+                            {/* HEADER */}
+                            <div className="flex items-center justify-between mb-6">
+                                <div>
+                                    <h2 className="text-lg font-bold text-ink">Change Booth</h2>
+                                    <p className="text-sm text-ink-muted mt-0.5">Update the booth assignment for this device</p>
+                                </div>
+                                <button onClick={closeChangeBoothModal} className="rounded-lg p-1.5 hover:bg-gray-100 transition-colors">
+                                    <X className="h-5 w-5 text-gray-400" />
+                                </button>
+                            </div>
+
+                            {/* FORM */}
+                            <div className="flex flex-col gap-4">
+                                {/* DEVICE NUMBER (disabled) */}
+                                <div>
+                                    <label className="block text-sm font-semibold text-ink mb-1.5">Device Number</label>
+                                    <div className="relative">
+                                        <input
+                                            type="text"
+                                            value={changeBoothRecord.device_no}
+                                            disabled
+                                            className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-500 outline-none cursor-not-allowed"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* CURRENT BOOTH CODE (disabled) */}
+                                <div>
+                                    <label className="block text-sm font-semibold text-ink mb-1.5">Current Booth Code</label>
+                                    <div className="relative">
+                                        <input
+                                            type="text"
+                                            value={changeBoothRecord.booth_code || "—"}
+                                            disabled
+                                            className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-500 outline-none cursor-not-allowed"
+                                        />
+                                    </div>
+                                </div>
+                                {/* NEW BOOTH CODE (with autocomplete dropdown) */}
+                                <div className="relative" ref={boothDropdownRef}>
+                                    <label className="block text-sm font-semibold text-ink mb-1.5">New Booth Code <span className="text-rose-500">*</span></label>
+                                    <div className="relative">
+                                        <input
+                                            type="text"
+                                            value={boothSearch}
+                                            onChange={handleBoothSearchChange}
+                                            onFocus={() => setShowBoothDropdown(true)}
+                                            placeholder="Type booth code or location..."
+                                            className="w-full rounded-xl border border-warm bg-card px-4 py-3 text-sm text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20 transition-all shadow-sm"
+                                        />
+                                    </div>
+
+                                    {/* DROPDOWN LIST */}
+                                    {showBoothDropdown && filteredBooths.length > 0 && (
+                                        <div className="absolute left-0 right-0 top-full z-10 mt-1 max-h-48 overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-lg">
+                                            {filteredBooths.map((booth) => (
+                                                <button
+                                                    key={booth.id}
+                                                    type="button"
+                                                    onClick={() => handleBoothSelect(booth)}
+                                                    className="flex w-full flex-col items-start px-4 py-2.5 text-left text-sm hover:bg-teal-light/20 transition-colors border-b border-gray-100 last:border-b-0"
+                                                >
+                                                    <span className="font-medium text-ink">{booth.booth_code}</span>
+                                                    <span className="text-xs text-ink-muted">{booth.booth_location || "—"}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                    {showBoothDropdown && filteredBooths.length === 0 && boothSearch.trim() && (
+                                        <div className="absolute left-0 right-0 top-full z-10 mt-1 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-ink-muted shadow-lg">
+                                            No matching booths found
+                                        </div>
+                                    )}
+
+                                    {/* ERROR TOAST */}
+                                    {errorBoothMessage && (
+                                        <div className="mt-2 rounded-xl bg-rose px-4 py-2.5 text-sm font-medium text-white flex items-center gap-2 shadow-sm">
+                                            <AlertTriangle size={16} />
+                                            <span>{errorBoothMessage}</span>
+                                            <button onClick={() => setErrorBoothMessage(null)} className="ml-auto rounded-lg p-0.5 hover:bg-white/20 transition-colors">
+                                                <X size={14} />
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* BUTTONS */}
+                                <div className="flex justify-end gap-3 mt-2 pt-4 border-t border-warm/60">
+                                    <button
+                                        type="button"
+                                        onClick={closeChangeBoothModal}
+                                        className="rounded-xl border-2 border-gray-200 px-6 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-all active:scale-[0.98]"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={openConfirmModal}
+                                        disabled={!newBoothCode.trim() || newBoothCode.trim() === (changeBoothRecord.booth_code || "")}
+                                        className="rounded-xl bg-gradient-to-r from-teal to-teal-dark px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-teal/25 hover:shadow-xl hover:shadow-teal/30 hover:from-teal-dark hover:to-teal transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none disabled:active:scale-100"
+                                    >
+                                        <span className="flex items-center justify-center gap-2">
+                                            <Check size={16} />
+                                            Save Change
+                                        </span>
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -728,31 +990,54 @@ export default function AllPosPage() {
 
             {/* CONFIRMATION MODAL */}
             {isConfirmModalOpen && changeBoothRecord && (
-                <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
-                    <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
-                        <div className="flex flex-col items-center text-center">
-                            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-amber/10">
-                                <AlertTriangle className="h-7 w-7 text-amber" />
+                <div className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-black/50 backdrop-blur-sm pt-24 px-4">
+                    <div className="w-full max-w-md animate-in fade-in zoom-in-95 duration-200 rounded-2xl bg-white shadow-2xl border border-warm overflow-hidden">
+                        {/* Header accent bar */}
+                        <div className="h-2 bg-gradient-to-r from-amber-400 to-orange-500" />
+                        
+                        <div className="p-6">
+                            <div className="flex flex-col items-center gap-4 text-center">
+                                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 ring-4 ring-amber-50">
+                                    <AlertTriangle className="h-7 w-7 text-amber-600" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-bold text-ink">Confirm Booth Change</h3>
+                                    <p className="text-sm text-ink-muted mt-1">
+                                        Are you sure you want to change the booth code of this device?
+                                    </p>
+                                </div>
+                                
+                                {/* Summary card */}
+                                <div className="w-full divide-y divide-warm/60 rounded-xl bg-gradient-to-br from-cream to-amber-50/50 border border-warm/70 overflow-hidden">
+                                    <div className="flex items-center justify-between px-4 py-2.5">
+                                        <span className="text-xs font-medium text-ink-muted uppercase tracking-wider">Device</span>
+                                        <span className="text-sm font-semibold text-ink">{changeBoothRecord.device_no}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between px-4 py-2.5">
+                                        <span className="text-xs font-medium text-ink-muted uppercase tracking-wider">From</span>
+                                        <span className="text-sm font-semibold text-ink">{changeBoothRecord.booth_code || "—"}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between px-4 py-2.5">
+                                        <span className="text-xs font-medium text-ink-muted uppercase tracking-wider">To</span>
+                                        <span className="text-sm font-semibold text-teal">{newBoothCode.trim()}</span>
+                                    </div>
+                                </div>
                             </div>
-                            <h3 className="text-lg font-bold text-gray-800">Confirm Booth Change</h3>
-                            <p className="mt-2 text-sm text-gray-500">
-                                Are you sure you want to change the booth code of device <strong>{changeBoothRecord.device_no}</strong> from{" "}
-                                <strong>{changeBoothRecord.booth_code || "—"}</strong> to <strong>{newBoothCode.trim()}</strong>?
-                            </p>
-                        </div>
-                        <div className="mt-6 flex gap-3">
-                            <button
-                                onClick={closeConfirmModal}
-                                className="flex-1 rounded-xl border border-gray-300 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={handleConfirmChangeBooth}
-                                className="flex-1 rounded-xl bg-teal py-3 text-sm font-medium text-white hover:bg-teal-dark"
-                            >
-                                Confirm
-                            </button>
+
+                            <div className="flex gap-3 mt-6">
+                                <button
+                                    onClick={closeConfirmModal}
+                                    className="flex-1 rounded-xl border-2 border-gray-200 py-3 text-sm font-semibold text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-all active:scale-[0.98]"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleConfirmChangeBooth}
+                                    className="flex-1 rounded-xl bg-gradient-to-r from-teal to-teal-dark py-3 text-sm font-semibold text-white shadow-lg shadow-teal/25 hover:shadow-xl hover:shadow-teal/30 hover:from-teal-dark hover:to-teal transition-all active:scale-[0.98]"
+                                >
+                                    Confirm
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
