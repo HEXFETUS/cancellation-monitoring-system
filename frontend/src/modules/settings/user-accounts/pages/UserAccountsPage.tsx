@@ -7,6 +7,8 @@ interface User {
     email: string;
     usertype: "admin" | "csr" | "operator";
     password?: string;
+    position: string;
+    department: string;
 }
 
 const USERTYPES = ["admin", "csr", "operator"] as const;
@@ -143,10 +145,18 @@ export default function UserAccountsPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [editingId, setEditingId] = useState<number | null>(null);
-    const [editForm, setEditForm] = useState<{ name: string; email: string; usertype: User["usertype"] }>({
+    const [editForm, setEditForm] = useState<{
+        name: string;
+        email: string;
+        usertype: User["usertype"];
+        position: string;
+        department: string;
+    }>({
         name: "",
         email: "",
         usertype: "admin",
+        position: "",
+        department: "",
     });
     const [confirmAction, setConfirmAction] = useState<{
         message: string;
@@ -174,7 +184,13 @@ export default function UserAccountsPage() {
 
     const handleEdit = (user: User) => {
         setEditingId(user.id);
-        setEditForm({ name: user.name, email: user.email, usertype: user.usertype });
+        setEditForm({
+            name: user.name,
+            email: user.email,
+            usertype: user.usertype,
+            position: user.position ?? "",
+            department: user.department ?? "",
+        });
     };
 
     const handleCancelEdit = () => {
@@ -279,6 +295,8 @@ export default function UserAccountsPage() {
                         <tr className="bg-cream border-b border-warm">
                             <th className="px-4 py-3 text-sm font-semibold text-ink-muted">Name</th>
                             <th className="px-4 py-3 text-sm font-semibold text-ink-muted">Email</th>
+                            <th className="px-4 py-3 text-sm font-semibold text-ink-muted">Position</th>
+                            <th className="px-4 py-3 text-sm font-semibold text-ink-muted">Department</th>
                             <th className="px-4 py-3 text-sm font-semibold text-ink-muted">User Type</th>
                             <th className="px-4 py-3 text-sm font-semibold text-ink-muted text-right">Actions</th>
                         </tr>
@@ -301,6 +319,22 @@ export default function UserAccountsPage() {
                                                 type="email"
                                                 value={editForm.email}
                                                 onChange={(e) => setEditForm((f) => ({ ...f, email: e.target.value }))}
+                                                className="w-full px-2 py-1 border border-warm rounded bg-card text-ink focus:outline-none focus:ring-2 focus:ring-teal focus:border-teal"
+                                            />
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <input
+                                                type="text"
+                                                value={editForm.position}
+                                                onChange={(e) => setEditForm((f) => ({ ...f, position: e.target.value }))}
+                                                className="w-full px-2 py-1 border border-warm rounded bg-card text-ink focus:outline-none focus:ring-2 focus:ring-teal focus:border-teal"
+                                            />
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <input
+                                                type="text"
+                                                value={editForm.department}
+                                                onChange={(e) => setEditForm((f) => ({ ...f, department: e.target.value }))}
                                                 className="w-full px-2 py-1 border border-warm rounded bg-card text-ink focus:outline-none focus:ring-2 focus:ring-teal focus:border-teal"
                                             />
                                         </td>
@@ -345,6 +379,8 @@ export default function UserAccountsPage() {
                                     <>
                                         <td className="px-4 py-3 text-ink">{user.name}</td>
                                         <td className="px-4 py-3 text-ink-muted">{user.email}</td>
+                                        <td className="px-4 py-3 text-ink-muted">{user.position || "—"}</td>
+                                        <td className="px-4 py-3 text-ink-muted">{user.department || "—"}</td>
                                         <td className="px-4 py-3">
                                             <span className="inline-block px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-light/40 text-ink capitalize border border-teal/30">
                                                 {user.usertype}
@@ -381,7 +417,7 @@ export default function UserAccountsPage() {
                         ))}
                         {users.length === 0 && (
                             <tr>
-                                <td colSpan={4} className="px-4 py-6 text-center text-ink-subtle">
+                                <td colSpan={6} className="px-4 py-6 text-center text-ink-subtle">
                                     No user accounts found.
                                 </td>
                             </tr>

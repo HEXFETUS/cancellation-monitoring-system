@@ -9,7 +9,6 @@ import {
     FileText,
     Package,
     Settings,
-    ShieldCheck,
     User,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
@@ -24,6 +23,7 @@ type SidebarUser = {
     name?: string;
     email?: string;
     usertype?: string;
+    department?: string;
 };
 
 const iconMap: Record<string, any> = {
@@ -70,6 +70,10 @@ export default function DashboardLayout() {
     }, [authUser?.id, authUser?.name, authUser?.email, authUser?.usertype]);
 
     const displayName = sidebarUser?.name?.trim() || authUser?.name?.trim() || "User";
+    const displayDepartment = sidebarUser?.department?.trim() || authUser?.department?.trim();
+    const sidebarDisplayName = displayDepartment
+        ? `${displayDepartment}-${displayName}`
+        : displayName;
     const displayUserType =
         sidebarUser?.usertype?.trim() || authUser?.usertype?.trim() || "Unknown role";
 
@@ -188,9 +192,11 @@ export default function DashboardLayout() {
                                 }}
                             />
                             <div className="relative flex items-center gap-3">
-                                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/25 backdrop-blur-sm shadow-inner">
-                                    <ShieldCheck className="h-5 w-5 text-white" />
-                                </div>
+                                <img
+                                    src="/src/assets/LogoOnly.webp"
+                                    alt="Logo"
+                                    className="h-9 w-9 rounded-xl object-contain"
+                                />
                                 <div>
                                     <span className="block text-white font-bold text-[15px] tracking-tight">
                                         Hexaprime
@@ -304,7 +310,7 @@ export default function DashboardLayout() {
                             </div>
                             <div className="min-w-0 flex-1">
                                 <p className="text-sm font-semibold text-gray-800 truncate">
-                                    {displayName}
+                                    {sidebarDisplayName}
                                 </p>
                                 <p className="text-[11px] text-gray-500 truncate uppercase">
                                     {displayUserType}

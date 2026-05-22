@@ -14,11 +14,15 @@ function validateUserInput({ name, email, usertype }) {
     return null;
 }
 
+function validateOptionalString(value) {
+    return value !== undefined && value !== null ? String(value).trim() : undefined;
+}
+
 // GET /api/users - Get all users
 router.get("/", async (req, res) => {
     try {
         const result = await pool.query(
-            "SELECT id, name, email, usertype FROM users ORDER BY id ASC"
+            "SELECT id, name, email, usertype, position, department FROM users ORDER BY id ASC"
         );
         res.json(result.rows);
     } catch (err) {
@@ -35,7 +39,7 @@ router.get("/me", async (req, res) => {
             return res.status(400).json({ error: "User ID is required" });
         }
         const result = await pool.query(
-            "SELECT id, name, email, usertype FROM users WHERE id = $1",
+            "SELECT id, name, email, usertype, position, department FROM users WHERE id = $1",
             [userId]
         );
         if (result.rows.length === 0) {
@@ -52,16 +56,19 @@ router.get("/me", async (req, res) => {
 router.put("/:id", async (req, res) => {
     try {
         const { id } = req.params;
-        const { name, email, usertype } = req.body;
+        const { name, email, usertype, position, department } = req.body;
         const validationError = validateUserInput({ name, email, usertype });
 
         if (validationError) {
             return res.status(400).json({ error: validationError });
         }
 
+        const sanitizedPosition = validateOptionalString(position) ?? "";
+        const sanitizedDepartment = validateOptionalString(department) ?? "";
+
         const result = await pool.query(
-            "UPDATE users SET name = $1, email = $2, usertype = $3 WHERE id = $4 RETURNING id, name, email, usertype",
-            [name.trim(), email.trim(), usertype, id]
+            "UPDATE users SET name = $1, email = $2, usertype = $3, position = $4, department = $5 WHERE id = $6 RETURNING id, name, email, usertype, position, department",
+            [name.trim(), email.trim(), usertype, sanitizedPosition, sanitizedDepartment, id]
         );
 
         if (result.rows.length === 0) {
@@ -88,7 +95,7 @@ router.patch("/:id/password", async (req, res) => {
         const hashedPassword = await bcrypt.hash(newPassword.trim(), 12);
 
         const result = await pool.query(
-            "UPDATE users SET password = $1 WHERE id = $2 RETURNING id, name, email, usertype",
+            "UPDATE users SET password = $1 WHERE id = $2 RETURNING id, name, email, usertype, position, department",
             [hashedPassword, id]
         );
 

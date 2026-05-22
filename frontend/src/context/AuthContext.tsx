@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useCallback, type ReactNode } from
 
 interface AuthContextValue {
     isAuthenticated: boolean;
-    user: { id: number; name: string; email: string; usertype: string } | null;
+    user: { id: number; name: string; email: string; usertype: string; position: string; department: string } | null;
     login: (username: string, password: string) => Promise<boolean>;
     logout: () => void;
 }
@@ -41,7 +41,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }
 
             const data = await res.json();
-            const userData = { id: data.id, name: data.name, email: data.email, usertype: data.usertype };
+            const userData = { id: data.id, name: data.name, email: data.email, usertype: data.usertype, position: data.position ?? "", department: data.department ?? "" };
             sessionStorage.setItem("auth_user", JSON.stringify(userData));
             setUser(userData);
             return true;

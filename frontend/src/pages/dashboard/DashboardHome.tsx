@@ -19,10 +19,13 @@ import {
     RefreshCw,
     TrendingUp,
 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useAuth } from "../../context/AuthContext";
 
 /* ---------------- Glow & gradient helpers ---------------- */
 const teal = "#92C7CF";
 const tealLight = "#AAD7D9";
+const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 
 /* ---------------- Data ---------------- */
 const kpiCards = [
@@ -250,7 +253,50 @@ function ActivityItem({
 
 /* ---------------- Main Dashboard ---------------- */
 
+function formatTime() {
+    const now = new Date();
+    const hours = now.getHours();
+    const minutes = now.getMinutes();
+    const ampm = hours >= 12 ? "PM" : "AM";
+    const h = hours % 12 || 12;
+    const m = minutes < 10 ? "0" + minutes : minutes;
+    return `${h}:${m} ${ampm}`;
+}
+
 export default function DashboardHome() {
+    const { user } = useAuth();
+    const [currentUser, setCurrentUser] = useState(user);
+    const displayName = currentUser?.name || user?.name || "User";
+    const displayPosition = currentUser?.position?.trim() || user?.position?.trim();
+    const currentTime = formatTime();
+
+    useEffect(() => {
+        setCurrentUser(user);
+
+        if (!user?.id) return;
+
+        let ignored = false;
+
+        fetch(`${API_BASE_URL}/api/users/me?id=${user.id}`)
+            .then((res) => {
+                if (!res.ok) {
+                    throw new Error("Failed to fetch current user");
+                }
+
+                return res.json();
+            })
+            .then((data) => {
+                if (!ignored) {
+                    setCurrentUser({ ...user, ...data });
+                }
+            })
+            .catch(() => {});
+
+        return () => {
+            ignored = true;
+        };
+    }, [user]);
+
     return (
         <div className="space-y-7">
             {/* ===== Header / Welcome ===== */}
@@ -289,10 +335,13 @@ export default function DashboardHome() {
                                 Welcome back,
                             </p>
                             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-gray-800">
-                                KhedBoo
+                                {displayName}
                             </h1>
                             <div className="mt-1 flex items-center gap-2 text-sm text-gray-600">
-                                <span>IT Manager • Hexaprime Inc.</span>
+                                <span>
+                                    {displayPosition ? `${displayPosition} • ` : ""}
+                                    Hexaprime Inc.
+                                </span>
                                 <span className="inline-block w-1 h-1 rounded-full bg-gray-300" />
                                 <span className="inline-flex items-center gap-1">
                                     <span
@@ -324,7 +373,7 @@ export default function DashboardHome() {
                                 Last Login
                             </p>
                             <p className="mt-0.5 text-sm font-semibold text-gray-800">
-                                09:30 AM
+                                {currentTime}
                             </p>
                         </div>
                     </div>

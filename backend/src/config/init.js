@@ -57,6 +57,10 @@ async function initDatabase() {
             );
         `);
 
+        // Add position and department columns if they don't exist
+        await client.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS position VARCHAR(255) DEFAULT ''");
+        await client.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS department VARCHAR(255) DEFAULT ''");
+
         await client.query(`
             CREATE TABLE IF NOT EXISTS operator_list (
                 id SERIAL PRIMARY KEY,
