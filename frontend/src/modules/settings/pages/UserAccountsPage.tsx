@@ -13,7 +13,6 @@ interface User {
 
 const USERTYPES = ["admin", "csr", "operator"] as const;
 
-const teal = "#92C7CF";
 const ALPHANUMERIC = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 
@@ -330,8 +329,7 @@ export default function UserAccountsPage() {
             )}
 
             {/* Users Table */}
-            <div className="overflow-x-auto ml-0 rounded-2xl bg-white shadow-sm border border-gray-200"
-            >
+            <div className="overflow-x-auto ml-0 rounded-2xl bg-white shadow-sm border border-gray-200">
                 <table className="w-full text-left">
                     <thead>
                         <tr className="bg-cream border-b border-warm">

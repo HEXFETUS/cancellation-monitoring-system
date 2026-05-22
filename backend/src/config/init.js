@@ -9,6 +9,7 @@ const SERIAL_TABLES = [
     "pos_convert_histories",
     "area_logs",
     "status_logs",
+    "user_logs",
 ];
 
 async function syncSerialSequence(client, tableName) {
@@ -189,6 +190,18 @@ async function initDatabase() {
                 old_status VARCHAR(255),
                 new_status VARCHAR(255),
                 user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS user_logs (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                login_at TIMESTAMP,
+                logout_at TIMESTAMP,
+                ip_address VARCHAR(255),
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );

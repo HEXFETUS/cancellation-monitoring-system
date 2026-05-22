@@ -58,6 +58,57 @@ router.get("/me", async (req, res) => {
     }
 });
 
+// GET /api/users/logs - Get user login/logout history
+router.get("/logs", async (_req, res) => {
+    try {
+        const result = await pool.query(
+            `
+            SELECT
+                ul.id,
+                ul.user_id,
+                COALESCE(u.name, 'Unknown User') AS user_name,
+                ul.login_at,
+                ul.logout_at,
+                ul.ip_address,
+                ul.created_at,
+                ul.updated_at
+            FROM user_logs ul
+            LEFT JOIN users u ON u.id = ul.user_id
+            ORDER BY COALESCE(ul.login_at, ul.created_at) DESC, ul.id DESC
+            `
+        );
+
+        res.json(result.rows);
+    } catch (err) {
+        console.error("Error fetching user logs:", err.message);
+        res.status(500).json({ error: "Failed to fetch user logs" });
+    }
+});
+
+// GET /api/users/:id/latest-login - Get a user's most recent login time
+router.get("/:id/latest-login", async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const result = await pool.query(
+            `
+            SELECT login_at
+            FROM user_logs
+            WHERE user_id = $1
+              AND login_at IS NOT NULL
+            ORDER BY login_at DESC, id DESC
+            LIMIT 1
+            `,
+            [id]
+        );
+
+        res.json({ login_at: result.rows[0]?.login_at ?? null });
+    } catch (err) {
+        console.error("Error fetching latest login:", err.message);
+        res.status(500).json({ error: "Failed to fetch latest login" });
+    }
+});
+
 // POST /api/users - Create a new user
 router.post("/", async (req, res) => {
     try {

@@ -8,6 +8,15 @@ function isBcryptHash(value) {
     return /^\$2[aby]\$\d{2}\$/.test(value);
 }
 
+function getClientIp(req) {
+    const forwardedFor = req.headers["x-forwarded-for"];
+    if (typeof forwardedFor === "string" && forwardedFor.trim()) {
+        return forwardedFor.split(",")[0].trim();
+    }
+
+    return req.ip || req.socket?.remoteAddress || null;
+}
+
 // POST /api/auth/login - Authenticate a user
 router.post("/login", async (req, res) => {
     try {
@@ -37,6 +46,15 @@ router.post("/login", async (req, res) => {
             return res.status(401).json({ error: "Invalid email or password" });
         }
 
+        const logResult = await pool.query(
+            `
+            INSERT INTO user_logs (user_id, login_at, ip_address)
+            VALUES ($1, CURRENT_TIMESTAMP, $2)
+            RETURNING id
+            `,
+            [user.id, getClientIp(req)]
+        );
+
         // Return user info (excluding password)
         res.json({
             id: user.id,
@@ -45,10 +63,44 @@ router.post("/login", async (req, res) => {
             usertype: user.usertype,
             position: user.position,
             department: user.department,
+            user_log_id: logResult.rows[0].id,
         });
     } catch (err) {
         console.error("Error during login:", err.message);
         res.status(500).json({ error: "Authentication failed" });
+    }
+});
+
+// POST /api/auth/logout - Record the current user's logout time
+router.post("/logout", async (req, res) => {
+    try {
+        const { userId, logId } = req.body;
+
+        if (!userId || !logId) {
+            return res.status(400).json({ error: "User ID and log ID are required" });
+        }
+
+        const result = await pool.query(
+            `
+            UPDATE user_logs
+            SET logout_at = CURRENT_TIMESTAMP,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = $1
+              AND user_id = $2
+              AND logout_at IS NULL
+            RETURNING id
+            `,
+            [logId, userId]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: "Open user log not found" });
+        }
+
+        res.json({ message: "Logout recorded successfully" });
+    } catch (err) {
+        console.error("Error during logout:", err.message);
+        res.status(500).json({ error: "Failed to record logout" });
     }
 });
 

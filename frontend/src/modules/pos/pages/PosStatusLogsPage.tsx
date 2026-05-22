@@ -155,7 +155,7 @@ export default function PosStatusLogsPage() {
                 <div className="overflow-x-auto">
                     <table className="min-w-full text-sm">
                         <thead>
-                            <tr className="border-b border-gray-100 bg-gray-50/80">
+                            <tr className="bg-cream border-b border-warm">
                                 <th className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Date</th>
                                 <th className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Device Number</th>
                                 <th className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Old Status</th>

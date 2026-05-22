@@ -46,6 +46,25 @@ body {
   @apply bg-surface text-ink antialiased;
 }
 
+table {
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+table th {
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+table td,
+table td span,
+table td button,
+table td input,
+table td select {
+  font-size: 12px;
+  line-height: 1.35;
+}
+
 /* Toast slide-down animation */
 @keyframes slideDown {
   from {

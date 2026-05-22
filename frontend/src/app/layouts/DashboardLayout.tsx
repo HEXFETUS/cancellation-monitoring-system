@@ -77,8 +77,8 @@ export default function DashboardLayout() {
     const displayUserType =
         sidebarUser?.usertype?.trim() || authUser?.usertype?.trim() || "Unknown role";
 
-    const handleLogout = () => {
-        logout();
+    const handleLogout = async () => {
+        await logout();
         navigate("/");
     };
 

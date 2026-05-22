@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Users, UserPlus, ClipboardList, Menu } from "lucide-react";
 import UserAccountsPage from "./UserAccountsPage";
 import CreateUserAccountPage from "./CreateUserAccountPage";
+import UserLogsPage from "./UserLogsPage";
 
 const teal = "#92C7CF";
 
@@ -151,13 +152,7 @@ export default function SettingsPage() {
                         <div>
                             {activeUserSubTab === "accounts" && <UserAccountsPage />}
                             {activeUserSubTab === "create-user" && <CreateUserAccountPage />}
-                            {activeUserSubTab === "user-logs" && (
-                                <div className="flex flex-col items-center justify-center py-16 text-center">
-                                    <ClipboardList size={48} className="text-ink-subtle mb-4" />
-                                    <h3 className="text-lg font-semibold text-ink mb-1">User Logs</h3>
-                                    <p className="text-sm text-ink-muted">Activity and audit logs for user accounts will appear here.</p>
-                                </div>
-                            )}
+                            {activeUserSubTab === "user-logs" && <UserLogsPage />}
                         </div>
                     </div>
                 )}

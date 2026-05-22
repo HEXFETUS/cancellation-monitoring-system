@@ -254,22 +254,23 @@ function ActivityItem({
 
 /* ---------------- Main Dashboard ---------------- */
 
-function formatTime() {
-    const now = new Date();
-    const hours = now.getHours();
-    const minutes = now.getMinutes();
-    const ampm = hours >= 12 ? "PM" : "AM";
-    const h = hours % 12 || 12;
-    const m = minutes < 10 ? "0" + minutes : minutes;
-    return `${h}:${m} ${ampm}`;
+function formatLoginTime(value: string | null) {
+    if (!value) return "-";
+
+    return new Date(value).toLocaleString(undefined, {
+        month: "short",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+    });
 }
 
 export default function DashboardHome() {
     const { user } = useAuth();
     const [currentUser, setCurrentUser] = useState(user);
+    const [lastLogin, setLastLogin] = useState<string | null>(null);
     const displayName = currentUser?.name || user?.name || "User";
     const displayPosition = currentUser?.position?.trim() || user?.position?.trim();
-    const currentTime = formatTime();
 
     useEffect(() => {
         setCurrentUser(user);
@@ -292,6 +293,25 @@ export default function DashboardHome() {
                 }
             })
             .catch(() => {});
+
+        fetch(`${API_BASE_URL}/api/users/${user.id}/latest-login`)
+            .then((res) => {
+                if (!res.ok) {
+                    throw new Error("Failed to fetch latest login");
+                }
+
+                return res.json();
+            })
+            .then((data) => {
+                if (!ignored) {
+                    setLastLogin(data.login_at ?? null);
+                }
+            })
+            .catch(() => {
+                if (!ignored) {
+                    setLastLogin(null);
+                }
+            });
 
         return () => {
             ignored = true;
@@ -364,7 +384,7 @@ export default function DashboardHome() {
                                 Last Login
                             </p>
                             <p className="mt-0.5 text-sm font-semibold text-gray-800">
-                                {currentTime}
+                                {formatLoginTime(lastLogin)}
                             </p>
                         </div>
                     </div>

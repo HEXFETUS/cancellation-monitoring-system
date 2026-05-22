@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { UserPlus, X, Check, AlertTriangle } from "lucide-react";
+import { UserPlus, X } from "lucide-react";
 
 const teal = "#92C7CF";
 
@@ -251,7 +251,7 @@ export default function CreateUserAccountPage() {
                                             e.currentTarget.style.boxShadow = "none";
                                         }
                                     }}
-                                    placeholder="username"
+                                    placeholder="Username"
                                 />
                             </div>
                             <div className="w-32">
