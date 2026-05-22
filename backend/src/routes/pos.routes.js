@@ -245,6 +245,10 @@ router.put("/:id", async (req, res) => {
         }
 
         const oldStatus = currentRecord.rows[0].status || null;
+        const shouldRemoveBooth =
+            status !== undefined &&
+            status !== null &&
+            String(status).trim().toLowerCase() !== "active";
 
         const updateResult = await pool.query(
             `
@@ -252,7 +256,7 @@ router.put("/:id", async (req, res) => {
                 device_no = COALESCE($1, device_no),
                 serial_number = COALESCE($2, serial_number),
                 area = COALESCE($3, area),
-                booth_id = COALESCE($4, booth_id),
+                booth_id = CASE WHEN $9::boolean THEN NULL ELSE COALESCE($4, booth_id) END,
                 operator_id = COALESCE($5, operator_id),
                 status = COALESCE($6, status),
                 sticker = COALESCE($7, sticker),
@@ -268,7 +272,8 @@ router.put("/:id", async (req, res) => {
                 operator_id || null,
                 status ?? null,
                 sticker ?? null,
-                id
+                id,
+                shouldRemoveBooth
             ]
         );
 
@@ -385,10 +390,10 @@ router.post("/:id/change-booth", async (req, res) => {
             });
         }
 
-        // Update booth_id and operator_id on pos_record
+        // Update booth_id and operator_id on pos_record. A device with a booth code is active.
         const operatorToSet = newBoothOperatorId || record.operator_id;
         await pool.query(
-            `UPDATE pos_records SET booth_id = $1::int, operator_id = $2::int, updated_at = CURRENT_TIMESTAMP WHERE id = $3::int`,
+            `UPDATE pos_records SET booth_id = $1::int, operator_id = $2::int, status = 'Active', updated_at = CURRENT_TIMESTAMP WHERE id = $3::int`,
             [booth_id, operatorToSet, id]
         );
 

@@ -82,7 +82,7 @@ function ConfirmModal({
     if (!open || !record) return null;
 
     return (
-        <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/40">
+        <div className="fixed inset-0 z-100 flex items-start justify-center bg-black/40 pt-16">
             <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl">
                 <h3 className="text-lg font-semibold text-ink">Change Status</h3>
                 <p className="mt-2 text-sm text-ink-muted">
@@ -303,6 +303,7 @@ export default function PosStatusPage() {
                     currentRecord.id === record.id ? updatedRecord : currentRecord
                 )
             );
+            window.dispatchEvent(new CustomEvent("pos:status-change"));
             setSuccessMessage(
                 `Device ${record.device_no} status changed to ${nextStatus}`
             );

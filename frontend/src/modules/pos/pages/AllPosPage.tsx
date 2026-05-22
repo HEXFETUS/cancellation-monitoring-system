@@ -223,6 +223,9 @@ export default function AllPosPage() {
 
     useEffect(() => {
         loadRecords();
+
+        window.addEventListener("pos:status-change", loadRecords);
+        return () => window.removeEventListener("pos:status-change", loadRecords);
     }, []);
 
     const loadRecords = async () => {
@@ -273,6 +276,23 @@ export default function AllPosPage() {
         } catch (err: any) {
             alert(err.message || "Failed to update sticker status");
         }
+    };
+
+    /**
+     * Compute the effective display status based on booth_code presence and stored status.
+     * - If booth_code is present → Active (regardless of stored status)
+     * - If booth_code is absent and stored status is "Active" → Inactive
+     * - Otherwise → stored status as-is
+     */
+    const getDisplayStatus = (record: PosRecord): string => {
+        const hasBoothCode = !!record.booth_code?.trim();
+        if (hasBoothCode) {
+            return "Active";
+        }
+        if (record.status === "Active") {
+            return "Inactive";
+        }
+        return record.status || "—";
     };
 
     // Reset to page 1 when search or filter changes
@@ -598,13 +618,18 @@ export default function AllPosPage() {
                                     <td className="px-4 py-3 font-medium text-teal">{record.booth_code || "—"}</td>
                                     <td className="px-4 py-3 text-ink">{record.booth_location || "—"}</td>
                                     <td className="px-4 py-3">
-                                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border
-                                            ${record.status === 'Active' ? 'bg-teal-light/20 text-teal-dark border-teal/20' : 
-                                              record.status === 'Inactive' ? 'bg-warm text-ink-muted border-ink-subtle/20' : 
-                                              'bg-peach/20 text-peach-dark border-peach/20'}`}
-                                        >
-                                            {record.status || "—"}
-                                        </span>
+                                        {(() => {
+                                            const displayStatus = getDisplayStatus(record);
+                                            return (
+                                                <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border
+                                                    ${displayStatus === 'Active' ? 'bg-teal-light/20 text-teal-dark border-teal/20' : 
+                                                      displayStatus === 'Inactive' ? 'bg-warm text-ink-muted border-ink-subtle/20' : 
+                                                      'bg-peach/20 text-peach-dark border-peach/20'}`}
+                                                >
+                                                    {displayStatus}
+                                                </span>
+                                            );
+                                        })()}
                                     </td>
                                     <td className="px-4 py-3 text-center">
                                         <input
