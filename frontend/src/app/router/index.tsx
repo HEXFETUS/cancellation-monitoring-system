@@ -1,5 +1,6 @@
 import { createBrowserRouter } from "react-router-dom";
 
+import ProtectedRoute from "../../components/ProtectedRoute";
 import LandingPage from "../../pages/LandingPage";
 import DashboardLayout from "../../app/layouts/DashboardLayout";
 import DashboardHome from "../../pages/dashboard/DashboardHome";
@@ -19,7 +20,7 @@ export const router = createBrowserRouter([
     },
     {
         path: "/app",
-        element: <DashboardLayout />,
+        element: <ProtectedRoute><DashboardLayout /></ProtectedRoute>,
         children: [
             { path: "dashboard", element: <DashboardHome /> },
             {

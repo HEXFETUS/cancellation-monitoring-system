@@ -101,14 +101,13 @@ async function initDatabase() {
         /* =========================
            booth_change_logs
            The table was originally created with legacy columns (from_booth, to_booth, changed_at).
-           We now use device_no, old_booth_code, new_booth_code, changed_by, created_at.
+           We now use pos_record_id, old_booth_code, new_booth_code, changed_by, created_at.
            Migration steps keep it backward-compatible.
         ========================= */
         await client.query(`
             CREATE TABLE IF NOT EXISTS booth_change_logs (
                 id SERIAL PRIMARY KEY,
                 pos_record_id INTEGER REFERENCES pos_records(id) ON DELETE CASCADE,
-                device_no VARCHAR(100),
                 old_booth_code VARCHAR(255),
                 new_booth_code VARCHAR(255),
                 changed_by VARCHAR(255),
@@ -117,24 +116,14 @@ async function initDatabase() {
         `);
 
         // Migrate: add new columns if they don't exist (safe for repeated runs)
-        await client.query("ALTER TABLE booth_change_logs ADD COLUMN IF NOT EXISTS device_no VARCHAR(100)");
         await client.query("ALTER TABLE booth_change_logs ADD COLUMN IF NOT EXISTS old_booth_code VARCHAR(255)");
         await client.query("ALTER TABLE booth_change_logs ADD COLUMN IF NOT EXISTS new_booth_code VARCHAR(255)");
         await client.query("ALTER TABLE booth_change_logs ADD COLUMN IF NOT EXISTS changed_by VARCHAR(255)");
         // created_at already exists as default, but we add it as an alias for changed_at if missing
         await client.query("ALTER TABLE booth_change_logs ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
+        await client.query("ALTER TABLE booth_change_logs ALTER COLUMN pos_record_id DROP NOT NULL");
 
         const boothChangeLogColumns = await getTableColumns(client, "booth_change_logs");
-
-        // Backfill device_no from pos_records for any rows that have NULL device_no
-        // but have a valid pos_record_id
-        await client.query(`
-            UPDATE booth_change_logs bcl
-            SET device_no = p.device_no
-            FROM pos_records p
-            WHERE bcl.pos_record_id = p.id
-              AND bcl.device_no IS NULL
-        `);
 
         if (boothChangeLogColumns.has("from_booth") && boothChangeLogColumns.has("to_booth")) {
             // Backfill old_booth_code / new_booth_code from legacy from_booth / to_booth.

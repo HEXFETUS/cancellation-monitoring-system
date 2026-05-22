@@ -176,6 +176,7 @@ export default function ChangeDeviceLogsPage() {
                                 paginatedLogs.map((log) => {
                                     const from = log.old_booth_code || "N/A";
                                     const to = log.new_booth_code || "N/A";
+                                    const deviceNumber = log.pos_record_id || "N/A";
                                     return (
                                         <tr key={log.id} className="transition-colors hover:bg-teal-50/40">
                                             <td className="whitespace-nowrap px-5 py-4 text-gray-600">
@@ -190,7 +191,7 @@ export default function ChangeDeviceLogsPage() {
                                                 <span>
                                                     Device number{" "}
                                                     <span className="font-semibold text-teal-700">
-                                                        {log.device_no}
+                                                        {deviceNumber}
                                                     </span>{" "}
                                                     reassigned from booth{" "}
                                                     <span className="font-semibold text-amber-700">

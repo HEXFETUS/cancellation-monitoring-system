@@ -88,15 +88,6 @@ export default function OperatorsPage() {
         setCurrentPage(totalPages);
     };
 
-    const [toastVisible, setToastVisible] = useState(false);
-    const [toastMessage, setToastMessage] = useState("");
-
-    const showToast = (message: string) => {
-        setToastMessage(message);
-        setToastVisible(true);
-        setTimeout(() => setToastVisible(false), 3000);
-    };
-
     const handleView = (record: PosRecord) => {
         // View action – can be extended to open a modal or navigate
         alert(`Operator: ${record.operator}\nDevice No: ${record.device_no}\nSerial No: ${record.serial_no}\nArea: ${record.area}\nBooth Code: ${record.booth_code}`);
@@ -118,21 +109,8 @@ export default function OperatorsPage() {
 
     return (
         <div className="flex flex-col gap-6">
-            {/* Toolbar: Toast (left) + Search & Buttons (right) */}
+            {/* Toolbar: Search & Buttons */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                {/* Success Toast */}
-                {toastVisible && (
-                    <div className="flex items-center gap-2 rounded-lg bg-green-100 border border-green-400 text-green-800 px-4 py-2 text-sm shadow-sm">
-                        <span>{toastMessage}</span>
-                        <button
-                            onClick={() => setToastVisible(false)}
-                            className="ml-1 text-green-600 hover:text-green-900 font-bold leading-none"
-                        >
-                            ×
-                        </button>
-                    </div>
-                )}
-
                 <div className="flex items-center gap-3 ml-auto">
                     <div className="relative w-full sm:w-auto">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle h-4 w-4" />

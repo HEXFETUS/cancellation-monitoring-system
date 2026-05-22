@@ -1,11 +1,13 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Search, Plus, List, Edit, RefreshCw, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, X, AlertTriangle, Check } from "lucide-react";
-import type { BoothInfo } from "../types";
-import { fetchBoothInfo } from "../services";
+import { useAuth } from "../../../context/AuthContext";
+import type { BoothInfo, OperatorInfo } from "../types";
+import { createBoothInfo, fetchBoothInfo, fetchOperators } from "../services";
 
 const ROWS_PER_PAGE = 20;
 
 export default function OutletsPage() {
+    const { user } = useAuth();
     const [records, setRecords] = useState<BoothInfo[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -100,16 +102,54 @@ export default function OutletsPage() {
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [addForm, setAddForm] = useState({
         operator: "",
+        operator_id: null as number | null,
         booth_code: "",
         coordinate: "",
         location: "",
     });
+    const [operators, setOperators] = useState<OperatorInfo[]>([]);
+    const [showOperatorDropdown, setShowOperatorDropdown] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+    const [formError, setFormError] = useState<string | null>(null);
     const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+    const operatorDropdownRef = useRef<HTMLDivElement>(null);
+
+    const filteredOperators = useMemo(() => {
+        const query = addForm.operator.toLowerCase().trim();
+        if (!query) return operators;
+
+        return operators.filter((item) => item.operator.toLowerCase().includes(query));
+    }, [addForm.operator, operators]);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (operatorDropdownRef.current && !operatorDropdownRef.current.contains(event.target as Node)) {
+                setShowOperatorDropdown(false);
+            }
+        };
+
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
+
+    const loadOperators = async () => {
+        try {
+            const data = await fetchOperators();
+            setOperators(data);
+        } catch (err: any) {
+            setFormError(err.message || "Failed to load operators");
+        }
+    };
 
     const openAddModal = () => {
-        setAddForm({ operator: "", booth_code: "", coordinate: "", location: "" });
+        setAddForm({ operator: "", operator_id: null, booth_code: "", coordinate: "", location: "" });
+        setFormError(null);
+        setShowOperatorDropdown(false);
         setIsConfirmModalOpen(false);
         setIsAddModalOpen(true);
+        if (operators.length === 0) {
+            loadOperators();
+        }
     };
 
     const closeAddModal = () => {
@@ -119,10 +159,29 @@ export default function OutletsPage() {
 
     const handleAddFormChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
-        setAddForm((prev) => ({ ...prev, [name]: value }));
+        setFormError(null);
+        setAddForm((prev) => ({
+            ...prev,
+            [name]: value,
+            ...(name === "operator" ? { operator_id: null } : {}),
+        }));
+        if (name === "operator") {
+            setShowOperatorDropdown(true);
+        }
+    };
+
+    const handleOperatorSelect = (operator: OperatorInfo) => {
+        setAddForm((prev) => ({
+            ...prev,
+            operator: operator.operator,
+            operator_id: operator.id,
+        }));
+        setShowOperatorDropdown(false);
+        setFormError(null);
     };
 
     const openConfirmModal = () => {
+        setFormError(null);
         setIsConfirmModalOpen(true);
     };
 
@@ -130,10 +189,32 @@ export default function OutletsPage() {
         setIsConfirmModalOpen(false);
     };
 
-    const handleSave = () => {
-        // For now just show a success toast; backend integration can be added later
-        showToast(`Booth "${addForm.booth_code}" has been saved successfully.`);
-        closeAddModal();
+    const handleSave = async () => {
+        setIsSaving(true);
+        setFormError(null);
+        try {
+            const createdBooth = await createBoothInfo({
+                booth_code: addForm.booth_code.trim(),
+                coordinate: addForm.coordinate.trim(),
+                location: addForm.location.trim(),
+                operator: addForm.operator.trim(),
+                operator_id: addForm.operator_id,
+                changed_by: user?.name,
+            });
+            setRecords((prev) =>
+                [...prev, createdBooth]
+                    .filter((record) => record.booth_code?.trim())
+                    .sort((a, b) => a.booth_code.localeCompare(b.booth_code, undefined, { numeric: true }))
+            );
+            showToast(`Booth "${createdBooth.booth_code}" has been saved successfully.`);
+            closeAddModal();
+            loadOperators();
+        } catch (err: any) {
+            setFormError(err.message || "Failed to save booth");
+            setIsConfirmModalOpen(false);
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     if (error) {
@@ -369,9 +450,10 @@ export default function OutletsPage() {
                                 </button>
                                 <button
                                     onClick={handleSave}
+                                    disabled={isSaving}
                                     className="flex-1 rounded-xl bg-gradient-to-r from-teal to-teal-dark py-3 text-sm font-semibold text-white shadow-lg shadow-teal/25 hover:shadow-xl hover:shadow-teal/30 hover:from-teal-dark hover:to-teal transition-all active:scale-[0.98]"
                                 >
-                                    Confirm
+                                    {isSaving ? "Saving..." : "Confirm"}
                                 </button>
                             </div>
                         </div>
@@ -400,19 +482,44 @@ export default function OutletsPage() {
 
                             {/* Form fields */}
                             <div className="flex flex-col gap-4">
+                                {formError && (
+                                    <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">
+                                        {formError}
+                                    </div>
+                                )}
                                 <div>
                                     <label className="block text-sm font-semibold text-ink mb-1.5">
                                         Operator <span className="text-rose-500">*</span>
                                     </label>
-                                    <div className="relative">
+                                    <div className="relative" ref={operatorDropdownRef}>
                                         <input
                                             type="text"
                                             name="operator"
                                             value={addForm.operator}
                                             onChange={handleAddFormChange}
+                                            onFocus={() => setShowOperatorDropdown(true)}
                                             placeholder="Enter operator name"
                                             className="w-full rounded-xl border border-warm bg-card px-4 py-3 text-sm text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20 transition-all shadow-sm"
                                         />
+                                        {showOperatorDropdown && filteredOperators.length > 0 && (
+                                            <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-48 overflow-y-auto rounded-xl border border-warm bg-white shadow-xl">
+                                                {filteredOperators.map((operator) => (
+                                                    <button
+                                                        key={operator.id}
+                                                        type="button"
+                                                        onClick={() => handleOperatorSelect(operator)}
+                                                        className="block w-full px-4 py-2.5 text-left text-sm text-ink transition hover:bg-cream focus:bg-cream focus:outline-none"
+                                                    >
+                                                        {operator.operator}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+                                        {showOperatorDropdown && filteredOperators.length === 0 && addForm.operator.trim() && (
+                                            <div className="absolute left-0 right-0 top-full z-20 mt-1 rounded-xl border border-warm bg-white px-4 py-2.5 text-sm text-ink-muted shadow-xl">
+                                                No matching operators
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                                 <div>
@@ -468,7 +575,7 @@ export default function OutletsPage() {
                                 </button>
                                 <button
                                     onClick={openConfirmModal}
-                                    disabled={!addForm.booth_code.trim() || !addForm.operator.trim()}
+                                    disabled={!addForm.booth_code.trim() || !addForm.operator.trim() || isSaving}
                                     className="rounded-xl bg-gradient-to-r from-teal to-teal-dark px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-teal/25 hover:shadow-xl hover:shadow-teal/30 hover:from-teal-dark hover:to-teal transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none disabled:active:scale-100"
                                 >
                                     Save

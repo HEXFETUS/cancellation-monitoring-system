@@ -78,35 +78,111 @@ function ConfirmModal({
     if (!open || !record) return null;
 
     return (
-        <div className="fixed inset-0 z-100 flex items-start justify-center bg-black/40 pt-16">
-            <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl">
-                <h3 className="text-lg font-semibold text-ink">Change Status</h3>
-                <p className="mt-2 text-sm text-ink-muted">
-                    Change status of device{" "}
-                    <span className="font-medium text-ink">{record.device_no}</span> from{" "}
-                    <span className="font-medium text-ink">
-                        {normalize(record.status) || "-"}
-                    </span>{" "}
-                    to{" "}
-                    <span className={`font-medium ${getStatusTextColor(nextStatus)}`}>
-                        {nextStatus}
-                    </span>
-                    ?
-                </p>
-                <div className="mt-5 flex justify-end gap-3">
+        <div className="fixed inset-0 z-100 flex items-start justify-center bg-black/50 backdrop-blur-sm pt-20">
+            <div className="w-full max-w-md animate-in fade-in zoom-in-95 duration-200 rounded-2xl border border-warm bg-white p-0 shadow-2xl">
+                {/* Header with accent bar */}
+                <div className="relative flex items-center gap-3 rounded-t-2xl bg-gradient-to-r from-teal/10 to-teal/5 px-6 pb-4 pt-5">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-teal/10">
+                        <svg
+                            className="h-5 w-5 text-teal"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            strokeWidth={2}
+                            stroke="currentColor"
+                        >
+                            <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182"
+                            />
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 className="text-lg font-semibold text-ink">Change Status</h3>
+                        <p className="text-xs text-ink-muted">Confirm device status update</p>
+                    </div>
                     <button
                         type="button"
                         onClick={onCancel}
-                        className="rounded-lg border border-warm px-4 py-2 text-sm font-medium text-ink transition hover:bg-cream"
+                        className="ml-auto flex h-7 w-7 items-center justify-center rounded-full text-ink-subtle transition hover:bg-white/70 hover:text-ink"
+                    >
+                        <X className="h-4 w-4" />
+                    </button>
+                </div>
+
+                {/* Body */}
+                <div className="px-6 py-5">
+                    <div className="rounded-xl border border-warm bg-cream/30 p-4">
+                        <p className="text-sm leading-relaxed text-ink-muted">
+                            Change status of device{" "}
+                            <span className="font-semibold text-ink">{record.device_no}</span>
+                        </p>
+                        <div className="mt-3 flex items-center gap-3">
+                            {/* Current Status */}
+                            <div className="flex flex-1 flex-col items-center gap-1.5 rounded-lg border border-warm bg-white px-3 py-2.5">
+                                <span className="text-[10px] font-medium uppercase tracking-wider text-ink-subtle">
+                                    Current
+                                </span>
+                                <span
+                                    className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium ${getStatusClasses(record.status)}`}
+                                >
+                                    <span
+                                        className={`inline-block h-1.5 w-1.5 rounded-full ${getStatusDotColor(normalize(record.status) || "-")}`}
+                                    />
+                                    {normalize(record.status) || "-"}
+                                </span>
+                            </div>
+
+                            {/* Arrow */}
+                            <div className="shrink-0">
+                                <svg
+                                    className="h-5 w-5 text-ink-subtle"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    strokeWidth={2}
+                                    stroke="currentColor"
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"
+                                    />
+                                </svg>
+                            </div>
+
+                            {/* New Status */}
+                            <div className="flex flex-1 flex-col items-center gap-1.5 rounded-lg border border-warm bg-white px-3 py-2.5">
+                                <span className="text-[10px] font-medium uppercase tracking-wider text-ink-subtle">
+                                    New
+                                </span>
+                                <span
+                                    className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium ${getStatusClasses(nextStatus)}`}
+                                >
+                                    <span
+                                        className={`inline-block h-1.5 w-1.5 rounded-full ${getStatusColor(nextStatus).dot}`}
+                                    />
+                                    {nextStatus}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Footer */}
+                <div className="flex items-center justify-end gap-3 border-t border-warm bg-cream/50 px-6 py-4 rounded-b-2xl">
+                    <button
+                        type="button"
+                        onClick={onCancel}
+                        className="rounded-lg border border-warm bg-white px-4 py-2 text-sm font-medium text-ink shadow-sm transition hover:bg-cream hover:border-ink-subtle"
                     >
                         Cancel
                     </button>
                     <button
                         type="button"
                         onClick={onConfirm}
-                        className="rounded-lg bg-teal px-4 py-2 text-sm font-medium text-white transition hover:bg-teal-dark"
+                        className="rounded-lg bg-teal px-5 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-teal-dark focus:outline-none focus:ring-2 focus:ring-teal/40"
                     >
-                        Confirm
+                        Confirm Change
                     </button>
                 </div>
             </div>

@@ -40,6 +40,15 @@ const BOOTH_INFO_SELECT = `
     LEFT JOIN operator_list o ON b.operator_id = o.id
 `;
 
+const OPERATOR_SELECT = `
+    SELECT
+        id,
+        operator,
+        created_at,
+        updated_at
+    FROM operator_list
+`;
+
 const SERIAL_TABLES = new Set([
     "booth_change_logs",
     "pos_convert_histories",
@@ -100,6 +109,106 @@ router.get("/booth-info", async (_req, res) => {
     } catch (err) {
         console.error("GET booth_info error:", err.message);
         res.status(500).json({ error: "Failed to fetch booth info" });
+    }
+});
+
+/* =========================
+   GET OPERATORS
+========================= */
+router.get("/operators", async (_req, res) => {
+    try {
+        const result = await pool.query(`
+            ${OPERATOR_SELECT}
+            WHERE NULLIF(TRIM(operator), '') IS NOT NULL
+            ORDER BY operator ASC
+        `);
+
+        res.json(result.rows);
+    } catch (err) {
+        console.error("GET operators error:", err.message);
+        res.status(500).json({ error: "Failed to fetch operators" });
+    }
+});
+
+/* =========================
+   CREATE BOOTH INFO
+========================= */
+router.post("/booth-info", async (req, res) => {
+    const client = await pool.connect();
+
+    try {
+        const { booth_code, coordinate, location, operator, operator_id, changed_by } = req.body;
+        const boothCode = String(booth_code || "").trim();
+        const operatorName = String(operator || "").trim();
+
+        if (!boothCode || (!operator_id && !operatorName)) {
+            return res.status(400).json({ error: "Booth code and operator are required" });
+        }
+
+        await client.query("BEGIN");
+
+        const duplicateBooth = await client.query(
+            `SELECT id FROM booth_info WHERE LOWER(TRIM(booth_code)) = LOWER($1) LIMIT 1`,
+            [boothCode]
+        );
+        if (duplicateBooth.rows.length > 0) {
+            await client.query("ROLLBACK");
+            return res.status(400).json({ error: "Booth code already exists" });
+        }
+
+        let resolvedOperatorId = operator_id || null;
+
+        if (resolvedOperatorId) {
+            const operatorResult = await client.query(
+                `SELECT id FROM operator_list WHERE id = $1::int`,
+                [resolvedOperatorId]
+            );
+            if (operatorResult.rows.length === 0) {
+                await client.query("ROLLBACK");
+                return res.status(400).json({ error: "Selected operator not found" });
+            }
+            resolvedOperatorId = operatorResult.rows[0].id;
+        } else {
+            const operatorResult = await client.query(
+                `SELECT id FROM operator_list WHERE LOWER(TRIM(operator)) = LOWER($1) LIMIT 1`,
+                [operatorName]
+            );
+
+            if (operatorResult.rows.length > 0) {
+                resolvedOperatorId = operatorResult.rows[0].id;
+            } else {
+                const insertOperator = await client.query(
+                    `INSERT INTO operator_list (operator) VALUES ($1) RETURNING id`,
+                    [operatorName]
+                );
+                resolvedOperatorId = insertOperator.rows[0].id;
+            }
+        }
+
+        const insertBooth = await client.query(
+            `
+            INSERT INTO booth_info (booth_code, coordinate, location, operator_id)
+            VALUES ($1, $2, $3, $4)
+            RETURNING id
+            `,
+            [
+                boothCode,
+                coordinate?.trim() || null,
+                location?.trim() || null,
+                resolvedOperatorId
+            ]
+        );
+
+        const result = await client.query(`${BOOTH_INFO_SELECT} WHERE b.id = $1::int`, [insertBooth.rows[0].id]);
+
+        await client.query("COMMIT");
+        res.status(201).json(result.rows[0]);
+    } catch (err) {
+        await client.query("ROLLBACK").catch(() => {});
+        console.error("POST booth_info error:", err.message);
+        res.status(500).json({ error: "Failed to create booth info" });
+    } finally {
+        client.release();
     }
 });
 
@@ -398,9 +507,9 @@ router.post("/:id/change-booth", async (req, res) => {
         );
 
         await pool.query(
-            `INSERT INTO booth_change_logs (pos_record_id, device_no, old_booth_code, new_booth_code, changed_by)
-             VALUES ($1, $2, $3, $4, $5)`,
-            [record.id, record.device_no, oldBoothCode, booth_code.trim(), changed_by || null]
+            `INSERT INTO booth_change_logs (pos_record_id, old_booth_code, new_booth_code, changed_by)
+             VALUES ($1, $2, $3, $4)`,
+            [record.device_no, oldBoothCode, booth_code.trim(), changed_by || null]
         );
 
         const result = await pool.query(`${POS_SELECT} WHERE p.id = $1::int`, [id]);
@@ -490,7 +599,6 @@ router.get("/booth-change-logs", async (_req, res) => {
             SELECT
                 id,
                 pos_record_id,
-                device_no,
                 old_booth_code,
                 new_booth_code,
                 changed_by,

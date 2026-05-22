@@ -1,4 +1,4 @@
-import type { BoothInfo, PosRecord, BoothChangeLog, PosConvertHistory, StatusLog } from "../types";
+import type { BoothInfo, PosRecord, BoothChangeLog, PosConvertHistory, StatusLog, OperatorInfo } from "../types";
 
 const API_BASE = "/api/pos";
 
@@ -32,6 +32,27 @@ export async function fetchPosRecords(params?: {
 export async function fetchBoothInfo(): Promise<BoothInfo[]> {
     const response = await fetch(`${API_BASE}/booth-info`);
     return handleResponse<BoothInfo[]>(response);
+}
+
+export async function fetchOperators(): Promise<OperatorInfo[]> {
+    const response = await fetch(`${API_BASE}/operators`);
+    return handleResponse<OperatorInfo[]>(response);
+}
+
+export async function createBoothInfo(data: {
+    booth_code: string;
+    coordinate?: string;
+    location?: string;
+    operator: string;
+    operator_id?: number | null;
+    changed_by?: string;
+}): Promise<BoothInfo> {
+    const response = await fetch(`${API_BASE}/booth-info`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+    });
+    return handleResponse<BoothInfo>(response);
 }
 
 export async function createPosRecord(data: Partial<Omit<PosRecord, "id" | "created_at" | "updated_at">>): Promise<PosRecord> {

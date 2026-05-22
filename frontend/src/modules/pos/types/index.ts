@@ -28,10 +28,16 @@ export interface BoothInfo {
     updated_at: string;
 }
 
+export interface OperatorInfo {
+    id: number;
+    operator: string;
+    created_at: string;
+    updated_at: string;
+}
+
 export interface BoothChangeLog {
     id: number;
-    pos_record_id: number;
-    device_no: string;
+    pos_record_id: string | null;
     old_booth_code: string;
     new_booth_code: string;
     changed_by: string | null;
