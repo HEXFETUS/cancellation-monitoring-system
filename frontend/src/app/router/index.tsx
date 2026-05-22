@@ -1,8 +1,17 @@
 import { createBrowserRouter } from "react-router-dom";
+
+import ProtectedRoute from "../../components/ProtectedRoute";
 import LandingPage from "../../pages/LandingPage";
-import DashboardLayout from "../layouts/DashboardLayout";
+import DashboardLayout from "../../app/layouts/DashboardLayout";
 import DashboardHome from "../../pages/dashboard/DashboardHome";
-import ProductsPage from "../../modules/pos/pages/ProductsPage";
+
+import PosInventoryTabbedPage from "../../modules/pos/pages/PosInventoryTabbedPage";
+import PosRepairRequestPage from "../../modules/pos-repair/pages/PosRepairRequestPage";
+
+import CancellationTabbedPage from "../../modules/cancellation/pages/CancellationTabbedPage";
+import AssetInventoryTabbedPage from "../../modules/asset-inventory/pages/AssetInventoryTabbedPage";
+
+import SettingsPage from "../../modules/settings/pages/SettingsPage";
 
 export const router = createBrowserRouter([
     {
@@ -11,10 +20,34 @@ export const router = createBrowserRouter([
     },
     {
         path: "/app",
-        element: <DashboardLayout />,
+        element: <ProtectedRoute><DashboardLayout /></ProtectedRoute>,
         children: [
             { path: "dashboard", element: <DashboardHome /> },
-            { path: "pos", element: <ProductsPage /> },
+            {
+                path: "pos",
+                element: <PosInventoryTabbedPage />,
+            },
+
+            {
+                path: "pos-repair",
+                element: <PosRepairRequestPage />,
+            },
+
+            {
+                path: "cancellation",
+                element: <CancellationTabbedPage />,
+            },
+
+            {
+                path: "asset-inventory",
+                element: <AssetInventoryTabbedPage />,
+            },
+
+            {
+                path: "settings",
+                element: <SettingsPage />,
+            },
+
         ],
     },
 ]);

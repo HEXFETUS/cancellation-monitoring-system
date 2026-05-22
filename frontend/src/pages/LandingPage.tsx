@@ -176,7 +176,7 @@ export default function LandingPage() {
         onClose={() => setLoginOpen(false)}
         onSuccess={() => {
           setLoginOpen(false);
-          navigate(pendingRoute || "/dashboard");
+          navigate(pendingRoute || "/app/dashboard");
         }}
       />
 
@@ -301,8 +301,11 @@ export default function LandingPage() {
               </button>
             ))}
             <button
-              onClick={() => requireAuth("/dashboard")}
-              className="w-full rounded-sm px-5 py-2.5 text-sm font-semibold text-white transition-all"
+              onClick={() => {
+                setMobileOpen(false);
+                requireAuth("/app/dashboard");
+              }}
+              className="w-full rounded-xs px-5 py-2.5 text-sm font-semibold text-white transition-all"
               style={{ backgroundColor: "#92C7CF" }}
             >
               Dashboard
