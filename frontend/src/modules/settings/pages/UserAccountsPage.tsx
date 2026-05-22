@@ -171,19 +171,34 @@ function ChangePasswordModal({
 function CreateUserForm({ onCreated }: { onCreated: () => void }) {
     const [form, setForm] = useState({
         name: "",
-        email: "",
+        username: "",
         password: "",
-        usertype: "csr",
+        usertype: "",
         position: "",
         department: "",
     });
     const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+    const [usernameError, setUsernameError] = useState("");
+
+    const handleUsernameChange = (val: string) => {
+        setForm((f) => ({ ...f, username: val }));
+        if (val.includes("@")) {
+            setUsernameError("Do not include '@' in the username.");
+        } else {
+            setUsernameError("");
+        }
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setMessage(null);
 
-        if (!form.name || !form.email || !form.password) {
+        if (usernameError) {
+            setMessage({ type: "error", text: "Please fix the username error." });
+            return;
+        }
+
+        if (!form.name || !form.username || !form.password || !form.usertype || !form.position || !form.department) {
             setMessage({ type: "error", text: "All fields are required." });
             return;
         }
@@ -193,12 +208,8 @@ function CreateUserForm({ onCreated }: { onCreated: () => void }) {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    name: form.name,
-                    email: form.email,
-                    password: form.password,
-                    usertype: form.usertype,
-                    position: form.position || undefined,
-                    department: form.department || undefined,
+                    ...form,
+                    email: `${form.username}@hexa.prime`
                 }),
             });
 
@@ -208,7 +219,7 @@ function CreateUserForm({ onCreated }: { onCreated: () => void }) {
             }
 
             setMessage({ type: "success", text: "User account created successfully!" });
-            setForm({ name: "", email: "", password: "", usertype: "csr", position: "", department: "" });
+            setForm({ name: "", username: "", password: "", usertype: "", position: "", department: "" });
             onCreated();
         } catch (err: any) {
             setMessage({ type: "error", text: err.message || "Could not create user" });
@@ -243,13 +254,30 @@ function CreateUserForm({ onCreated }: { onCreated: () => void }) {
 
                 <div>
                     <label className="block text-sm font-semibold text-ink mb-1.5">Email <span className="text-rose-500">*</span></label>
-                    <input
-                        type="email"
-                        value={form.email}
-                        onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-                        placeholder="email@example.com"
-                        className="w-full rounded-xl border border-warm bg-card px-4 py-3 text-sm text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20 transition-all shadow-sm"
-                    />
+                    <div className="flex gap-2">
+                        <div className="flex-1">
+                            <input
+                                type="text"
+                                value={form.username}
+                                onChange={(e) => handleUsernameChange(e.target.value)}
+                                placeholder="username"
+                                className={`w-full rounded-xl border bg-card px-4 py-3 text-sm text-ink placeholder:text-ink-subtle focus:outline-none focus:ring-2 transition-all shadow-sm ${
+                                    usernameError ? "border-rose-500 focus:ring-rose-200" : "border-warm focus:border-teal focus:ring-teal/20"
+                                }`}
+                            />
+                        </div>
+                        <div className="w-32">
+                            <input
+                                type="text"
+                                value="@hexa.prime"
+                                readOnly
+                                className="w-full rounded-xl border border-warm bg-warm/30 px-4 py-3 text-sm text-ink-muted outline-none cursor-default"
+                            />
+                        </div>
+                    </div>
+                    {usernameError && (
+                        <p className="mt-1 text-xs text-rose-500 font-medium">{usernameError}</p>
+                    )}
                 </div>
 
                 <div>
@@ -265,7 +293,7 @@ function CreateUserForm({ onCreated }: { onCreated: () => void }) {
 
                 <div className="grid grid-cols-2 gap-4">
                     <div>
-                        <label className="block text-sm font-semibold text-ink mb-1.5">Position</label>
+                        <label className="block text-sm font-semibold text-ink mb-1.5">Position <span className="text-rose-500">*</span></label>
                         <input
                             type="text"
                             value={form.position}
@@ -276,7 +304,7 @@ function CreateUserForm({ onCreated }: { onCreated: () => void }) {
                     </div>
 
                     <div>
-                        <label className="block text-sm font-semibold text-ink mb-1.5">Department</label>
+                        <label className="block text-sm font-semibold text-ink mb-1.5">Department <span className="text-rose-500">*</span></label>
                         <input
                             type="text"
                             value={form.department}
@@ -294,6 +322,7 @@ function CreateUserForm({ onCreated }: { onCreated: () => void }) {
                         onChange={(e) => setForm((f) => ({ ...f, usertype: e.target.value }))}
                         className="w-full rounded-xl border border-warm bg-card px-4 py-3 text-sm text-ink focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20 transition-all shadow-sm appearance-none cursor-pointer"
                     >
+                        <option value="">--select--</option>
                         <option value="admin">Admin</option>
                         <option value="csr">CSR</option>
                         <option value="operator">Operator</option>
@@ -303,7 +332,7 @@ function CreateUserForm({ onCreated }: { onCreated: () => void }) {
                 <div className="flex gap-3 pt-4 border-t border-warm/60">
                     <button
                         type="submit"
-                        disabled={!form.name || !form.email || !form.password}
+                        disabled={!form.name || !form.username || !form.password || !form.usertype || !form.position || !form.department || !!usernameError}
                         className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-teal to-teal-dark px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-teal/25 hover:shadow-xl hover:shadow-teal/30 hover:from-teal-dark hover:to-teal transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none disabled:active:scale-100"
                     >
                         <UserPlus size={16} />
@@ -375,6 +404,17 @@ export default function UserAccountsPage() {
     };
 
     const handleSaveEdit = (id: number) => {
+        if (
+            !editForm.name.trim() ||
+            !editForm.email.trim() ||
+            !editForm.usertype ||
+            !editForm.position.trim() ||
+            !editForm.department.trim()
+        ) {
+            setError("All fields are required.");
+            return;
+        }
+
         setConfirmAction({
             message: "Are you sure you want to save these changes?",
             onConfirm: async () => {

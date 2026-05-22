@@ -6,27 +6,49 @@ const teal = "#92C7CF";
 export default function CreateUserAccountPage() {
     const [form, setForm] = useState({
         name: "",
-        email: "",
+        username: "",
         password: "",
-        usertype: "csr",
+        usertype: "",
+        position: "",
+        department: "",
     });
     const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+    const [usernameError, setUsernameError] = useState("");
+
+    const handleUsernameChange = (val: string) => {
+        setForm((f) => ({ ...f, username: val }));
+        if (val.includes("@")) {
+            setUsernameError("Do not include '@' in the username.");
+        } else {
+            setUsernameError("");
+        }
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setMessage(null);
 
-        if (!form.name || !form.email || !form.password) {
+        if (usernameError) {
+            setMessage({ type: "error", text: "Please fix the username error." });
+            return;
+        }
+
+        if (!form.name || !form.username || !form.password || !form.usertype || !form.position || !form.department) {
             setMessage({ type: "error", text: "All fields are required." });
             return;
         }
+
+        const payload = {
+            ...form,
+            email: `${form.username}@hexa.prime`
+        };
 
         try {
             const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
             const res = await fetch(`${API_BASE_URL}/api/users`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(form),
+                body: JSON.stringify(payload),
             });
 
             if (!res.ok) {
@@ -35,7 +57,7 @@ export default function CreateUserAccountPage() {
             }
 
             setMessage({ type: "success", text: "User account created successfully!" });
-            setForm({ name: "", email: "", password: "", usertype: "csr" });
+            setForm({ name: "", username: "", password: "", usertype: "", position: "", department: "" });
         } catch (err: any) {
             setMessage({ type: "error", text: err.message || "Could not create user" });
         }
@@ -77,23 +99,81 @@ export default function CreateUserAccountPage() {
                     />
                 </div>
 
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Position</label>
+                        <input
+                            type="text"
+                            value={form.position}
+                            onChange={(e) => setForm((f) => ({ ...f, position: e.target.value }))}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none"
+                            onFocus={(e) => {
+                                e.currentTarget.style.borderColor = teal;
+                                e.currentTarget.style.boxShadow = `0 0 0 2px ${teal}40`;
+                            }}
+                            onBlur={(e) => {
+                                e.currentTarget.style.borderColor = "#D1D5DB";
+                                e.currentTarget.style.boxShadow = "none";
+                            }}
+                            placeholder="e.g. Manager"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+                        <input
+                            type="text"
+                            value={form.department}
+                            onChange={(e) => setForm((f) => ({ ...f, department: e.target.value }))}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none"
+                            onFocus={(e) => {
+                                e.currentTarget.style.borderColor = teal;
+                                e.currentTarget.style.boxShadow = `0 0 0 2px ${teal}40`;
+                            }}
+                            onBlur={(e) => {
+                                e.currentTarget.style.borderColor = "#D1D5DB";
+                                e.currentTarget.style.boxShadow = "none";
+                            }}
+                            placeholder="e.g. IT"
+                        />
+                    </div>
+                </div>
+
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                    <input
-                        type="email"
-                        value={form.email}
-                        onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none"
-                        onFocus={(e) => {
-                            e.currentTarget.style.borderColor = teal;
-                            e.currentTarget.style.boxShadow = `0 0 0 2px ${teal}40`;
-                        }}
-                        onBlur={(e) => {
-                            e.currentTarget.style.borderColor = "#D1D5DB";
-                            e.currentTarget.style.boxShadow = "none";
-                        }}
-                        placeholder="email@example.com"
-                    />
+                    <div className="flex gap-2">
+                        <div className="flex-1">
+                            <input
+                                type="text"
+                                value={form.username}
+                                onChange={(e) => handleUsernameChange(e.target.value)}
+                                className={`w-full px-3 py-2 border rounded-lg focus:outline-none ${usernameError ? "border-red-500" : "border-gray-300"}`}
+                                onFocus={(e) => {
+                                    if (!usernameError) {
+                                        e.currentTarget.style.borderColor = teal;
+                                        e.currentTarget.style.boxShadow = `0 0 0 2px ${teal}40`;
+                                    }
+                                }}
+                                onBlur={(e) => {
+                                    if (!usernameError) {
+                                        e.currentTarget.style.borderColor = "#D1D5DB";
+                                        e.currentTarget.style.boxShadow = "none";
+                                    }
+                                }}
+                                placeholder="username"
+                            />
+                        </div>
+                        <div className="w-32">
+                            <input
+                                type="text"
+                                value="@hexa.prime"
+                                readOnly
+                                className="w-full px-3 py-2 border border-gray-200 bg-gray-50 text-gray-500 rounded-lg outline-none cursor-default"
+                            />
+                        </div>
+                    </div>
+                    {usernameError && (
+                        <p className="mt-1 text-xs text-red-500 font-medium">{usernameError}</p>
+                    )}
                 </div>
 
                 <div>
@@ -130,6 +210,7 @@ export default function CreateUserAccountPage() {
                             e.currentTarget.style.boxShadow = "none";
                         }}
                     >
+                        <option value="">-- Select a usertype --</option>
                         <option value="admin">Admin</option>
                         <option value="csr">CSR</option>
                         <option value="operator">Operator</option>
@@ -138,7 +219,8 @@ export default function CreateUserAccountPage() {
 
                 <button
                     type="submit"
-                    className="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg text-white font-medium transition-all duration-300 hover:shadow-lg hover:scale-[1.02]"
+                    disabled={!form.name || !form.username || !form.password || !form.usertype || !form.position || !form.department || !!usernameError}
+                    className="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg text-white font-medium transition-all duration-300 hover:shadow-lg hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:shadow-none"
                     style={{
                         background: `linear-gradient(135deg, ${teal}, #AAD7D9)`,
                         boxShadow: "0 2px 12px rgba(146,199,207,0.30)",

@@ -6,9 +6,15 @@ const router = express.Router();
 
 const VALID_USER_TYPES = new Set(["admin", "csr", "operator"]);
 
-function validateUserInput({ name, email, usertype }) {
-    if (!name?.trim() || !email?.trim() || !VALID_USER_TYPES.has(usertype)) {
-        return "Name, email, and a valid user type are required";
+function validateUserInput({ name, email, usertype, position, department }) {
+    if (
+        !name?.trim() ||
+        !email?.trim() ||
+        !VALID_USER_TYPES.has(usertype) ||
+        !position?.trim() ||
+        !department?.trim()
+    ) {
+        return "Name, email, user type, position, and department are required";
     }
 
     return null;
@@ -52,23 +58,51 @@ router.get("/me", async (req, res) => {
     }
 });
 
+// POST /api/users - Create a new user
+router.post("/", async (req, res) => {
+    try {
+        const { name, email, password, usertype, position, department } = req.body;
+
+        const validationError = validateUserInput({ name, email, usertype, position, department });
+        if (validationError) {
+            return res.status(400).json({ error: validationError });
+        }
+
+        if (!password?.trim()) {
+            return res.status(400).json({ error: "Password is required" });
+        }
+
+        const hashedPassword = await bcrypt.hash(password.trim(), 12);
+
+        const result = await pool.query(
+            "INSERT INTO users (name, email, password, usertype, position, department) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, name, email, usertype, position, department",
+            [name.trim(), email.trim(), hashedPassword, usertype, position.trim(), department.trim()]
+        );
+
+        res.status(201).json(result.rows[0]);
+    } catch (err) {
+        if (err.code === "23505") {
+            return res.status(400).json({ error: "Email already exists" });
+        }
+        console.error("Error creating user:", err.message);
+        res.status(500).json({ error: "Failed to create user" });
+    }
+});
+
 // PUT /api/users/:id - Update a user
 router.put("/:id", async (req, res) => {
     try {
         const { id } = req.params;
         const { name, email, usertype, position, department } = req.body;
-        const validationError = validateUserInput({ name, email, usertype });
+        const validationError = validateUserInput({ name, email, usertype, position, department });
 
         if (validationError) {
             return res.status(400).json({ error: validationError });
         }
 
-        const sanitizedPosition = validateOptionalString(position) ?? "";
-        const sanitizedDepartment = validateOptionalString(department) ?? "";
-
         const result = await pool.query(
             "UPDATE users SET name = $1, email = $2, usertype = $3, position = $4, department = $5 WHERE id = $6 RETURNING id, name, email, usertype, position, department",
-            [name.trim(), email.trim(), usertype, sanitizedPosition, sanitizedDepartment, id]
+            [name.trim(), email.trim(), usertype, position.trim(), department.trim(), id]
         );
 
         if (result.rows.length === 0) {
