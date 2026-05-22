@@ -360,16 +360,6 @@ export default function DashboardHome() {
                             className="rounded-xl px-4 py-2.5 backdrop-blur-sm border border-white/30 bg-white/15 shadow-sm"
                         >
                             <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-500">
-                                Role
-                            </p>
-                            <p className="mt-0.5 text-sm font-semibold text-gray-800">
-                                Administrator
-                            </p>
-                        </div>
-                        <div
-                            className="rounded-xl px-4 py-2.5 backdrop-blur-sm border border-white/30 bg-white/15 shadow-sm"
-                        >
-                            <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-500">
                                 Last Login
                             </p>
                             <p className="mt-0.5 text-sm font-semibold text-gray-800">
