@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { UserPlus } from "lucide-react";
+import { UserPlus, X } from "lucide-react";
 
 const teal = "#92C7CF";
 
@@ -14,6 +14,7 @@ export default function CreateUserAccountPage() {
     });
     const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
     const [usernameError, setUsernameError] = useState("");
+    const [showConfirmModal, setShowConfirmModal] = useState(false);
 
     const handleUsernameChange = (val: string) => {
         setForm((f) => ({ ...f, username: val }));
@@ -24,7 +25,7 @@ export default function CreateUserAccountPage() {
         }
     };
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleSubmitClick = (e: React.FormEvent) => {
         e.preventDefault();
         setMessage(null);
 
@@ -37,6 +38,13 @@ export default function CreateUserAccountPage() {
             setMessage({ type: "error", text: "All fields are required." });
             return;
         }
+
+        setShowConfirmModal(true);
+    };
+
+    const handleConfirmSubmit = async () => {
+        setShowConfirmModal(false);
+        setMessage(null);
 
         const payload = {
             ...form,
@@ -63,6 +71,10 @@ export default function CreateUserAccountPage() {
         }
     };
 
+    const handleCancelSubmit = () => {
+        setShowConfirmModal(false);
+    };
+
     return (
         <div className="max-w-lg">
             <h2 className="text-lg font-semibold text-gray-800 mb-4">Create User Account</h2>
@@ -79,7 +91,7 @@ export default function CreateUserAccountPage() {
                 </div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmitClick} className="space-y-4">
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
                     <input
@@ -210,7 +222,7 @@ export default function CreateUserAccountPage() {
                             e.currentTarget.style.boxShadow = "none";
                         }}
                     >
-                        <option value="">-- Select a usertype --</option>
+                        <option value="" disabled>-- Select a usertype --</option>
                         <option value="admin">Admin</option>
                         <option value="csr">CSR</option>
                         <option value="operator">Operator</option>
@@ -230,6 +242,67 @@ export default function CreateUserAccountPage() {
                     Create User
                 </button>
             </form>
+
+            {/* Confirm Modal */}
+            {showConfirmModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 p-6 relative">
+                        <button
+                            onClick={handleCancelSubmit}
+                            className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
+                        >
+                            <X className="h-5 w-5" />
+                        </button>
+
+                        <h3 className="text-lg font-semibold text-gray-800 mb-4">Confirm User Details</h3>
+
+                        <div className="space-y-3 text-sm">
+                            <div className="flex justify-between border-b border-gray-100 pb-2">
+                                <span className="text-gray-500">Name</span>
+                                <span className="font-medium text-gray-800">{form.name}</span>
+                            </div>
+                            <div className="flex justify-between border-b border-gray-100 pb-2">
+                                <span className="text-gray-500">Position</span>
+                                <span className="font-medium text-gray-800">{form.position}</span>
+                            </div>
+                            <div className="flex justify-between border-b border-gray-100 pb-2">
+                                <span className="text-gray-500">Department</span>
+                                <span className="font-medium text-gray-800">{form.department}</span>
+                            </div>
+                            <div className="flex justify-between border-b border-gray-100 pb-2">
+                                <span className="text-gray-500">Email</span>
+                                <span className="font-medium text-gray-800">{form.username}@hexa.prime</span>
+                            </div>
+                            <div className="flex justify-between border-b border-gray-100 pb-2">
+                                <span className="text-gray-500">Password</span>
+                                <span className="font-medium text-gray-800">{form.password}</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="text-gray-500">User Type</span>
+                                <span className="font-medium text-gray-800 capitalize">{form.usertype}</span>
+                            </div>
+                        </div>
+
+                        <div className="flex gap-3 mt-6 justify-end">
+                            <button
+                                onClick={handleCancelSubmit}
+                                className="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleConfirmSubmit}
+                                className="px-4 py-2 rounded-lg text-sm font-medium text-white transition-all duration-300 hover:shadow-lg"
+                                style={{
+                                    background: `linear-gradient(135deg, ${teal}, #AAD7D9)`,
+                                }}
+                            >
+                                Confirm & Save
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
