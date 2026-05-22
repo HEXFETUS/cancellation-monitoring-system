@@ -1,13 +1,11 @@
 import { useState } from "react";
-import { Users, UserPlus, Menu } from "lucide-react";
-import UserAccountsPage from "../user-accounts/pages/UserAccountsPage";
-import CreateUserAccountPage from "./CreateUserAccountPage";
+import { Users, Menu } from "lucide-react";
+import UserAccountsPage from "./UserAccountsPage";
 
 const teal = "#92C7CF";
 
 const leftTabs = [
-    { id: "user-accounts", label: "USER ACCOUNTS", icon: Users },
-    { id: "create-user", label: "CREATE USER ACCOUNT", icon: UserPlus },
+    { id: "user-accounts", label: "USERS", icon: Users },
 ];
 
 export default function SettingsPage() {
@@ -99,7 +97,6 @@ export default function SettingsPage() {
             {/* Main content area */}
             <div className="flex-1 min-w-0">
                 {activeTab === "user-accounts" && <UserAccountsPage />}
-                {activeTab === "create-user" && <CreateUserAccountPage />}
             </div>
         </div>
     );

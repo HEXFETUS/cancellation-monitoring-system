@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Monitor, Activity, RotateCcw, Store, BarChart3, Menu } from "lucide-react";
+import { Monitor, Activity, RotateCcw, Store, BarChart3, Menu, FileText, GitBranch, ClipboardList } from "lucide-react";
 import AllPosPage from "./AllPosPage";
 import PosStatusPage from "./PosStatusPage";
 import RequestResetPage from "./RequestResetPage";
@@ -19,9 +19,9 @@ const leftTabs = [
 ];
 
 const reportSubTabs = [
-    { id: "change-device-logs", label: "Change Device Logs" },
-    { id: "convert-area-logs", label: "Convert Area Logs" },
-    { id: "pos-status-logs", label: "POS Status Logs" },
+    { id: "change-device-logs", label: "Change Device Logs", icon: FileText },
+    { id: "convert-area-logs", label: "Convert Area Logs", icon: GitBranch },
+    { id: "pos-status-logs", label: "POS Status Logs", icon: ClipboardList },
 ];
 
 export default function PosInventoryTabbedPage() {
@@ -119,22 +119,27 @@ export default function PosInventoryTabbedPage() {
                 {activeTab === "outlets" && <OutletsPage />}
                 {activeTab === "reports" && (
                     <div>
-                        <div className="mb-6 flex gap-2 overflow-x-auto border-b pb-2"
-                            style={{ borderColor: "rgba(146,199,207,0.20)" }}
+                        {/* Sub-tabs */}
+                        <div className="flex gap-1 mb-5 border-b pb-0"
+                            style={{ borderColor: "rgba(146,199,207,0.25)" }}
                         >
                             {reportSubTabs.map((tab) => {
+                                const Icon = tab.icon;
                                 const isSubActive = activeReportSubTab === tab.id;
                                 return (
                                     <button
                                         key={tab.id}
                                         onClick={() => setActiveReportSubTab(tab.id)}
-                                        className="shrink-0 rounded-xl px-3 py-2 text-xs font-medium transition-all duration-200 sm:px-4 sm:text-sm"
+                                        className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all duration-200 rounded-t-xl cursor-pointer"
                                         style={{
                                             background: isSubActive
                                                 ? "rgba(146,199,207,0.15)"
                                                 : "transparent",
                                             border: isSubActive
                                                 ? "1px solid rgba(146,199,207,0.25)"
+                                                : "1px solid transparent",
+                                            borderBottom: isSubActive
+                                                ? "1px solid white"
                                                 : "1px solid transparent",
                                             color: isSubActive ? "#1F2937" : "#6B7280",
                                         }}
@@ -149,6 +154,7 @@ export default function PosInventoryTabbedPage() {
                                             }
                                         }}
                                     >
+                                        <Icon size={16} />
                                         {tab.label}
                                     </button>
                                 );

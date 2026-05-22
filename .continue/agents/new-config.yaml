@@ -1,0 +1,10 @@
+models:
+  - name: "Gemini 1.5 Pro"
+    provider: "gemini"
+    model: "gemini-1.5-pro-latest"
+    apiKey: "AIzaSyC_C3YVQDt4s7EXrvMmLIIG1Iity_xa3jE"
+    roles:
+      - chat
+      - edit
+    capabilities:
+      - tool_use

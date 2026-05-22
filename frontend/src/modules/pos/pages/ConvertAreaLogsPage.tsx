@@ -111,58 +111,44 @@ export default function ConvertAreaLogsPage() {
     return (
         <div className="flex flex-col gap-6">
             {/* DATE FILTERS */}
-            <div className="flex flex-wrap items-center gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-                <div className="flex items-center gap-2">
-                    <label htmlFor="dateFrom" className="text-sm font-medium text-gray-600 whitespace-nowrap">
-                        Date From
-                    </label>
-                    <div className="relative">
-                        <svg className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
+            <div className="flex justify-end">
+                <div className="inline-flex flex-wrap items-center gap-2 rounded-lg bg-gray-50/80 px-3 py-2">
+                    <div className="flex items-center gap-1.5">
+                        <label htmlFor="dateFrom" className="text-xs font-medium text-gray-500 whitespace-nowrap">
+                            From
+                        </label>
                         <input
                             id="dateFrom"
                             type="date"
                             value={dateFrom}
                             onChange={(e) => setDateFrom(e.target.value)}
-                            className="w-44 rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm text-gray-700 focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20 transition-all"
+                            className="w-36 rounded-md border border-gray-200 py-1.5 px-2 text-xs text-gray-700 focus:border-teal focus:outline-none focus:ring-1 focus:ring-teal/20 transition-all"
                         />
                     </div>
-                </div>
-                <span className="hidden sm:inline text-gray-300 text-lg font-light">→</span>
-                <div className="flex items-center gap-2">
-                    <label htmlFor="dateTo" className="text-sm font-medium text-gray-600 whitespace-nowrap">
-                        Date To
-                    </label>
-                    <div className="relative">
-                        <svg className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
+                    <span className="text-gray-300 text-xs">→</span>
+                    <div className="flex items-center gap-1.5">
+                        <label htmlFor="dateTo" className="text-xs font-medium text-gray-500 whitespace-nowrap">
+                            To
+                        </label>
                         <input
                             id="dateTo"
                             type="date"
                             value={dateTo}
                             onChange={(e) => setDateTo(e.target.value)}
-                            className="w-44 rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm text-gray-700 focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20 transition-all"
+                            className="w-36 rounded-md border border-gray-200 py-1.5 px-2 text-xs text-gray-700 focus:border-teal focus:outline-none focus:ring-1 focus:ring-teal/20 transition-all"
                         />
                     </div>
-                </div>
-                {(dateFrom || dateTo) && (
-                    <button
-                        onClick={() => { setDateFrom(""); setDateTo(""); }}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-medium text-gray-500 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all"
-                    >
-                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                        Clear
-                    </button>
-                )}
-                <div className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-teal-50 px-3 py-1 text-sm font-medium text-teal-700">
-                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                    </svg>
-                    {filteredLogs.length} record{filteredLogs.length !== 1 ? "s" : ""}
+                    {(dateFrom || dateTo) && (
+                        <button
+                            onClick={() => { setDateFrom(""); setDateTo(""); }}
+                            className="inline-flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1.5 text-xs font-medium text-gray-500 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all"
+                        >
+                            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                            Clear
+                        </button>
+                    )}
                 </div>
             </div>
 
