@@ -2,6 +2,7 @@ import {
     Monitor,
     Activity,
     RotateCcw,
+    UserCircle,
     Users,
     Store,
     Wrench,
@@ -322,12 +323,12 @@ export default function DashboardHome() {
                                 }}
                             />
                             <div
-                                className="relative w-16 h-16 rounded-2xl flex items-center justify-center text-white text-xl font-bold shadow-lg"
+                                className="relative w-16 h-16 rounded-2xl flex items-center justify-center text-white shadow-lg"
                                 style={{
                                     background: `linear-gradient(135deg, ${teal} 0%, ${tealLight} 100%)`,
                                 }}
                             >
-                                KB
+                                <UserCircle className="h-7 w-7" />
                             </div>
                         </div>
                         <div>
