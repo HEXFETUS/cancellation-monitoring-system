@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { Search, Plus, List, Edit, RefreshCw, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, X, AlertTriangle, Check } from "lucide-react";
 import { useAuth } from "../../../context/AuthContext";
 import type { BoothInfo, OperatorInfo } from "../types";
-import { createBoothInfo, fetchBoothInfo, fetchOperators } from "../services";
+import { createBoothInfo, createOperator, fetchBoothInfo, fetchOperators } from "../services";
 
 const ROWS_PER_PAGE = 20;
 
@@ -114,6 +114,52 @@ export default function OutletsPage() {
     const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
     const operatorDropdownRef = useRef<HTMLDivElement>(null);
 
+    // ── Add Operator Modal state ──
+    const [isAddOperatorModalOpen, setIsAddOperatorModalOpen] = useState(false);
+    const [addOperatorForm, setAddOperatorForm] = useState({ operator: "" });
+    const [isSavingOperator, setIsSavingOperator] = useState(false);
+    const [formErrorOperator, setFormErrorOperator] = useState<string | null>(null);
+    const [isConfirmOperatorModalOpen, setIsConfirmOperatorModalOpen] = useState(false);
+
+    // ── Operator List Modal state ──
+    const [isOperatorListModalOpen, setIsOperatorListModalOpen] = useState(false);
+    const [operatorListPage, setOperatorListPage] = useState(1);
+    const OPERATORS_PER_PAGE = 10;
+
+    // Compute booth counts per operator from records
+    const operatorBoothCounts = useMemo(() => {
+        const counts = new Map<number | null, number>();
+        records.forEach((r) => {
+            const id = r.operator_id ?? null;
+            counts.set(id, (counts.get(id) || 0) + 1);
+        });
+        return counts;
+    }, [records]);
+
+    // Build combined operator list with booth counts, sorted alphabetically
+    const operatorsWithCounts = useMemo(() => {
+        return [...operators]
+            .map((op) => ({
+                ...op,
+                boothCount: operatorBoothCounts.get(op.id) || 0,
+            }))
+            .sort((a, b) => a.operator.localeCompare(b.operator));
+    }, [operators, operatorBoothCounts]);
+
+    // Pagination for operator list
+    const operatorListTotalPages = Math.max(1, Math.ceil(operatorsWithCounts.length / OPERATORS_PER_PAGE));
+    const paginatedOperatorList = useMemo(() => {
+        const start = (operatorListPage - 1) * OPERATORS_PER_PAGE;
+        return operatorsWithCounts.slice(start, start + OPERATORS_PER_PAGE);
+    }, [operatorsWithCounts, operatorListPage]);
+
+    // Reset operator list page when modal opens
+    useEffect(() => {
+        if (isOperatorListModalOpen) {
+            setOperatorListPage(1);
+        }
+    }, [isOperatorListModalOpen]);
+
     const filteredOperators = useMemo(() => {
         const query = addForm.operator.toLowerCase().trim();
         if (!query) return operators;
@@ -217,6 +263,51 @@ export default function OutletsPage() {
         }
     };
 
+    // ── Add Operator Modal handlers ──
+    const openAddOperatorModal = () => {
+        setAddOperatorForm({ operator: "" });
+        setFormErrorOperator(null);
+        setIsConfirmOperatorModalOpen(false);
+        setIsAddOperatorModalOpen(true);
+    };
+
+    const closeAddOperatorModal = () => {
+        setIsAddOperatorModalOpen(false);
+        setIsConfirmOperatorModalOpen(false);
+    };
+
+    const handleAddOperatorFormChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setFormErrorOperator(null);
+        setAddOperatorForm({ operator: e.target.value });
+    };
+
+    const openConfirmOperatorModal = () => {
+        setFormErrorOperator(null);
+        setIsConfirmOperatorModalOpen(true);
+    };
+
+    const closeConfirmOperatorModal = () => {
+        setIsConfirmOperatorModalOpen(false);
+    };
+
+    const handleSaveOperator = async () => {
+        setIsSavingOperator(true);
+        setFormErrorOperator(null);
+        try {
+            const createdOperator = await createOperator({
+                operator: addOperatorForm.operator.trim(),
+            });
+            showToast(`Operator "${createdOperator.operator}" has been saved successfully.`);
+            closeAddOperatorModal();
+            loadOperators();
+        } catch (err: any) {
+            setFormErrorOperator(err.message || "Failed to save operator");
+            setIsConfirmOperatorModalOpen(false);
+        } finally {
+            setIsSavingOperator(false);
+        }
+    };
+
     if (error) {
         return (
             <div className="p-6 text-center text-rose">
@@ -271,11 +362,20 @@ export default function OutletsPage() {
                             <Plus size={16} />
                             ADD BOOTH
                         </button>
-                        <button className="flex items-center gap-2 rounded-xl bg-teal px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-teal-dark focus:outline-none focus:ring-2 focus:ring-teal/50">
+                        <button
+                            onClick={openAddOperatorModal}
+                            className="flex items-center gap-2 rounded-xl bg-teal px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-teal-dark focus:outline-none focus:ring-2 focus:ring-teal/50"
+                        >
                             <Plus size={16} />
                             ADD OPERATOR
                         </button>
-                        <button className="flex items-center gap-2 rounded-xl border border-warm bg-white px-4 py-2 text-sm font-medium text-ink shadow-sm transition hover:bg-surface focus:outline-none focus:ring-2 focus:ring-teal/50">
+                        <button
+                            onClick={() => {
+                                if (operators.length === 0) loadOperators();
+                                setIsOperatorListModalOpen(true);
+                            }}
+                            className="flex items-center gap-2 rounded-xl border border-warm bg-white px-4 py-2 text-sm font-medium text-ink shadow-sm transition hover:bg-surface focus:outline-none focus:ring-2 focus:ring-teal/50"
+                        >
                             <List size={16} />
                             OPERATOR LIST
                         </button>
@@ -581,6 +681,215 @@ export default function OutletsPage() {
                                     Save
                                 </button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── CONFIRM OPERATOR MODAL ── */}
+            {isConfirmOperatorModalOpen && (
+                <div className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-black/50 backdrop-blur-sm pt-24 px-4">
+                    <div className="w-full max-w-md animate-in fade-in zoom-in-95 duration-200 rounded-2xl bg-white shadow-2xl border border-warm overflow-hidden">
+                        {/* Header accent bar */}
+                        <div className="h-2 bg-gradient-to-r from-amber-400 to-orange-500" />
+                        
+                        <div className="p-6">
+                            <div className="flex flex-col items-center gap-4 text-center">
+                                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 ring-4 ring-amber-50">
+                                    <AlertTriangle className="h-7 w-7 text-amber-600" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-bold text-ink">Confirm Save</h3>
+                                    <p className="text-sm text-ink-muted mt-1">
+                                        Are you sure you want to save this operator?
+                                    </p>
+                                </div>
+                                
+                                {/* Summary card */}
+                                <div className="w-full divide-y divide-warm/60 rounded-xl bg-gradient-to-br from-cream to-amber-50/50 border border-warm/70 overflow-hidden">
+                                    <div className="flex items-center justify-between px-4 py-2.5">
+                                        <span className="text-xs font-medium text-ink-muted uppercase tracking-wider">Operator Name</span>
+                                        <span className="text-sm font-semibold text-ink">{addOperatorForm.operator}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="flex gap-3 mt-6">
+                                <button
+                                    onClick={closeConfirmOperatorModal}
+                                    className="flex-1 rounded-xl border-2 border-gray-200 py-3 text-sm font-semibold text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-all active:scale-[0.98]"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleSaveOperator}
+                                    disabled={isSavingOperator}
+                                    className="flex-1 rounded-xl bg-gradient-to-r from-teal to-teal-dark py-3 text-sm font-semibold text-white shadow-lg shadow-teal/25 hover:shadow-xl hover:shadow-teal/30 hover:from-teal-dark hover:to-teal transition-all active:scale-[0.98]"
+                                >
+                                    {isSavingOperator ? "Saving..." : "Confirm"}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── ADD OPERATOR MODAL ── */}
+            {isAddOperatorModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 backdrop-blur-sm pt-16 px-4">
+                    <div className="relative w-full max-w-lg animate-in fade-in zoom-in-95 duration-200 rounded-2xl bg-white shadow-2xl border border-warm overflow-hidden">
+                        {/* Header accent bar */}
+                        <div className="h-2 bg-gradient-to-r from-teal to-teal-dark" />
+
+                        <div className="p-6">
+                            {/* Header */}
+                            <div className="flex items-center justify-between mb-6">
+                                <div>
+                                    <h2 className="text-lg font-bold text-ink">Add Operator</h2>
+                                    <p className="text-sm text-ink-muted mt-0.5">Enter the operator name below</p>
+                                </div>
+                                <button onClick={closeAddOperatorModal} className="rounded-lg p-1.5 hover:bg-gray-100 transition-colors">
+                                    <X className="h-5 w-5 text-gray-400" />
+                                </button>
+                            </div>
+
+                            {/* Form fields */}
+                            <div className="flex flex-col gap-4">
+                                {formErrorOperator && (
+                                    <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">
+                                        {formErrorOperator}
+                                    </div>
+                                )}
+                                <div>
+                                    <label className="block text-sm font-semibold text-ink mb-1.5">
+                                        Operator Name <span className="text-rose-500">*</span>
+                                    </label>
+                                    <div className="relative">
+                                        <input
+                                            type="text"
+                                            name="operator"
+                                            value={addOperatorForm.operator}
+                                            onChange={handleAddOperatorFormChange}
+                                            placeholder="Enter operator name"
+                                            className="w-full rounded-xl border border-warm bg-card px-4 py-3 text-sm text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20 transition-all shadow-sm"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Action buttons */}
+                            <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-warm/60">
+                                <button
+                                    onClick={closeAddOperatorModal}
+                                    className="rounded-xl border-2 border-gray-200 px-6 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-all active:scale-[0.98]"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={openConfirmOperatorModal}
+                                    disabled={!addOperatorForm.operator.trim() || isSavingOperator}
+                                    className="rounded-xl bg-gradient-to-r from-teal to-teal-dark px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-teal/25 hover:shadow-xl hover:shadow-teal/30 hover:from-teal-dark hover:to-teal transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none disabled:active:scale-100"
+                                >
+                                    Save
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── OPERATOR LIST MODAL ── */}
+            {isOperatorListModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 backdrop-blur-sm pt-16 px-4">
+                    <div className="relative w-full max-w-lg animate-in fade-in zoom-in-95 duration-200 rounded-2xl bg-white shadow-2xl border border-warm overflow-hidden">
+                        {/* Header accent bar */}
+                        <div className="h-2 bg-gradient-to-r from-indigo-500 to-purple-600" />
+
+                        <div className="p-6">
+                            {/* Header */}
+                            <div className="flex items-center justify-between mb-6">
+                                <div>
+                                    <h2 className="text-lg font-bold text-ink">Operator List</h2>
+                                    <p className="text-sm text-ink-muted mt-0.5">
+                                        {operatorsWithCounts.length} operator{operatorsWithCounts.length !== 1 ? 's' : ''} total
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={() => setIsOperatorListModalOpen(false)}
+                                    className="rounded-lg p-1.5 hover:bg-gray-100 transition-colors"
+                                >
+                                    <X className="h-5 w-5 text-gray-400" />
+                                </button>
+                            </div>
+
+                            {/* Table */}
+                            <div className="overflow-hidden rounded-xl border border-warm bg-card shadow-sm">
+                                <table className="w-full text-left text-sm">
+                                    <thead>
+                                        <tr className="border-b border-warm bg-gradient-to-r from-indigo-50 to-purple-50">
+                                            <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-ink-muted">#</th>
+                                            <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-ink-muted">Operator Name</th>
+                                            <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-ink-muted text-right">Booth Codes</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-warm/60">
+                                        {paginatedOperatorList.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={3} className="px-4 py-8 text-center text-ink-subtle">
+                                                    No operators found.
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            paginatedOperatorList.map((op, idx) => {
+                                                const rowNum = (operatorListPage - 1) * OPERATORS_PER_PAGE + idx + 1;
+                                                return (
+                                                    <tr key={op.id} className="transition hover:bg-cream/50">
+                                                        <td className="px-4 py-3 text-xs text-ink-muted">{rowNum}</td>
+                                                        <td className="px-4 py-3 font-medium text-ink">{op.operator}</td>
+                                                        <td className="px-4 py-3 text-right">
+                                                            <span className={`inline-flex items-center justify-center min-w-[28px] rounded-full px-2.5 py-0.5 text-xs font-bold ${
+                                                                op.boothCount > 0
+                                                                    ? 'bg-teal/10 text-teal-dark ring-1 ring-teal/30'
+                                                                    : 'bg-gray-100 text-gray-400 ring-1 ring-gray-200'
+                                                            }`}>
+                                                                {op.boothCount}
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* Pagination */}
+                            {operatorsWithCounts.length > OPERATORS_PER_PAGE && (
+                                <div className="flex items-center justify-between mt-4">
+                                    <div className="text-xs text-ink-subtle">
+                                        Showing {(operatorListPage - 1) * OPERATORS_PER_PAGE + 1}–{Math.min(operatorListPage * OPERATORS_PER_PAGE, operatorsWithCounts.length)} of {operatorsWithCounts.length}
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        <button
+                                            onClick={() => setOperatorListPage((p) => Math.max(1, p - 1))}
+                                            disabled={operatorListPage === 1}
+                                            className="inline-flex items-center justify-center rounded-lg border border-warm bg-white px-2.5 py-1.5 text-xs font-medium text-ink hover:bg-surface transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                                        >
+                                            <ChevronLeft size={14} />
+                                        </button>
+                                        <span className="px-2 text-xs font-medium text-ink-muted">
+                                            {operatorListPage} / {operatorListTotalPages}
+                                        </span>
+                                        <button
+                                            onClick={() => setOperatorListPage((p) => Math.min(operatorListTotalPages, p + 1))}
+                                            disabled={operatorListPage === operatorListTotalPages}
+                                            className="inline-flex items-center justify-center rounded-lg border border-warm bg-white px-2.5 py-1.5 text-xs font-medium text-ink hover:bg-surface transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                                        >
+                                            <ChevronRight size={14} />
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

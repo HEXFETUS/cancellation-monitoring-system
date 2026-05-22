@@ -39,6 +39,17 @@ export async function fetchOperators(): Promise<OperatorInfo[]> {
     return handleResponse<OperatorInfo[]>(response);
 }
 
+export async function createOperator(data: {
+    operator: string;
+}): Promise<OperatorInfo> {
+    const response = await fetch(`${API_BASE}/operators`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+    });
+    return handleResponse<OperatorInfo>(response);
+}
+
 export async function createBoothInfo(data: {
     booth_code: string;
     coordinate?: string;

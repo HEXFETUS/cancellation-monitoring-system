@@ -131,6 +131,39 @@ router.get("/operators", async (_req, res) => {
 });
 
 /* =========================
+   CREATE OPERATOR
+========================= */
+router.post("/operators", async (req, res) => {
+    try {
+        const { operator } = req.body;
+        const operatorName = String(operator || "").trim();
+
+        if (!operatorName) {
+            return res.status(400).json({ error: "Operator name is required" });
+        }
+
+        const duplicate = await pool.query(
+            `SELECT id FROM operator_list WHERE LOWER(TRIM(operator)) = LOWER($1) LIMIT 1`,
+            [operatorName]
+        );
+
+        if (duplicate.rows.length > 0) {
+            return res.status(400).json({ error: "Operator already exists" });
+        }
+
+        const result = await pool.query(
+            `INSERT INTO operator_list (operator) VALUES ($1) RETURNING *`,
+            [operatorName]
+        );
+
+        res.status(201).json(result.rows[0]);
+    } catch (err) {
+        console.error("POST operators error:", err.message);
+        res.status(500).json({ error: "Failed to create operator" });
+    }
+});
+
+/* =========================
    CREATE BOOTH INFO
 ========================= */
 router.post("/booth-info", async (req, res) => {
