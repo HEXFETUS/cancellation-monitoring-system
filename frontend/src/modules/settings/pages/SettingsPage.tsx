@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { Users, Menu } from "lucide-react";
+import { Users, UserPlus, ClipboardList, Menu } from "lucide-react";
 import UserAccountsPage from "./UserAccountsPage";
+import CreateUserAccountPage from "./CreateUserAccountPage";
 
 const teal = "#92C7CF";
 
@@ -8,8 +9,15 @@ const leftTabs = [
     { id: "user-accounts", label: "USERS", icon: Users },
 ];
 
+const userSubTabs = [
+    { id: "accounts", label: "User Accounts", icon: Users },
+    { id: "create-user", label: "Create User", icon: UserPlus },
+    { id: "user-logs", label: "User Logs", icon: ClipboardList },
+];
+
 export default function SettingsPage() {
     const [activeTab, setActiveTab] = useState("user-accounts");
+    const [activeUserSubTab, setActiveUserSubTab] = useState("accounts");
     const [sidebarOpen, setSidebarOpen] = useState(true);
 
     return (
@@ -96,7 +104,63 @@ export default function SettingsPage() {
 
             {/* Main content area */}
             <div className="flex-1 min-w-0">
-                {activeTab === "user-accounts" && <UserAccountsPage />}
+                {activeTab === "user-accounts" && (
+                    <div>
+                        {/* Sub-tabs */}
+                        <div className="flex gap-1 mb-5 border-b pb-0"
+                            style={{ borderColor: "rgba(146,199,207,0.25)" }}
+                        >
+                            {userSubTabs.map((tab) => {
+                                const Icon = tab.icon;
+                                const isSubActive = activeUserSubTab === tab.id;
+                                return (
+                                    <button
+                                        key={tab.id}
+                                        onClick={() => setActiveUserSubTab(tab.id)}
+                                        className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all duration-200 rounded-t-xl cursor-pointer"
+                                        style={{
+                                            background: isSubActive
+                                                ? "rgba(146,199,207,0.15)"
+                                                : "transparent",
+                                            border: isSubActive
+                                                ? "1px solid rgba(146,199,207,0.25)"
+                                                : "1px solid transparent",
+                                            borderBottom: isSubActive
+                                                ? "1px solid white"
+                                                : "1px solid transparent",
+                                            color: isSubActive ? "#1F2937" : "#6B7280",
+                                        }}
+                                        onMouseEnter={(e) => {
+                                            if (!isSubActive) {
+                                                e.currentTarget.style.background = "rgba(146,199,207,0.06)";
+                                            }
+                                        }}
+                                        onMouseLeave={(e) => {
+                                            if (!isSubActive) {
+                                                e.currentTarget.style.background = "transparent";
+                                            }
+                                        }}
+                                    >
+                                        <Icon size={16} />
+                                        {tab.label}
+                                    </button>
+                                );
+                            })}
+                        </div>
+
+                        <div>
+                            {activeUserSubTab === "accounts" && <UserAccountsPage />}
+                            {activeUserSubTab === "create-user" && <CreateUserAccountPage />}
+                            {activeUserSubTab === "user-logs" && (
+                                <div className="flex flex-col items-center justify-center py-16 text-center">
+                                    <ClipboardList size={48} className="text-ink-subtle mb-4" />
+                                    <h3 className="text-lg font-semibold text-ink mb-1">User Logs</h3>
+                                    <p className="text-sm text-ink-muted">Activity and audit logs for user accounts will appear here.</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );

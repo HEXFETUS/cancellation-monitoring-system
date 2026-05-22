@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Pencil, Trash2, Key, X, Check, AlertTriangle, UserPlus, ClipboardList, Users } from "lucide-react";
+import { Pencil, Trash2, Key, X, Check, AlertTriangle } from "lucide-react";
 
 interface User {
     id: number;
@@ -13,6 +13,7 @@ interface User {
 
 const USERTYPES = ["admin", "csr", "operator"] as const;
 
+const teal = "#92C7CF";
 const ALPHANUMERIC = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 
@@ -168,184 +169,7 @@ function ChangePasswordModal({
     );
 }
 
-function CreateUserForm({ onCreated }: { onCreated: () => void }) {
-    const [form, setForm] = useState({
-        name: "",
-        username: "",
-        password: "",
-        usertype: "",
-        position: "",
-        department: "",
-    });
-    const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
-    const [usernameError, setUsernameError] = useState("");
-
-    const handleUsernameChange = (val: string) => {
-        setForm((f) => ({ ...f, username: val }));
-        if (val.includes("@")) {
-            setUsernameError("Do not include '@' in the username.");
-        } else {
-            setUsernameError("");
-        }
-    };
-
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setMessage(null);
-
-        if (usernameError) {
-            setMessage({ type: "error", text: "Please fix the username error." });
-            return;
-        }
-
-        if (!form.name || !form.username || !form.password || !form.usertype || !form.position || !form.department) {
-            setMessage({ type: "error", text: "All fields are required." });
-            return;
-        }
-
-        try {
-            const res = await fetch(apiUrl("/api/users"), {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    ...form,
-                    email: `${form.username}@hexa.prime`
-                }),
-            });
-
-            if (!res.ok) {
-                const data = await res.json().catch(() => ({}));
-                throw new Error(data.error || data.message || "Failed to create user");
-            }
-
-            setMessage({ type: "success", text: "User account created successfully!" });
-            setForm({ name: "", username: "", password: "", usertype: "", position: "", department: "" });
-            onCreated();
-        } catch (err: any) {
-            setMessage({ type: "error", text: err.message || "Could not create user" });
-        }
-    };
-
-    return (
-        <div className="max-w-lg">
-            {message && (
-                <div
-                    className={`mb-4 p-3 rounded-lg text-sm ${
-                        message.type === "success"
-                            ? "bg-green-50 border border-green-200 text-green-700"
-                            : "bg-red-50 border border-red-200 text-red-600"
-                    }`}
-                >
-                    {message.text}
-                </div>
-            )}
-
-            <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                    <label className="block text-sm font-semibold text-ink mb-1.5">Name <span className="text-rose-500">*</span></label>
-                    <input
-                        type="text"
-                        value={form.name}
-                        onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                        placeholder="Full name"
-                        className="w-full rounded-xl border border-warm bg-card px-4 py-3 text-sm text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20 transition-all shadow-sm"
-                    />
-                </div>
-
-                <div>
-                    <label className="block text-sm font-semibold text-ink mb-1.5">Email <span className="text-rose-500">*</span></label>
-                    <div className="flex gap-2">
-                        <div className="flex-1">
-                            <input
-                                type="text"
-                                value={form.username}
-                                onChange={(e) => handleUsernameChange(e.target.value)}
-                                placeholder="username"
-                                className={`w-full rounded-xl border bg-card px-4 py-3 text-sm text-ink placeholder:text-ink-subtle focus:outline-none focus:ring-2 transition-all shadow-sm ${
-                                    usernameError ? "border-rose-500 focus:ring-rose-200" : "border-warm focus:border-teal focus:ring-teal/20"
-                                }`}
-                            />
-                        </div>
-                        <div className="w-32">
-                            <input
-                                type="text"
-                                value="@hexa.prime"
-                                readOnly
-                                className="w-full rounded-xl border border-warm bg-warm/30 px-4 py-3 text-sm text-ink-muted outline-none cursor-default"
-                            />
-                        </div>
-                    </div>
-                    {usernameError && (
-                        <p className="mt-1 text-xs text-rose-500 font-medium">{usernameError}</p>
-                    )}
-                </div>
-
-                <div>
-                    <label className="block text-sm font-semibold text-ink mb-1.5">Password <span className="text-rose-500">*</span></label>
-                    <input
-                        type="text"
-                        value={form.password}
-                        onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-                        placeholder="Enter a password"
-                        className="w-full rounded-xl border border-warm bg-card px-4 py-3 text-sm text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20 transition-all shadow-sm"
-                    />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                    <div>
-                        <label className="block text-sm font-semibold text-ink mb-1.5">Position <span className="text-rose-500">*</span></label>
-                        <input
-                            type="text"
-                            value={form.position}
-                            onChange={(e) => setForm((f) => ({ ...f, position: e.target.value }))}
-                            placeholder="e.g. Staff"
-                            className="w-full rounded-xl border border-warm bg-card px-4 py-3 text-sm text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20 transition-all shadow-sm"
-                        />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-semibold text-ink mb-1.5">Department <span className="text-rose-500">*</span></label>
-                        <input
-                            type="text"
-                            value={form.department}
-                            onChange={(e) => setForm((f) => ({ ...f, department: e.target.value }))}
-                            placeholder="e.g. Sales"
-                            className="w-full rounded-xl border border-warm bg-card px-4 py-3 text-sm text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20 transition-all shadow-sm"
-                        />
-                    </div>
-                </div>
-
-                <div>
-                    <label className="block text-sm font-semibold text-ink mb-1.5">User Type <span className="text-rose-500">*</span></label>
-                    <select
-                        value={form.usertype}
-                        onChange={(e) => setForm((f) => ({ ...f, usertype: e.target.value }))}
-                        className="w-full rounded-xl border border-warm bg-card px-4 py-3 text-sm text-ink focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20 transition-all shadow-sm appearance-none cursor-pointer"
-                    >
-                        <option value="">--select--</option>
-                        <option value="admin">Admin</option>
-                        <option value="csr">CSR</option>
-                        <option value="operator">Operator</option>
-                    </select>
-                </div>
-
-                <div className="flex gap-3 pt-4 border-t border-warm/60">
-                    <button
-                        type="submit"
-                        disabled={!form.name || !form.username || !form.password || !form.usertype || !form.position || !form.department || !!usernameError}
-                        className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-teal to-teal-dark px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-teal/25 hover:shadow-xl hover:shadow-teal/30 hover:from-teal-dark hover:to-teal transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none disabled:active:scale-100"
-                    >
-                        <UserPlus size={16} />
-                        Create User
-                    </button>
-                </div>
-            </form>
-        </div>
-    );
-}
-
 export default function UserAccountsPage() {
-    const [activeSubTab, setActiveSubTab] = useState("user-accounts");
     const [users, setUsers] = useState<User[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
@@ -470,7 +294,7 @@ export default function UserAccountsPage() {
         }
     };
 
-    if (loading && activeSubTab === "user-accounts") {
+    if (loading) {
         return (
             <div className="flex items-center justify-center h-48">
                 <div className="text-ink-subtle text-lg">Loading users...</div>
@@ -478,242 +302,171 @@ export default function UserAccountsPage() {
         );
     }
 
-    const subTabs = [
-        { id: "user-accounts", label: "User Accounts", icon: Users },
-        { id: "create-user", label: "Create User", icon: UserPlus },
-        { id: "user-logs", label: "User Logs", icon: ClipboardList },
-    ];
-
     return (
         <div>
-            {/* Sub-tabs */}
-            <div className="flex gap-1 mb-5 border-b pb-0"
-                style={{ borderColor: "rgba(146,199,207,0.25)" }}
-            >
-                {subTabs.map((tab) => {
-                    const Icon = tab.icon;
-                    const isActive = activeSubTab === tab.id;
-                    return (
-                        <button
-                            key={tab.id}
-                            onClick={() => setActiveSubTab(tab.id)}
-                            className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all duration-200 rounded-t-xl cursor-pointer"
-                            style={{
-                                background: isActive
-                                    ? "rgba(146,199,207,0.15)"
-                                    : "transparent",
-                                border: isActive
-                                    ? "1px solid rgba(146,199,207,0.25)"
-                                    : "1px solid transparent",
-                                borderBottom: isActive
-                                    ? "1px solid white"
-                                    : "1px solid transparent",
-                                color: isActive ? "#1F2937" : "#6B7280",
-                                boxShadow: isActive
-                                    ? "0 2px 8px rgba(146,199,207,0.10)"
-                                    : "none",
-                            }}
-                            onMouseEnter={(e) => {
-                                if (!isActive) {
-                                    e.currentTarget.style.background = "rgba(146,199,207,0.06)";
-                                }
-                            }}
-                            onMouseLeave={(e) => {
-                                if (!isActive) {
-                                    e.currentTarget.style.background = "transparent";
-                                }
-                            }}
-                        >
-                            <Icon size={16} />
-                            {tab.label}
-                        </button>
-                    );
-                })}
-            </div>
-
-            {activeSubTab === "create-user" && (
-                <CreateUserForm
-                    onCreated={() => {
-                        setActiveSubTab("user-accounts");
-                        fetchUsers();
-                    }}
-                />
-            )}
-
-            {activeSubTab === "user-logs" && (
-                <div className="flex flex-col items-center justify-center py-16 text-center">
-                    <ClipboardList size={48} className="text-ink-subtle mb-4" />
-                    <h3 className="text-lg font-semibold text-ink mb-1">User Logs</h3>
-                    <p className="text-sm text-ink-muted">Activity and audit logs for user accounts will appear here.</p>
+            {error && (
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+                    {error}
                 </div>
             )}
 
-            {activeSubTab === "user-accounts" && (
-                <>
-                    {error && (
-                        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
-                            {error}
-                        </div>
-                    )}
-
-                    {/* Confirmation Dialog */}
-                    {confirmAction && (
-                        <ConfirmDialog
-                            message={confirmAction.message}
-                            onConfirm={confirmAction.onConfirm}
-                            onCancel={() => setConfirmAction(null)}
-                            itemName={confirmAction.itemName}
-                        />
-                    )}
-
-                    {/* Change Password Modal */}
-                    {passwordModalUser && (
-                        <ChangePasswordModal
-                            user={passwordModalUser}
-                            onClose={() => setPasswordModalUser(null)}
-                            onSave={handleChangePasswordSave}
-                        />
-                    )}
-
-                    {/* Users Table */}
-                    <div className="overflow-x-auto bg-card rounded-xl shadow-sm border border-warm">
-                        <table className="w-full text-left">
-                            <thead>
-                                <tr className="bg-cream border-b border-warm">
-                                    <th className="px-4 py-3 text-sm font-semibold text-ink-muted">Name</th>
-                                    <th className="px-4 py-3 text-sm font-semibold text-ink-muted">Email</th>
-                                    <th className="px-4 py-3 text-sm font-semibold text-ink-muted">Position</th>
-                                    <th className="px-4 py-3 text-sm font-semibold text-ink-muted">Department</th>
-                                    <th className="px-4 py-3 text-sm font-semibold text-ink-muted">User Type</th>
-                                    <th className="px-4 py-3 text-sm font-semibold text-ink-muted text-right">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {users.map((user) => (
-                                    <tr key={user.id} className="border-b border-warm/60 hover:bg-cream transition">
-                                        {editingId === user.id ? (
-                                            <>
-                                                <td className="px-4 py-3">
-                                                    <input
-                                                        type="text"
-                                                        value={editForm.name}
-                                                        onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
-                                                        className="w-full px-2 py-1 border border-warm rounded bg-card text-ink focus:outline-none focus:ring-2 focus:ring-teal focus:border-teal"
-                                                    />
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    <input
-                                                        type="email"
-                                                        value={editForm.email}
-                                                        onChange={(e) => setEditForm((f) => ({ ...f, email: e.target.value }))}
-                                                        className="w-full px-2 py-1 border border-warm rounded bg-card text-ink focus:outline-none focus:ring-2 focus:ring-teal focus:border-teal"
-                                                    />
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    <input
-                                                        type="text"
-                                                        value={editForm.position}
-                                                        onChange={(e) => setEditForm((f) => ({ ...f, position: e.target.value }))}
-                                                        className="w-full px-2 py-1 border border-warm rounded bg-card text-ink focus:outline-none focus:ring-2 focus:ring-teal focus:border-teal"
-                                                    />
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    <input
-                                                        type="text"
-                                                        value={editForm.department}
-                                                        onChange={(e) => setEditForm((f) => ({ ...f, department: e.target.value }))}
-                                                        className="w-full px-2 py-1 border border-warm rounded bg-card text-ink focus:outline-none focus:ring-2 focus:ring-teal focus:border-teal"
-                                                    />
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    <select
-                                                        value={editForm.usertype}
-                                                        onChange={(e) =>
-                                                            setEditForm((f) => ({
-                                                                ...f,
-                                                                usertype: e.target.value as User["usertype"],
-                                                            }))
-                                                        }
-                                                        className="w-full px-2 py-1 border border-warm rounded bg-card text-ink focus:outline-none focus:ring-2 focus:ring-teal focus:border-teal"
-                                                    >
-                                                        {USERTYPES.map((type) => (
-                                                            <option key={type} value={type}>
-                                                                {type.charAt(0).toUpperCase() + type.slice(1)}
-                                                            </option>
-                                                        ))}
-                                                    </select>
-                                                </td>
-                                                <td className="px-4 py-3 text-right">
-                                                    <div className="flex justify-end gap-2">
-                                                        <button
-                                                            onClick={() => handleSaveEdit(user.id)}
-                                                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-teal text-ink font-medium text-sm hover:bg-teal-dark transition cursor-pointer"
-                                                        >
-                                                            <Check size={16} />
-                                                            Save
-                                                        </button>
-                                                        <button
-                                                            onClick={handleCancelEdit}
-                                                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-warm text-ink text-sm hover:bg-warm/70 transition cursor-pointer"
-                                                        >
-                                                            <X size={16} />
-                                                            Cancel
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <td className="px-4 py-3 text-ink">{user.name}</td>
-                                                <td className="px-4 py-3 text-ink-muted">{user.email}</td>
-                                                <td className="px-4 py-3 text-ink-muted">{user.position || "—"}</td>
-                                                <td className="px-4 py-3 text-ink-muted">{user.department || "—"}</td>
-                                                <td className="px-4 py-3">
-                                                    <span className="inline-block px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-light/40 text-ink capitalize border border-teal/30">
-                                                        {user.usertype}
-                                                    </span>
-                                                </td>
-                                                <td className="px-4 py-3 text-right">
-                                                    <div className="flex justify-end gap-2">
-                                                        <button
-                                                            onClick={() => handleEdit(user)}
-                                                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-teal text-ink font-medium text-sm hover:bg-teal-dark transition cursor-pointer"
-                                                        >
-                                                            <Pencil size={16} />
-                                                            Edit
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleDelete(user.id)}
-                                                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-rose text-ink font-medium text-sm hover:bg-rose-dark transition cursor-pointer"
-                                                        >
-                                                            <Trash2 size={16} />
-                                                            Delete
-                                                        </button>
-                                                        <button
-                                                            onClick={() => setPasswordModalUser(user)}
-                                                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-peach text-ink font-medium text-sm hover:bg-peach-dark transition cursor-pointer"
-                                                        >
-                                                            <Key size={16} />
-                                                            Change Password
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                            </>
-                                        )}
-                                    </tr>
-                                ))}
-                                {users.length === 0 && (
-                                    <tr>
-                                        <td colSpan={6} className="px-4 py-6 text-center text-ink-subtle">
-                                            No user accounts found.
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                </>
+            {/* Confirmation Dialog */}
+            {confirmAction && (
+                <ConfirmDialog
+                    message={confirmAction.message}
+                    onConfirm={confirmAction.onConfirm}
+                    onCancel={() => setConfirmAction(null)}
+                    itemName={confirmAction.itemName}
+                />
             )}
+
+            {/* Change Password Modal */}
+            {passwordModalUser && (
+                <ChangePasswordModal
+                    user={passwordModalUser}
+                    onClose={() => setPasswordModalUser(null)}
+                    onSave={handleChangePasswordSave}
+                />
+            )}
+
+            {/* Users Table */}
+            <div className="overflow-x-auto ml-0 rounded-2xl bg-white shadow-sm border border-gray-200"
+            >
+                <table className="w-full text-left">
+                    <thead>
+                        <tr className="bg-cream border-b border-warm">
+                            <th className="px-4 py-3 text-sm font-semibold text-ink-muted">Name</th>
+                            <th className="px-4 py-3 text-sm font-semibold text-ink-muted">Email</th>
+                            <th className="px-4 py-3 text-sm font-semibold text-ink-muted">Position</th>
+                            <th className="px-4 py-3 text-sm font-semibold text-ink-muted">Department</th>
+                            <th className="px-4 py-3 text-sm font-semibold text-ink-muted">User Type</th>
+                            <th className="px-4 py-3 text-sm font-semibold text-ink-muted text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {users.map((user) => (
+                            <tr key={user.id} className="border-b border-warm/60 hover:bg-cream transition">
+                                {editingId === user.id ? (
+                                    <>
+                                        <td className="px-4 py-3">
+                                            <input
+                                                type="text"
+                                                value={editForm.name}
+                                                onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
+                                                className="w-full px-2 py-1 border border-warm rounded bg-card text-ink focus:outline-none focus:ring-2 focus:ring-teal focus:border-teal"
+                                            />
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <input
+                                                type="email"
+                                                value={editForm.email}
+                                                onChange={(e) => setEditForm((f) => ({ ...f, email: e.target.value }))}
+                                                className="w-full px-2 py-1 border border-warm rounded bg-card text-ink focus:outline-none focus:ring-2 focus:ring-teal focus:border-teal"
+                                            />
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <input
+                                                type="text"
+                                                value={editForm.position}
+                                                onChange={(e) => setEditForm((f) => ({ ...f, position: e.target.value }))}
+                                                className="w-full px-2 py-1 border border-warm rounded bg-card text-ink focus:outline-none focus:ring-2 focus:ring-teal focus:border-teal"
+                                            />
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <input
+                                                type="text"
+                                                value={editForm.department}
+                                                onChange={(e) => setEditForm((f) => ({ ...f, department: e.target.value }))}
+                                                className="w-full px-2 py-1 border border-warm rounded bg-card text-ink focus:outline-none focus:ring-2 focus:ring-teal focus:border-teal"
+                                            />
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <select
+                                                value={editForm.usertype}
+                                                onChange={(e) =>
+                                                    setEditForm((f) => ({
+                                                        ...f,
+                                                        usertype: e.target.value as User["usertype"],
+                                                    }))
+                                                }
+                                                className="w-full px-2 py-1 border border-warm rounded bg-card text-ink focus:outline-none focus:ring-2 focus:ring-teal focus:border-teal"
+                                            >
+                                                {USERTYPES.map((type) => (
+                                                    <option key={type} value={type}>
+                                                        {type.charAt(0).toUpperCase() + type.slice(1)}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </td>
+                                        <td className="px-4 py-3 text-right">
+                                            <div className="flex justify-end gap-2">
+                                                <button
+                                                    onClick={() => handleSaveEdit(user.id)}
+                                                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-teal text-ink font-medium text-sm hover:bg-teal-dark transition cursor-pointer"
+                                                >
+                                                    <Check size={16} />
+                                                    Save
+                                                </button>
+                                                <button
+                                                    onClick={handleCancelEdit}
+                                                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-warm text-ink text-sm hover:bg-warm/70 transition cursor-pointer"
+                                                >
+                                                    <X size={16} />
+                                                    Cancel
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </>
+                                ) : (
+                                    <>
+                                        <td className="px-4 py-3 text-ink">{user.name}</td>
+                                        <td className="px-4 py-3 text-ink-muted">{user.email}</td>
+                                        <td className="px-4 py-3 text-ink-muted">{user.position || "—"}</td>
+                                        <td className="px-4 py-3 text-ink-muted">{user.department || "—"}</td>
+                                        <td className="px-4 py-3">
+                                            <span className="inline-block px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-light/40 text-ink capitalize border border-teal/30">
+                                                {user.usertype}
+                                            </span>
+                                        </td>
+                                        <td className="px-4 py-3 text-right">
+                                            <div className="flex justify-end gap-2">
+                                                <button
+                                                    onClick={() => handleEdit(user)}
+                                                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-teal text-ink font-medium text-sm hover:bg-teal-dark transition cursor-pointer"
+                                                >
+                                                    <Pencil size={16} />
+                                                    Edit
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDelete(user.id)}
+                                                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-rose text-ink font-medium text-sm hover:bg-rose-dark transition cursor-pointer"
+                                                >
+                                                    <Trash2 size={16} />
+                                                    Delete
+                                                </button>
+                                                <button
+                                                    onClick={() => setPasswordModalUser(user)}
+                                                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-peach text-ink font-medium text-sm hover:bg-peach-dark transition cursor-pointer"
+                                                >
+                                                    <Key size={16} />
+                                                    Change Password
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </>
+                                )}
+                            </tr>
+                        ))}
+                        {users.length === 0 && (
+                            <tr>
+                                <td colSpan={6} className="px-4 py-6 text-center text-ink-subtle">
+                                    No user accounts found.
+                                </td>
+                            </tr>
+                        )}
+                    </tbody>
+                </table>
+            </div>
         </div>
     );
 }
