@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Search, Plus, Edit, RefreshCw, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
+import { Search, Plus, List, Edit, RefreshCw, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, X, AlertTriangle } from "lucide-react";
 import type { BoothInfo } from "../types";
 import { fetchBoothInfo } from "../services";
 
@@ -96,6 +96,46 @@ export default function OutletsPage() {
         alert(`Edit Outlet:\nOperator: ${record.operator}\nBooth Code: ${record.booth_code}\nCoordinate: ${record.coordinate}\nLocation: ${record.booth_location}`);
     };
 
+    // ── Add Booth Modal state ──
+    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [addForm, setAddForm] = useState({
+        operator: "",
+        booth_code: "",
+        coordinate: "",
+        location: "",
+    });
+    const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+
+    const openAddModal = () => {
+        setAddForm({ operator: "", booth_code: "", coordinate: "", location: "" });
+        setIsConfirmModalOpen(false);
+        setIsAddModalOpen(true);
+    };
+
+    const closeAddModal = () => {
+        setIsAddModalOpen(false);
+        setIsConfirmModalOpen(false);
+    };
+
+    const handleAddFormChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, value } = e.target;
+        setAddForm((prev) => ({ ...prev, [name]: value }));
+    };
+
+    const openConfirmModal = () => {
+        setIsConfirmModalOpen(true);
+    };
+
+    const closeConfirmModal = () => {
+        setIsConfirmModalOpen(false);
+    };
+
+    const handleSave = () => {
+        // For now just show a success toast; backend integration can be added later
+        showToast(`Booth "${addForm.booth_code}" has been saved successfully.`);
+        closeAddModal();
+    };
+
     if (error) {
         return (
             <div className="p-6 text-center text-rose">
@@ -139,10 +179,23 @@ export default function OutletsPage() {
                         />
                     </div>
 
-                    <button className="flex items-center gap-2 rounded-xl bg-teal px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-teal-dark focus:outline-none focus:ring-2 focus:ring-teal/50">
-                        <Plus size={16} />
-                        ADD BOOTH
-                    </button>
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={openAddModal}
+                            className="flex items-center gap-2 rounded-xl bg-teal px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-teal-dark focus:outline-none focus:ring-2 focus:ring-teal/50"
+                        >
+                            <Plus size={16} />
+                            ADD BOOTH
+                        </button>
+                        <button className="flex items-center gap-2 rounded-xl bg-teal px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-teal-dark focus:outline-none focus:ring-2 focus:ring-teal/50">
+                            <Plus size={16} />
+                            ADD OPERATOR
+                        </button>
+                        <button className="flex items-center gap-2 rounded-xl border border-warm bg-white px-4 py-2 text-sm font-medium text-ink shadow-sm transition hover:bg-surface focus:outline-none focus:ring-2 focus:ring-teal/50">
+                            <List size={16} />
+                            OPERATOR LIST
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -260,6 +313,165 @@ export default function OutletsPage() {
                         >
                             <ChevronsRight size={14} />
                         </button>
+                    </div>
+                </div>
+            )}
+
+            {/* ── CONFIRMATION MODAL ── */}
+            {isConfirmModalOpen && (
+                <div className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-black/50 backdrop-blur-sm pt-24 px-4">
+                    <div className="w-full max-w-md animate-in fade-in zoom-in-95 duration-200 rounded-2xl bg-white shadow-2xl border border-warm overflow-hidden">
+                        {/* Header accent bar */}
+                        <div className="h-2 bg-gradient-to-r from-amber-400 to-orange-500" />
+                        
+                        <div className="p-6">
+                            <div className="flex flex-col items-center gap-4 text-center">
+                                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 ring-4 ring-amber-50">
+                                    <AlertTriangle className="h-7 w-7 text-amber-600" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-bold text-ink">Confirm Save</h3>
+                                    <p className="text-sm text-ink-muted mt-1">
+                                        Are you sure you want to save this booth?
+                                    </p>
+                                </div>
+                                
+                                {/* Summary card */}
+                                <div className="w-full divide-y divide-warm/60 rounded-xl bg-gradient-to-br from-cream to-amber-50/50 border border-warm/70 overflow-hidden">
+                                    <div className="flex items-center justify-between px-4 py-2.5">
+                                        <span className="text-xs font-medium text-ink-muted uppercase tracking-wider">Operator</span>
+                                        <span className="text-sm font-semibold text-ink">{addForm.operator}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between px-4 py-2.5">
+                                        <span className="text-xs font-medium text-ink-muted uppercase tracking-wider">Booth Code</span>
+                                        <span className="text-sm font-semibold text-teal">{addForm.booth_code}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between px-4 py-2.5">
+                                        <span className="text-xs font-medium text-ink-muted uppercase tracking-wider">Coordinate</span>
+                                        <span className="text-sm font-medium text-ink">{addForm.coordinate || "—"}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between px-4 py-2.5">
+                                        <span className="text-xs font-medium text-ink-muted uppercase tracking-wider">Location</span>
+                                        <span className="text-sm font-medium text-ink">{addForm.location || "—"}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="flex gap-3 mt-6">
+                                <button
+                                    onClick={closeConfirmModal}
+                                    className="flex-1 rounded-xl border-2 border-gray-200 py-3 text-sm font-semibold text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-all active:scale-[0.98]"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleSave}
+                                    className="flex-1 rounded-xl bg-gradient-to-r from-teal to-teal-dark py-3 text-sm font-semibold text-white shadow-lg shadow-teal/25 hover:shadow-xl hover:shadow-teal/30 hover:from-teal-dark hover:to-teal transition-all active:scale-[0.98]"
+                                >
+                                    Confirm
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── ADD BOOTH MODAL ── */}
+            {isAddModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 backdrop-blur-sm pt-16 px-4">
+                    <div className="relative w-full max-w-lg animate-in fade-in zoom-in-95 duration-200 rounded-2xl bg-white shadow-2xl border border-warm overflow-hidden">
+                        {/* Header accent bar */}
+                        <div className="h-2 bg-gradient-to-r from-teal to-teal-dark" />
+
+                        <div className="p-6">
+                            {/* Header */}
+                            <div className="flex items-center justify-between mb-6">
+                                <div>
+                                    <h2 className="text-lg font-bold text-ink">Add Booth</h2>
+                                    <p className="text-sm text-ink-muted mt-0.5">Fill in the booth details below</p>
+                                </div>
+                                <button onClick={closeAddModal} className="rounded-lg p-1.5 hover:bg-gray-100 transition-colors">
+                                    <X className="h-5 w-5 text-gray-400" />
+                                </button>
+                            </div>
+
+                            {/* Form fields */}
+                            <div className="flex flex-col gap-4">
+                                <div>
+                                    <label className="block text-sm font-semibold text-ink mb-1.5">
+                                        Operator <span className="text-rose-500">*</span>
+                                    </label>
+                                    <div className="relative">
+                                        <input
+                                            type="text"
+                                            name="operator"
+                                            value={addForm.operator}
+                                            onChange={handleAddFormChange}
+                                            placeholder="Enter operator name"
+                                            className="w-full rounded-xl border border-warm bg-card px-4 py-3 text-sm text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20 transition-all shadow-sm"
+                                        />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-semibold text-ink mb-1.5">
+                                        Booth Code <span className="text-rose-500">*</span>
+                                    </label>
+                                    <div className="relative">
+                                        <input
+                                            type="text"
+                                            name="booth_code"
+                                            value={addForm.booth_code}
+                                            onChange={handleAddFormChange}
+                                            placeholder="Enter booth code"
+                                            className="w-full rounded-xl border border-warm bg-card px-4 py-3 text-sm text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20 transition-all shadow-sm"
+                                        />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-semibold text-ink mb-1.5">Coordinate</label>
+                                    <div className="relative">
+                                        <input
+                                            type="text"
+                                            name="coordinate"
+                                            value={addForm.coordinate}
+                                            onChange={handleAddFormChange}
+                                            placeholder="Enter coordinate"
+                                            className="w-full rounded-xl border border-warm bg-card px-4 py-3 text-sm text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20 transition-all shadow-sm"
+                                        />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-semibold text-ink mb-1.5">Location</label>
+                                    <div className="relative">
+                                        <input
+                                            type="text"
+                                            name="location"
+                                            value={addForm.location}
+                                            onChange={handleAddFormChange}
+                                            placeholder="Enter location"
+                                            className="w-full rounded-xl border border-warm bg-card px-4 py-3 text-sm text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20 transition-all shadow-sm"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Action buttons */}
+                            <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-warm/60">
+                                <button
+                                    onClick={closeAddModal}
+                                    className="rounded-xl border-2 border-gray-200 px-6 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-all active:scale-[0.98]"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={openConfirmModal}
+                                    disabled={!addForm.booth_code.trim() || !addForm.operator.trim()}
+                                    className="rounded-xl bg-gradient-to-r from-teal to-teal-dark px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-teal/25 hover:shadow-xl hover:shadow-teal/30 hover:from-teal-dark hover:to-teal transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none disabled:active:scale-100"
+                                >
+                                    Save
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}

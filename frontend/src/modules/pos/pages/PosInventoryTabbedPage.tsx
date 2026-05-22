@@ -1,9 +1,8 @@
 import { useState } from "react";
-import { Monitor, Activity, RotateCcw, Users, Store, BarChart3, Menu } from "lucide-react";
+import { Monitor, Activity, RotateCcw, Store, BarChart3, Menu } from "lucide-react";
 import AllPosPage from "./AllPosPage";
 import PosStatusPage from "./PosStatusPage";
 import RequestResetPage from "./RequestResetPage";
-import OperatorsPage from "./OperatorsPage";
 import OutletsPage from "./OutletsPage";
 import ChangeDeviceLogsPage from "./ChangeDeviceLogsPage";
 import ConvertAreaLogsPage from "./ConvertAreaLogsPage";
@@ -15,7 +14,6 @@ const leftTabs = [
     { id: "all-pos", label: "POS", icon: Monitor },
     { id: "pos-status", label: "POS STATUS", icon: Activity },
     { id: "request-reset", label: "REQUEST RESET DEVICE", icon: RotateCcw },
-    { id: "operators", label: "OPERATORS", icon: Users },
     { id: "outlets", label: "OUTLETS", icon: Store },
     { id: "reports", label: "REPORTS", icon: BarChart3 },
 ];
@@ -118,7 +116,6 @@ export default function PosInventoryTabbedPage() {
                 {activeTab === "all-pos" && <AllPosPage />}
                 {activeTab === "pos-status" && <PosStatusPage />}
                 {activeTab === "request-reset" && <RequestResetPage />}
-                {activeTab === "operators" && <OperatorsPage />}
                 {activeTab === "outlets" && <OutletsPage />}
                 {activeTab === "reports" && (
                     <div>
