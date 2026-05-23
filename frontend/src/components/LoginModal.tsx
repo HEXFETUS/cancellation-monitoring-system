@@ -12,6 +12,7 @@ export default function LoginModal({ open, onClose, onSuccess }: Props) {
     const { login } = useAuth();
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
+    const [rememberMe, setRememberMe] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState("");
 
@@ -26,7 +27,7 @@ export default function LoginModal({ open, onClose, onSuccess }: Props) {
             return;
         }
 
-        const success = await login(username.trim(), password);
+        const success = await login(username.trim(), password, rememberMe);
         if (success) {
             setUsername("");
             setPassword("");
@@ -121,6 +122,16 @@ export default function LoginModal({ open, onClose, onSuccess }: Props) {
                             </button>
                         </div>
                     </div>
+
+                    <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-gray-700">
+                        <input
+                            type="checkbox"
+                            checked={rememberMe}
+                            onChange={(e) => setRememberMe(e.target.checked)}
+                            className="h-4 w-4 rounded border-gray-300 text-teal focus:ring-teal"
+                        />
+                        Remember me
+                    </label>
 
                     {/* Error */}
                     {error && (

@@ -1,24 +1,26 @@
 import { useState } from "react";
-import { Users, UserPlus, ClipboardList, Menu } from "lucide-react";
-import UserAccountsPage from "./UserAccountsPage";
-import CreateUserAccountPage from "./CreateUserAccountPage";
-import UserLogsPage from "./UserLogsPage";
+import { Wrench, BarChart3, FileSearch, Menu } from "lucide-react";
+import RepairRequestPage from "./RepairRequestPage";
+import RepairLogPage from "./RepairLogPage";
+import ReleasedLogPage from "./ReleasedLogPage";
+import DiagnosisListPage from "./DiagnosisListPage";
 
 const teal = "#92C7CF";
 
 const leftTabs = [
-    { id: "user-accounts", label: "USERS", icon: Users },
+    { id: "repair-request", label: "REPAIR REQUEST", icon: Wrench },
+    { id: "reports", label: "REPORTS", icon: BarChart3 },
+    { id: "diagnosis", label: "LIST OF DIAGNOSIS", icon: FileSearch },
 ];
 
-const userSubTabs = [
-    { id: "accounts", label: "User Accounts", icon: Users },
-    { id: "create-user", label: "Create User", icon: UserPlus },
-    { id: "user-logs", label: "User Logs", icon: ClipboardList },
+const subTabs = [
+    { id: "repair-logs", label: "Repair Logs" },
+    { id: "released-logs", label: "Released Logs" },
 ];
 
-export default function SettingsPage() {
-    const [activeTab, setActiveTab] = useState("user-accounts");
-    const [activeUserSubTab, setActiveUserSubTab] = useState("accounts");
+export default function PosRepairRequestPage() {
+    const [activeTab, setActiveTab] = useState("repair-request");
+    const [activeSubTab, setActiveSubTab] = useState("repair-logs");
     const [sidebarOpen, setSidebarOpen] = useState(true);
 
     return (
@@ -35,7 +37,7 @@ export default function SettingsPage() {
                     {/* Collapse toggle button — icon only */}
                     <button
                         onClick={() => setSidebarOpen((v) => !v)}
-                        className="hidden lg:flex shrink-0 items-center gap-2 rounded-2xl px-4 py-2.5 text-left text-sm font-medium transition-all duration-200 lg:w-full lg:gap-3 lg:px-4 lg:py-3 text-slate-600 hover:bg-white/40 hover:text-slate-800"
+                        className="hidden lg:flex shrink-0 items-center gap-2 rounded-2xl px-4 py-2.5 text-left text-xs font-sm transition-all duration-200 lg:w-full lg:gap-3 lg:px-3 lg:py-2 text-slate-600 hover:bg-white/40 hover:text-slate-800"
                         title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
                     >
                         <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
@@ -105,29 +107,26 @@ export default function SettingsPage() {
 
             {/* Main content area */}
             <div className="flex-1 min-w-0">
-                {activeTab === "user-accounts" && (
+                {activeTab === "repair-request" && <RepairRequestPage />}
+                {activeTab === "diagnosis" && <DiagnosisListPage />}
+                {activeTab === "reports" && (
                     <div>
-                        {/* Sub-tabs */}
-                        <div className="flex gap-1 mb-5 border-b pb-0"
-                            style={{ borderColor: "rgba(146,199,207,0.25)" }}
+                        <div className="mb-6 flex gap-2 overflow-x-auto border-b pb-2"
+                            style={{ borderColor: "rgba(146,199,207,0.20)" }}
                         >
-                            {userSubTabs.map((tab) => {
-                                const Icon = tab.icon;
-                                const isSubActive = activeUserSubTab === tab.id;
+                            {subTabs.map((tab) => {
+                                const isSubActive = activeSubTab === tab.id;
                                 return (
                                     <button
                                         key={tab.id}
-                                        onClick={() => setActiveUserSubTab(tab.id)}
-                                        className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all duration-200 rounded-t-xl cursor-pointer"
+                                        onClick={() => setActiveSubTab(tab.id)}
+                                        className="shrink-0 rounded-xl px-3 py-2 text-xs font-medium transition-all duration-200 sm:px-4 sm:text-sm"
                                         style={{
                                             background: isSubActive
                                                 ? "rgba(146,199,207,0.15)"
                                                 : "transparent",
                                             border: isSubActive
                                                 ? "1px solid rgba(146,199,207,0.25)"
-                                                : "1px solid transparent",
-                                            borderBottom: isSubActive
-                                                ? "1px solid white"
                                                 : "1px solid transparent",
                                             color: isSubActive ? "#1F2937" : "#6B7280",
                                         }}
@@ -142,7 +141,6 @@ export default function SettingsPage() {
                                             }
                                         }}
                                     >
-                                        <Icon size={16} />
                                         {tab.label}
                                     </button>
                                 );
@@ -150,9 +148,8 @@ export default function SettingsPage() {
                         </div>
 
                         <div>
-                            {activeUserSubTab === "accounts" && <UserAccountsPage />}
-                            {activeUserSubTab === "create-user" && <CreateUserAccountPage />}
-                            {activeUserSubTab === "user-logs" && <UserLogsPage />}
+                            {activeSubTab === "repair-logs" && <RepairLogPage />}
+                            {activeSubTab === "released-logs" && <ReleasedLogPage />}
                         </div>
                     </div>
                 )}

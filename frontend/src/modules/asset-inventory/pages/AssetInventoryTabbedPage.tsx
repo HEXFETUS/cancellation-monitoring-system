@@ -1,24 +1,25 @@
 import { useState } from "react";
-import { Users, UserPlus, ClipboardList, Menu } from "lucide-react";
-import UserAccountsPage from "./UserAccountsPage";
-import CreateUserAccountPage from "./CreateUserAccountPage";
-import UserLogsPage from "./UserLogsPage";
+import { LayoutDashboard, Building2, MapPin, Monitor, Eye, Code, Menu } from "lucide-react";
+import SummaryPage from "./SummaryPage";
+import OfficePage from "./OfficePage";
+import PayoutPage from "./PayoutPage";
+import DrawcourtPage from "./DrawcourtPage";
+import ObsPage from "./ObsPage";
+import AssetCodingPage from "./AssetCodingPage";
 
 const teal = "#92C7CF";
 
 const leftTabs = [
-    { id: "user-accounts", label: "USERS", icon: Users },
+    { id: "summary", label: "SUMMARY", icon: LayoutDashboard },
+    { id: "office", label: "OFFICE", icon: Building2 },
+    { id: "payout", label: "PAYOUT", icon: MapPin },
+    { id: "drawcourt", label: "DRAWCOURT", icon: Monitor },
+    { id: "obs", label: "OBS", icon: Eye },
+    { id: "asset-coding", label: "ASSET CODING", icon: Code },
 ];
 
-const userSubTabs = [
-    { id: "accounts", label: "User Accounts", icon: Users },
-    { id: "create-user", label: "Create User", icon: UserPlus },
-    { id: "user-logs", label: "User Logs", icon: ClipboardList },
-];
-
-export default function SettingsPage() {
-    const [activeTab, setActiveTab] = useState("user-accounts");
-    const [activeUserSubTab, setActiveUserSubTab] = useState("accounts");
+export default function AssetInventoryTabbedPage() {
+    const [activeTab, setActiveTab] = useState("summary");
     const [sidebarOpen, setSidebarOpen] = useState(true);
 
     return (
@@ -105,57 +106,12 @@ export default function SettingsPage() {
 
             {/* Main content area */}
             <div className="flex-1 min-w-0">
-                {activeTab === "user-accounts" && (
-                    <div>
-                        {/* Sub-tabs */}
-                        <div className="flex gap-1 mb-5 border-b pb-0"
-                            style={{ borderColor: "rgba(146,199,207,0.25)" }}
-                        >
-                            {userSubTabs.map((tab) => {
-                                const Icon = tab.icon;
-                                const isSubActive = activeUserSubTab === tab.id;
-                                return (
-                                    <button
-                                        key={tab.id}
-                                        onClick={() => setActiveUserSubTab(tab.id)}
-                                        className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all duration-200 rounded-t-xl cursor-pointer"
-                                        style={{
-                                            background: isSubActive
-                                                ? "rgba(146,199,207,0.15)"
-                                                : "transparent",
-                                            border: isSubActive
-                                                ? "1px solid rgba(146,199,207,0.25)"
-                                                : "1px solid transparent",
-                                            borderBottom: isSubActive
-                                                ? "1px solid white"
-                                                : "1px solid transparent",
-                                            color: isSubActive ? "#1F2937" : "#6B7280",
-                                        }}
-                                        onMouseEnter={(e) => {
-                                            if (!isSubActive) {
-                                                e.currentTarget.style.background = "rgba(146,199,207,0.06)";
-                                            }
-                                        }}
-                                        onMouseLeave={(e) => {
-                                            if (!isSubActive) {
-                                                e.currentTarget.style.background = "transparent";
-                                            }
-                                        }}
-                                    >
-                                        <Icon size={16} />
-                                        {tab.label}
-                                    </button>
-                                );
-                            })}
-                        </div>
-
-                        <div>
-                            {activeUserSubTab === "accounts" && <UserAccountsPage />}
-                            {activeUserSubTab === "create-user" && <CreateUserAccountPage />}
-                            {activeUserSubTab === "user-logs" && <UserLogsPage />}
-                        </div>
-                    </div>
-                )}
+                {activeTab === "summary" && <SummaryPage />}
+                {activeTab === "office" && <OfficePage />}
+                {activeTab === "payout" && <PayoutPage />}
+                {activeTab === "drawcourt" && <DrawcourtPage />}
+                {activeTab === "obs" && <ObsPage />}
+                {activeTab === "asset-coding" && <AssetCodingPage />}
             </div>
         </div>
     );

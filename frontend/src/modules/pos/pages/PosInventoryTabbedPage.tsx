@@ -1,24 +1,32 @@
 import { useState } from "react";
-import { Users, UserPlus, ClipboardList, Menu } from "lucide-react";
-import UserAccountsPage from "./UserAccountsPage";
-import CreateUserAccountPage from "./CreateUserAccountPage";
-import UserLogsPage from "./UserLogsPage";
+import { Monitor, Activity, RotateCcw, Store, BarChart3, Menu, FileText, GitBranch, ClipboardList } from "lucide-react";
+import AllPosPage from "./AllPosPage";
+import PosStatusPage from "./PosStatusPage";
+import RequestResetPage from "./RequestResetPage";
+import OutletsPage from "./OutletsPage";
+import ChangeDeviceLogsPage from "./ChangeDeviceLogsPage";
+import ConvertAreaLogsPage from "./ConvertAreaLogsPage";
+import PosStatusLogsPage from "./PosStatusLogsPage";
 
 const teal = "#92C7CF";
 
 const leftTabs = [
-    { id: "user-accounts", label: "USERS", icon: Users },
+    { id: "all-pos", label: "POS", icon: Monitor },
+    { id: "pos-status", label: "POS STATUS", icon: Activity },
+    { id: "request-reset", label: "REQUEST RESET DEVICE", icon: RotateCcw },
+    { id: "outlets", label: "OUTLETS", icon: Store },
+    { id: "reports", label: "REPORTS", icon: BarChart3 },
 ];
 
-const userSubTabs = [
-    { id: "accounts", label: "User Accounts", icon: Users },
-    { id: "create-user", label: "Create User", icon: UserPlus },
-    { id: "user-logs", label: "User Logs", icon: ClipboardList },
+const reportSubTabs = [
+    { id: "change-device-logs", label: "Change Device Logs", icon: FileText },
+    { id: "convert-area-logs", label: "Convert Area Logs", icon: GitBranch },
+    { id: "pos-status-logs", label: "POS Status Logs", icon: ClipboardList },
 ];
 
-export default function SettingsPage() {
-    const [activeTab, setActiveTab] = useState("user-accounts");
-    const [activeUserSubTab, setActiveUserSubTab] = useState("accounts");
+export default function PosInventoryTabbedPage() {
+    const [activeTab, setActiveTab] = useState("all-pos");
+    const [activeReportSubTab, setActiveReportSubTab] = useState("change-device-logs");
     const [sidebarOpen, setSidebarOpen] = useState(true);
 
     return (
@@ -105,19 +113,23 @@ export default function SettingsPage() {
 
             {/* Main content area */}
             <div className="flex-1 min-w-0">
-                {activeTab === "user-accounts" && (
+                {activeTab === "all-pos" && <AllPosPage />}
+                {activeTab === "pos-status" && <PosStatusPage />}
+                {activeTab === "request-reset" && <RequestResetPage />}
+                {activeTab === "outlets" && <OutletsPage />}
+                {activeTab === "reports" && (
                     <div>
                         {/* Sub-tabs */}
                         <div className="flex gap-1 mb-5 border-b pb-0"
                             style={{ borderColor: "rgba(146,199,207,0.25)" }}
                         >
-                            {userSubTabs.map((tab) => {
+                            {reportSubTabs.map((tab) => {
                                 const Icon = tab.icon;
-                                const isSubActive = activeUserSubTab === tab.id;
+                                const isSubActive = activeReportSubTab === tab.id;
                                 return (
                                     <button
                                         key={tab.id}
-                                        onClick={() => setActiveUserSubTab(tab.id)}
+                                        onClick={() => setActiveReportSubTab(tab.id)}
                                         className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all duration-200 rounded-t-xl cursor-pointer"
                                         style={{
                                             background: isSubActive
@@ -150,9 +162,9 @@ export default function SettingsPage() {
                         </div>
 
                         <div>
-                            {activeUserSubTab === "accounts" && <UserAccountsPage />}
-                            {activeUserSubTab === "create-user" && <CreateUserAccountPage />}
-                            {activeUserSubTab === "user-logs" && <UserLogsPage />}
+                            {activeReportSubTab === "change-device-logs" && <ChangeDeviceLogsPage />}
+                            {activeReportSubTab === "convert-area-logs" && <ConvertAreaLogsPage />}
+                            {activeReportSubTab === "pos-status-logs" && <PosStatusLogsPage />}
                         </div>
                     </div>
                 )}
