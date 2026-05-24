@@ -1,4 +1,9 @@
-import type { CancellationHumanForce, CancellationRecord, CancellationSyncResult } from "../types";
+import type {
+    CancellationHumanErrorBooth,
+    CancellationHumanForce,
+    CancellationRecord,
+    CancellationSyncResult,
+} from "../types";
 
 const API_BASE = "/api/cancellation";
 
@@ -20,6 +25,37 @@ export async function fetchCancellationHumanForce(date?: string): Promise<Cancel
     const query = date ? `?date=${encodeURIComponent(date)}` : "";
     const response = await fetch(`${API_BASE}/human-force${query}`);
     return handleResponse<CancellationHumanForce[]>(response);
+}
+
+export async function fetchMonthlySummary(
+    year: number,
+    month: number
+): Promise<{
+    year: number;
+    month: number;
+    days_in_month: number;
+    daily: {
+        day: number;
+        approved: number;
+        denied: number;
+        force_cancel: number;
+        human_error: number;
+        areas?: {
+            area: string;
+            approved: number;
+            denied: number;
+            force_cancel: number;
+            human_error: number;
+        }[];
+    }[];
+}> {
+    const response = await fetch(`${API_BASE}/monthly-summary?year=${year}&month=${month}`);
+    return handleResponse(response);
+}
+
+export async function fetchMonthlyHumanErrorBooths(year: number, month: number): Promise<CancellationHumanErrorBooth[]> {
+    const response = await fetch(`${API_BASE}/human-error-booths?year=${year}&month=${month}`);
+    return handleResponse<CancellationHumanErrorBooth[]>(response);
 }
 
 export async function syncCancellationSummary(data: {

@@ -20,6 +20,13 @@ export type CancellationHumanForce = {
     ticket_number: string;
 };
 
+export type CancellationHumanErrorBooth = {
+    id: number;
+    area: string;
+    booth_code: string;
+    human_error: number;
+};
+
 export type CancellationSyncResult = {
     date: string;
     sync_all?: boolean;
