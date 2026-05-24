@@ -14,6 +14,7 @@ interface User {
 const USERTYPES = ["admin", "csr", "operator"] as const;
 
 const ALPHANUMERIC = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+const SAME_PASSWORD_ERROR = "New password cannot be the same as the current password.";
 const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 
 function apiUrl(path: string) {
@@ -97,12 +98,22 @@ function ChangePasswordModal({
 }: {
     user: User;
     onClose: () => void;
-    onSave: (newPassword: string) => void;
+    onSave: (newPassword: string) => Promise<string | null>;
 }) {
     const [password, setPassword] = useState("");
+    const [passwordError, setPasswordError] = useState("");
 
     const handleGenerate = () => {
         setPassword(generatePassword());
+        setPasswordError("");
+    };
+
+    const handleSave = async () => {
+        setPasswordError("");
+        const errorMessage = await onSave(password);
+        if (errorMessage) {
+            setPasswordError(errorMessage);
+        }
     };
 
     return (
@@ -134,10 +145,19 @@ function ChangePasswordModal({
                         <input
                             type="text"
                             value={password}
-                            onChange={(e) => setPassword(e.target.value)}
+                            onChange={(e) => {
+                                setPassword(e.target.value);
+                                setPasswordError("");
+                            }}
                             placeholder="Enter or generate a password"
-                            className="w-full px-4 py-3 rounded-xl border border-warm bg-card text-ink placeholder:text-ink-subtle focus:outline-none focus:ring-2 focus:ring-teal focus:border-teal transition-all shadow-sm"
+                            className={`w-full px-4 py-3 rounded-xl border bg-card text-ink placeholder:text-ink-subtle focus:outline-none focus:ring-2 transition-all shadow-sm ${passwordError
+                                ? "border-red-300 focus:ring-red-200 focus:border-red-400"
+                                : "border-warm focus:ring-teal focus:border-teal"
+                                }`}
                         />
+                        {passwordError && (
+                            <p className="mt-2 text-sm font-medium text-red-600">{passwordError}</p>
+                        )}
                     </div>
 
                     <button
@@ -155,7 +175,7 @@ function ChangePasswordModal({
                             Cancel
                         </button>
                         <button
-                            onClick={() => onSave(password)}
+                            onClick={handleSave}
                             disabled={!password}
                             className="flex-1 px-4 py-2.5 rounded-xl bg-gradient-to-r from-teal to-teal-dark text-ink font-semibold shadow-md shadow-teal/20 hover:shadow-lg hover:shadow-teal/30 hover:brightness-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none disabled:hover:brightness-100 transition-all active:scale-[0.97] cursor-pointer"
                         >
@@ -286,7 +306,7 @@ export default function UserAccountsPage({ onSuccess }: { onSuccess: (message: s
     };
 
     const handleChangePasswordSave = async (newPassword: string) => {
-        if (!passwordModalUser) return;
+        if (!passwordModalUser) return "User not found.";
         try {
             const res = await fetch(apiUrl(`/api/users/${passwordModalUser.id}/password`), {
                 method: "PATCH",
@@ -296,8 +316,13 @@ export default function UserAccountsPage({ onSuccess }: { onSuccess: (message: s
             if (!res.ok) throw new Error(await getErrorMessage(res, "Failed to change password"));
             setPasswordModalUser(null);
             showSuccessToast("User password changed successfully.");
+            return null;
         } catch (err: any) {
-            setError(err.message);
+            const message = err.message || "Failed to change password";
+            if (message !== SAME_PASSWORD_ERROR) {
+                setError(message);
+            }
+            return message;
         }
     };
 
