@@ -5,15 +5,14 @@ import type { StatusLog } from "../types";
 
 const ROWS_PER_PAGE = 20;
 
-type PosStatusLogsPageProps = {
-    dateFrom: string;
-    dateTo: string;
-};
-
-export default function PosStatusLogsPage({ dateFrom, dateTo }: PosStatusLogsPageProps) {
+export default function PosStatusLogsPage() {
     const [logs, setLogs] = useState<StatusLog[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+
+    // Date filters
+    const [dateFrom, setDateFrom] = useState("");
+    const [dateTo, setDateTo] = useState("");
 
     // Pagination
     const [currentPage, setCurrentPage] = useState(1);
@@ -109,6 +108,48 @@ export default function PosStatusLogsPage({ dateFrom, dateTo }: PosStatusLogsPag
 
     return (
         <div className="flex flex-col gap-6">
+            {/* DATE FILTERS */}
+            <div className="flex justify-end">
+                <div className="inline-flex flex-wrap items-center gap-2 rounded-lg bg-gray-50/80 px-3 py-2">
+                    <div className="flex items-center gap-1.5">
+                        <label htmlFor="dateFrom" className="text-xs font-medium text-gray-500 whitespace-nowrap">
+                            From
+                        </label>
+                        <input
+                            id="dateFrom"
+                            type="date"
+                            value={dateFrom}
+                            onChange={(e) => setDateFrom(e.target.value)}
+                            className="w-36 rounded-md border border-gray-200 py-1.5 px-2 text-xs text-gray-700 focus:border-teal focus:outline-none focus:ring-1 focus:ring-teal/20 transition-all"
+                        />
+                    </div>
+                    <span className="text-gray-300 text-xs">→</span>
+                    <div className="flex items-center gap-1.5">
+                        <label htmlFor="dateTo" className="text-xs font-medium text-gray-500 whitespace-nowrap">
+                            To
+                        </label>
+                        <input
+                            id="dateTo"
+                            type="date"
+                            value={dateTo}
+                            onChange={(e) => setDateTo(e.target.value)}
+                            className="w-36 rounded-md border border-gray-200 py-1.5 px-2 text-xs text-gray-700 focus:border-teal focus:outline-none focus:ring-1 focus:ring-teal/20 transition-all"
+                        />
+                    </div>
+                    {(dateFrom || dateTo) && (
+                        <button
+                            onClick={() => { setDateFrom(""); setDateTo(""); }}
+                            className="inline-flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1.5 text-xs font-medium text-gray-500 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all"
+                        >
+                            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                            Clear
+                        </button>
+                    )}
+                </div>
+            </div>
+
             {/* TABLE */}
             <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
                 <div className="overflow-x-auto">
