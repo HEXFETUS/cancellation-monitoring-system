@@ -168,7 +168,7 @@ function ChangePasswordModal({
     );
 }
 
-export default function UserAccountsPage() {
+export default function UserAccountsPage({ onSuccess }: { onSuccess: (message: string) => void }) {
     const [users, setUsers] = useState<User[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
@@ -211,6 +211,11 @@ export default function UserAccountsPage() {
         fetchUsers();
     }, []);
 
+    const showSuccessToast = (message: string) => {
+        setError("");
+        onSuccess(message);
+    };
+
     const handleEdit = (user: User) => {
         setEditingId(user.id);
         setEditForm({
@@ -250,6 +255,7 @@ export default function UserAccountsPage() {
                     if (!res.ok) throw new Error(await getErrorMessage(res, "Failed to update user"));
                     await fetchUsers();
                     setEditingId(null);
+                    showSuccessToast("User account updated successfully.");
                 } catch (err: any) {
                     setError(err.message);
                 } finally {
@@ -269,6 +275,7 @@ export default function UserAccountsPage() {
                     const res = await fetch(apiUrl(`/api/users/${id}`), { method: "DELETE" });
                     if (!res.ok) throw new Error(await getErrorMessage(res, "Failed to delete user"));
                     await fetchUsers();
+                    showSuccessToast("User account deleted successfully.");
                 } catch (err: any) {
                     setError(err.message);
                 } finally {
@@ -288,6 +295,7 @@ export default function UserAccountsPage() {
             });
             if (!res.ok) throw new Error(await getErrorMessage(res, "Failed to change password"));
             setPasswordModalUser(null);
+            showSuccessToast("User password changed successfully.");
         } catch (err: any) {
             setError(err.message);
         }
