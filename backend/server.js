@@ -25,8 +25,9 @@ app.use("/api/cancellation", cancellationRoutes);
 
 const PORT = process.env.PORT || 5000;
 
-initDatabase().then(() => {
-    app.listen(PORT, () => {
-        console.log(`Server running on port ${PORT}`);
+initDatabase()
+    .then(() => {
+        app.listen(PORT, () => {
+            console.log(`Server running on port ${PORT}`);
+        });
     });
-});

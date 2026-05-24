@@ -92,14 +92,21 @@ function extractRows(payload) {
         return payload.sheets.flatMap((sheet) => {
             const sheetName = sheet.name || sheet.sheetName || sheet.title;
             if (!isAllowedSheetName(sheetName)) return [];
-            return sheet.rows || sheet.data || sheet.transactions || [];
+            const rows = sheet.rows || sheet.data || sheet.transactions || [];
+            return rows.map((row) => ({
+                ...row,
+                AREA: getField(row, SHEET_COLUMNS.area) || sheetName,
+            }));
         });
     }
 
     if (payload && typeof payload === "object") {
         return Object.entries(payload).flatMap(([sheetName, rows]) => {
             if (!isAllowedSheetName(sheetName) || !Array.isArray(rows)) return [];
-            return rows;
+            return rows.map((row) => ({
+                ...row,
+                AREA: getField(row, SHEET_COLUMNS.area) || sheetName,
+            }));
         });
     }
 
@@ -138,7 +145,12 @@ async function fetchSheetRows() {
         const sheetUrl = new URL(GOOGLE_SHEET_URL);
         sheetUrl.searchParams.set("sheet", sheetName);
         const sheetPayload = await fetchJson(sheetUrl);
-        perSheetRows.push(...extractRows(sheetPayload));
+        perSheetRows.push(
+            ...extractRows(sheetPayload).map((row) => ({
+                ...row,
+                AREA: getField(row, SHEET_COLUMNS.area) || sheetName,
+            }))
+        );
     }
 
     return perSheetRows;
@@ -195,6 +207,190 @@ router.get("/human-force", async (req, res) => {
     }
 });
 
+router.get("/human-error-booths", async (req, res) => {
+    try {
+        const year = parseInt(req.query.year, 10);
+        const month = parseInt(req.query.month, 10);
+
+        if (!year || !month || month < 1 || month > 12) {
+            return res.status(400).json({ error: "Invalid year or month parameters" });
+        }
+
+        const monthStart = `${year}-${String(month).padStart(2, "0")}-01`;
+        const result = await pool.query(
+            `
+            SELECT MIN(chf.id)::int AS id,
+                   chf.area,
+                   COALESCE(b.booth_code, 'Unassigned') AS booth_code,
+                   COUNT(*)::int AS human_error
+            FROM cancellation_human_force chf
+            LEFT JOIN booth_info b ON b.id = chf.booth_id
+            WHERE chf.date >= $1::date
+              AND chf.date < ($1::date + INTERVAL '1 month')::date
+              AND UPPER(chf.reaseon_for_deny) LIKE '%HUMAN ERROR%'
+            GROUP BY chf.area, COALESCE(b.booth_code, 'Unassigned')
+            ORDER BY COUNT(*) DESC, COALESCE(b.booth_code, 'Unassigned') ASC
+            `,
+            [monthStart]
+        );
+
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+/* ─────────────── Monthly report ─────────────── */
+router.get("/monthly-summary", async (req, res) => {
+    try {
+        const year = parseInt(req.query.year, 10);
+        const month = parseInt(req.query.month, 10);
+
+        if (!year || !month || month < 1 || month > 12) {
+            return res.status(400).json({ error: "Invalid year or month parameters" });
+        }
+
+        const monthStr = `${year}-${String(month).padStart(2, "0")}`;
+
+        // Get daily aggregated records
+        const recordsResult = await pool.query(
+            `
+            SELECT date,
+                   COALESCE(SUM(approved), 0)::int AS approved,
+                   COALESCE(SUM(denied), 0)::int AS denied
+            FROM cancellation_record
+            WHERE date >= $1::date AND date < ($1::date + INTERVAL '1 month')::date
+            GROUP BY date
+            ORDER BY date
+            `,
+            [`${monthStr}-01`]
+        );
+
+        const areaRecordsResult = await pool.query(
+            `
+            SELECT date,
+                   area,
+                   COALESCE(SUM(approved), 0)::int AS approved,
+                   COALESCE(SUM(denied), 0)::int AS denied
+            FROM cancellation_record
+            WHERE date >= $1::date AND date < ($1::date + INTERVAL '1 month')::date
+            GROUP BY date, area
+            ORDER BY date, area
+            `,
+            [`${monthStr}-01`]
+        );
+
+        // Get daily force cancel / human error counts
+        const humanForceResult = await pool.query(
+            `
+            SELECT date,
+                   COUNT(*) FILTER (WHERE UPPER(reaseon_for_deny) LIKE '%FORCE CANCEL%')::int AS force_cancel,
+                   COUNT(*) FILTER (WHERE UPPER(reaseon_for_deny) LIKE '%HUMAN ERROR%')::int AS human_error
+            FROM cancellation_human_force
+            WHERE date >= $1::date AND date < ($1::date + INTERVAL '1 month')::date
+            GROUP BY date
+            ORDER BY date
+            `,
+            [`${monthStr}-01`]
+        );
+
+        const areaHumanForceResult = await pool.query(
+            `
+            SELECT date,
+                   area,
+                   COUNT(*) FILTER (WHERE UPPER(reaseon_for_deny) LIKE '%FORCE CANCEL%')::int AS force_cancel,
+                   COUNT(*) FILTER (WHERE UPPER(reaseon_for_deny) LIKE '%HUMAN ERROR%')::int AS human_error
+            FROM cancellation_human_force
+            WHERE date >= $1::date AND date < ($1::date + INTERVAL '1 month')::date
+            GROUP BY date, area
+            ORDER BY date, area
+            `,
+            [`${monthStr}-01`]
+        );
+
+        // Merge into a map by day
+        const dayMap = new Map();
+        for (const row of recordsResult.rows) {
+            const day = new Date(row.date).getUTCDate();
+            dayMap.set(day, {
+                day,
+                approved: row.approved,
+                denied: row.denied,
+                force_cancel: 0,
+                human_error: 0,
+            });
+        }
+        for (const row of humanForceResult.rows) {
+            const day = new Date(row.date).getUTCDate();
+            if (dayMap.has(day)) {
+                const entry = dayMap.get(day);
+                entry.force_cancel = row.force_cancel;
+                entry.human_error = row.human_error;
+            } else {
+                dayMap.set(day, {
+                    day,
+                    approved: 0,
+                    denied: 0,
+                    force_cancel: row.force_cancel,
+                    human_error: row.human_error,
+                });
+            }
+        }
+
+        const areaMap = new Map();
+        function getAreaEntry(day, area) {
+            const key = `${day}::${area || "Unassigned"}`;
+            if (!areaMap.has(key)) {
+                areaMap.set(key, {
+                    day,
+                    area: area || "Unassigned",
+                    approved: 0,
+                    denied: 0,
+                    force_cancel: 0,
+                    human_error: 0,
+                });
+            }
+            return areaMap.get(key);
+        }
+
+        for (const row of areaRecordsResult.rows) {
+            const day = new Date(row.date).getUTCDate();
+            const entry = getAreaEntry(day, row.area);
+            entry.approved = row.approved;
+            entry.denied = row.denied;
+        }
+
+        for (const row of areaHumanForceResult.rows) {
+            const day = new Date(row.date).getUTCDate();
+            const entry = getAreaEntry(day, row.area);
+            entry.force_cancel = row.force_cancel;
+            entry.human_error = row.human_error;
+        }
+
+        const daysInMonth = new Date(year, month, 0).getDate();
+        const dailyData = [];
+        for (let d = 1; d <= daysInMonth; d++) {
+            const areas = Array.from(areaMap.values())
+                .filter((area) => area.day === d)
+                .map(({ day, ...area }) => area);
+
+            dailyData.push({
+                ...(dayMap.get(d) || { day: d, approved: 0, denied: 0, force_cancel: 0, human_error: 0 }),
+                areas,
+            });
+        }
+
+        res.json({
+            year,
+            month,
+            days_in_month: daysInMonth,
+            daily: dailyData,
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 router.post("/sync", async (req, res) => {
     const targetDate = req.body?.date || formatDate();
     const syncAll = req.body?.sync_all === true;
@@ -221,6 +417,7 @@ router.post("/sync", async (req, res) => {
             const area = String(getField(row, SHEET_COLUMNS.area) || "Unassigned").trim();
             const status = String(getField(row, SHEET_COLUMNS.status)).trim().toUpperCase();
             const reason = String(getField(row, SHEET_COLUMNS.reasonForDeniedTicket)).trim();
+            const boothCode = String(getField(row, SHEET_COLUMNS.boothCode)).trim();
             const summaryKey = `${rowDate}::${area}`;
 
             if (!summaryByDateArea.has(summaryKey)) {
@@ -237,7 +434,7 @@ router.post("/sync", async (req, res) => {
                     date: rowDate,
                     area,
                     reason,
-                    boothCode: String(getField(row, SHEET_COLUMNS.boothCode)).trim(),
+                    boothCode,
                     ticketNumber: String(getField(row, SHEET_COLUMNS.ticketNumber)).trim(),
                 });
             }

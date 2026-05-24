@@ -8,9 +8,9 @@ const teal = "#92C7CF";
 
 const leftTabs = [
     { id: "records", label: "SUMMARY", icon: FileText },
-    { id: "daily", label: "MONTHLY REPORT", icon: Calendar },
-    { id: "monthly", label: "YEARLY REPORT", icon: BarChart3 },
-    { id: "yearly", label: "REASON FOR DENY", icon: PieChart },
+    { id: "monthly", label: "MONTHLY REPORT", icon: BarChart3 },
+    { id: "yearly", label: "YEARLY REPORT", icon: PieChart },
+    { id: "reasons", label: "REASON FOR DENY", icon: Calendar },
 ];
 
 export default function CancellationTabbedPage() {
