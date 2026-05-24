@@ -24,6 +24,10 @@ function validateOptionalString(value) {
     return value !== undefined && value !== null ? String(value).trim() : undefined;
 }
 
+function isBcryptHash(value) {
+    return typeof value === "string" && /^\$2[aby]\$\d{2}\$/.test(value);
+}
+
 // GET /api/users - Get all users
 router.get("/", async (req, res) => {
     try {
@@ -172,21 +176,36 @@ router.patch("/:id/password", async (req, res) => {
     try {
         const { id } = req.params;
         const { newPassword } = req.body;
+        const trimmedPassword = newPassword?.trim();
 
-        if (!newPassword?.trim()) {
+        if (!trimmedPassword) {
             return res.status(400).json({ error: "New password is required" });
         }
 
-        const hashedPassword = await bcrypt.hash(newPassword.trim(), 12);
+        const userResult = await pool.query(
+            "SELECT id, password FROM users WHERE id = $1",
+            [id]
+        );
+
+        if (userResult.rows.length === 0) {
+            return res.status(404).json({ error: "User not found" });
+        }
+
+        const currentPassword = userResult.rows[0].password;
+        const matchesCurrentPassword = isBcryptHash(currentPassword)
+            ? await bcrypt.compare(trimmedPassword, currentPassword)
+            : trimmedPassword === currentPassword;
+
+        if (matchesCurrentPassword) {
+            return res.status(400).json({ error: "New password cannot be the same as the current password." });
+        }
+
+        const hashedPassword = await bcrypt.hash(trimmedPassword, 12);
 
         const result = await pool.query(
             "UPDATE users SET password = $1 WHERE id = $2 RETURNING id, name, email, usertype, position, department",
             [hashedPassword, id]
         );
-
-        if (result.rows.length === 0) {
-            return res.status(404).json({ error: "User not found" });
-        }
 
         res.json({ message: "Password updated successfully", user: result.rows[0] });
     } catch (err) {

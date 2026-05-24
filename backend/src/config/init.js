@@ -10,6 +10,8 @@ const SERIAL_TABLES = [
     "area_logs",
     "status_logs",
     "user_logs",
+    "cancellation_record",
+    "cancellation_human_force",
 ];
 
 async function syncSerialSequence(client, tableName) {
@@ -204,6 +206,31 @@ async function initDatabase() {
                 ip_address VARCHAR(255),
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS cancellation_record (
+                id SERIAL PRIMARY KEY,
+                date DATE NOT NULL,
+                area VARCHAR(255),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                cancelled_by_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                approved INTEGER DEFAULT 0,
+                denied INTEGER DEFAULT 0
+            );
+        `);
+
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS cancellation_human_force (
+                id SERIAL PRIMARY KEY,
+                date DATE NOT NULL,
+                area VARCHAR(255),
+                reaseon_for_deny VARCHAR(255),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                booth_id INTEGER REFERENCES booth_info(id) ON DELETE SET NULL,
+                ticket_number VARCHAR(255)
             );
         `);
 

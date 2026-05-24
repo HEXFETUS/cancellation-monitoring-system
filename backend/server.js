@@ -6,6 +6,7 @@ import healthRoutes from "./src/routes/health.routes.js";
 import userRoutes from "./src/routes/user.routes.js";
 import authRoutes from "./src/routes/auth.routes.js";
 import posRoutes from "./src/routes/pos.routes.js";
+import cancellationRoutes from "./src/routes/cancellation.routes.js";
 import initDatabase from "./src/config/init.js";
 
 dotenv.config();
@@ -20,6 +21,7 @@ app.use("/api/health", healthRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/pos", posRoutes);
+app.use("/api/cancellation", cancellationRoutes);
 
 const PORT = process.env.PORT || 5000;
 

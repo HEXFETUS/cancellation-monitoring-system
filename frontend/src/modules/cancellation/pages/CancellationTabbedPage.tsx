@@ -1,17 +1,16 @@
 import { useState } from "react";
 import { FileText, Calendar, BarChart3, PieChart, Menu } from "lucide-react";
 import CancellationRecordsPage from "./CancellationRecordsPage";
-import DailyReportPage from "./DailyReportPage";
 import MonthlyReportPage from "./MonthlyReportPage";
 import YearlyReportPage from "./YearlyReportPage";
 
 const teal = "#92C7CF";
 
 const leftTabs = [
-    { id: "records", label: "CANCELLATION RECORDS", icon: FileText },
-    { id: "daily", label: "DAILY REPORT", icon: Calendar },
-    { id: "monthly", label: "MONTHLY REPORT", icon: BarChart3 },
-    { id: "yearly", label: "YEARLY REPORT", icon: PieChart },
+    { id: "records", label: "SUMMARY", icon: FileText },
+    { id: "daily", label: "MONTHLY REPORT", icon: Calendar },
+    { id: "monthly", label: "YEARLY REPORT", icon: BarChart3 },
+    { id: "yearly", label: "REASON FOR DENY", icon: PieChart },
 ];
 
 export default function CancellationTabbedPage() {
@@ -103,7 +102,6 @@ export default function CancellationTabbedPage() {
             {/* Main content area */}
             <div className="flex-1 min-w-0">
                 {activeTab === "records" && <CancellationRecordsPage />}
-                {activeTab === "daily" && <DailyReportPage />}
                 {activeTab === "monthly" && <MonthlyReportPage />}
                 {activeTab === "yearly" && <YearlyReportPage />}
             </div>
