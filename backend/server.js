@@ -23,7 +23,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/pos", posRoutes);
 app.use("/api/cancellation", cancellationRoutes);
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5050;
 
 initDatabase()
     .then(() => {
