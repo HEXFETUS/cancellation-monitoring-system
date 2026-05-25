@@ -50,12 +50,86 @@ export async function fetchMonthlySummary(
     }[];
 }> {
     const response = await fetch(`${API_BASE}/monthly-summary?year=${year}&month=${month}`);
-    return handleResponse(response);
+    const result = await handleResponse<{
+        year: number;
+        month: number;
+        days_in_month: number;
+        daily?: {
+            day: number;
+            approved: number;
+            denied: number;
+            force_cancel: number;
+            human_error: number;
+            areas?: {
+                area: string;
+                approved: number;
+                denied: number;
+                force_cancel: number;
+                human_error: number;
+            }[];
+        }[];
+        rows?: {
+            day: number;
+            approved: number;
+            denied: number;
+            force_cancel: number;
+            human_error: number;
+            areas?: {
+                area: string;
+                approved: number;
+                denied: number;
+                force_cancel: number;
+                human_error: number;
+            }[];
+        }[];
+    }>(response);
+
+    return {
+        ...result,
+        daily: result.daily ?? result.rows ?? [],
+    };
 }
 
 export async function fetchMonthlyHumanErrorBooths(year: number, month: number): Promise<CancellationHumanErrorBooth[]> {
     const response = await fetch(`${API_BASE}/human-error-booths?year=${year}&month=${month}`);
     return handleResponse<CancellationHumanErrorBooth[]>(response);
+}
+
+export async function fetchYearlySummary(
+    year: number
+): Promise<{
+    year: number;
+    monthly: {
+        month: number;
+        approved: number;
+        denied: number;
+        force_cancel: number;
+        human_error: number;
+    }[];
+}> {
+    const response = await fetch(`${API_BASE}/yearly-summary?year=${year}`);
+    const result = await handleResponse<{
+        year: number;
+        monthly?: {
+            month: number;
+            approved: number;
+            denied: number;
+            force_cancel: number;
+            human_error: number;
+        }[];
+        rows?: {
+            month: number;
+            approved: number;
+            denied: number;
+            force_cancel: number;
+            human_error: number;
+        }[];
+    }>(response);
+
+    return {
+        ...result,
+        monthly: result.monthly ?? result.rows ?? [],
+    };
 }
 
 export async function syncCancellationSummary(data: {
