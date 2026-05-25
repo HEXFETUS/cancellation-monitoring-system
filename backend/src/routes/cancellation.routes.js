@@ -581,4 +581,78 @@ router.post("/sync-date", async (req, res) => {
     }
 });
 
+/* ─────────────── Yearly report ─────────────── */
+router.get("/yearly-summary", async (req, res) => {
+    try {
+        const year = parseInt(req.query.year, 10);
+
+        if (!year) {
+            return res.status(400).json({ error: "Invalid year parameter" });
+        }
+
+        // Get monthly aggregated records
+        const recordsResult = await pool.query(
+            `
+            SELECT EXTRACT(MONTH FROM date)::int AS month,
+                   COALESCE(SUM(approved), 0)::int AS approved,
+                   COALESCE(SUM(denied), 0)::int AS denied
+            FROM cancellation_record
+            WHERE date >= $1::date AND date < ($1::date + INTERVAL '1 year')::date
+            GROUP BY EXTRACT(MONTH FROM date)
+            ORDER BY month
+            `,
+            [`${year}-01-01`]
+        );
+
+        // Get monthly force cancel / human error counts
+        const humanForceResult = await pool.query(
+            `
+            SELECT EXTRACT(MONTH FROM date)::int AS month,
+                   COUNT(*) FILTER (WHERE UPPER(reaseon_for_deny) LIKE '%FORCE CANCEL%')::int AS force_cancel,
+                   COUNT(*) FILTER (WHERE UPPER(reaseon_for_deny) LIKE '%HUMAN ERROR%')::int AS human_error
+            FROM cancellation_human_force
+            WHERE date >= $1::date AND date < ($1::date + INTERVAL '1 year')::date
+            GROUP BY EXTRACT(MONTH FROM date)
+            ORDER BY month
+            `,
+            [`${year}-01-01`]
+        );
+
+        // Merge into a map by month
+        const monthMap = new Map();
+        for (let m = 1; m <= 12; m++) {
+            monthMap.set(m, {
+                month: m,
+                approved: 0,
+                denied: 0,
+                force_cancel: 0,
+                human_error: 0,
+            });
+        }
+
+        for (const row of recordsResult.rows) {
+            const entry = monthMap.get(row.month);
+            if (entry) {
+                entry.approved = row.approved;
+                entry.denied = row.denied;
+            }
+        }
+
+        for (const row of humanForceResult.rows) {
+            const entry = monthMap.get(row.month);
+            if (entry) {
+                entry.force_cancel = row.force_cancel;
+                entry.human_error = row.human_error;
+            }
+        }
+
+        res.json({
+            year,
+            monthly: Array.from(monthMap.values()),
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 export default router;
