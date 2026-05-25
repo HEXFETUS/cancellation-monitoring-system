@@ -1,0 +1,113 @@
+const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
+
+export interface AssetCode {
+    id: number;
+    itemCode: string;
+    description: string;
+    type: string;
+    department: string;
+    careOf: string;
+    space: string;
+    qrPayload: string;
+    assetId: number | null;
+    createdAt: string;
+    updatedAt: string;
+}
+
+interface AssetCodeWire {
+    id: number;
+    item_code: string;
+    description: string;
+    type: string | null;
+    department: string | null;
+    care_of: string | null;
+    space: string | null;
+    qr_payload: string;
+    asset_id: number | null;
+    created_at: string;
+    updated_at: string;
+}
+
+export type AssetCodeInput = Omit<AssetCode, "id" | "qrPayload" | "createdAt" | "updatedAt"> & {
+    qrPayload?: string;
+};
+
+function apiUrl(path: string) {
+    return `${API_BASE_URL}${path}`;
+}
+
+async function getErrorMessage(res: Response, fallback: string) {
+    try {
+        const data = await res.json();
+        return data.error || data.message || fallback;
+    } catch {
+        return fallback;
+    }
+}
+
+function fromWire(w: AssetCodeWire): AssetCode {
+    return {
+        id: w.id,
+        itemCode: w.item_code,
+        description: w.description,
+        type: w.type ?? "",
+        department: w.department ?? "",
+        careOf: w.care_of ?? "",
+        space: w.space ?? "",
+        qrPayload: w.qr_payload,
+        assetId: w.asset_id,
+        createdAt: w.created_at,
+        updatedAt: w.updated_at,
+    };
+}
+
+function toWireBody(input: AssetCodeInput) {
+    return {
+        itemCode: input.itemCode,
+        description: input.description,
+        type: input.type || null,
+        department: input.department || null,
+        careOf: input.careOf || null,
+        space: input.space || null,
+        qrPayload: input.qrPayload,
+        assetId: input.assetId ?? null,
+    };
+}
+
+export async function listAssetCodes(): Promise<AssetCode[]> {
+    const res = await fetch(apiUrl("/api/asset-codes"));
+    if (!res.ok) throw new Error(await getErrorMessage(res, "Failed to load asset codes"));
+    const data: AssetCodeWire[] = await res.json();
+    return data.map(fromWire);
+}
+
+export async function createAssetCode(input: AssetCodeInput): Promise<AssetCode> {
+    const res = await fetch(apiUrl("/api/asset-codes"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(toWireBody(input)),
+    });
+    if (!res.ok) throw new Error(await getErrorMessage(res, "Failed to create asset code"));
+    return fromWire(await res.json());
+}
+
+export async function updateAssetCode(id: number, input: AssetCodeInput): Promise<AssetCode> {
+    const res = await fetch(apiUrl(`/api/asset-codes/${id}`), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(toWireBody(input)),
+    });
+    if (!res.ok) throw new Error(await getErrorMessage(res, "Failed to update asset code"));
+    return fromWire(await res.json());
+}
+
+export async function regenerateQr(id: number): Promise<AssetCode> {
+    const res = await fetch(apiUrl(`/api/asset-codes/${id}/regenerate-qr`), { method: "POST" });
+    if (!res.ok) throw new Error(await getErrorMessage(res, "Failed to regenerate QR"));
+    return fromWire(await res.json());
+}
+
+export async function deleteAssetCode(id: number): Promise<void> {
+    const res = await fetch(apiUrl(`/api/asset-codes/${id}`), { method: "DELETE" });
+    if (!res.ok) throw new Error(await getErrorMessage(res, "Failed to delete asset code"));
+}

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Search } from "lucide-react";
+import { Pencil, Plus, Search, Trash2 } from "lucide-react";
 
 export interface AssetRow {
     id: number | string;
@@ -24,6 +24,11 @@ interface AssetTableProps {
     title: string;
     description?: string;
     rows: AssetRow[];
+    loading?: boolean;
+    error?: string;
+    onAdd?: () => void;
+    onEdit?: (row: AssetRow) => void;
+    onDelete?: (row: AssetRow) => void;
 }
 
 const PHP = new Intl.NumberFormat("en-PH", {
@@ -43,8 +48,20 @@ function formatDate(iso: string) {
     });
 }
 
-export default function AssetTable({ title, description, rows }: AssetTableProps) {
+export default function AssetTable({
+    title,
+    description,
+    rows,
+    loading = false,
+    error = "",
+    onAdd,
+    onEdit,
+    onDelete,
+}: AssetTableProps) {
     const [search, setSearch] = useState("");
+
+    const showActions = Boolean(onEdit || onDelete);
+    const colCount = 15 + (showActions ? 1 : 0);
 
     const filtered = useMemo(() => {
         const q = search.trim().toLowerCase();
@@ -82,20 +99,38 @@ export default function AssetTable({ title, description, rows }: AssetTableProps
                     )}
                 </div>
 
-                <div className="relative w-full sm:w-72">
-                    <Search
-                        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle"
-                        size={16}
-                    />
-                    <input
-                        type="text"
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        placeholder="Search assets..."
-                        className="w-full rounded-lg border border-warm bg-card pl-9 pr-3 py-2 text-sm text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal"
-                    />
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <div className="relative w-full sm:w-72">
+                        <Search
+                            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle"
+                            size={16}
+                        />
+                        <input
+                            type="text"
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            placeholder="Search assets..."
+                            className="w-full rounded-lg border border-warm bg-card pl-9 pr-3 py-2 text-sm text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal"
+                        />
+                    </div>
+
+                    {onAdd && (
+                        <button
+                            onClick={onAdd}
+                            className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-teal px-4 py-2 text-sm font-semibold text-ink transition hover:bg-teal-dark"
+                        >
+                            <Plus size={16} />
+                            Add Asset
+                        </button>
+                    )}
                 </div>
             </div>
+
+            {error && (
+                <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
+                    {error}
+                </div>
+            )}
 
             {/* Table */}
             <div className="overflow-x-auto rounded-xl border border-warm bg-card shadow-sm">
@@ -117,56 +152,96 @@ export default function AssetTable({ title, description, rows }: AssetTableProps
                             <Th align="right">Total Value</Th>
                             <Th>Color</Th>
                             <Th>Remarks</Th>
+                            {showActions && <Th align="right">Actions</Th>}
                         </tr>
                     </thead>
 
                     <tbody>
-                        {filtered.map((r) => (
-                            <tr
-                                key={r.id}
-                                className="border-b border-warm/60 transition hover:bg-cream"
-                            >
-                                <Td className="font-medium text-ink">{r.itemDescription}</Td>
-                                <Td>
-                                    <span className="inline-block rounded-full border border-teal/30 bg-teal-light/40 px-2.5 py-0.5 text-xs font-medium text-ink">
-                                        {r.type}
-                                    </span>
-                                </Td>
-                                <Td className="font-mono text-xs text-ink-muted">
-                                    {r.serialNumber}
-                                </Td>
-                                <Td>{r.department}</Td>
-                                <Td>{r.space}</Td>
-                                <Td>{formatDate(r.datePurchase)}</Td>
-                                <Td>{r.vendor}</Td>
-                                <Td align="right">{PHP.format(r.purchasePrice)}</Td>
-                                <Td>{formatDate(r.warrantyDate)}</Td>
-                                <Td align="right">{r.quantity}</Td>
-                                <Td align="right">{PHP.format(r.discount)}</Td>
-                                <Td align="right">{PHP.format(r.assetValue)}</Td>
-                                <Td align="right" className="font-semibold text-ink">
-                                    {PHP.format(r.totalValue)}
-                                </Td>
-                                <Td>
-                                    <ColorChip color={r.color} />
-                                </Td>
-                                <Td className="text-ink-muted">{r.remarks || "—"}</Td>
-                            </tr>
-                        ))}
-
-                        {filtered.length === 0 && (
+                        {loading ? (
                             <tr>
                                 <td
-                                    colSpan={15}
+                                    colSpan={colCount}
                                     className="px-4 py-10 text-center text-ink-subtle"
                                 >
-                                    No assets found.
+                                    Loading assets...
                                 </td>
                             </tr>
+                        ) : filtered.length === 0 ? (
+                            <tr>
+                                <td
+                                    colSpan={colCount}
+                                    className="px-4 py-10 text-center text-ink-subtle"
+                                >
+                                    {rows.length === 0
+                                        ? "No assets yet. Click \"Add Asset\" to create one."
+                                        : "No assets match your search."}
+                                </td>
+                            </tr>
+                        ) : (
+                            filtered.map((r) => (
+                                <tr
+                                    key={r.id}
+                                    className="border-b border-warm/60 transition hover:bg-cream"
+                                >
+                                    <Td className="font-medium text-ink">{r.itemDescription}</Td>
+                                    <Td>
+                                        {r.type ? (
+                                            <span className="inline-block rounded-full border border-teal/30 bg-teal-light/40 px-2.5 py-0.5 text-xs font-medium text-ink">
+                                                {r.type}
+                                            </span>
+                                        ) : (
+                                            <span className="text-ink-subtle">—</span>
+                                        )}
+                                    </Td>
+                                    <Td className="font-mono text-xs text-ink-muted">
+                                        {r.serialNumber || "—"}
+                                    </Td>
+                                    <Td>{r.department || "—"}</Td>
+                                    <Td>{r.space || "—"}</Td>
+                                    <Td>{formatDate(r.datePurchase)}</Td>
+                                    <Td>{r.vendor || "—"}</Td>
+                                    <Td align="right">{PHP.format(r.purchasePrice)}</Td>
+                                    <Td>{formatDate(r.warrantyDate)}</Td>
+                                    <Td align="right">{r.quantity}</Td>
+                                    <Td align="right">{PHP.format(r.discount)}</Td>
+                                    <Td align="right">{PHP.format(r.assetValue)}</Td>
+                                    <Td align="right" className="font-semibold text-ink">
+                                        {PHP.format(r.totalValue)}
+                                    </Td>
+                                    <Td>
+                                        {r.color ? <ColorChip color={r.color} /> : <span className="text-ink-subtle">—</span>}
+                                    </Td>
+                                    <Td className="text-ink-muted">{r.remarks || "—"}</Td>
+                                    {showActions && (
+                                        <Td align="right">
+                                            <div className="flex justify-end gap-2">
+                                                {onEdit && (
+                                                    <button
+                                                        onClick={() => onEdit(r)}
+                                                        className="inline-flex items-center gap-1 rounded-lg bg-teal px-2.5 py-1 text-xs font-medium text-ink transition hover:bg-teal-dark"
+                                                    >
+                                                        <Pencil size={14} />
+                                                        Edit
+                                                    </button>
+                                                )}
+                                                {onDelete && (
+                                                    <button
+                                                        onClick={() => onDelete(r)}
+                                                        className="inline-flex items-center gap-1 rounded-lg bg-rose px-2.5 py-1 text-xs font-medium text-ink transition hover:bg-rose-dark"
+                                                    >
+                                                        <Trash2 size={14} />
+                                                        Delete
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </Td>
+                                    )}
+                                </tr>
+                            ))
                         )}
                     </tbody>
 
-                    {filtered.length > 0 && (
+                    {filtered.length > 0 && !loading && (
                         <tfoot>
                             <tr className="border-t-2 border-warm bg-cream">
                                 <td
@@ -178,7 +253,7 @@ export default function AssetTable({ title, description, rows }: AssetTableProps
                                 <td className="px-4 py-3 text-right text-base font-bold text-teal">
                                     {PHP.format(grandTotal)}
                                 </td>
-                                <td colSpan={2} />
+                                <td colSpan={showActions ? 3 : 2} />
                             </tr>
                         </tfoot>
                     )}

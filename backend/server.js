@@ -7,6 +7,8 @@ import userRoutes from "./src/routes/user.routes.js";
 import authRoutes from "./src/routes/auth.routes.js";
 import posRoutes from "./src/routes/pos.routes.js";
 import cancellationRoutes from "./src/routes/cancellation.routes.js";
+import assetRoutes from "./src/routes/asset.routes.js";
+import assetCodeRoutes from "./src/routes/asset-code.routes.js";
 import initDatabase from "./src/config/init.js";
 
 dotenv.config();
@@ -22,6 +24,8 @@ app.use("/api/users", userRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/pos", posRoutes);
 app.use("/api/cancellation", cancellationRoutes);
+app.use("/api/assets", assetRoutes);
+app.use("/api/asset-codes", assetCodeRoutes);
 
 const PORT = process.env.PORT || 5050;
 

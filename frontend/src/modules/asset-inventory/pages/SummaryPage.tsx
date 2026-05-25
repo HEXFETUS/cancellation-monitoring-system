@@ -1,20 +1,33 @@
-import { Building2, Car, Home, MapPin, Monitor, Users } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import {
+    Building2,
+    Camera,
+    Car,
+    Home,
+    MapPin,
+    Monitor,
+    Users,
+} from "lucide-react";
 import type { ComponentType } from "react";
+import { listAllAssets, type AssetLocation } from "../services";
+import type { AssetRow } from "../components/AssetTable";
 
-interface Section {
+type AssetWithLocation = AssetRow & { location: AssetLocation };
+
+interface SectionDef {
     name: string;
     icon: ComponentType<{ size?: number; className?: string }>;
-    /** Optional list of sub-locations under this section. */
+    /** Backend location this section maps to. Sections without a mapping stay at 0. */
+    location: AssetLocation | null;
+    /** Optional sub-locations. Each one matches by `space` (case-insensitive). */
     children?: string[];
-    /** Placeholder asset counts. Wire to real data once backend exists. */
-    count?: number;
 }
 
-const sections: Section[] = [
+const SECTIONS: SectionDef[] = [
     {
         name: "Main Office",
         icon: Building2,
-        count: 0,
+        location: "office",
         children: [
             "Receptions",
             "OPS/Admin",
@@ -24,37 +37,101 @@ const sections: Section[] = [
             "Showroom",
         ],
     },
-    {
-        name: "Drawcourt",
-        icon: Monitor,
-        count: 0,
-    },
-    {
-        name: "PCSO",
-        icon: Users,
-        count: 0,
-    },
+    { name: "Drawcourt", icon: Monitor, location: "drawcourt" },
+    { name: "PCSO", icon: Users, location: null },
     {
         name: "Payout Station",
         icon: MapPin,
-        count: 0,
+        location: "payout",
         children: ["CDO", "WEST", "EAST"],
     },
-    {
-        name: "Staffhouse",
-        icon: Home,
-        count: 0,
-    },
-    {
-        name: "Vehicle",
-        icon: Car,
-        count: 0,
-    },
+    { name: "OBS", icon: Camera, location: "obs" },
+    { name: "Staffhouse", icon: Home, location: null },
+    { name: "Vehicle", icon: Car, location: null },
 ];
 
+const PHP = new Intl.NumberFormat("en-PH", {
+    style: "currency",
+    currency: "PHP",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+});
+
+interface SectionStats {
+    section: SectionDef;
+    /** Sum of asset_value × quantity = total monetary value of this section. */
+    totalValue: number;
+    /** Total quantity across all rows in this section. */
+    quantity: number;
+    /** Per-sub-location quantity, keyed by the sub-location name. */
+    childCounts: Record<string, number>;
+}
+
+function computeStats(
+    assets: AssetWithLocation[],
+    sections: SectionDef[]
+): SectionStats[] {
+    return sections.map((section) => {
+        if (!section.location) {
+            return {
+                section,
+                totalValue: 0,
+                quantity: 0,
+                childCounts: Object.fromEntries(
+                    (section.children ?? []).map((c) => [c, 0])
+                ),
+            };
+        }
+
+        const rows = assets.filter((a) => a.location === section.location);
+        const totalValue = rows.reduce((sum, r) => sum + (r.totalValue || 0), 0);
+        const quantity = rows.reduce((sum, r) => sum + (r.quantity || 0), 0);
+
+        const childCounts: Record<string, number> = {};
+        for (const child of section.children ?? []) {
+            const target = child.toLowerCase();
+            childCounts[child] = rows
+                .filter((r) => (r.space || "").toLowerCase() === target)
+                .reduce((sum, r) => sum + (r.quantity || 0), 0);
+        }
+
+        return { section, totalValue, quantity, childCounts };
+    });
+}
+
 export default function SummaryPage() {
-    const totalSections = sections.length;
-    const totalSubLocations = sections.reduce(
+    const [assets, setAssets] = useState<AssetWithLocation[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState("");
+
+    useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            try {
+                setLoading(true);
+                setError("");
+                const data = await listAllAssets();
+                if (!cancelled) setAssets(data);
+            } catch (err: any) {
+                if (!cancelled) setError(err.message || "Could not load assets");
+            } finally {
+                if (!cancelled) setLoading(false);
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    const stats = useMemo(() => computeStats(assets, SECTIONS), [assets]);
+
+    const totals = useMemo(() => {
+        const totalAssets = assets.reduce((sum, r) => sum + (r.quantity || 0), 0);
+        const totalValue = assets.reduce((sum, r) => sum + (r.totalValue || 0), 0);
+        return { totalAssets, totalValue };
+    }, [assets]);
+
+    const totalSubLocations = SECTIONS.reduce(
         (sum, s) => sum + (s.children?.length ?? 0),
         0
     );
@@ -65,21 +142,34 @@ export default function SummaryPage() {
             <div className="mb-6">
                 <h1 className="text-2xl font-bold text-ink">Asset Inventory Summary</h1>
                 <p className="mt-1 text-sm text-ink-muted">
-                    Overview of all asset locations and their sub-areas.
+                    Live counts and total value across every asset location.
                 </p>
             </div>
 
+            {error && (
+                <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
+                    {error}
+                </div>
+            )}
+
             {/* Top stats */}
-            <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-3">
-                <StatCard label="Locations" value={totalSections} />
+            <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-4">
+                <StatCard label="Locations" value={SECTIONS.length} />
                 <StatCard label="Sub-Locations" value={totalSubLocations} />
-                <StatCard label="Total Assets" value={0} />
+                <StatCard
+                    label="Total Assets"
+                    value={loading ? "—" : totals.totalAssets.toLocaleString()}
+                />
+                <StatCard
+                    label="Total Value"
+                    value={loading ? "—" : PHP.format(totals.totalValue)}
+                />
             </div>
 
             {/* Sections grid */}
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                {sections.map((section) => (
-                    <SectionCard key={section.name} section={section} />
+                {stats.map((s) => (
+                    <SectionCard key={s.section.name} stats={s} loading={loading} />
                 ))}
             </div>
         </div>
@@ -88,7 +178,7 @@ export default function SummaryPage() {
 
 /* ---------------- subcomponents ---------------- */
 
-function StatCard({ label, value }: { label: string; value: number }) {
+function StatCard({ label, value }: { label: string; value: number | string }) {
     return (
         <div className="rounded-xl border border-teal/20 bg-teal/5 p-4">
             <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">
@@ -99,24 +189,51 @@ function StatCard({ label, value }: { label: string; value: number }) {
     );
 }
 
-function SectionCard({ section }: { section: Section }) {
+function SectionCard({
+    stats,
+    loading,
+}: {
+    stats: SectionStats;
+    loading: boolean;
+}) {
+    const { section, totalValue, quantity, childCounts } = stats;
     const Icon = section.icon;
+    const tracked = Boolean(section.location);
 
     return (
         <div className="rounded-2xl border border-warm bg-card p-5 shadow-sm transition hover:border-teal hover:shadow-md">
             {/* Header */}
-            <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cream text-teal">
+            <div className="flex items-start justify-between gap-2">
+                <div className="flex min-w-0 items-center gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cream text-teal">
                         <Icon size={20} />
                     </div>
-                    <h2 className="text-base font-semibold text-ink">{section.name}</h2>
+                    <div className="min-w-0">
+                        <h2 className="truncate text-base font-semibold text-ink">
+                            {section.name}
+                        </h2>
+                        {!tracked && (
+                            <span className="text-[11px] uppercase tracking-wider text-ink-subtle">
+                                Not yet tracked
+                            </span>
+                        )}
+                    </div>
                 </div>
 
                 <span className="rounded-full bg-teal-light/40 px-2.5 py-0.5 text-xs font-semibold text-ink">
-                    {section.count ?? 0}
+                    {loading ? "…" : quantity}
                 </span>
             </div>
+
+            {/* Total value */}
+            {tracked && (
+                <p className="mt-3 text-xs text-ink-muted">
+                    Total value{" "}
+                    <span className="font-semibold text-ink">
+                        {loading ? "…" : PHP.format(totalValue)}
+                    </span>
+                </p>
+            )}
 
             {/* Sub-locations */}
             {section.children && section.children.length > 0 && (
@@ -134,7 +251,9 @@ function SectionCard({ section }: { section: Section }) {
                                     <span className="h-1.5 w-1.5 rounded-full bg-teal" />
                                     {child}
                                 </span>
-                                <span className="text-xs text-ink-subtle">0</span>
+                                <span className="text-xs text-ink-subtle">
+                                    {loading ? "…" : (childCounts[child] ?? 0)}
+                                </span>
                             </li>
                         ))}
                     </ul>

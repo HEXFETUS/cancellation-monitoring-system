@@ -12,6 +12,8 @@ const SERIAL_TABLES = [
     "user_logs",
     "cancellation_record",
     "cancellation_human_force",
+    "assets",
+    "asset_codes",
 ];
 
 async function syncSerialSequence(client, tableName) {
@@ -243,6 +245,64 @@ async function initDatabase() {
                 ('Operator One', 'operator@example.com', 'operator', 'op123');
             `);
         }
+
+        /* =========================
+           assets — Asset Inventory
+           One row per physical asset record. The "location" column
+           groups by section (office/payout/drawcourt/obs) so the same
+           table can power all four pages.
+        ========================= */
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS assets (
+                id SERIAL PRIMARY KEY,
+                location VARCHAR(50) NOT NULL CHECK (location IN ('office', 'payout', 'drawcourt', 'obs')),
+                item_description VARCHAR(255) NOT NULL,
+                type VARCHAR(100),
+                serial_number VARCHAR(255),
+                department VARCHAR(255),
+                space VARCHAR(255),
+                date_purchase DATE,
+                vendor VARCHAR(255),
+                purchase_price NUMERIC(14,2) DEFAULT 0,
+                warranty_date DATE,
+                quantity INTEGER DEFAULT 1,
+                discount NUMERIC(14,2) DEFAULT 0,
+                asset_value NUMERIC(14,2) DEFAULT 0,
+                total_value NUMERIC(14,2) DEFAULT 0,
+                color VARCHAR(50),
+                remarks TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        await client.query(
+            "CREATE INDEX IF NOT EXISTS idx_assets_location ON assets(location)"
+        );
+
+        /* =========================
+           asset_codes — the master "Asset Coding" registry.
+           Each row gets a unique qr_payload that scanners decode.
+           A row may also link to a concrete asset (assets.id) if you
+           want the QR to identify a specific physical item.
+        ========================= */
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS asset_codes (
+                id SERIAL PRIMARY KEY,
+                item_code VARCHAR(100) UNIQUE NOT NULL,
+                description VARCHAR(255) NOT NULL,
+                type VARCHAR(100),
+                department VARCHAR(255),
+                care_of VARCHAR(255),
+                space VARCHAR(255),
+                qr_payload VARCHAR(255) UNIQUE NOT NULL,
+                asset_id INTEGER REFERENCES assets(id) ON DELETE SET NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        await client.query(
+            "CREATE INDEX IF NOT EXISTS idx_asset_codes_item_code ON asset_codes(item_code)"
+        );
 
         for (const tableName of SERIAL_TABLES) {
             await syncSerialSequence(client, tableName);
