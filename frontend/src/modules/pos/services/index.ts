@@ -15,13 +15,16 @@ export async function fetchPosRecords(params?: {
     serial_number?: string;
     booth_id?: string;
     operator_id?: string;
+    /** When set, returns only POS records belonging to the operator linked to this user. */
+    user_id?: string;
 }): Promise<PosRecord[]> {
     const searchParams = new URLSearchParams();
-    
+
     if (params?.device_no) searchParams.set("device_no", params.device_no);
     if (params?.serial_number) searchParams.set("serial_number", params.serial_number);
     if (params?.booth_id) searchParams.set("booth_id", params.booth_id);
     if (params?.operator_id) searchParams.set("operator_id", params.operator_id);
+    if (params?.user_id) searchParams.set("user_id", params.user_id);
 
     const query = searchParams.toString();
     const url = query ? `${API_BASE}?${query}` : API_BASE;

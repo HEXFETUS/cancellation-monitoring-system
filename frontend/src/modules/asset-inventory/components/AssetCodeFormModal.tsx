@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { Search, X } from "lucide-react";
-import type { AssetCode, AssetCodeInput } from "../services/assetCodes";
+import {
+    type AssetCode,
+    type AssetCodeInput,
+    listAssetCodes,
+} from "../services/assetCodes";
 import type { AssetRow } from "./AssetTable";
 import { listAllAssets, type AssetLocation } from "../services";
 
@@ -13,9 +17,10 @@ interface Props {
     onSubmit: (values: AssetCodeInput) => Promise<void>;
 }
 
-const LOCATION_PREFIX: Record<AssetLocation, string> = {
+/** Short location code used in the middle of an item code (e.g. PAY for Payout). */
+const LOCATION_CODE: Record<AssetLocation, string> = {
     office: "OFC",
-    payout: "PYO",
+    payout: "PAY",
     drawcourt: "DRW",
     obs: "OBS",
 };
@@ -27,9 +32,53 @@ const LOCATION_DEPT: Record<AssetLocation, string> = {
     obs: "OBS",
 };
 
-function suggestItemCode(asset: AssetWithLocation): string {
-    const prefix = LOCATION_PREFIX[asset.location] ?? "AST";
-    return `${prefix}-${String(asset.id).padStart(3, "0")}`;
+/**
+ * Map a payout asset's `space` (CDO / WEST / EAST) to a station prefix.
+ * Returns null when the space doesn't map cleanly so the caller can fall back.
+ */
+function payoutStationCode(space: string | null | undefined): string | null {
+    const s = (space || "").trim().toUpperCase();
+    if (s === "CDO") return "CDO";
+    if (s === "WEST" || s === "MOW") return "MOW"; // Misamis Oriental West
+    if (s === "EAST" || s === "MOE") return "MOE"; // Misamis Oriental East
+    return null;
+}
+
+/**
+ * Build an item code prefix string. For payout, includes the station:
+ *   CDO-PAY, MOE-PAY, MOW-PAY
+ * For all other locations, just the location code:
+ *   OFC, DRW, OBS
+ */
+function buildPrefix(asset: AssetWithLocation): string {
+    const loc = LOCATION_CODE[asset.location] ?? "AST";
+    if (asset.location === "payout") {
+        const station = payoutStationCode(asset.space) ?? "STN";
+        return `${station}-${loc}`;
+    }
+    return loc;
+}
+
+/**
+ * Find the next sequence number for a given prefix by scanning existing
+ * item codes. Falls back to `001` when nothing matches.
+ */
+function nextSequence(existing: AssetCode[], prefix: string): string {
+    const re = new RegExp(`^${prefix}-(\\d+)$`, "i");
+    let max = 0;
+    for (const c of existing) {
+        const m = re.exec(c.itemCode || "");
+        if (m) {
+            const n = Number(m[1]);
+            if (Number.isFinite(n) && n > max) max = n;
+        }
+    }
+    return String(max + 1).padStart(3, "0");
+}
+
+function suggestItemCode(asset: AssetWithLocation, existing: AssetCode[]): string {
+    const prefix = buildPrefix(asset);
+    return `${prefix}-${nextSequence(existing, prefix)}`;
 }
 
 const EMPTY: AssetCodeInput = {
@@ -49,11 +98,12 @@ export default function AssetCodeFormModal({ open, initial, onClose, onSubmit }:
 
     // Asset picker state
     const [assets, setAssets] = useState<AssetWithLocation[]>([]);
+    const [existingCodes, setExistingCodes] = useState<AssetCode[]>([]);
     const [assetsLoading, setAssetsLoading] = useState(false);
     const [assetSearch, setAssetSearch] = useState("");
     const [pickedAssetId, setPickedAssetId] = useState<number | null>(null);
 
-    // Load assets every time the modal opens
+    // Load assets and existing codes every time the modal opens
     useEffect(() => {
         if (!open) return;
 
@@ -75,8 +125,11 @@ export default function AssetCodeFormModal({ open, initial, onClose, onSubmit }:
         }
 
         setAssetsLoading(true);
-        listAllAssets()
-            .then(setAssets)
+        Promise.all([listAllAssets(), listAssetCodes()])
+            .then(([a, c]) => {
+                setAssets(a);
+                setExistingCodes(c);
+            })
             .catch((e) => setErr(e.message || "Could not load assets"))
             .finally(() => setAssetsLoading(false));
     }, [open, initial]);
@@ -94,15 +147,51 @@ export default function AssetCodeFormModal({ open, initial, onClose, onSubmit }:
 
     const handlePickAsset = (asset: AssetWithLocation) => {
         setPickedAssetId(asset.id as number);
+        // For payout, the "department" we want to record on the code is the
+        // station code (CDO-001, MOE, etc.), which the asset stores in `space`.
+        // For everything else, use the asset's department as-is (role name).
+        const codeDept =
+            asset.location === "payout"
+                ? (asset.space || "").trim()
+                : (asset.department || "").trim();
         setV({
-            itemCode: suggestItemCode(asset),
+            itemCode: suggestItemCode(asset, existingCodes),
             description: asset.itemDescription,
             type: asset.type || "",
-            department: asset.department || LOCATION_DEPT[asset.location] || "",
+            department: codeDept,
             careOf: "",
             space: asset.space || "",
             assetId: Number(asset.id),
         });
+    };
+
+    /**
+     * Edit-mode helper: regenerate the item code based on the currently linked asset
+     * using the new station-aware convention. Useful when migrating older codes.
+     */
+    const handleSyncCode = () => {
+        const linked = assets.find((a) => a.id === v.assetId);
+        if (!linked) {
+            setErr("This code has no linked asset, can't sync.");
+            return;
+        }
+        // Pretend the current code doesn't exist so the sequence is correct.
+        const codesWithoutSelf = initial
+            ? existingCodes.filter((c) => c.id !== initial.id)
+            : existingCodes;
+        setV((prev) => {
+            const codeDept =
+                linked.location === "payout"
+                    ? (linked.space || "").trim() || prev.department
+                    : (linked.department || "").trim() || prev.department;
+            return {
+                ...prev,
+                itemCode: suggestItemCode(linked, codesWithoutSelf),
+                space: linked.space || prev.space,
+                department: codeDept,
+            };
+        });
+        setErr("");
     };
 
     const set = <K extends keyof AssetCodeInput>(k: K, val: AssetCodeInput[K]) =>
@@ -226,9 +315,21 @@ export default function AssetCodeFormModal({ open, initial, onClose, onSubmit }:
                     )}
 
                     <section>
-                        <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">
-                            {initial ? "Edit details" : "2. Confirm details"}
-                        </h4>
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                            <h4 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+                                {initial ? "Edit details" : "2. Confirm details"}
+                            </h4>
+                            {initial && v.assetId && (
+                                <button
+                                    type="button"
+                                    onClick={handleSyncCode}
+                                    className="rounded-lg border border-teal/40 bg-teal/10 px-2.5 py-1 text-xs font-medium text-ink transition hover:bg-teal/20"
+                                    title="Regenerate item code using station-aware convention"
+                                >
+                                    Sync to station code
+                                </button>
+                            )}
+                        </div>
 
                         <div className="grid gap-4 sm:grid-cols-2">
                             <Field label="Item Code *">

@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import type { AssetRow } from "./AssetTable";
+import type { PayoutStation } from "../services/payoutStations";
+import type { OfficeDepartment } from "../services/officeDepartments";
 
 export type AssetFormValues = Omit<AssetRow, "id" | "totalValue">;
 
@@ -8,6 +10,10 @@ interface AssetFormModalProps {
     open: boolean;
     title: string;
     initial?: AssetRow | null;
+    /** Pass when the form is for a payout asset; renders a station dropdown. */
+    payoutStations?: PayoutStation[];
+    /** Pass when the form is for an office asset; renders a department dropdown. */
+    officeDepartments?: OfficeDepartment[];
     onClose: () => void;
     onSubmit: (values: AssetFormValues) => Promise<void>;
 }
@@ -27,12 +33,16 @@ const EMPTY: AssetFormValues = {
     assetValue: 0,
     color: "#92C7CF",
     remarks: "",
+    payoutStationId: null,
+    officeDepartmentId: null,
 };
 
 export default function AssetFormModal({
     open,
     title,
     initial,
+    payoutStations,
+    officeDepartments,
     onClose,
     onSubmit,
 }: AssetFormModalProps) {
@@ -59,6 +69,8 @@ export default function AssetFormModal({
                         assetValue: initial.assetValue,
                         color: initial.color,
                         remarks: initial.remarks ?? "",
+                        payoutStationId: initial.payoutStationId ?? null,
+                        officeDepartmentId: initial.officeDepartmentId ?? null,
                     }
                     : EMPTY
             );
@@ -146,19 +158,86 @@ export default function AssetFormModal({
                                 onChange={(v) => setField("serialNumber", v)}
                             />
                         </Field>
-                        <Field label="Department">
-                            <Input
-                                value={values.department}
-                                onChange={(v) => setField("department", v)}
-                            />
-                        </Field>
+                        {payoutStations ? (
+                            <Field label="Payout Station *">
+                                <select
+                                    value={values.payoutStationId ?? ""}
+                                    onChange={(e) => {
+                                        const id = e.target.value === "" ? null : Number(e.target.value);
+                                        setField("payoutStationId", id);
+                                        const station = payoutStations.find((s) => s.id === id);
+                                        // Mirror to space + department so item codes and exports stay consistent.
+                                        setField("space", station?.stationCode ?? "");
+                                        setField("department", station?.name ?? "");
+                                    }}
+                                    className="w-full rounded-lg border border-warm bg-card px-3 py-2 text-sm text-ink focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal"
+                                >
+                                    <option value="">Pick a station</option>
+                                    {payoutStations
+                                        .filter((s) => s.active || s.id === values.payoutStationId)
+                                        .map((s) => (
+                                            <option key={s.id} value={s.id}>
+                                                {s.stationCode === s.name
+                                                    ? s.name
+                                                    : `${s.stationCode} — ${s.name}`}
+                                                {!s.active ? " (inactive)" : ""}
+                                            </option>
+                                        ))}
+                                </select>
+                            </Field>
+                        ) : officeDepartments ? (
+                            <Field label="Department *">
+                                <select
+                                    value={values.officeDepartmentId ?? ""}
+                                    onChange={(e) => {
+                                        const id = e.target.value === "" ? null : Number(e.target.value);
+                                        setField("officeDepartmentId", id);
+                                        const dept = officeDepartments.find((d) => d.id === id);
+                                        // Mirror name into `department`, but leave `space` alone — it's
+                                        // a physical location (Showroom/Conference/etc.), not a role.
+                                        setField("department", dept?.name ?? "");
+                                    }}
+                                    className="w-full rounded-lg border border-warm bg-card px-3 py-2 text-sm text-ink focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal"
+                                >
+                                    <option value="">Pick a department</option>
+                                    {officeDepartments
+                                        .filter((d) => d.active || d.id === values.officeDepartmentId)
+                                        .map((d) => (
+                                            <option key={d.id} value={d.id}>
+                                                {d.deptCode === d.name
+                                                    ? d.name
+                                                    : `${d.deptCode} — ${d.name}`}
+                                                {!d.active ? " (inactive)" : ""}
+                                            </option>
+                                        ))}
+                                </select>
+                            </Field>
+                        ) : (
+                            <Field label="Department">
+                                <Input
+                                    value={values.department}
+                                    onChange={(v) => setField("department", v)}
+                                />
+                            </Field>
+                        )}
 
-                        <Field label="Space">
-                            <Input
-                                value={values.space}
-                                onChange={(v) => setField("space", v)}
-                            />
-                        </Field>
+                        {!payoutStations && !officeDepartments && (
+                            <Field label="Space">
+                                <Input
+                                    value={values.space}
+                                    onChange={(v) => setField("space", v)}
+                                />
+                            </Field>
+                        )}
+                        {officeDepartments && (
+                            <Field label="Space (location)">
+                                <Input
+                                    value={values.space}
+                                    onChange={(v) => setField("space", v)}
+                                    placeholder="e.g. Showroom, Conference, Reception"
+                                />
+                            </Field>
+                        )}
                         <Field label="Vendor">
                             <Input
                                 value={values.vendor}

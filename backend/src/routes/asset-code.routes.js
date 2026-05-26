@@ -1,8 +1,13 @@
 import express from "express";
 import crypto from "node:crypto";
 import pool from "../config/db.js";
+import { blockRoles } from "../middleware/role-guard.js";
 
 const router = express.Router();
+
+const blockPurchaserDelete = blockRoles(["purchaser"], {
+    errorMessage: "Purchasers can't delete asset codes",
+});
 
 const COLUMNS = `
     id, item_code, description, type, department, care_of, space,
@@ -184,7 +189,7 @@ router.post("/:id/regenerate-qr", async (req, res) => {
 });
 
 // DELETE /api/asset-codes/:id
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", blockPurchaserDelete, async (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isFinite(id)) return res.status(400).json({ error: "Invalid id" });
 

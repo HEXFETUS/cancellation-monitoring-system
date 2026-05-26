@@ -3,6 +3,8 @@ import { Users, UserPlus, ClipboardList, Menu, Check, X } from "lucide-react";
 import UserAccountsPage from "./UserAccountsPage";
 import CreateUserAccountPage from "./CreateUserAccountPage";
 import UserLogsPage from "./UserLogsPage";
+import MyAccountPage from "./MyAccountPage";
+import { useAuth } from "../../../context/AuthContext";
 
 const teal = "#92C7CF";
 
@@ -17,6 +19,18 @@ const userSubTabs = [
 ];
 
 export default function SettingsPage() {
+    const { user } = useAuth();
+
+    // Operators and purchasers get a slim, self-scoped settings view (My Account only).
+    // Admin/CSR see the full management UI below.
+    if (user?.usertype === "operator" || user?.usertype === "purchaser") {
+        return <MyAccountPage />;
+    }
+
+    return <AdminSettingsPage />;
+}
+
+function AdminSettingsPage() {
     const [activeTab, setActiveTab] = useState("user-accounts");
     const [activeUserSubTab, setActiveUserSubTab] = useState("accounts");
     const [sidebarOpen, setSidebarOpen] = useState(true);
