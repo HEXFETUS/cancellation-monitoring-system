@@ -44,6 +44,7 @@ const OPERATOR_SELECT = `
     SELECT
         id,
         operator,
+        user_id,
         created_at,
         updated_at
     FROM operator_list
@@ -255,6 +256,7 @@ router.get("/", async (req, res) => {
             serial_number,
             booth_id,
             operator_id,
+            user_id,
         } = req.query;
 
         let query = `${POS_SELECT} WHERE 1=1`;
@@ -283,6 +285,15 @@ router.get("/", async (req, res) => {
         if (operator_id) {
             query += ` AND p.operator_id = $${idx}::int`;
             params.push(operator_id);
+            idx++;
+        }
+
+        // Resolve operator from user_id when caller is an operator user.
+        // Their POS records are filtered to whatever operator_list row points
+        // to that user. If no such operator row exists, return nothing.
+        if (user_id) {
+            query += ` AND p.operator_id = (SELECT id FROM operator_list WHERE user_id = $${idx}::int LIMIT 1)`;
+            params.push(user_id);
             idx++;
         }
 

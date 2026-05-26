@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useAuth } from "../../context/AuthContext";
+import OperatorDashboard from "../../modules/operator/pages/OperatorDashboard";
 
 /* ---------------- Glow & gradient helpers ---------------- */
 const teal = "#92C7CF";
@@ -266,6 +267,18 @@ function formatLoginTime(value: string | null) {
 }
 
 export default function DashboardHome() {
+    const { user } = useAuth();
+
+    // Operators get a dashboard scoped to their own POS devices and requests
+    // — no totals across the entire org.
+    if (user?.usertype === "operator") {
+        return <OperatorDashboard />;
+    }
+
+    return <AdminDashboardHome />;
+}
+
+function AdminDashboardHome() {
     const { user } = useAuth();
     const [currentUser, setCurrentUser] = useState(user);
     const [lastLogin, setLastLogin] = useState<string | null>(null);

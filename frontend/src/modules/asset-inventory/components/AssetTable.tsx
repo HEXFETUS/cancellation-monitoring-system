@@ -18,6 +18,8 @@ export interface AssetRow {
     totalValue: number;         // assetValue * quantity
     color: string;
     remarks?: string;
+    payoutStationId?: number | null;
+    officeDepartmentId?: number | null;
 }
 
 interface AssetTableProps {
@@ -29,6 +31,10 @@ interface AssetTableProps {
     onAdd?: () => void;
     onEdit?: (row: AssetRow) => void;
     onDelete?: (row: AssetRow) => void;
+    /** Optional extra buttons rendered next to "Add Asset" in the header. */
+    extraHeaderActions?: React.ReactNode;
+    /** Override the column header label for the `department` column. */
+    departmentLabel?: string;
 }
 
 const PHP = new Intl.NumberFormat("en-PH", {
@@ -57,6 +63,8 @@ export default function AssetTable({
     onAdd,
     onEdit,
     onDelete,
+    extraHeaderActions,
+    departmentLabel = "Department",
 }: AssetTableProps) {
     const [search, setSearch] = useState("");
 
@@ -123,6 +131,7 @@ export default function AssetTable({
                             Add Asset
                         </button>
                     )}
+                    {extraHeaderActions}
                 </div>
             </div>
 
@@ -140,7 +149,7 @@ export default function AssetTable({
                             <Th>Item Description</Th>
                             <Th>Type</Th>
                             <Th>Serial No.</Th>
-                            <Th>Department</Th>
+                            <Th>{departmentLabel}</Th>
                             <Th>Space</Th>
                             <Th>Date Purchased</Th>
                             <Th>Vendor</Th>

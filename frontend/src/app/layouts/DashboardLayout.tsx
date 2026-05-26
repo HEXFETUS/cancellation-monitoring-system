@@ -28,7 +28,9 @@ type SidebarUser = {
 
 const iconMap: Record<string, any> = {
     Dashboard: LayoutDashboard,
+    "My POS": Monitor,
     "POS Inventory": Monitor,
+    "POS": Monitor,
     "POS Repair": Wrench,
     Cancellation: FileText,
     "Asset Inventory": Package,
@@ -84,14 +86,31 @@ export default function DashboardLayout() {
 
     const closeMobileSidebar = () => setMobileSidebarOpen(false);
 
-    const navItems = [
-        { name: "Dashboard", path: "/app/dashboard" },
-        { name: "POS", path: "/app/pos" },
-        { name: "POS Repair", path: "/app/pos-repair" },
-        { name: "Cancellation", path: "/app/cancellation" },
-        { name: "Assets", path: "/app/asset-inventory" },
-        { name: "Settings", path: "/app/settings" },
-    ];
+    const isOperator = (sidebarUser?.usertype ?? authUser?.usertype) === "operator";
+    const isPurchaser = (sidebarUser?.usertype ?? authUser?.usertype) === "purchaser";
+
+    // Operators get a slim sidebar with only their own POS view.
+    // Purchasers get a slim sidebar with only Assets.
+    // Admin/CSR see the full menu.
+    const navItems = isOperator
+        ? [
+            { name: "Dashboard", path: "/app/dashboard" },
+            { name: "My POS", path: "/app/my-pos" },
+            { name: "Settings", path: "/app/settings" },
+        ]
+        : isPurchaser
+            ? [
+                { name: "Assets", path: "/app/asset-inventory" },
+                { name: "Settings", path: "/app/settings" },
+            ]
+            : [
+                { name: "Dashboard", path: "/app/dashboard" },
+                { name: "POS", path: "/app/pos" },
+                { name: "POS Repair", path: "/app/pos-repair" },
+                { name: "Cancellation", path: "/app/cancellation" },
+                { name: "Assets", path: "/app/asset-inventory" },
+                { name: "Settings", path: "/app/settings" },
+            ];
 
     return (
         <div

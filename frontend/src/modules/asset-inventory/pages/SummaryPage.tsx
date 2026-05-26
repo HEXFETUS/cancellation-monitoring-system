@@ -28,14 +28,10 @@ const SECTIONS: SectionDef[] = [
         name: "Main Office",
         icon: Building2,
         location: "office",
-        children: [
-            "Receptions",
-            "OPS/Admin",
-            "Accounting",
-            "IT",
-            "Conference",
-            "Showroom",
-        ],
+        // Physical spaces inside the office. Departments (Admin/IT/HR/etc.)
+        // are tracked separately via office_departments and aren't broken
+        // out here.
+        children: ["Reception", "Showroom", "Conference"],
     },
     { name: "Drawcourt", icon: Monitor, location: "drawcourt" },
     { name: "PCSO", icon: Users, location: null },

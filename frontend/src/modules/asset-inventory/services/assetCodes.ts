@@ -107,7 +107,8 @@ export async function regenerateQr(id: number): Promise<AssetCode> {
     return fromWire(await res.json());
 }
 
-export async function deleteAssetCode(id: number): Promise<void> {
-    const res = await fetch(apiUrl(`/api/asset-codes/${id}`), { method: "DELETE" });
+export async function deleteAssetCode(id: number, userId?: number): Promise<void> {
+    const url = userId ? `/api/asset-codes/${id}?user_id=${userId}` : `/api/asset-codes/${id}`;
+    const res = await fetch(apiUrl(url), { method: "DELETE" });
     if (!res.ok) throw new Error(await getErrorMessage(res, "Failed to delete asset code"));
 }

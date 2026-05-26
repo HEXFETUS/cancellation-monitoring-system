@@ -5,13 +5,21 @@ interface User {
     id: number;
     name: string;
     email: string;
-    usertype: "admin" | "csr" | "operator";
+    usertype: "admin" | "csr" | "operator" | "purchaser";
     password?: string;
     position: string;
     department: string;
+    operator_id?: number | null;
+    operator_name?: string | null;
 }
 
-const USERTYPES = ["admin", "csr", "operator"] as const;
+interface OperatorProfile {
+    id: number;
+    operator: string;
+    user_id: number | null;
+}
+
+const USERTYPES = ["admin", "csr", "operator", "purchaser"] as const;
 
 const ALPHANUMERIC = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 const SAME_PASSWORD_ERROR = "New password cannot be the same as the current password.";
@@ -199,12 +207,14 @@ export default function UserAccountsPage({ onSuccess }: { onSuccess: (message: s
         usertype: User["usertype"];
         position: string;
         department: string;
+        operator_id: number | null;
     }>({
         name: "",
         email: "",
         usertype: "admin",
         position: "",
         department: "",
+        operator_id: null,
     });
     const [confirmAction, setConfirmAction] = useState<{
         message: string;
@@ -212,6 +222,7 @@ export default function UserAccountsPage({ onSuccess }: { onSuccess: (message: s
         itemName?: string;
     } | null>(null);
     const [passwordModalUser, setPasswordModalUser] = useState<User | null>(null);
+    const [operators, setOperators] = useState<OperatorProfile[]>([]);
 
     const fetchUsers = async () => {
         try {
@@ -227,8 +238,20 @@ export default function UserAccountsPage({ onSuccess }: { onSuccess: (message: s
         }
     };
 
+    const fetchOperators = async () => {
+        try {
+            const res = await fetch(apiUrl("/api/pos/operators"));
+            if (!res.ok) return;
+            const data = await res.json();
+            setOperators(data);
+        } catch {
+            // Operators are optional context — silently skip if endpoint unreachable.
+        }
+    };
+
     useEffect(() => {
         fetchUsers();
+        fetchOperators();
     }, []);
 
     const showSuccessToast = (message: string) => {
@@ -244,6 +267,7 @@ export default function UserAccountsPage({ onSuccess }: { onSuccess: (message: s
             usertype: user.usertype,
             position: user.position ?? "",
             department: user.department ?? "",
+            operator_id: user.operator_id ?? null,
         });
     };
 
@@ -267,13 +291,33 @@ export default function UserAccountsPage({ onSuccess }: { onSuccess: (message: s
             message: "Are you sure you want to save these changes?",
             onConfirm: async () => {
                 try {
+                    // 1. Save the user fields (operator_id is handled separately
+                    //    because it lives in operator_list.user_id, not on users).
+                    const { operator_id, ...userFields } = editForm;
                     const res = await fetch(apiUrl(`/api/users/${id}`), {
                         method: "PUT",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify(editForm),
+                        body: JSON.stringify(userFields),
                     });
                     if (!res.ok) throw new Error(await getErrorMessage(res, "Failed to update user"));
+
+                    // 2. Update operator linkage when the role is operator. For
+                    //    other roles we skip — admins/csr don't have operator profiles.
+                    if (userFields.usertype === "operator") {
+                        const linkRes = await fetch(apiUrl(`/api/users/${id}/operator`), {
+                            method: "PATCH",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ operator_id }),
+                        });
+                        if (!linkRes.ok) {
+                            throw new Error(
+                                await getErrorMessage(linkRes, "Failed to update operator linkage")
+                            );
+                        }
+                    }
+
                     await fetchUsers();
+                    await fetchOperators();
                     setEditingId(null);
                     showSuccessToast("User account updated successfully.");
                 } catch (err: any) {
@@ -371,6 +415,7 @@ export default function UserAccountsPage({ onSuccess }: { onSuccess: (message: s
                             <th className="px-4 py-3 text-sm font-semibold text-ink-muted">Position</th>
                             <th className="px-4 py-3 text-sm font-semibold text-ink-muted">Department</th>
                             <th className="px-4 py-3 text-sm font-semibold text-ink-muted">User Type</th>
+                            <th className="px-4 py-3 text-sm font-semibold text-ink-muted">Operator Profile</th>
                             <th className="px-4 py-3 text-sm font-semibold text-ink-muted text-right">Actions</th>
                         </tr>
                     </thead>
@@ -429,6 +474,37 @@ export default function UserAccountsPage({ onSuccess }: { onSuccess: (message: s
                                                 ))}
                                             </select>
                                         </td>
+                                        <td className="px-4 py-3">
+                                            {editForm.usertype === "operator" ? (
+                                                <select
+                                                    value={editForm.operator_id ?? ""}
+                                                    onChange={(e) =>
+                                                        setEditForm((f) => ({
+                                                            ...f,
+                                                            operator_id:
+                                                                e.target.value === ""
+                                                                    ? null
+                                                                    : Number(e.target.value),
+                                                        }))
+                                                    }
+                                                    className="w-full max-w-[14rem] rounded border border-warm bg-card px-2 py-1 text-sm text-ink focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal"
+                                                >
+                                                    <option value="">— unassigned —</option>
+                                                    {operators
+                                                        .filter(
+                                                            (o) =>
+                                                                !o.user_id || o.user_id === user.id
+                                                        )
+                                                        .map((o) => (
+                                                            <option key={o.id} value={o.id}>
+                                                                {o.operator}
+                                                            </option>
+                                                        ))}
+                                                </select>
+                                            ) : (
+                                                <span className="text-xs text-ink-subtle">—</span>
+                                            )}
+                                        </td>
                                         <td className="px-4 py-3 text-right">
                                             <div className="flex justify-end gap-2">
                                                 <button
@@ -458,6 +534,19 @@ export default function UserAccountsPage({ onSuccess }: { onSuccess: (message: s
                                             <span className="inline-block px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-light/40 text-ink capitalize border border-teal/30">
                                                 {user.usertype}
                                             </span>
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            {user.usertype === "operator" ? (
+                                                <span className="text-sm text-ink">
+                                                    {user.operator_name || (
+                                                        <span className="italic text-ink-subtle">
+                                                            unassigned
+                                                        </span>
+                                                    )}
+                                                </span>
+                                            ) : (
+                                                <span className="text-xs text-ink-subtle">—</span>
+                                            )}
                                         </td>
                                         <td className="px-4 py-3 text-right">
                                             <div className="flex justify-end gap-2">
@@ -490,7 +579,7 @@ export default function UserAccountsPage({ onSuccess }: { onSuccess: (message: s
                         ))}
                         {users.length === 0 && (
                             <tr>
-                                <td colSpan={6} className="px-4 py-6 text-center text-ink-subtle">
+                                <td colSpan={7} className="px-4 py-6 text-center text-ink-subtle">
                                     No user accounts found.
                                 </td>
                             </tr>

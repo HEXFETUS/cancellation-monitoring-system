@@ -1,7 +1,12 @@
 import express from "express";
 import pool from "../config/db.js";
+import { blockRoles } from "../middleware/role-guard.js";
 
 const router = express.Router();
+
+const blockPurchaserDelete = blockRoles(["purchaser"], {
+    errorMessage: "Purchasers can't delete assets",
+});
 
 const VALID_LOCATIONS = new Set(["office", "payout", "drawcourt", "obs"]);
 
@@ -23,6 +28,8 @@ const ASSET_COLUMNS = `
     total_value,
     color,
     remarks,
+    payout_station_id,
+    office_department_id,
     created_at,
     updated_at
 `;
@@ -85,6 +92,18 @@ function buildRow(body) {
         total_value: totalValue,
         color: nullable(body.color),
         remarks: nullable(body.remarks),
+        payout_station_id:
+            body.payoutStationId === undefined ||
+                body.payoutStationId === null ||
+                body.payoutStationId === ""
+                ? null
+                : Number(body.payoutStationId),
+        office_department_id:
+            body.officeDepartmentId === undefined ||
+                body.officeDepartmentId === null ||
+                body.officeDepartmentId === ""
+                ? null
+                : Number(body.officeDepartmentId),
     };
 }
 
@@ -126,9 +145,10 @@ router.post("/", async (req, res) => {
             INSERT INTO assets (
                 location, item_description, type, serial_number, department, space,
                 date_purchase, vendor, purchase_price, warranty_date, quantity,
-                discount, asset_value, total_value, color, remarks
+                discount, asset_value, total_value, color, remarks, payout_station_id,
+                office_department_id
             ) VALUES (
-                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
             )
             RETURNING ${ASSET_COLUMNS}
             `,
@@ -149,6 +169,8 @@ router.post("/", async (req, res) => {
                 row.total_value,
                 row.color,
                 row.remarks,
+                row.payout_station_id,
+                row.office_department_id,
             ]
         );
 
@@ -189,8 +211,10 @@ router.put("/:id", async (req, res) => {
                 total_value = $14,
                 color = $15,
                 remarks = $16,
+                payout_station_id = $17,
+                office_department_id = $18,
                 updated_at = CURRENT_TIMESTAMP
-            WHERE id = $17
+            WHERE id = $19
             RETURNING ${ASSET_COLUMNS}
             `,
             [
@@ -210,6 +234,8 @@ router.put("/:id", async (req, res) => {
                 row.total_value,
                 row.color,
                 row.remarks,
+                row.payout_station_id,
+                row.office_department_id,
                 id,
             ]
         );
@@ -226,7 +252,7 @@ router.put("/:id", async (req, res) => {
 });
 
 // DELETE /api/assets/:id
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", blockPurchaserDelete, async (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isFinite(id)) return res.status(400).json({ error: "Invalid id" });
 
