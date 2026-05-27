@@ -31,6 +31,8 @@ export interface BoothInfo {
 export interface OperatorInfo {
     id: number;
     operator: string;
+    user_id?: number | null;
+    parent_operator_id?: number | null;
     created_at: string;
     updated_at: string;
 }

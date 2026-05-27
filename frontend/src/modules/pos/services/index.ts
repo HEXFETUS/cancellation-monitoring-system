@@ -17,6 +17,8 @@ export async function fetchPosRecords(params?: {
     operator_id?: string;
     /** When set, returns only POS records belonging to the operator linked to this user. */
     user_id?: string;
+    /** Used with user_id: narrow to a specific (sub-)operator the user is allowed to see. */
+    as_operator_id?: string;
 }): Promise<PosRecord[]> {
     const searchParams = new URLSearchParams();
 
@@ -25,6 +27,7 @@ export async function fetchPosRecords(params?: {
     if (params?.booth_id) searchParams.set("booth_id", params.booth_id);
     if (params?.operator_id) searchParams.set("operator_id", params.operator_id);
     if (params?.user_id) searchParams.set("user_id", params.user_id);
+    if (params?.as_operator_id) searchParams.set("as_operator_id", params.as_operator_id);
 
     const query = searchParams.toString();
     const url = query ? `${API_BASE}?${query}` : API_BASE;
@@ -44,6 +47,7 @@ export async function fetchOperators(): Promise<OperatorInfo[]> {
 
 export async function createOperator(data: {
     operator: string;
+    parent_operator_id?: number | null;
 }): Promise<OperatorInfo> {
     const response = await fetch(`${API_BASE}/operators`, {
         method: "POST",
@@ -51,6 +55,40 @@ export async function createOperator(data: {
         body: JSON.stringify(data),
     });
     return handleResponse<OperatorInfo>(response);
+}
+
+export async function updateOperatorParent(
+    operatorId: number,
+    parentOperatorId: number | null
+): Promise<OperatorInfo> {
+    const response = await fetch(`${API_BASE}/operators/${operatorId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ parent_operator_id: parentOperatorId }),
+    });
+    return handleResponse<OperatorInfo>(response);
+}
+
+/**
+ * Atomic bulk-assign: promote the parent to main if it's a sub, re-parent any
+ * grandchildren of the picked subs to the new parent, then attach all picked
+ * subs. Wraps the whole thing in a backend transaction.
+ */
+export async function assignSubOperators(
+    parentId: number,
+    subIds: number[]
+): Promise<{
+    assigned: number;
+    errors: Array<{ id: number; error: string }>;
+    reparentedGrandchildren: Array<{ id: number; operator: string; new_parent_id: number }>;
+    operators: OperatorInfo[];
+}> {
+    const response = await fetch(`${API_BASE}/operators/${parentId}/assign-subs`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sub_ids: subIds }),
+    });
+    return handleResponse(response);
 }
 
 export async function createBoothInfo(data: {

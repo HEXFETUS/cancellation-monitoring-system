@@ -7,6 +7,7 @@ interface OperatorProfile {
     id: number;
     operator: string;
     user_id: number | null;
+    parent_operator_id: number | null;
 }
 
 export default function CreateUserAccountPage() {
@@ -415,11 +416,21 @@ export default function CreateUserAccountPage() {
                                 <option value="">— assign later —</option>
                                 {operators
                                     .filter((o) => !o.user_id)
-                                    .map((o) => (
-                                        <option key={o.id} value={o.id}>
-                                            {o.operator}
-                                        </option>
-                                    ))}
+                                    .map((o) => {
+                                        const parent = o.parent_operator_id
+                                            ? operators.find((x) => x.id === o.parent_operator_id)
+                                            : null;
+                                        // Indent subs visually instead of nesting parentheses,
+                                        // which gets unreadable when names already have parens.
+                                        const label = parent
+                                            ? `   \u21B3 ${o.operator}  (under ${parent.operator})`
+                                            : o.operator;
+                                        return (
+                                            <option key={o.id} value={o.id}>
+                                                {label}
+                                            </option>
+                                        );
+                                    })}
                             </select>
                             <p className="mt-1 text-xs text-ink-subtle">
                                 Pick the operator this user will represent. Only profiles

@@ -11,12 +11,15 @@ interface User {
     department: string;
     operator_id?: number | null;
     operator_name?: string | null;
+    parent_operator_id?: number | null;
+    parent_operator_name?: string | null;
 }
 
 interface OperatorProfile {
     id: number;
     operator: string;
     user_id: number | null;
+    parent_operator_id: number | null;
 }
 
 const USERTYPES = ["admin", "csr", "operator", "purchaser"] as const;
@@ -495,11 +498,21 @@ export default function UserAccountsPage({ onSuccess }: { onSuccess: (message: s
                                                             (o) =>
                                                                 !o.user_id || o.user_id === user.id
                                                         )
-                                                        .map((o) => (
-                                                            <option key={o.id} value={o.id}>
-                                                                {o.operator}
-                                                            </option>
-                                                        ))}
+                                                        .map((o) => {
+                                                            const parent = o.parent_operator_id
+                                                                ? operators.find(
+                                                                      (x) => x.id === o.parent_operator_id
+                                                                  )
+                                                                : null;
+                                                            const label = parent
+                                                                ? `   \u21B3 ${o.operator}  (under ${parent.operator})`
+                                                                : o.operator;
+                                                            return (
+                                                                <option key={o.id} value={o.id}>
+                                                                    {label}
+                                                                </option>
+                                                            );
+                                                        })}
                                                 </select>
                                             ) : (
                                                 <span className="text-xs text-ink-subtle">—</span>
@@ -541,6 +554,11 @@ export default function UserAccountsPage({ onSuccess }: { onSuccess: (message: s
                                                     {user.operator_name || (
                                                         <span className="italic text-ink-subtle">
                                                             unassigned
+                                                        </span>
+                                                    )}
+                                                    {user.parent_operator_name && (
+                                                        <span className="ml-1 block text-xs text-ink-muted">
+                                                            ↳ under {user.parent_operator_name}
                                                         </span>
                                                     )}
                                                 </span>

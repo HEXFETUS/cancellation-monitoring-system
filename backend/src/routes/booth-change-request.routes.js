@@ -200,6 +200,34 @@ router.post("/:id/approve", async (req, res) => {
 
         const operatorToSet = newBooth.operator_id || pos.operator_id;
 
+        // If a different POS device is currently sitting on the target booth,
+        // we mark it Inactive (no delete) so the booth has a clean swap and
+        // the displaced device's history is preserved for audit.
+        const displaced = await client.query(
+            `SELECT id, device_no FROM pos_records
+             WHERE booth_id = $1::int AND id <> $2::int`,
+            [newBooth.id, pos.id]
+        );
+        for (const row of displaced.rows) {
+            await client.query(
+                `UPDATE pos_records
+                 SET status = 'Inactive', booth_id = NULL, updated_at = CURRENT_TIMESTAMP
+                 WHERE id = $1::int`,
+                [row.id]
+            );
+            // Also write to booth_change_logs so the inactivation is auditable.
+            await client.query(
+                `INSERT INTO booth_change_logs
+                    (pos_record_id, old_booth_code, new_booth_code, changed_by, created_at)
+                 VALUES ($1, $2, NULL, $3, CURRENT_TIMESTAMP)`,
+                [
+                    row.id,
+                    newBooth.booth_code,
+                    admin_user_id ? `user:${admin_user_id} (auto-displaced)` : "system (auto-displaced)",
+                ]
+            );
+        }
+
         // Capture old booth_code for the log row
         const oldBoothCodeResult = pos.booth_id
             ? await client.query(
