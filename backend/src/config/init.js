@@ -111,6 +111,17 @@ async function initDatabase() {
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_operator_list_user_id ON operator_list(user_id) WHERE user_id IS NOT NULL"
         );
 
+        // Hierarchy: an operator profile can have a parent (main → sub).
+        // NULL parent = main operator. Sub operators reference the main's id.
+        // ON DELETE SET NULL keeps sub-operators around if the main is removed
+        // (audit-friendly; admins can re-parent later).
+        await client.query(
+            "ALTER TABLE operator_list ADD COLUMN IF NOT EXISTS parent_operator_id INTEGER REFERENCES operator_list(id) ON DELETE SET NULL"
+        );
+        await client.query(
+            "CREATE INDEX IF NOT EXISTS idx_operator_list_parent ON operator_list(parent_operator_id)"
+        );
+
         await client.query(`
             CREATE TABLE IF NOT EXISTS booth_info (
                 id SERIAL PRIMARY KEY,

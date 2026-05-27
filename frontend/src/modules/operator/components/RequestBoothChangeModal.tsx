@@ -65,7 +65,7 @@ export default function RequestBoothChangeModal({
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 pt-16 sm:pt-24">
             <div className="w-full max-w-md rounded-2xl border border-warm bg-card shadow-xl">
                 <div className="flex items-center justify-between border-b border-warm px-6 py-4">
                     <h3 className="text-lg font-semibold text-ink">Request Booth Change</h3>

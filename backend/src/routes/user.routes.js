@@ -33,9 +33,12 @@ router.get("/", async (req, res) => {
     try {
         const result = await pool.query(
             `SELECT u.id, u.name, u.email, u.usertype, u.position, u.department,
-                    ol.id AS operator_id, ol.operator AS operator_name
+                    ol.id AS operator_id, ol.operator AS operator_name,
+                    ol.parent_operator_id,
+                    parent.operator AS parent_operator_name
              FROM users u
              LEFT JOIN operator_list ol ON ol.user_id = u.id
+             LEFT JOIN operator_list parent ON parent.id = ol.parent_operator_id
              ORDER BY u.id ASC`
         );
         res.json(result.rows);
@@ -54,9 +57,12 @@ router.get("/me", async (req, res) => {
         }
         const result = await pool.query(
             `SELECT u.id, u.name, u.email, u.usertype, u.position, u.department,
-                    ol.id AS operator_id, ol.operator AS operator_name
+                    ol.id AS operator_id, ol.operator AS operator_name,
+                    ol.parent_operator_id,
+                    parent.operator AS parent_operator_name
              FROM users u
              LEFT JOIN operator_list ol ON ol.user_id = u.id
+             LEFT JOIN operator_list parent ON parent.id = ol.parent_operator_id
              WHERE u.id = $1`,
             [userId]
         );

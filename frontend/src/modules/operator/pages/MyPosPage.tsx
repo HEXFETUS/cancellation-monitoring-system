@@ -1,21 +1,32 @@
 import { useEffect, useMemo, useState } from "react";
 import { ArrowRightLeft, History, RefreshCw } from "lucide-react";
 import { useAuth } from "../../../context/AuthContext";
-import { fetchPosRecords, fetchBoothInfo } from "../../pos/services";
-import type { PosRecord, BoothInfo } from "../../pos/types";
+import { fetchPosRecords, fetchBoothInfo, fetchOperators } from "../../pos/services";
+import type { OperatorInfo, PosRecord, BoothInfo } from "../../pos/types";
 import {
     listBoothChangeRequests,
     type BoothChangeRequest,
 } from "../../pos/services/boothChangeRequests";
 import RequestBoothChangeModal from "../components/RequestBoothChangeModal";
 
+const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
+
+interface Me {
+    id: number;
+    operator_id: number | null;
+    parent_operator_id: number | null;
+}
+
 export default function MyPosPage() {
     const { user } = useAuth();
+    const [me, setMe] = useState<Me | null>(null);
+    const [allOperators, setAllOperators] = useState<OperatorInfo[]>([]);
     const [records, setRecords] = useState<PosRecord[]>([]);
     const [booths, setBooths] = useState<BoothInfo[]>([]);
     const [requests, setRequests] = useState<BoothChangeRequest[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
+    const [filterOperatorId, setFilterOperatorId] = useState<number | "all">("all");
 
     const [requesting, setRequesting] = useState<PosRecord | null>(null);
 
@@ -24,14 +35,41 @@ export default function MyPosPage() {
         try {
             setLoading(true);
             setError("");
-            const [posData, boothData, reqData] = await Promise.all([
-                fetchPosRecords({ user_id: String(user.id) }),
+            const meRes = await fetch(`${API_BASE_URL}/api/users/me?id=${user.id}`);
+            const meData = meRes.ok ? await meRes.json() : null;
+            const meSafe: Me | null = meData
+                ? {
+                    id: meData.id,
+                    operator_id: meData.operator_id ?? null,
+                    parent_operator_id: meData.parent_operator_id ?? null,
+                }
+                : null;
+            setMe(meSafe);
+
+            // Build filter params: when a main operator narrows to a sub, send as_operator_id
+            const filterParams: Parameters<typeof fetchPosRecords>[0] = {
+                user_id: String(user.id),
+            };
+            if (
+                meSafe &&
+                meSafe.parent_operator_id === null &&
+                filterOperatorId !== "all" &&
+                typeof filterOperatorId === "number"
+            ) {
+                filterParams.as_operator_id = String(filterOperatorId);
+            }
+
+            const [posData, boothData, reqData, ops] = await Promise.all([
+                fetchPosRecords(filterParams),
                 fetchBoothInfo(),
                 listBoothChangeRequests({ userId: user.id }),
+                // Operators list — used to render the sub-operator filter dropdown
+                fetchOperators().catch(() => [] as OperatorInfo[]),
             ]);
             setRecords(posData);
             setBooths(boothData);
             setRequests(reqData);
+            setAllOperators(ops);
         } catch (err: any) {
             setError(err.message || "Failed to load");
         } finally {
@@ -42,7 +80,13 @@ export default function MyPosPage() {
     useEffect(() => {
         refresh();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [user?.id]);
+    }, [user?.id, filterOperatorId]);
+
+    const isMainOperator = me?.operator_id !== null && me?.parent_operator_id === null;
+    const myDirectSubs = useMemo(() => {
+        if (!isMainOperator || !me?.operator_id) return [] as OperatorInfo[];
+        return allOperators.filter((o) => o.parent_operator_id === me.operator_id);
+    }, [isMainOperator, me, allOperators]);
 
     const pendingByPos = useMemo(() => {
         const map = new Map<number, BoothChangeRequest>();
@@ -61,14 +105,39 @@ export default function MyPosPage() {
                         Devices assigned to you. Request a booth change for any of them below.
                     </p>
                 </div>
-                <button
-                    onClick={refresh}
-                    disabled={loading}
-                    className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-warm bg-card px-4 py-2 text-sm font-medium text-ink transition hover:bg-warm/40 disabled:opacity-50"
-                >
-                    <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
-                    Refresh
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                    {isMainOperator && myDirectSubs.length > 0 && (
+                        <select
+                            value={filterOperatorId === "all" ? "all" : String(filterOperatorId)}
+                            onChange={(e) => {
+                                const v = e.target.value;
+                                setFilterOperatorId(v === "all" ? "all" : Number(v));
+                            }}
+                            className="rounded-lg border border-warm bg-card px-3 py-2 text-sm text-ink focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal"
+                            title="Filter to a specific sub-operator"
+                        >
+                            <option value="all">All (own + subs)</option>
+                            {me?.operator_id && (
+                                <option value={String(me.operator_id)}>
+                                    Only mine
+                                </option>
+                            )}
+                            {myDirectSubs.map((s) => (
+                                <option key={s.id} value={String(s.id)}>
+                                    Only {s.operator}
+                                </option>
+                            ))}
+                        </select>
+                    )}
+                    <button
+                        onClick={refresh}
+                        disabled={loading}
+                        className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-warm bg-card px-4 py-2 text-sm font-medium text-ink transition hover:bg-warm/40 disabled:opacity-50"
+                    >
+                        <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+                        Refresh
+                    </button>
+                </div>
             </div>
 
             {error && (
