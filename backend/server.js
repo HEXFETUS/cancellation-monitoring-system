@@ -27,7 +27,11 @@ app.use("/api/cancellation", cancellationRoutes);
 app.use("/api/assets", assetRoutes);
 app.use("/api/asset-codes", assetCodeRoutes);
 
-const PORT = process.env.PORT || 5050;
+const PORT = Number(process.env.PORT || 5050);
+
+if (PORT !== 5050) {
+    throw new Error(`Invalid PORT ${PORT}. This backend must run on port 5050.`);
+}
 
 initDatabase()
     .then(() => {
