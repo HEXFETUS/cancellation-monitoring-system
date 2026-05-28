@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowRightLeft, History, RefreshCw } from "lucide-react";
+import { ArrowRightLeft, ChevronLeft, ChevronRight, History, RefreshCw, Search } from "lucide-react";
 import { useAuth } from "../../../context/AuthContext";
 import { fetchPosRecords, fetchBoothInfo, fetchOperators } from "../../pos/services";
 import type { OperatorInfo, PosRecord, BoothInfo } from "../../pos/types";
@@ -10,6 +10,7 @@ import {
 import RequestBoothChangeModal from "../components/RequestBoothChangeModal";
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
+const PAGE_SIZE = 10;
 
 interface Me {
     id: number;
@@ -27,8 +28,18 @@ export default function MyPosPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [filterOperatorId, setFilterOperatorId] = useState<number | "all">("all");
+    const [searchQuery, setSearchQuery] = useState("");
+    const [page, setPage] = useState(1);
 
     const [requesting, setRequesting] = useState<PosRecord | null>(null);
+
+    const handleRefresh = async () => {
+        // Reset all filters back to defaults
+        setFilterOperatorId("all");
+        setSearchQuery("");
+        setPage(1);
+        await refresh();
+    };
 
     const refresh = async () => {
         if (!user?.id) return;
@@ -63,7 +74,7 @@ export default function MyPosPage() {
                 fetchPosRecords(filterParams),
                 fetchBoothInfo(),
                 listBoothChangeRequests({ userId: user.id }),
-                // Operators list — used to render the sub-operator filter dropdown
+                // Operators list — used to build the sub-operator filter dropdown
                 fetchOperators().catch(() => [] as OperatorInfo[]),
             ]);
             setRecords(posData);
@@ -83,6 +94,7 @@ export default function MyPosPage() {
     }, [user?.id, filterOperatorId]);
 
     const isMainOperator = me?.operator_id !== null && me?.parent_operator_id === null;
+    // Automatically detect sub-operators that belong to this main operator
     const myDirectSubs = useMemo(() => {
         if (!isMainOperator || !me?.operator_id) return [] as OperatorInfo[];
         return allOperators.filter((o) => o.parent_operator_id === me.operator_id);
@@ -96,6 +108,41 @@ export default function MyPosPage() {
         return map;
     }, [requests]);
 
+    // Search filter — searches device_no and serial_number across all records
+    const searchedRecords = useMemo(() => {
+        const q = searchQuery.trim().toLowerCase();
+        if (!q) return records;
+        return records.filter(
+            (r) =>
+                (r.device_no || "").toLowerCase().includes(q) ||
+                (r.serial_number || r.serial_no || "").toLowerCase().includes(q)
+        );
+    }, [records, searchQuery]);
+
+    // Pagination
+    const totalPages = Math.max(1, Math.ceil(searchedRecords.length / PAGE_SIZE));
+    const safePage = Math.min(page, totalPages);
+    const paginatedRecords = useMemo(
+        () => searchedRecords.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
+        [searchedRecords, safePage]
+    );
+
+    const pageNumbers = useMemo(() => {
+        const pages: (number | "...")[] = [];
+        if (totalPages <= 7) {
+            for (let i = 1; i <= totalPages; i++) pages.push(i);
+        } else {
+            pages.push(1);
+            if (safePage > 3) pages.push("...");
+            const start = Math.max(2, safePage - 1);
+            const end = Math.min(totalPages - 1, safePage + 1);
+            for (let i = start; i <= end; i++) pages.push(i);
+            if (safePage < totalPages - 2) pages.push("...");
+            pages.push(totalPages);
+        }
+        return pages;
+    }, [totalPages, safePage]);
+
     return (
         <div>
             <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -106,31 +153,45 @@ export default function MyPosPage() {
                     </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
+                    {/* Search by device no. / serial number */}
+                    <div className="relative">
+                        <Search
+                            size={14}
+                            className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-muted"
+                        />
+                        <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => {
+                                setSearchQuery(e.target.value);
+                                setPage(1);
+                            }}
+                            placeholder="Search device no. or SN…"
+                            className="w-44 rounded-lg border border-warm bg-card pl-8 pr-3 py-2 text-sm text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal"
+                        />
+                    </div>
+                    {/* Sub-operator filter — automatically populated for main operators */}
                     {isMainOperator && myDirectSubs.length > 0 && (
                         <select
                             value={filterOperatorId === "all" ? "all" : String(filterOperatorId)}
                             onChange={(e) => {
                                 const v = e.target.value;
                                 setFilterOperatorId(v === "all" ? "all" : Number(v));
+                                setSearchQuery("");
+                                setPage(1);
                             }}
                             className="rounded-lg border border-warm bg-card px-3 py-2 text-sm text-ink focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal"
-                            title="Filter to a specific sub-operator"
                         >
-                            <option value="all">All (own + subs)</option>
-                            {me?.operator_id && (
-                                <option value={String(me.operator_id)}>
-                                    Only mine
-                                </option>
-                            )}
+                            <option value="all">All devices</option>
                             {myDirectSubs.map((s) => (
                                 <option key={s.id} value={String(s.id)}>
-                                    Only {s.operator}
+                                    {s.operator}
                                 </option>
                             ))}
                         </select>
                     )}
                     <button
-                        onClick={refresh}
+                        onClick={handleRefresh}
                         disabled={loading}
                         className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-warm bg-card px-4 py-2 text-sm font-medium text-ink transition hover:bg-warm/40 disabled:opacity-50"
                     >
@@ -153,23 +214,27 @@ export default function MyPosPage() {
                             <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-ink-muted">Device No.</th>
                             <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-ink-muted">Serial</th>
                             <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-ink-muted">Booth</th>
+                            <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-ink-muted">Operator</th>
                             <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-ink-muted">Status</th>
                             <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-ink-muted text-right">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         {loading ? (
-                            <tr><td colSpan={5} className="px-4 py-10 text-center text-ink-subtle">Loading...</td></tr>
+                            <tr><td colSpan={6} className="px-4 py-10 text-center text-ink-subtle">Loading...</td></tr>
+                        ) : searchedRecords.length === 0 ? (
+                            <tr><td colSpan={6} className="px-4 py-10 text-center text-ink-subtle">No devices match your search.</td></tr>
                         ) : records.length === 0 ? (
-                            <tr><td colSpan={5} className="px-4 py-10 text-center text-ink-subtle">No POS devices assigned to you yet.</td></tr>
+                            <tr><td colSpan={6} className="px-4 py-10 text-center text-ink-subtle">No POS devices assigned to you yet.</td></tr>
                         ) : (
-                            records.map((rec) => {
+                            paginatedRecords.map((rec) => {
                                 const pending = pendingByPos.get(rec.id);
                                 return (
                                     <tr key={rec.id} className="border-b border-warm/60 transition hover:bg-cream">
                                         <td className="whitespace-nowrap px-4 py-3 font-medium text-ink">{rec.device_no}</td>
                                         <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-ink-muted">{rec.serial_number}</td>
                                         <td className="whitespace-nowrap px-4 py-3 text-ink">{rec.booth_code || "—"}</td>
+                                        <td className="whitespace-nowrap px-4 py-3 text-ink-muted">{rec.operator || "—"}</td>
                                         <td className="whitespace-nowrap px-4 py-3 text-ink-muted">{rec.status}</td>
                                         <td className="whitespace-nowrap px-4 py-3 text-right">
                                             {pending ? (
@@ -192,6 +257,49 @@ export default function MyPosPage() {
                         )}
                     </tbody>
                 </table>
+
+                {/* Pagination footer — only when data exists and not loading */}
+                {!loading && searchedRecords.length > 0 && (
+                    <div className="flex items-center justify-between border-t border-warm/60 px-4 py-3">
+                        <p className="text-xs text-ink-subtle">
+                            Showing {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, searchedRecords.length)} of {searchedRecords.length}
+                        </p>
+                        <div className="flex items-center gap-1">
+                            <button
+                                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                                disabled={safePage <= 1}
+                                className="inline-flex items-center justify-center rounded-md p-1.5 text-ink-subtle transition hover:bg-warm/40 disabled:opacity-30 disabled:pointer-events-none"
+                                aria-label="Previous page"
+                            >
+                                <ChevronLeft size={16} />
+                            </button>
+                            {pageNumbers.map((p, i) =>
+                                p === "..." ? (
+                                    <span key={`ellipsis-${i}`} className="px-1.5 text-xs text-ink-subtle">…</span>
+                                ) : (
+                                    <button
+                                        key={p}
+                                        onClick={() => setPage(p)}
+                                        className={`inline-flex h-7 w-7 items-center justify-center rounded-md text-xs font-medium transition ${p === safePage
+                                            ? "bg-teal text-ink"
+                                            : "text-ink-subtle hover:bg-warm/40"
+                                            }`}
+                                    >
+                                        {p}
+                                    </button>
+                                )
+                            )}
+                            <button
+                                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                                disabled={safePage >= totalPages}
+                                className="inline-flex items-center justify-center rounded-md p-1.5 text-ink-subtle transition hover:bg-warm/40 disabled:opacity-30 disabled:pointer-events-none"
+                                aria-label="Next page"
+                            >
+                                <ChevronRight size={16} />
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Request history */}

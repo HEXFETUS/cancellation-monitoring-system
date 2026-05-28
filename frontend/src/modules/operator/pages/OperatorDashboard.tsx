@@ -6,15 +6,17 @@ import {
     Clock,
     Monitor,
     XCircle,
+    Ban,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../../context/AuthContext";
-import { fetchOperators, fetchPosRecords } from "../../pos/services";
-import type { OperatorInfo, PosRecord } from "../../pos/types";
+import { fetchOperators, fetchPosRecords, fetchBoothInfo } from "../../pos/services";
+import type { BoothInfo, OperatorInfo, PosRecord } from "../../pos/types";
 import {
     listBoothChangeRequests,
     type BoothChangeRequest,
 } from "../../pos/services/boothChangeRequests";
+import RequestBoothChangeModal from "../components/RequestBoothChangeModal";
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 
@@ -31,11 +33,15 @@ interface Me {
 export default function OperatorDashboard() {
     const { user } = useAuth();
     const [me, setMe] = useState<Me | null>(null);
-    const [allOperators, setAllOperators] = useState<OperatorInfo[]>([]);
     const [records, setRecords] = useState<PosRecord[]>([]);
+    const [booths, setBooths] = useState<BoothInfo[]>([]);
     const [requests, setRequests] = useState<BoothChangeRequest[]>([]);
+    const [operators, setOperators] = useState<OperatorInfo[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
+
+    // Booth change request modal
+    const [requesting, setRequesting] = useState<PosRecord | null>(null);
 
     useEffect(() => {
         if (!user?.id) return;
@@ -55,16 +61,18 @@ export default function OperatorDashboard() {
                     }
                     : null;
 
-                const [pos, reqs, ops] = await Promise.all([
+                const [pos, reqs, ops, bh] = await Promise.all([
                     fetchPosRecords({ user_id: String(user.id) }),
                     listBoothChangeRequests({ userId: user.id }),
                     fetchOperators().catch(() => [] as OperatorInfo[]),
+                    fetchBoothInfo().catch(() => [] as BoothInfo[]),
                 ]);
                 if (!cancelled) {
                     setMe(meSafe);
                     setRecords(pos);
                     setRequests(reqs);
-                    setAllOperators(ops);
+                    setOperators(ops);
+                    setBooths(bh);
                 }
             } catch (err: any) {
                 if (!cancelled) setError(err.message || "Failed to load");
@@ -75,69 +83,42 @@ export default function OperatorDashboard() {
         return () => { cancelled = true; };
     }, [user?.id]);
 
-    const stats = useMemo(() => {
-        const total = records.length;
-        const active = records.filter((r) => (r.status || "").toLowerCase() === "active").length;
-        const inactive = total - active;
-        return { total, active, inactive };
-    }, [records]);
+    // IDs of sub-operators whose parent is the logged-in operator
+    const subOperatorIds = useMemo(() => {
+        if (!me?.operator_id) return new Set<number>();
+        return new Set(
+            operators
+                .filter((op) => op.parent_operator_id === me.operator_id)
+                .map((op) => op.id)
+        );
+    }, [operators, me?.operator_id]);
 
-    const requestStats = useMemo(() => {
-        const c = { pending: 0, approved: 0, rejected: 0, cancelled: 0 };
-        for (const r of requests) c[r.status]++;
-        return c;
-    }, [requests]);
+    const hasSubs = subOperatorIds.size > 0;
 
-    const isMain = me?.operator_id !== null && me?.parent_operator_id === null;
+    // Split records into main (directly owned) and sub (owned by sub-operators)
+    const mainRecords = useMemo(
+        () => (me?.operator_id ? records.filter((r) => r.operator_id === me.operator_id) : []),
+        [records, me?.operator_id]
+    );
 
-    /**
-     * Group records by their operator_id and render a per-operator breakdown.
-     * Only meaningful for main operators since subs only see their own.
-     */
-    const breakdown = useMemo(() => {
-        if (!isMain || !me?.operator_id) return [] as Array<{
-            id: number;
-            name: string;
-            isMine: boolean;
-            total: number;
-            active: number;
-            inactive: number;
-        }>;
+    const subRecords = useMemo(
+        () => records.filter((r) => r.operator_id != null && subOperatorIds.has(r.operator_id)),
+        [records, subOperatorIds]
+    );
 
-        // Count records per operator_id
-        const counts = new Map<number, { total: number; active: number; inactive: number }>();
-        for (const r of records) {
-            const id = (r as any).operator_id ?? null;
-            if (id === null) continue;
-            const entry = counts.get(id) ?? { total: 0, active: 0, inactive: 0 };
-            entry.total += 1;
-            if ((r.status || "").toLowerCase() === "active") entry.active += 1;
-            else entry.inactive += 1;
-            counts.set(id, entry);
-        }
+    function computeStats(recs: PosRecord[]) {
+        const total = recs.length;
+        const active = recs.filter((r) => (r.status || "").toLowerCase() === "active").length;
+        const inactive = recs.filter((r) => (r.status || "").toLowerCase() === "inactive").length;
+        const pending = recs.filter((r) => (r.status || "").toLowerCase() === "pending").length;
+        const approved = recs.filter((r) => (r.status || "").toLowerCase() === "approved").length;
+        const rejected = recs.filter((r) => (r.status || "").toLowerCase() === "rejected").length;
+        const cancelled = recs.filter((r) => (r.status || "").toLowerCase() === "cancelled").length;
+        return { total, active, inactive, pending, approved, rejected, cancelled };
+    }
 
-        // Always include the main + each direct sub, even if 0 records.
-        const myDirectSubs = allOperators.filter((o) => o.parent_operator_id === me.operator_id);
-        const rows = [
-            {
-                id: me.operator_id,
-                name: me.operator_name ?? "My operator",
-                isMine: true,
-            },
-            ...myDirectSubs.map((s) => ({
-                id: s.id,
-                name: s.operator,
-                isMine: false,
-            })),
-        ];
-
-        return rows.map((r) => ({
-            ...r,
-            total: counts.get(r.id)?.total ?? 0,
-            active: counts.get(r.id)?.active ?? 0,
-            inactive: counts.get(r.id)?.inactive ?? 0,
-        }));
-    }, [records, allOperators, me, isMain]);
+    const mainStats = useMemo(() => computeStats(mainRecords), [mainRecords]);
+    const subStats = useMemo(() => computeStats(subRecords), [subRecords]);
 
     const recent = requests.slice(0, 5);
 
@@ -168,128 +149,112 @@ export default function OperatorDashboard() {
                 </div>
             )}
 
-            {/* My POS stats */}
-            <div className="grid gap-4 sm:grid-cols-3">
-                <StatCard
-                    label="My Devices"
-                    value={loading ? "—" : stats.total}
-                    icon={Monitor}
-                    color={teal}
-                />
-                <StatCard
-                    label="Active"
-                    value={loading ? "—" : stats.active}
-                    icon={CheckCircle2}
-                    color="#6BBF6B"
-                />
-                <StatCard
-                    label="Inactive"
-                    value={loading ? "—" : stats.inactive}
-                    icon={Activity}
-                    color="#E8B4B8"
-                />
+            {/* ── Main operator device status cards ── */}
+            <div>
+                <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-ink-muted">
+                    Your Devices
+                </h2>
+                <div className="grid gap-4 sm:grid-cols-3">
+                    <StatCard
+                        label="My Devices"
+                        value={loading ? "—" : mainStats.total}
+                        icon={Monitor}
+                        color={teal}
+                    />
+                    <StatCard
+                        label="Active"
+                        value={loading ? "—" : mainStats.active}
+                        icon={CheckCircle2}
+                        color="#6BBF6B"
+                    />
+                    <StatCard
+                        label="Inactive"
+                        value={loading ? "—" : mainStats.inactive}
+                        icon={Activity}
+                        color="#E8B4B8"
+                    />
+                </div>
+
+                <div className="mt-2 grid gap-4 sm:grid-cols-4">
+                    <StatCard
+                        label="Pending"
+                        value={loading ? "—" : mainStats.pending}
+                        icon={Clock}
+                        color="#F2D7B5"
+                    />
+                    <StatCard
+                        label="Approved"
+                        value={loading ? "—" : mainStats.approved}
+                        icon={CheckCircle2}
+                        color={tealLight}
+                    />
+                    <StatCard
+                        label="Rejected"
+                        value={loading ? "—" : mainStats.rejected}
+                        icon={XCircle}
+                        color="#E8B4B8"
+                    />
+                    <StatCard
+                        label="Cancelled"
+                        value={loading ? "—" : mainStats.cancelled}
+                        icon={Ban}
+                        color="#9CA3AF"
+                    />
+                </div>
             </div>
 
-            {/* My request stats */}
-            <div className="grid gap-4 sm:grid-cols-4">
-                <StatCard
-                    label="Pending"
-                    value={loading ? "—" : requestStats.pending}
-                    icon={Clock}
-                    color="#F2D7B5"
-                />
-                <StatCard
-                    label="Approved"
-                    value={loading ? "—" : requestStats.approved}
-                    icon={CheckCircle2}
-                    color={tealLight}
-                />
-                <StatCard
-                    label="Rejected"
-                    value={loading ? "—" : requestStats.rejected}
-                    icon={XCircle}
-                    color="#E8B4B8"
-                />
-                <StatCard
-                    label="Cancelled"
-                    value={loading ? "—" : requestStats.cancelled}
-                    icon={ArrowRightLeft}
-                    color="#9CA3AF"
-                />
-            </div>
-
-            {/* Per-operator breakdown — only meaningful for main operators */}
-            {isMain && breakdown.length > 1 && (
-                <div className="rounded-2xl border border-warm bg-card p-5 shadow-sm">
-                    <div className="mb-3 flex items-center justify-between">
-                        <h2 className="text-base font-semibold text-ink">
-                            Devices by operator
-                        </h2>
-                        <span className="text-xs text-ink-subtle">
-                            you + {breakdown.length - 1} sub
-                            {breakdown.length === 2 ? "" : "s"}
-                        </span>
+            {/* ── Sub-operator device status cards (only if subs exist) ── */}
+            {hasSubs && (
+                <div>
+                    <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-ink-muted">
+                        Sub-Operator Devices
+                    </h2>
+                    <div className="grid gap-4 sm:grid-cols-3">
+                        <StatCard
+                            label="Sub Devices"
+                            value={loading ? "—" : subStats.total}
+                            icon={Monitor}
+                            color={tealLight}
+                        />
+                        <StatCard
+                            label="Active"
+                            value={loading ? "—" : subStats.active}
+                            icon={CheckCircle2}
+                            color="#6BBF6B"
+                        />
+                        <StatCard
+                            label="Inactive"
+                            value={loading ? "—" : subStats.inactive}
+                            icon={Activity}
+                            color="#E8B4B8"
+                        />
                     </div>
-                    <div className="overflow-x-auto rounded-lg border border-warm">
-                        <table className="w-full text-left text-sm">
-                            <thead>
-                                <tr className="border-b border-warm bg-cream">
-                                    <th className="whitespace-nowrap px-3 py-2 text-xs font-semibold uppercase tracking-wider text-ink-muted">
-                                        Operator
-                                    </th>
-                                    <th className="whitespace-nowrap px-3 py-2 text-right text-xs font-semibold uppercase tracking-wider text-ink-muted">
-                                        Total
-                                    </th>
-                                    <th className="whitespace-nowrap px-3 py-2 text-right text-xs font-semibold uppercase tracking-wider text-ink-muted">
-                                        Active
-                                    </th>
-                                    <th className="whitespace-nowrap px-3 py-2 text-right text-xs font-semibold uppercase tracking-wider text-ink-muted">
-                                        Inactive
-                                    </th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {breakdown.map((row) => (
-                                    <tr key={row.id} className="border-b border-warm/60 last:border-0">
-                                        <td className="px-3 py-2">
-                                            <span className="font-medium text-ink">{row.name}</span>
-                                            {row.isMine ? (
-                                                <span className="ml-2 rounded-full bg-cream px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-muted">
-                                                    main
-                                                </span>
-                                            ) : (
-                                                <span className="ml-2 rounded-full bg-teal-light/40 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink">
-                                                    sub
-                                                </span>
-                                            )}
-                                        </td>
-                                        <td className="px-3 py-2 text-right text-ink">{row.total}</td>
-                                        <td className="px-3 py-2 text-right text-ink-muted">
-                                            {row.active}
-                                        </td>
-                                        <td className="px-3 py-2 text-right text-ink-muted">
-                                            {row.inactive}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                            <tfoot>
-                                <tr className="border-t-2 border-warm bg-cream">
-                                    <td className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">
-                                        Total
-                                    </td>
-                                    <td className="px-3 py-2 text-right font-semibold text-ink">
-                                        {stats.total}
-                                    </td>
-                                    <td className="px-3 py-2 text-right text-ink-muted">
-                                        {stats.active}
-                                    </td>
-                                    <td className="px-3 py-2 text-right text-ink-muted">
-                                        {stats.inactive}
-                                    </td>
-                                </tr>
-                            </tfoot>
-                        </table>
+
+                    <div className="mt-2 grid gap-4 sm:grid-cols-4">
+                        <StatCard
+                            label="Pending"
+                            value={loading ? "—" : subStats.pending}
+                            icon={Clock}
+                            color="#F2D7B5"
+                        />
+                        <StatCard
+                            label="Approved"
+                            value={loading ? "—" : subStats.approved}
+                            icon={CheckCircle2}
+                            color={tealLight}
+                        />
+                        <StatCard
+                            label="Rejected"
+                            value={loading ? "—" : subStats.rejected}
+                            icon={XCircle}
+                            color="#E8B4B8"
+                        />
+                        <StatCard
+                            label="Cancelled"
+                            value={loading ? "—" : subStats.cancelled}
+                            icon={Ban}
+                            color="#9CA3AF"
+                        />
                     </div>
                 </div>
             )}
@@ -351,6 +316,25 @@ export default function OperatorDashboard() {
                     </Link>
                 </div>
             </div>
+
+            <RequestBoothChangeModal
+                open={!!requesting}
+                posRecord={requesting}
+                booths={booths}
+                onClose={() => setRequesting(null)}
+                onSubmitted={async () => {
+                    setRequesting(null);
+                    // Re-fetch to update state
+                    try {
+                        const [pos, reqs] = await Promise.all([
+                            fetchPosRecords({ user_id: String(user!.id) }),
+                            listBoothChangeRequests({ userId: user!.id }),
+                        ]);
+                        setRecords(pos);
+                        setRequests(reqs);
+                    } catch (_) { }
+                }}
+            />
         </div>
     );
 }
