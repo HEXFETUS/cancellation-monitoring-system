@@ -85,10 +85,16 @@ export default function RequestBoothChangeModal({
                         </div>
                     )}
 
-                    <div className="rounded-lg border border-warm bg-cream/50 px-3 py-2 text-sm">
-                        <div className="font-semibold text-ink">{posRecord.device_no}</div>
-                        <div className="text-xs text-ink-muted">
-                            Currently at <span className="font-medium text-ink">{posRecord.booth_code || "—"}</span>
+                    <div className="space-y-1 rounded-lg border border-warm bg-cream/50 px-3 py-2 text-sm">
+                        <div className="text-ink">
+                            <span className="font-medium">Device:</span> {posRecord.device_no}
+                        </div>
+                        <div className="text-ink">
+                            <span className="font-medium">Serial Number:</span>{" "}
+                            {posRecord.serial_number || posRecord.serial_no || "—"}
+                        </div>
+                        <div className="text-ink">
+                            <span className="font-medium">Booth code:</span> {posRecord.booth_code || "—"}
                         </div>
                     </div>
 

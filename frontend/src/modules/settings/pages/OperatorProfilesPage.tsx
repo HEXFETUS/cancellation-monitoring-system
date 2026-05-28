@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { Plus, RefreshCw, Save, UserPlus } from "lucide-react";
+import { Plus, RefreshCw, UserPlus } from "lucide-react";
 import {
     assignSubOperators,
     createOperator,
     fetchOperators,
-    updateOperatorParent,
 } from "../../pos/services";
 import type { OperatorInfo } from "../../pos/types";
 
@@ -40,9 +39,6 @@ export default function OperatorProfilesPage() {
     const [mainName, setMainName] = useState("");
     const [creatingMain, setCreatingMain] = useState(false);
 
-    // Re-parent + create-user helpers
-    const [parentEdits, setParentEdits] = useState<Record<number, number | null>>({});
-    const [savingId, setSavingId] = useState<number | null>(null);
 
     // Bulk-assign existing operators as subs of the active main
     const [assignSelection, setAssignSelection] = useState<Set<number>>(new Set());
@@ -74,15 +70,6 @@ export default function OperatorProfilesPage() {
         [operators]
     );
 
-    /**
-     * Operators eligible to be picked as a *parent* in the simplified flow.
-     * Anyone except those that are themselves a sub of someone WHO ALREADY HAS
-     * grandchildren — but with our one-level rule, no such case exists, so this
-     * boils down to "every operator". When the user picks an operator that is
-     * currently a sub, we'll auto-promote it on save.
-     */
-    const parentCandidates = useMemo(() => operators, [operators]);
-
     const subsOfActive = useMemo(() => {
         if (!activeMainId) return [] as OperatorInfo[];
         return operators.filter((o) => o.parent_operator_id === activeMainId);
@@ -106,7 +93,7 @@ export default function OperatorProfilesPage() {
         return operators.filter(
             (o) =>
                 o.id !== activeMainId &&
-                o.parent_operator_id !== activeMainId &&
+                o.parent_operator_id === null &&
                 !haveChildren.has(o.id)
         );
     }, [operators, activeMainId]);
@@ -204,26 +191,6 @@ export default function OperatorProfilesPage() {
             showErr(
                 `Added ${okCount} of ${lines.length}. Errors:\n${errors.join("\n")}`
             );
-        }
-    };
-
-    const handleSaveParent = async (op: OperatorInfo) => {
-        const draft = parentEdits[op.id];
-        if (draft === undefined) return;
-        setSavingId(op.id);
-        setMsg(null);
-        try {
-            await updateOperatorParent(op.id, draft);
-            await refresh();
-            setParentEdits((prev) => {
-                const { [op.id]: _, ...rest } = prev;
-                return rest;
-            });
-            showOk("Hierarchy updated.");
-        } catch (e: any) {
-            showErr(e.message || "Failed to save");
-        } finally {
-            setSavingId(null);
         }
     };
 
@@ -327,17 +294,11 @@ export default function OperatorProfilesPage() {
                             className="w-full rounded-lg border border-warm bg-card px-3 py-2 text-sm text-ink focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal"
                         >
                             <option value="">— pick an operator —</option>
-                            {parentCandidates.map((m) => {
-                                const subOf = m.parent_operator_id
-                                    ? operators.find((x) => x.id === m.parent_operator_id)
-                                    : null;
-                                return (
-                                    <option key={m.id} value={m.id}>
-                                        {m.operator}
-                                        {subOf ? `   ↳ currently sub of ${subOf.operator}` : ""}
-                                    </option>
-                                );
-                            })}
+                            {mainOperators.map((m) => (
+                                <option key={m.id} value={m.id}>
+                                    {m.operator}
+                                </option>
+                            ))}
                         </select>
                     </div>
                     <button
@@ -461,10 +422,6 @@ export default function OperatorProfilesPage() {
                                 <ul className="divide-y divide-warm/60">
                                     {assignableOperators.map((op) => {
                                         const checked = assignSelection.has(op.id);
-                                        const currentParent = op.parent_operator_id
-                                            ? operators.find((x) => x.id === op.parent_operator_id)
-                                            : null;
-                                        const promoting = savingId === op.id;
                                         return (
                                             <li
                                                 key={op.id}
@@ -478,41 +435,10 @@ export default function OperatorProfilesPage() {
                                                         className="h-4 w-4 cursor-pointer accent-teal"
                                                     />
                                                     <span className="text-ink">{op.operator}</span>
-                                                    {currentParent ? (
-                                                        <span className="text-xs text-ink-muted">
-                                                            currently sub of {currentParent.operator}
-                                                        </span>
-                                                    ) : (
-                                                        <span className="text-xs text-ink-subtle">
-                                                            currently main
-                                                        </span>
-                                                    )}
+                                                    <span className="text-xs text-ink-subtle">
+                                                        currently main
+                                                    </span>
                                                 </label>
-                                                {currentParent && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={async () => {
-                                                            setSavingId(op.id);
-                                                            setMsg(null);
-                                                            try {
-                                                                await updateOperatorParent(op.id, null);
-                                                                await refresh();
-                                                                showOk(
-                                                                    `${op.operator} is now a main operator.`
-                                                                );
-                                                            } catch (e: any) {
-                                                                showErr(e.message || "Failed");
-                                                            } finally {
-                                                                setSavingId(null);
-                                                            }
-                                                        }}
-                                                        disabled={promoting}
-                                                        className="inline-flex shrink-0 items-center rounded-lg border border-teal/40 bg-teal/10 px-2 py-0.5 text-xs font-medium text-ink transition hover:bg-teal/20 disabled:opacity-50"
-                                                        title="Detach from current parent and make this a main operator"
-                                                    >
-                                                        {promoting ? "..." : "Make main"}
-                                                    </button>
-                                                )}
                                             </li>
                                         );
                                     })}
@@ -551,8 +477,6 @@ export default function OperatorProfilesPage() {
                         <ul className="divide-y divide-warm/60 rounded-lg border border-warm">
                             {subsOfActive.map((sub) => {
                                 const linkedUser = usersByOperatorId.get(sub.id);
-                                const draft = parentEdits[sub.id];
-                                const isEditing = draft !== undefined;
                                 return (
                                     <li
                                         key={sub.id}
@@ -583,42 +507,6 @@ export default function OperatorProfilesPage() {
                                                     <UserPlus size={12} />
                                                     Create user
                                                 </a>
-                                            )}
-                                            <select
-                                                value={
-                                                    isEditing ? draft ?? "" : sub.parent_operator_id ?? ""
-                                                }
-                                                onChange={(e) => {
-                                                    const value =
-                                                        e.target.value === ""
-                                                            ? null
-                                                            : Number(e.target.value);
-                                                    setParentEdits((prev) => ({
-                                                        ...prev,
-                                                        [sub.id]: value,
-                                                    }));
-                                                }}
-                                                className="rounded-lg border border-warm bg-card px-2 py-1 text-xs text-ink focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal"
-                                            >
-                                                <option value="">main</option>
-                                                {mainOperators
-                                                    .filter((m) => m.id !== sub.id)
-                                                    .map((m) => (
-                                                        <option key={m.id} value={m.id}>
-                                                            sub of {m.operator}
-                                                        </option>
-                                                    ))}
-                                            </select>
-                                            {isEditing && (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handleSaveParent(sub)}
-                                                    disabled={savingId === sub.id}
-                                                    className="inline-flex items-center gap-1 rounded-lg bg-teal px-2 py-1 text-xs font-medium text-ink transition hover:bg-teal-dark disabled:opacity-50"
-                                                >
-                                                    <Save size={12} />
-                                                    {savingId === sub.id ? "Saving..." : "Save"}
-                                                </button>
                                             )}
                                         </div>
                                     </li>
