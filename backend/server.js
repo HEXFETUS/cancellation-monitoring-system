@@ -35,9 +35,16 @@ app.use("/api/booth-change-requests", boothChangeRequestRoutes);
 
 const PORT = process.env.PORT || 5050;
 
-initDatabase()
-    .then(() => {
-        app.listen(PORT, () => {
-            console.log(`Server running on port ${PORT}`);
+// Don't auto-bootstrap (init DB + listen) when the module is imported under a
+// test runner — tests replace the DB pool with an in-memory one and drive the
+// app through supertest. Vitest sets NODE_ENV to "test" automatically.
+if (process.env.NODE_ENV !== "test") {
+    initDatabase()
+        .then(() => {
+            app.listen(PORT, () => {
+                console.log(`Server running on port ${PORT}`);
+            });
         });
-    });
+}
+
+export default app;
