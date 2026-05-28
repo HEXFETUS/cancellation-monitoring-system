@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "scripts": {
-    "dev": "concurrently -n backend,frontend -c blue,magenta \"pnpm --dir backend dev\" \"pnpm --dir frontend dev\"",
+    "dev": "concurrently --raw -n backend,frontend -c blue,magenta \"pnpm.cmd --dir backend dev\" \"pnpm.cmd --dir frontend dev\"",
     "dev:backend": "pnpm --dir backend dev",
     "dev:frontend": "pnpm --dir frontend dev",
     "install:all": "pnpm --dir backend install && pnpm --dir frontend install"
