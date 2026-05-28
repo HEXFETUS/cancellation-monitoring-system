@@ -26,6 +26,8 @@ interface AssetWire {
     total_value: string | number;
     color: string | null;
     remarks: string | null;
+    payout_station_id: number | null;
+    office_department_id: number | null;
 }
 
 function apiUrl(path: string) {
@@ -66,6 +68,8 @@ function fromWire(w: AssetWire): AssetRow & { location: AssetLocation } {
         totalValue: Number(w.total_value ?? 0),
         color: w.color ?? "",
         remarks: w.remarks ?? "",
+        payoutStationId: w.payout_station_id,
+        officeDepartmentId: w.office_department_id,
     };
 }
 
@@ -108,7 +112,10 @@ export async function updateAsset(id: number, input: AssetInput): Promise<AssetR
     return fromWire(await res.json());
 }
 
-export async function deleteAsset(id: number): Promise<void> {
-    const res = await fetch(apiUrl(`/api/assets/${id}`), { method: "DELETE" });
+export async function deleteAsset(id: number, userId?: number): Promise<void> {
+    const url = userId
+        ? `/api/assets/${id}?user_id=${userId}`
+        : `/api/assets/${id}`;
+    const res = await fetch(apiUrl(url), { method: "DELETE" });
     if (!res.ok) throw new Error(await getErrorMessage(res, "Failed to delete asset"));
 }

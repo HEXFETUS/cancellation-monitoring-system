@@ -1,8 +1,11 @@
 import { useEffect, useState } from "react";
-import { Users, UserPlus, ClipboardList, Menu, Check, X } from "lucide-react";
+import { Users, UserPlus, ClipboardList, Menu, Check, X, Building2 } from "lucide-react";
 import UserAccountsPage from "./UserAccountsPage";
 import CreateUserAccountPage from "./CreateUserAccountPage";
 import UserLogsPage from "./UserLogsPage";
+import OperatorProfilesPage from "./OperatorProfilesPage";
+import MyAccountPage from "./MyAccountPage";
+import { useAuth } from "../../../context/AuthContext";
 
 const teal = "#92C7CF";
 
@@ -13,10 +16,23 @@ const leftTabs = [
 const userSubTabs = [
     { id: "accounts", label: "User Accounts", icon: Users },
     { id: "create-user", label: "Create User", icon: UserPlus },
+    { id: "operator-profiles", label: "Operator Profiles", icon: Building2 },
     { id: "user-logs", label: "User Logs", icon: ClipboardList },
 ];
 
 export default function SettingsPage() {
+    const { user } = useAuth();
+
+    // Operators and purchasers get a slim, self-scoped settings view (My Account only).
+    // Admin/CSR see the full management UI below.
+    if (user?.usertype === "operator" || user?.usertype === "purchaser") {
+        return <MyAccountPage />;
+    }
+
+    return <AdminSettingsPage />;
+}
+
+function AdminSettingsPage() {
     const [activeTab, setActiveTab] = useState("user-accounts");
     const [activeUserSubTab, setActiveUserSubTab] = useState("accounts");
     const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -180,6 +196,7 @@ export default function SettingsPage() {
                         <div>
                             {activeUserSubTab === "accounts" && <UserAccountsPage onSuccess={setSuccessMessage} />}
                             {activeUserSubTab === "create-user" && <CreateUserAccountPage />}
+                            {activeUserSubTab === "operator-profiles" && <OperatorProfilesPage />}
                             {activeUserSubTab === "user-logs" && <UserLogsPage />}
                         </div>
                     </div>

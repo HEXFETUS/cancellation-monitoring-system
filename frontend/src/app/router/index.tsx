@@ -1,6 +1,7 @@
 import { createBrowserRouter } from "react-router-dom";
 
 import ProtectedRoute from "../../components/ProtectedRoute";
+import RoleGuard from "../../components/RoleGuard";
 import LandingPage from "../../pages/LandingPage";
 import DashboardLayout from "../../app/layouts/DashboardLayout";
 import DashboardHome from "../../pages/dashboard/DashboardHome";
@@ -12,6 +13,7 @@ import CancellationTabbedPage from "../../modules/cancellation/pages/Cancellatio
 import AssetInventoryTabbedPage from "../../modules/asset-inventory/pages/AssetInventoryTabbedPage";
 
 import SettingsPage from "../../modules/settings/pages/SettingsPage";
+import MyPosPage from "../../modules/operator/pages/MyPosPage";
 
 export const router = createBrowserRouter([
     {
@@ -22,25 +24,56 @@ export const router = createBrowserRouter([
         path: "/app",
         element: <ProtectedRoute><DashboardLayout /></ProtectedRoute>,
         children: [
-            { path: "dashboard", element: <DashboardHome /> },
+            {
+                path: "dashboard",
+                element: (
+                    <RoleGuard allow={["admin", "csr", "operator"]} fallback="/app/asset-inventory">
+                        <DashboardHome />
+                    </RoleGuard>
+                ),
+            },
+            {
+                path: "my-pos",
+                element: (
+                    <RoleGuard allow={["operator"]}>
+                        <MyPosPage />
+                    </RoleGuard>
+                ),
+            },
             {
                 path: "pos",
-                element: <PosInventoryTabbedPage />,
+                element: (
+                    <RoleGuard allow={["admin", "csr"]}>
+                        <PosInventoryTabbedPage />
+                    </RoleGuard>
+                ),
             },
 
             {
                 path: "pos-repair",
-                element: <PosRepairRequestPage />,
+                element: (
+                    <RoleGuard allow={["admin", "csr"]}>
+                        <PosRepairRequestPage />
+                    </RoleGuard>
+                ),
             },
 
             {
                 path: "cancellation",
-                element: <CancellationTabbedPage />,
+                element: (
+                    <RoleGuard allow={["admin", "csr"]}>
+                        <CancellationTabbedPage />
+                    </RoleGuard>
+                ),
             },
 
             {
                 path: "asset-inventory",
-                element: <AssetInventoryTabbedPage />,
+                element: (
+                    <RoleGuard allow={["admin", "csr", "purchaser"]}>
+                        <AssetInventoryTabbedPage />
+                    </RoleGuard>
+                ),
             },
 
             {

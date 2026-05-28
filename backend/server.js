@@ -9,6 +9,9 @@ import posRoutes from "./src/routes/pos.routes.js";
 import cancellationRoutes from "./src/routes/cancellation.routes.js";
 import assetRoutes from "./src/routes/asset.routes.js";
 import assetCodeRoutes from "./src/routes/asset-code.routes.js";
+import payoutStationRoutes from "./src/routes/payout-station.routes.js";
+import officeDepartmentRoutes from "./src/routes/office-department.routes.js";
+import boothChangeRequestRoutes from "./src/routes/booth-change-request.routes.js";
 import initDatabase from "./src/config/init.js";
 
 dotenv.config();
@@ -26,6 +29,9 @@ app.use("/api/pos", posRoutes);
 app.use("/api/cancellation", cancellationRoutes);
 app.use("/api/assets", assetRoutes);
 app.use("/api/asset-codes", assetCodeRoutes);
+app.use("/api/payout-stations", payoutStationRoutes);
+app.use("/api/office-departments", officeDepartmentRoutes);
+app.use("/api/booth-change-requests", boothChangeRequestRoutes);
 
 const PORT = Number(process.env.PORT || 5050);
 

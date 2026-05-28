@@ -44,6 +44,8 @@ const OPERATOR_SELECT = `
     SELECT
         id,
         operator,
+        user_id,
+        parent_operator_id,
         created_at,
         updated_at
     FROM operator_list
@@ -135,7 +137,7 @@ router.get("/operators", async (_req, res) => {
 ========================= */
 router.post("/operators", async (req, res) => {
     try {
-        const { operator } = req.body;
+        const { operator, parent_operator_id } = req.body;
         const operatorName = String(operator || "").trim();
 
         if (!operatorName) {
@@ -151,15 +153,205 @@ router.post("/operators", async (req, res) => {
             return res.status(400).json({ error: "Operator already exists" });
         }
 
+        // Validate parent_operator_id when provided. Enforce a single level
+        // of nesting — a sub-operator's parent must itself be a main operator
+        // (parent_operator_id IS NULL).
+        let parentId = null;
+        if (parent_operator_id !== undefined && parent_operator_id !== null && parent_operator_id !== "") {
+            parentId = Number(parent_operator_id);
+            if (!Number.isFinite(parentId)) {
+                return res.status(400).json({ error: "Invalid parent_operator_id" });
+            }
+            const parentRow = await pool.query(
+                `SELECT id, parent_operator_id FROM operator_list WHERE id = $1::int`,
+                [parentId]
+            );
+            if (parentRow.rows.length === 0) {
+                return res.status(400).json({ error: "Parent operator not found" });
+            }
+            if (parentRow.rows[0].parent_operator_id !== null) {
+                return res.status(400).json({
+                    error: "Parent must be a main operator (one level of nesting only)",
+                });
+            }
+        }
+
         const result = await pool.query(
-            `INSERT INTO operator_list (operator) VALUES ($1) RETURNING *`,
-            [operatorName]
+            `INSERT INTO operator_list (operator, parent_operator_id) VALUES ($1, $2) RETURNING *`,
+            [operatorName, parentId]
         );
 
         res.status(201).json(result.rows[0]);
     } catch (err) {
         console.error("POST operators error:", err.message);
         res.status(500).json({ error: "Failed to create operator" });
+    }
+});
+
+/* =========================
+   ASSIGN SUB-OPERATORS (bulk + atomic)
+========================= */
+router.post("/operators/:id/assign-subs", async (req, res) => {
+    const client = await pool.connect();
+    try {
+        const parentId = Number(req.params.id);
+        if (!Number.isFinite(parentId)) {
+            return res.status(400).json({ error: "Invalid parent id" });
+        }
+        const { sub_ids } = req.body ?? {};
+        if (!Array.isArray(sub_ids) || sub_ids.length === 0) {
+            return res.status(400).json({ error: "sub_ids must be a non-empty array" });
+        }
+
+        const ids = sub_ids
+            .map((v) => Number(v))
+            .filter((n) => Number.isFinite(n) && n !== parentId);
+        if (ids.length === 0) {
+            return res.status(400).json({ error: "No valid sub ids provided" });
+        }
+
+        await client.query("BEGIN");
+
+        // 1. Verify the parent exists and promote it to main if needed.
+        const parentRow = await client.query(
+            `SELECT id, parent_operator_id FROM operator_list WHERE id = $1::int FOR UPDATE`,
+            [parentId]
+        );
+        if (parentRow.rows.length === 0) {
+            await client.query("ROLLBACK");
+            return res.status(404).json({ error: "Parent operator not found" });
+        }
+        if (parentRow.rows[0].parent_operator_id !== null) {
+            await client.query(
+                `UPDATE operator_list SET parent_operator_id = NULL, updated_at = CURRENT_TIMESTAMP
+                 WHERE id = $1::int`,
+                [parentId]
+            );
+        }
+
+        // 2. For each sub, detach any of its own grandchildren first (one-level rule),
+        //    then attach the sub to the parent.
+        const errors = [];
+        const reparentedGrandchildren = [];
+        for (const subId of ids) {
+            const subRow = await client.query(
+                `SELECT id, operator FROM operator_list WHERE id = $1::int FOR UPDATE`,
+                [subId]
+            );
+            if (subRow.rows.length === 0) {
+                errors.push({ id: subId, error: "Sub-operator not found" });
+                continue;
+            }
+
+            // If this sub itself has children, re-parent those children to the
+            // top-level main so we don't violate the one-level rule.
+            const grandchildren = await client.query(
+                `SELECT id, operator FROM operator_list
+                 WHERE parent_operator_id = $1::int FOR UPDATE`,
+                [subId]
+            );
+            for (const gc of grandchildren.rows) {
+                await client.query(
+                    `UPDATE operator_list
+                     SET parent_operator_id = $1::int, updated_at = CURRENT_TIMESTAMP
+                     WHERE id = $2::int`,
+                    [parentId, gc.id]
+                );
+                reparentedGrandchildren.push({
+                    id: gc.id,
+                    operator: gc.operator,
+                    new_parent_id: parentId,
+                });
+            }
+
+            // Now safely attach this sub to the parent.
+            await client.query(
+                `UPDATE operator_list
+                 SET parent_operator_id = $1::int, updated_at = CURRENT_TIMESTAMP
+                 WHERE id = $2::int`,
+                [parentId, subId]
+            );
+        }
+
+        await client.query("COMMIT");
+
+        // Return refreshed operator list so the frontend updates in one round-trip.
+        const list = await pool.query(
+            `${OPERATOR_SELECT}
+             WHERE NULLIF(TRIM(operator), '') IS NOT NULL
+             ORDER BY operator ASC`
+        );
+        res.json({
+            assigned: ids.length - errors.length,
+            errors,
+            reparentedGrandchildren,
+            operators: list.rows,
+        });
+    } catch (err) {
+        await client.query("ROLLBACK").catch(() => {});
+        console.error("assign-subs error:", err.message);
+        res.status(500).json({ error: "Failed to assign sub-operators" });
+    } finally {
+        client.release();
+    }
+});
+
+/* =========================
+   UPDATE OPERATOR (currently only parent linkage)
+========================= */
+router.patch("/operators/:id", async (req, res) => {
+    try {
+        const id = Number(req.params.id);
+        if (!Number.isFinite(id)) {
+            return res.status(400).json({ error: "Invalid id" });
+        }
+
+        const { parent_operator_id } = req.body ?? {};
+
+        // Validate the target id exists and isn't itself a sub-operator
+        // (we only allow one level of nesting).
+        const meRow = await pool.query(
+            `SELECT id, parent_operator_id FROM operator_list WHERE id = $1::int`,
+            [id]
+        );
+        if (meRow.rows.length === 0) {
+            return res.status(404).json({ error: "Operator not found" });
+        }
+
+        let parentId = null;
+        if (parent_operator_id !== undefined && parent_operator_id !== null && parent_operator_id !== "") {
+            parentId = Number(parent_operator_id);
+            if (!Number.isFinite(parentId)) {
+                return res.status(400).json({ error: "Invalid parent_operator_id" });
+            }
+            if (parentId === id) {
+                return res.status(400).json({ error: "An operator can't be its own parent" });
+            }
+            const parentRow = await pool.query(
+                `SELECT id, parent_operator_id FROM operator_list WHERE id = $1::int`,
+                [parentId]
+            );
+            if (parentRow.rows.length === 0) {
+                return res.status(400).json({ error: "Parent operator not found" });
+            }
+            if (parentRow.rows[0].parent_operator_id !== null) {
+                return res.status(400).json({
+                    error: "Parent must be a main operator (one level of nesting only)",
+                });
+            }
+        }
+
+        const result = await pool.query(
+            `UPDATE operator_list
+             SET parent_operator_id = $1, updated_at = CURRENT_TIMESTAMP
+             WHERE id = $2::int
+             RETURNING *`,
+            [parentId, id]
+        );
+        res.json(result.rows[0]);
+    } catch (err) {
+        console.error("PATCH operators error:", err.message);
+        res.status(500).json({ error: "Failed to update operator" });
     }
 });
 
@@ -255,6 +447,8 @@ router.get("/", async (req, res) => {
             serial_number,
             booth_id,
             operator_id,
+            user_id,
+            as_operator_id,
         } = req.query;
 
         let query = `${POS_SELECT} WHERE 1=1`;
@@ -284,6 +478,50 @@ router.get("/", async (req, res) => {
             query += ` AND p.operator_id = $${idx}::int`;
             params.push(operator_id);
             idx++;
+        }
+
+        // Resolve operator from user_id when caller is an operator user.
+        // Main operators see their own POS records AND those of any sub-operator
+        // whose parent_operator_id matches them. Sub-operators only see their own.
+        // When `as_operator_id` is also passed, narrow the result further to that
+        // specific operator (a main operator filtering one of its subs). The
+        // server validates the requested operator is reachable for that user.
+        if (user_id) {
+            if (as_operator_id) {
+                query += ` AND p.operator_id = $${idx}::int
+                    AND $${idx}::int IN (
+                        WITH me AS (
+                            SELECT id, parent_operator_id
+                            FROM operator_list
+                            WHERE user_id = $${idx + 1}::int LIMIT 1
+                        )
+                        SELECT id FROM operator_list
+                        WHERE id = (SELECT id FROM me)
+                           OR (
+                               (SELECT parent_operator_id FROM me) IS NULL
+                               AND parent_operator_id = (SELECT id FROM me)
+                           )
+                    )`;
+                params.push(as_operator_id);
+                params.push(user_id);
+                idx += 2;
+            } else {
+                query += ` AND p.operator_id IN (
+                    WITH me AS (
+                        SELECT id, parent_operator_id
+                        FROM operator_list
+                        WHERE user_id = $${idx}::int LIMIT 1
+                    )
+                    SELECT id FROM operator_list
+                    WHERE id = (SELECT id FROM me)
+                       OR (
+                           (SELECT parent_operator_id FROM me) IS NULL
+                           AND parent_operator_id = (SELECT id FROM me)
+                       )
+                )`;
+                params.push(user_id);
+                idx++;
+            }
         }
 
         query += ` ORDER BY p.id ASC`;

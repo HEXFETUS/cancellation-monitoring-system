@@ -3,6 +3,13 @@ import { UserPlus, X } from "lucide-react";
 
 const teal = "#92C7CF";
 
+interface OperatorProfile {
+    id: number;
+    operator: string;
+    user_id: number | null;
+    parent_operator_id: number | null;
+}
+
 export default function CreateUserAccountPage() {
     const [form, setForm] = useState({
         name: "",
@@ -11,7 +18,9 @@ export default function CreateUserAccountPage() {
         usertype: "",
         position: "",
         department: "",
+        operator_id: null as number | null,
     });
+    const [operators, setOperators] = useState<OperatorProfile[]>([]);
     const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
     const [emailError, setEmailError] = useState("");
     const [duplicateError, setDuplicateError] = useState("");
@@ -36,6 +45,29 @@ export default function CreateUserAccountPage() {
             if (debounceTimer.current) clearTimeout(debounceTimer.current);
         };
     }, []);
+
+    useEffect(() => {
+        // Load operator profiles for the dropdown.
+        let cancelled = false;
+        fetch(`${API_BASE_URL}/api/pos/operators`)
+            .then((res) => (res.ok ? res.json() : []))
+            .then((data) => {
+                if (!cancelled) setOperators(data);
+            })
+            .catch(() => {
+                /* fine — endpoint may not exist in older deploys */
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [API_BASE_URL]);
+
+    // Clear the operator picker if the role changes away from operator.
+    useEffect(() => {
+        if (form.usertype !== "operator" && form.operator_id !== null) {
+            setForm((f) => ({ ...f, operator_id: null }));
+        }
+    }, [form.usertype, form.operator_id]);
 
     const checkDuplicateEmail = async (username: string) => {
         if (!username || username.length < 3) return;
@@ -139,7 +171,48 @@ export default function CreateUserAccountPage() {
             }
 
             setMessage({ type: "success", text: "User account created successfully!" });
-            setForm({ name: "", username: "", password: "", usertype: "", position: "", department: "" });
+
+            // If the new user is an operator and the admin picked a profile,
+            // link them in a follow-up call. We do it here (rather than in
+            // POST /api/users) so existing user-creation logic stays untouched
+            // and any failure here is reported but doesn't undo the user.
+            if (form.usertype === "operator" && form.operator_id !== null) {
+                try {
+                    const created = await res.clone().json();
+                    const userId = created?.id;
+                    if (userId) {
+                        const linkRes = await fetch(
+                            `${API_BASE_URL}/api/users/${userId}/operator`,
+                            {
+                                method: "PATCH",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ operator_id: form.operator_id }),
+                            }
+                        );
+                        if (!linkRes.ok) {
+                            const data = await linkRes.json().catch(() => ({}));
+                            setMessage({
+                                type: "error",
+                                text:
+                                    "User created, but operator linking failed: " +
+                                    (data.error || "unknown error"),
+                            });
+                        }
+                    }
+                } catch {
+                    // We already showed success for user creation; linking error already surfaced.
+                }
+            }
+
+            setForm({
+                name: "",
+                username: "",
+                password: "",
+                usertype: "",
+                position: "",
+                department: "",
+                operator_id: null,
+            });
             setDuplicateError("");
         } catch (err: any) {
             setMessage({ type: "error", text: err.message || "Could not create user" });
@@ -312,8 +385,59 @@ export default function CreateUserAccountPage() {
                             <option value="admin">Admin</option>
                             <option value="csr">CSR</option>
                             <option value="operator">Operator</option>
+                            <option value="purchaser">Purchaser</option>
                         </select>
                     </div>
+
+                    {form.usertype === "operator" && (
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Operator Profile
+                            </label>
+                            <select
+                                value={form.operator_id ?? ""}
+                                onChange={(e) =>
+                                    setForm((f) => ({
+                                        ...f,
+                                        operator_id:
+                                            e.target.value === "" ? null : Number(e.target.value),
+                                    }))
+                                }
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none"
+                                onFocus={(e) => {
+                                    e.currentTarget.style.borderColor = teal;
+                                    e.currentTarget.style.boxShadow = `0 0 0 2px ${teal}40`;
+                                }}
+                                onBlur={(e) => {
+                                    e.currentTarget.style.borderColor = "#D1D5DB";
+                                    e.currentTarget.style.boxShadow = "none";
+                                }}
+                            >
+                                <option value="">— assign later —</option>
+                                {operators
+                                    .filter((o) => !o.user_id)
+                                    .map((o) => {
+                                        const parent = o.parent_operator_id
+                                            ? operators.find((x) => x.id === o.parent_operator_id)
+                                            : null;
+                                        // Indent subs visually instead of nesting parentheses,
+                                        // which gets unreadable when names already have parens.
+                                        const label = parent
+                                            ? `   \u21B3 ${o.operator}  (under ${parent.operator})`
+                                            : o.operator;
+                                        return (
+                                            <option key={o.id} value={o.id}>
+                                                {label}
+                                            </option>
+                                        );
+                                    })}
+                            </select>
+                            <p className="mt-1 text-xs text-ink-subtle">
+                                Pick the operator this user will represent. Only profiles
+                                that aren't linked yet are listed.
+                            </p>
+                        </div>
+                    )}
 
                     <button
                         type="submit"
@@ -385,6 +509,21 @@ export default function CreateUserAccountPage() {
                                     <span className="text-xs font-medium text-ink-muted uppercase tracking-wider">User Type</span>
                                     <span className="font-semibold text-ink text-sm capitalize">{form.usertype}</span>
                                 </div>
+                                {form.usertype === "operator" && (
+                                    <>
+                                        <div className="h-px bg-warm/60" />
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-xs font-medium text-ink-muted uppercase tracking-wider">
+                                                Operator
+                                            </span>
+                                            <span className="font-semibold text-ink text-sm">
+                                                {form.operator_id
+                                                    ? operators.find((o) => o.id === form.operator_id)?.operator ?? "—"
+                                                    : "Assign later"}
+                                            </span>
+                                        </div>
+                                    </>
+                                )}
                             </div>
 
                             <div className="flex gap-3 mt-6">

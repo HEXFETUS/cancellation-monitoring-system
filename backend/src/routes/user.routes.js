@@ -4,7 +4,7 @@ import pool from "../config/db.js";
 
 const router = express.Router();
 
-const VALID_USER_TYPES = new Set(["admin", "csr", "operator"]);
+const VALID_USER_TYPES = new Set(["admin", "csr", "operator", "purchaser"]);
 
 function validateUserInput({ name, email, usertype, position, department }) {
     if (
@@ -28,11 +28,18 @@ function isBcryptHash(value) {
     return typeof value === "string" && /^\$2[aby]\$\d{2}\$/.test(value);
 }
 
-// GET /api/users - Get all users
+// GET /api/users - Get all users (includes linked operator profile, if any)
 router.get("/", async (req, res) => {
     try {
         const result = await pool.query(
-            "SELECT id, name, email, usertype, position, department FROM users ORDER BY id ASC"
+            `SELECT u.id, u.name, u.email, u.usertype, u.position, u.department,
+                    ol.id AS operator_id, ol.operator AS operator_name,
+                    ol.parent_operator_id,
+                    parent.operator AS parent_operator_name
+             FROM users u
+             LEFT JOIN operator_list ol ON ol.user_id = u.id
+             LEFT JOIN operator_list parent ON parent.id = ol.parent_operator_id
+             ORDER BY u.id ASC`
         );
         res.json(result.rows);
     } catch (err) {
@@ -41,7 +48,7 @@ router.get("/", async (req, res) => {
     }
 });
 
-// GET /api/users/me - Get current authenticated user
+// GET /api/users/me - Get current authenticated user (with linked operator profile, if any)
 router.get("/me", async (req, res) => {
     try {
         const userId = req.query.id;
@@ -49,7 +56,14 @@ router.get("/me", async (req, res) => {
             return res.status(400).json({ error: "User ID is required" });
         }
         const result = await pool.query(
-            "SELECT id, name, email, usertype, position, department FROM users WHERE id = $1",
+            `SELECT u.id, u.name, u.email, u.usertype, u.position, u.department,
+                    ol.id AS operator_id, ol.operator AS operator_name,
+                    ol.parent_operator_id,
+                    parent.operator AS parent_operator_name
+             FROM users u
+             LEFT JOIN operator_list ol ON ol.user_id = u.id
+             LEFT JOIN operator_list parent ON parent.id = ol.parent_operator_id
+             WHERE u.id = $1`,
             [userId]
         );
         if (result.rows.length === 0) {
@@ -232,6 +246,119 @@ router.delete("/:id", async (req, res) => {
     } catch (err) {
         console.error("Error deleting user:", err.message);
         res.status(500).json({ error: "Failed to delete user" });
+    }
+});
+
+// PATCH /api/users/:id/operator - Link or unlink an operator profile to this user.
+// Body: { operator_id: number | null }
+// Operator profiles can be linked to at most one user account.
+router.patch("/:id/operator", async (req, res) => {
+    try {
+        const userId = Number(req.params.id);
+        if (!Number.isFinite(userId)) {
+            return res.status(400).json({ error: "Invalid user id" });
+        }
+
+        const { operator_id } = req.body ?? {};
+        const targetOperatorId =
+            operator_id === null || operator_id === undefined || operator_id === ""
+                ? null
+                : Number(operator_id);
+
+        // Confirm user exists and is an operator role
+        const userCheck = await pool.query(
+            "SELECT id, usertype FROM users WHERE id = $1::int",
+            [userId]
+        );
+        if (userCheck.rows.length === 0) {
+            return res.status(404).json({ error: "User not found" });
+        }
+        if (userCheck.rows[0].usertype !== "operator") {
+            return res.status(400).json({
+                error: "Only operator users can be linked to an operator profile",
+            });
+        }
+
+        // Clear any prior link to keep the unique constraint happy. This is a
+        // 1-to-1 relationship: one user ↔ at most one operator profile.
+        await pool.query(
+            "UPDATE operator_list SET user_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE user_id = $1::int",
+            [userId]
+        );
+
+        if (targetOperatorId !== null) {
+            // Validate the target profile isn't already taken by someone else.
+            const opCheck = await pool.query(
+                "SELECT id, user_id FROM operator_list WHERE id = $1::int",
+                [targetOperatorId]
+            );
+            if (opCheck.rows.length === 0) {
+                return res.status(404).json({ error: "Operator profile not found" });
+            }
+            if (opCheck.rows[0].user_id && opCheck.rows[0].user_id !== userId) {
+                return res.status(409).json({
+                    error: "That operator profile is already linked to another user",
+                });
+            }
+
+            await pool.query(
+                "UPDATE operator_list SET user_id = $1::int, updated_at = CURRENT_TIMESTAMP WHERE id = $2::int",
+                [userId, targetOperatorId]
+            );
+        }
+
+        // Return the updated user row with linkage details
+        const result = await pool.query(
+            `SELECT u.id, u.name, u.email, u.usertype, u.position, u.department,
+                    ol.id AS operator_id, ol.operator AS operator_name
+             FROM users u
+             LEFT JOIN operator_list ol ON ol.user_id = u.id
+             WHERE u.id = $1::int`,
+            [userId]
+        );
+        res.json(result.rows[0]);
+    } catch (err) {
+        console.error("PATCH user operator error:", err.message);
+        res.status(500).json({ error: "Failed to update operator linkage" });
+    }
+});
+
+// PATCH /api/users/:id/name - User updates their own display name
+// Allows the operator (or any user) to change just their `name` without
+// touching email, role, etc. Caller must include `user_id` in the body
+// matching the path id — this is a soft check until proper auth middleware
+// exists; we mainly want to prevent accidental cross-account updates.
+router.patch("/:id/name", async (req, res) => {
+    try {
+        const targetId = Number(req.params.id);
+        if (!Number.isFinite(targetId)) {
+            return res.status(400).json({ error: "Invalid user id" });
+        }
+
+        const { name, user_id } = req.body ?? {};
+        const trimmed = String(name ?? "").trim();
+        if (!trimmed) {
+            return res.status(400).json({ error: "Name is required" });
+        }
+        if (trimmed.length > 255) {
+            return res.status(400).json({ error: "Name is too long" });
+        }
+        if (user_id !== undefined && Number(user_id) !== targetId) {
+            return res.status(403).json({ error: "You can only update your own name" });
+        }
+
+        const result = await pool.query(
+            `UPDATE users SET name = $1 WHERE id = $2::int
+             RETURNING id, name, email, usertype, position, department`,
+            [trimmed, targetId]
+        );
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: "User not found" });
+        }
+        res.json(result.rows[0]);
+    } catch (err) {
+        console.error("PATCH user name error:", err.message);
+        res.status(500).json({ error: "Failed to update name" });
     }
 });
 

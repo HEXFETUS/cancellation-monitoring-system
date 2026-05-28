@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Pencil, Plus, QrCode, RefreshCw, Search, Trash2 } from "lucide-react";
+import { Pencil, Plus, QrCode, RefreshCw, Search, Trash2, Wand2 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import {
     type AssetCode,
@@ -11,10 +11,27 @@ import {
     updateAssetCode,
 } from "../services/assetCodes";
 import AssetCodeFormModal from "../components/AssetCodeFormModal";
+import BulkGenerateQrModal from "../components/BulkGenerateQrModal";
 import QrPreviewModal from "../components/QrPreviewModal";
+import { listAllAssets, type AssetLocation } from "../services";
+import {
+    listPayoutStations,
+    type PayoutStation,
+} from "../services/payoutStations";
+import {
+    listOfficeDepartments,
+    type OfficeDepartment,
+} from "../services/officeDepartments";
+import { useCanDelete } from "../hooks/useCanDelete";
+import type { AssetRow } from "../components/AssetTable";
+
+type AssetWithLocation = AssetRow & { location: AssetLocation };
 
 export default function AssetCodingPage() {
     const [items, setItems] = useState<AssetCode[]>([]);
+    const [assets, setAssets] = useState<AssetWithLocation[]>([]);
+    const [stations, setStations] = useState<PayoutStation[]>([]);
+    const [departments, setDepartments] = useState<OfficeDepartment[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [search, setSearch] = useState("");
@@ -23,17 +40,64 @@ export default function AssetCodingPage() {
     const [editing, setEditing] = useState<AssetCode | null>(null);
     const [qrOpen, setQrOpen] = useState(false);
     const [qrCode, setQrCode] = useState<AssetCode | null>(null);
+    const [bulkOpen, setBulkOpen] = useState(false);
+    const canDelete = useCanDelete();
 
     const refresh = async () => {
         try {
             setLoading(true);
             setError("");
-            setItems(await listAssetCodes());
+            const [codes, allAssets, allStations, allDepartments] = await Promise.all([
+                listAssetCodes(),
+                listAllAssets(),
+                listPayoutStations(),
+                listOfficeDepartments(),
+            ]);
+            setItems(codes);
+            setAssets(allAssets);
+            setStations(allStations);
+            setDepartments(allDepartments);
         } catch (e: any) {
             setError(e.message || "Could not load asset codes");
         } finally {
             setLoading(false);
         }
+    };
+
+    /**
+     * Department column on the Asset Coding table.
+     * Shows the friendly name (e.g. "Information Technology", "Nazareth Outlet")
+     * looked up from the asset's linked department/station so it stays in sync
+     * with the Office and Payout asset tables.
+     */
+    const departmentLabel = (row: AssetCode): string => {
+        return departmentInfo(row).name;
+    };
+
+    /**
+     * Same lookup as departmentLabel but also returns a "kind" tag so the cell
+     * can show a badge ("Department" / "Station") next to the name.
+     */
+    const departmentInfo = (
+        row: AssetCode
+    ): { name: string; kind: "department" | "station" | "" } => {
+        const linked = row.assetId ? assets.find((a) => a.id === row.assetId) : null;
+
+        if (linked?.location === "payout") {
+            const station = stations.find((s) => s.id === linked.payoutStationId);
+            const name =
+                station?.name || linked.space?.trim() || row.space?.trim() || "";
+            return { name: name || "—", kind: name ? "station" : "" };
+        }
+
+        if (linked?.location === "office") {
+            const dept = departments.find((d) => d.id === linked.officeDepartmentId);
+            const name = dept?.name || linked.department?.trim() || "";
+            return { name: name || "—", kind: name ? "department" : "" };
+        }
+
+        const fallback = (linked?.department || row.department || "").trim();
+        return { name: fallback || "—", kind: "" };
     };
 
     useEffect(() => {
@@ -44,12 +108,22 @@ export default function AssetCodingPage() {
         const q = search.trim().toLowerCase();
         if (!q) return items;
         return items.filter((it) =>
-            [it.itemCode, it.description, it.type, it.department, it.careOf, it.space, it.qrPayload]
+            [
+                it.itemCode,
+                it.description,
+                it.type,
+                it.careOf,
+                it.space,
+                it.qrPayload,
+                departmentLabel(it),
+            ]
                 .join(" ")
                 .toLowerCase()
                 .includes(q)
         );
-    }, [items, search]);
+        // departmentLabel depends on `assets`, which is captured in closure.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [items, search, assets]);
 
     const handleAdd = () => {
         setEditing(null);
@@ -113,6 +187,13 @@ export default function AssetCodingPage() {
                         />
                     </div>
                     <button
+                        onClick={() => setBulkOpen(true)}
+                        className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-teal bg-teal/10 px-4 py-2 text-sm font-semibold text-ink transition hover:bg-teal/20"
+                    >
+                        <Wand2 size={16} />
+                        Generate QR Codes
+                    </button>
+                    <button
                         onClick={handleAdd}
                         className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-teal px-4 py-2 text-sm font-semibold text-ink transition hover:bg-teal-dark"
                     >
@@ -136,7 +217,7 @@ export default function AssetCodingPage() {
                             <Th>Item Code</Th>
                             <Th>Description</Th>
                             <Th>Type</Th>
-                            <Th>Department</Th>
+                            <Th>Department / Station</Th>
                             <Th>Care Of</Th>
                             <Th>Space</Th>
                             <Th align="right">Actions</Th>
@@ -183,7 +264,20 @@ export default function AssetCodingPage() {
                                             <span className="text-ink-subtle">—</span>
                                         )}
                                     </Td>
-                                    <Td className="text-ink-muted">{row.department || "—"}</Td>
+                                    <Td className="text-ink-muted">
+                                        {(() => {
+                                            const info = departmentInfo(row);
+                                            if (!info.kind) return info.name;
+                                            return (
+                                                <span className="text-ink">
+                                                    {info.name} -{" "}
+                                                    <span className="text-ink-muted">
+                                                        {info.kind === "station" ? "Station" : "Department"}
+                                                    </span>
+                                                </span>
+                                            );
+                                        })()}
+                                    </Td>
                                     <Td className="text-ink-muted">{row.careOf || "—"}</Td>
                                     <Td className="text-ink-muted">{row.space || "—"}</Td>
                                     <Td align="right">
@@ -211,13 +305,15 @@ export default function AssetCodingPage() {
                                                 <RefreshCw size={14} />
                                                 Regen
                                             </button>
-                                            <button
-                                                onClick={() => handleDelete(row)}
-                                                className="inline-flex items-center gap-1 rounded-lg bg-rose px-2.5 py-1 text-xs font-medium text-ink transition hover:bg-rose-dark"
-                                            >
-                                                <Trash2 size={14} />
-                                                Delete
-                                            </button>
+                                            {canDelete && (
+                                                <button
+                                                    onClick={() => handleDelete(row)}
+                                                    className="inline-flex items-center gap-1 rounded-lg bg-rose px-2.5 py-1 text-xs font-medium text-ink transition hover:bg-rose-dark"
+                                                >
+                                                    <Trash2 size={14} />
+                                                    Delete
+                                                </button>
+                                            )}
                                         </div>
                                     </Td>
                                 </tr>
@@ -242,6 +338,13 @@ export default function AssetCodingPage() {
                 open={qrOpen}
                 code={qrCode}
                 onClose={() => setQrOpen(false)}
+            />
+
+            <BulkGenerateQrModal
+                open={bulkOpen}
+                existingCodes={items}
+                onClose={() => setBulkOpen(false)}
+                onGenerated={refresh}
             />
         </div>
     );
