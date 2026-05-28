@@ -74,7 +74,7 @@ export default function AllPosPage() {
             try {
                 const booths = await fetchBoothInfo();
                 setBoothList(booths);
-            } catch (err: any) {
+            } catch {
                 alert("Failed to load booth list");
             }
         }

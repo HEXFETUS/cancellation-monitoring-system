@@ -58,7 +58,7 @@ export default function OperatorsPage() {
                 (record.booth_code?.toLowerCase() || "").includes(query)
             );
         });
-    }, [records, searchQuery]);
+    }, [sortedRecords, searchQuery]);
 
     // Paginated slice
     const totalPages = Math.max(1, Math.ceil(filteredRecords.length / ROWS_PER_PAGE));

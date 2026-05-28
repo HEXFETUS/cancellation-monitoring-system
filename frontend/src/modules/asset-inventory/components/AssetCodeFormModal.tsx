@@ -25,13 +25,6 @@ const LOCATION_CODE: Record<AssetLocation, string> = {
     obs: "OBS",
 };
 
-const LOCATION_DEPT: Record<AssetLocation, string> = {
-    office: "Office",
-    payout: "Payout",
-    drawcourt: "Drawcourt",
-    obs: "OBS",
-};
-
 /**
  * Map a payout asset's `space` (CDO / WEST / EAST) to a station prefix.
  * Returns null when the space doesn't map cleanly so the caller can fall back.

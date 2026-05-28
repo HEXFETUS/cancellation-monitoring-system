@@ -69,7 +69,7 @@ export default function DashboardLayout() {
         return () => {
             ignored = true;
         };
-    }, [authUser?.id, authUser?.name, authUser?.email, authUser?.usertype]);
+    }, [authUser]);
 
     const displayName = sidebarUser?.name?.trim() || authUser?.name?.trim() || "User";
     const displayDepartment = sidebarUser?.department?.trim() || authUser?.department?.trim();
