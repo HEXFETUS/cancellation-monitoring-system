@@ -332,7 +332,9 @@ export default function OperatorDashboard() {
                         ]);
                         setRecords(pos);
                         setRequests(reqs);
-                    } catch (_) { }
+                    } catch {
+                        setError("Booth change submitted, but refresh failed.");
+                    }
                 }}
             />
         </div>
