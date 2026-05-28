@@ -144,3 +144,17 @@ export async function syncCancellationSummary(data: {
     });
     return handleResponse<CancellationSyncResult>(response);
 }
+
+export async function addHumanForceRecord(data: {
+    ticket_number: string;
+    reference_code?: string;
+    booth_code?: string;
+    reaseon_for_deny: string;
+}): Promise<{ id: number; message?: string; sheet?: unknown; sheet_warning?: string | null }> {
+    const response = await fetch(`${API_BASE}/human-force`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+    });
+    return handleResponse<{ id: number; message?: string; sheet?: unknown; sheet_warning?: string | null }>(response);
+}

@@ -3,6 +3,7 @@ import { FileText, Calendar, BarChart3, PieChart, Menu } from "lucide-react";
 import CancellationRecordsPage from "./CancellationRecordsPage";
 import MonthlyReportPage from "./MonthlyReportPage";
 import YearlyReportPage from "./YearlyReportPage";
+import ReasonForDenyPage from "./ReasonForDenyPage";
 
 const teal = "#92C7CF";
 
@@ -104,6 +105,7 @@ export default function CancellationTabbedPage() {
                 {activeTab === "records" && <CancellationRecordsPage />}
                 {activeTab === "monthly" && <MonthlyReportPage />}
                 {activeTab === "yearly" && <YearlyReportPage />}
+                {activeTab === "reasons" && <ReasonForDenyPage />}
             </div>
         </div>
     );

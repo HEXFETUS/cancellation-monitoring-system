@@ -279,9 +279,13 @@ async function initDatabase() {
                 reaseon_for_deny VARCHAR(255),
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 booth_id INTEGER REFERENCES booth_info(id) ON DELETE SET NULL,
-                ticket_number VARCHAR(255)
+                ticket_number VARCHAR(255),
+                reference_code VARCHAR(255),
+                booth_code VARCHAR(255)
             );
         `);
+        await client.query("ALTER TABLE cancellation_human_force ADD COLUMN IF NOT EXISTS reference_code VARCHAR(255)");
+        await client.query("ALTER TABLE cancellation_human_force ADD COLUMN IF NOT EXISTS booth_code VARCHAR(255)");
 
         const userCount = await client.query("SELECT COUNT(*) FROM users");
         if (Number(userCount.rows[0].count) === 0) {

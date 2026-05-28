@@ -186,6 +186,144 @@ router.get("/records", async (req, res) => {
     }
 });
 
+/* ─────────────── Verify ticket exists in Google Sheet ─────────────── */
+async function findTicketInSheet(ticketNumber) {
+    const rows = await fetchSheetRows();
+
+    const upperTicket = ticketNumber.trim().toUpperCase();
+
+    // First try matching by ticket number (column B)
+    let match = rows.find((row) => {
+        const rowTicket = String(getField(row, SHEET_COLUMNS.ticketNumber)).trim().toUpperCase();
+        return rowTicket === upperTicket;
+    });
+
+    // If not found by ticket number, try matching by reference code (column C)
+    if (!match) {
+        match = rows.find((row) => {
+            // Reference code may be in a field called "REFCODE" or similar
+            const refCode = String(row["REFCODE"] || row["REFERENCE CODE"] || row["reference_code"] || row["refcode"] || "").trim().toUpperCase();
+            return refCode === upperTicket;
+        });
+    }
+
+    if (!match) {
+        throw new Error(`Ticket number "${ticketNumber}" not found in the Google Sheet.`);
+    }
+
+    // Return the area from the matched row
+    return {
+        area: String(getField(match, SHEET_COLUMNS.area) || "Unassigned").trim(),
+        boothCode: String(getField(match, SHEET_COLUMNS.boothCode)).trim(),
+    };
+}
+
+/* ─────────────── Insert a single human-force / deny reason record ─────────────── */
+router.post("/human-force", async (req, res) => {
+    try {
+        const { ticket_number, reference_code, booth_code, reaseon_for_deny, area, booth_id } = req.body;
+
+        if (!ticket_number || !reaseon_for_deny) {
+            return res.status(400).json({ error: "ticket_number and reaseon_for_deny are required" });
+        }
+
+        const normalizedReason = reaseon_for_deny.toUpperCase();
+        if (normalizedReason !== "FORCE CANCEL" && normalizedReason !== "HUMAN ERROR") {
+            return res.status(400).json({ error: 'reaseon_for_deny must be "FORCE CANCEL" or "HUMAN ERROR"' });
+        }
+
+        // 1. Determine area from booth_code prefix if provided, otherwise default
+        let resolvedArea = area || "Unassigned";
+
+        // Derive area from booth_code prefix if provided
+        if (booth_code) {
+            const upperBooth = booth_code.trim().toUpperCase();
+            if (upperBooth.startsWith("CDO-")) {
+                resolvedArea = "CDO";
+            } else if (upperBooth.startsWith("MOE-") || upperBooth.startsWith("MOW-")) {
+                resolvedArea = "MISOR";
+            }
+        }
+
+        // 2. Verify the ticket exists in the Google Sheet
+        let ticketInfo = { area: resolvedArea, boothCode: "" };
+        try {
+            ticketInfo = await findTicketInSheet(ticket_number);
+            if (!booth_code) {
+                resolvedArea = ticketInfo.area;
+            }
+        } catch (sheetErr) {
+            if (!booth_code) {
+                return res.status(400).json({ error: sheetErr.message });
+            }
+        }
+
+        // 3. Look up booth_id from booth code if available
+        let resolvedBoothId = booth_id || null;
+        const effectiveBoothCode = booth_code || ticketInfo.boothCode;
+        if (effectiveBoothCode && !booth_id) {
+            const boothResult = await pool.query(
+                "SELECT id FROM booth_info WHERE LOWER(booth_code) = LOWER($1) LIMIT 1",
+                [effectiveBoothCode]
+            );
+            resolvedBoothId = boothResult.rows[0]?.id || null;
+        }
+
+        // Format date in Manila timezone (Asia/Manila, UTC+8)
+        const manilaDateStr = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Manila" }); // returns YYYY-MM-DD
+
+        // 4. Add a new transaction row to the correct area tab (CDO or MISOR) via GAS
+        let sheetError = null;
+
+        try {
+            const sheetUrl = new URL(GOOGLE_SHEET_URL);
+
+            const sheetResponse = await fetch(sheetUrl.toString(), {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    date: manilaDateStr,
+                    ticket: ticket_number,
+                    refcode: reference_code || "",
+                    booth: booth_code || ticketInfo.boothCode || "",
+                    status: "DENIED ❌",
+                    cancelled_by: resolvedArea + " - SYSTEM",
+                    reason_denied_ticket: reaseon_for_deny,
+                }),
+            });
+
+            const sheetResultText = await sheetResponse.text();
+            console.log(`GAS POST response for ticket ${ticket_number} (tab=${resolvedArea}): ${sheetResultText}`);
+
+            if (sheetResultText.includes("Error") || sheetResultText.includes("❌")) {
+                sheetError = sheetResultText.replace(/[❌⚠️✅]/g, "").trim();
+            }
+        } catch (sheetWriteErr) {
+            console.error(`Failed to add transaction to sheet for ticket ${ticket_number}: ${sheetWriteErr.message}`);
+            sheetError = `Failed to update sheet: ${sheetWriteErr.message}`;
+        }
+
+        // 5. Save to database with Manila date
+        const result = await pool.query(
+            `
+            INSERT INTO cancellation_human_force (date, area, reaseon_for_deny, booth_id, ticket_number, reference_code, booth_code)
+            VALUES ($1::date, $2, $3, $4::int, $5, $6, $7)
+            RETURNING id
+            `,
+            [manilaDateStr, resolvedArea, reaseon_for_deny, resolvedBoothId, ticket_number, reference_code || null, booth_code || null]
+        );
+
+        res.status(201).json({
+            id: result.rows[0].id,
+            area: resolvedArea,
+            message: `Transaction added to ${resolvedArea} tab. Record saved with reason: ${reaseon_for_deny}.`,
+            sheet_warning: sheetError || null,
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 router.get("/human-force", async (req, res) => {
     try {
         const { date = formatDate() } = req.query;
@@ -486,7 +624,7 @@ router.post("/sync", async (req, res) => {
             human_force: insertedHumanForce,
         });
     } catch (err) {
-        await client.query("ROLLBACK").catch(() => {});
+        await client.query("ROLLBACK").catch(() => { });
         res.status(500).json({ error: err.message });
     } finally {
         client.release();
@@ -574,7 +712,7 @@ router.post("/sync-date", async (req, res) => {
             human_force: insertedHumanForce,
         });
     } catch (err) {
-        await client.query("ROLLBACK").catch(() => {});
+        await client.query("ROLLBACK").catch(() => { });
         res.status(500).json({ error: err.message });
     } finally {
         client.release();

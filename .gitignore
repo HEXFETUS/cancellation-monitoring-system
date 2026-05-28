@@ -1,3 +1,7 @@
 node_modules
 .env
 dist
+
+.pnpm-store/
+.vite-cache/
+frontend/.vite-cache/
