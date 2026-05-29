@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../../../context/AuthContext";
 import { Send, RotateCcw, Ticket, AlertTriangle, UserX, CheckCircle2, XCircle, Hash, Store, Smartphone } from "lucide-react";
-import { addHumanForceRecord, updateTicketReason } from "../services";
+import { addHumanForceRecord } from "../services";
 
 const teal = "#92C7CF";
 

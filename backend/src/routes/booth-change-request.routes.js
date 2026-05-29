@@ -102,6 +102,57 @@ router.post("/", async (req, res) => {
             });
         }
 
+        // Validate that the POS device and target booth belong to the same
+        // operator (operator boundary rule). Also derive the device's area
+        // to give a helpful error message when the mismatch is clear.
+        const posResult = await pool.query(
+            `SELECT id, device_no, area, operator_id
+             FROM pos_records WHERE id = $1::int LIMIT 1`,
+            [pos_record_id]
+        );
+        if (posResult.rows.length === 0) {
+            return res.status(404).json({ error: "POS device not found" });
+        }
+        const pos = posResult.rows[0];
+
+        const boothResult = await pool.query(
+            `SELECT id, booth_code, operator_id
+             FROM booth_info WHERE id = $1::int LIMIT 1`,
+            [requested_booth_id]
+        );
+        if (boothResult.rows.length === 0) {
+            return res.status(404).json({ error: "Target booth not found" });
+        }
+        const targetBooth = boothResult.rows[0];
+
+        // Enforce same-operator rule
+        if (pos.operator_id && targetBooth.operator_id && Number(pos.operator_id) !== Number(targetBooth.operator_id)) {
+            return res.status(400).json({
+                error:
+                    "Device and target booth belong to different operators. " +
+                    "You can only request a booth change within your operator boundary.",
+            });
+        }
+
+        // Enforce same-area rule when the device has an area
+        if (pos.area) {
+            const deviceArea = String(pos.area).trim().toUpperCase();
+            // Derive area from the booth code prefix if possible
+            const boothCode = String(targetBooth.booth_code || "").trim().toUpperCase();
+            const boothArea = boothCode.startsWith("MOE-") || boothCode.startsWith("MOW-")
+                ? "MISOR"
+                : boothCode.startsWith("CDO-") || boothCode.startsWith("CD0-")
+                    ? "CDO"
+                    : null;
+            if (boothArea && boothArea !== deviceArea) {
+                return res.status(400).json({
+                    error:
+                        `Area mismatch: the device is in area "${deviceArea}" but the target booth "${targetBooth.booth_code}" appears to be in area "${boothArea}". ` +
+                        "You can only request a booth change to a booth within the same area.",
+                });
+            }
+        }
+
         const result = await pool.query(
             `
             INSERT INTO booth_change_requests
