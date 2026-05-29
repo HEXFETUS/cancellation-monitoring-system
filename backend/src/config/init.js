@@ -17,6 +17,7 @@ const SERIAL_TABLES = [
     "payout_stations",
     "office_departments",
     "booth_change_requests",
+    "repair_records",
 ];
 
 async function syncSerialSequence(client, tableName) {
@@ -424,6 +425,39 @@ async function initDatabase() {
         );
 
         /* =========================
+           diagnosis_list — master list of repair diagnoses.
+           Used by the CSR Repair Request form dropdown so entries can be
+           managed centrally instead of being hard-coded in the front-end.
+        ========================= */
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS diagnosis_list (
+                id SERIAL PRIMARY KEY,
+                diagnosis_code VARCHAR(100) UNIQUE NOT NULL,
+                name VARCHAR(255) NOT NULL,
+                description TEXT,
+                active BOOLEAN DEFAULT true,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        // Seed common diagnoses on first run only
+        const diagnosisCount = await client.query("SELECT COUNT(*)::int AS n FROM diagnosis_list");
+        if (diagnosisCount.rows[0].n === 0) {
+            await client.query(`
+                INSERT INTO diagnosis_list (diagnosis_code, name) VALUES
+                    ('screen-damage', 'Screen Damage'),
+                    ('battery-issue', 'Battery Issue'),
+                    ('printer-malfunction', 'Printer Malfunction'),
+                    ('card-reader-error', 'Card Reader Error'),
+                    ('power-supply', 'Power Supply Issue'),
+                    ('software-error', 'Software Error'),
+                    ('keyboard-issue', 'Keyboard Issue'),
+                    ('other', 'Other');
+            `);
+        }
+
+        /* =========================
            booth_change_requests — operators submit a request to swap their POS
            device to a different booth; admins approve or reject. Append-only
            for audit (no DELETE endpoint). When approved, we reuse the existing
@@ -451,6 +485,29 @@ async function initDatabase() {
         await client.query(
             "CREATE INDEX IF NOT EXISTS idx_bcr_user ON booth_change_requests(requested_by_user_id)"
         );
+
+        /* =========================
+           repair_records — CSR repair requests
+        ========================= */
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS repair_records (
+                id SERIAL PRIMARY KEY,
+                date DATE NOT NULL,
+                pos_record_id INTEGER REFERENCES pos_records(id) ON DELETE SET NULL,
+                ntc BOOLEAN DEFAULT false,
+                operator_id INTEGER REFERENCES operator_list(id) ON DELETE SET NULL,
+                diagnosis_id INTEGER REFERENCES diagnosis_list(id) ON DELETE SET NULL,
+                delivered_by VARCHAR(255),
+                with_charger BOOLEAN DEFAULT false,
+                with_box BOOLEAN DEFAULT false,
+                status VARCHAR(50) DEFAULT 'Pending',
+                forwarded BOOLEAN DEFAULT false,
+                released BOOLEAN DEFAULT false,
+                re_repair BOOLEAN DEFAULT false,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
 
         for (const tableName of SERIAL_TABLES) {
             await syncSerialSequence(client, tableName);

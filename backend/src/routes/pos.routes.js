@@ -519,6 +519,28 @@ router.post("/booth-info", async (req, res) => {
 });
 
 /* =========================
+   GET AVAILABLE POS RECORDS
+   Returns POS records that are not already in repair_records with non-NULL status
+========================= */
+router.get("/available", async (_req, res) => {
+    try {
+        const result = await pool.query(`
+            ${POS_SELECT}
+            WHERE p.id NOT IN (
+                SELECT pos_record_id 
+                FROM repair_records 
+                WHERE status IS NOT NULL
+            )
+            ORDER BY p.id ASC
+        `);
+        res.json(result.rows);
+    } catch (err) {
+        console.error("GET available POS error:", err.message);
+        res.status(500).json({ error: "Failed to fetch available POS records" });
+    }
+});
+
+/* =========================
    GET POS RECORDS
 ========================= */
 router.get("/", async (req, res) => {
@@ -560,6 +582,13 @@ router.get("/", async (req, res) => {
             params.push(operator_id);
             idx++;
         }
+
+        // Filter out POS records that already exist in repair_records with non-NULL status
+        query += ` AND p.id NOT IN (
+            SELECT pos_record_id 
+            FROM repair_records 
+            WHERE status IS NOT NULL
+        )`;
 
         // Resolve operator from user_id when caller is an operator user.
         // Main operators see their own POS records AND those of any sub-operator

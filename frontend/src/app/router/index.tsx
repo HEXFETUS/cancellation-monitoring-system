@@ -14,6 +14,7 @@ import AssetInventoryTabbedPage from "../../modules/asset-inventory/pages/AssetI
 
 import SettingsPage from "../../modules/settings/pages/SettingsPage";
 import MyPosPage from "../../modules/operator/pages/MyPosPage";
+import CsrPosRepairPage from "../../modules/csr/pages/CsrPosRepairPage";
 
 export const router = createBrowserRouter([
     {
@@ -43,7 +44,7 @@ export const router = createBrowserRouter([
             {
                 path: "pos",
                 element: (
-                    <RoleGuard allow={["admin", "csr"]}>
+                    <RoleGuard allow={["admin"]}>
                         <PosInventoryTabbedPage />
                     </RoleGuard>
                 ),
@@ -59,9 +60,18 @@ export const router = createBrowserRouter([
             },
 
             {
+                path: "csr-pos-repair",
+                element: (
+                    <RoleGuard allow={["csr"]} fallback="/app/dashboard">
+                        <CsrPosRepairPage />
+                    </RoleGuard>
+                ),
+            },
+
+            {
                 path: "cancellation",
                 element: (
-                    <RoleGuard allow={["admin", "csr"]}>
+                    <RoleGuard allow={["admin"]}>
                         <CancellationTabbedPage />
                     </RoleGuard>
                 ),
@@ -70,7 +80,7 @@ export const router = createBrowserRouter([
             {
                 path: "asset-inventory",
                 element: (
-                    <RoleGuard allow={["admin", "csr", "purchaser"]}>
+                    <RoleGuard allow={["admin", "purchaser"]}>
                         <AssetInventoryTabbedPage />
                     </RoleGuard>
                 ),
