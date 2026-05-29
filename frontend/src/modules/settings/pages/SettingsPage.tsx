@@ -23,15 +23,62 @@ const userSubTabs = [
 export default function SettingsPage() {
     const { user } = useAuth();
 
-    // Operators and purchasers get a slim, self-scoped settings view (My Account only).
-    // Admin/CSR see the full management UI below.
-    if (user?.usertype === "operator" || user?.usertype === "purchaser") {
+    // Purchasers get a slim, self-scoped settings view (My Account only).
+    if (user?.usertype === "purchaser") {
         return <MyAccountPage />;
+    }
+
+    // Operators see the admin layout but only the "Operator Profiles" tab
+    // so they can create user accounts for their sub-operators.
+    if (user?.usertype === "operator") {
+        return <OperatorSettingsPage />;
     }
 
     return <AdminSettingsPage />;
 }
 
+/** Operator-limited view: only the Operator Profiles page. */
+function OperatorSettingsPage() {
+    const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (!successMessage) return;
+        const timer = window.setTimeout(() => setSuccessMessage(null), 3000);
+        return () => window.clearTimeout(timer);
+    }, [successMessage]);
+
+    return (
+        <div>
+            <div className="mb-5 flex items-center justify-between">
+                <div>
+                    <h1 className="text-xl font-bold text-ink">Sub-Operator User Accounts</h1>
+                    <p className="mt-1 text-sm text-ink-muted">
+                        Manage your sub-operators and create user accounts for them.
+                    </p>
+                </div>
+            </div>
+
+            {successMessage && (
+                <div className="mb-4 rounded-xl bg-teal px-4 py-2 text-sm font-medium text-white shadow-lg flex items-center gap-2 ring-1 ring-teal-dark/30">
+                    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/20">
+                        <Check size={15} className="text-white" />
+                    </div>
+                    <span className="truncate">{successMessage}</span>
+                    <button
+                        onClick={() => setSuccessMessage(null)}
+                        className="ml-auto rounded-lg p-0.5 hover:bg-white/20 transition-colors cursor-pointer"
+                    >
+                        <X size={14} />
+                    </button>
+                </div>
+            )}
+
+            <OperatorProfilesPage />
+        </div>
+    );
+}
+
+/** Full admin settings with all sub-tabs. */
 function AdminSettingsPage() {
     const [activeTab, setActiveTab] = useState("user-accounts");
     const [activeUserSubTab, setActiveUserSubTab] = useState("accounts");
