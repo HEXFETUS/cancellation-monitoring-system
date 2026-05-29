@@ -269,11 +269,16 @@ router.post("/human-force", async (req, res) => {
             resolvedBoothId = boothResult.rows[0]?.id || null;
         }
 
-        // Format date in Manila timezone (Asia/Manila, UTC+8)
-        const manilaDateStr = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Manila" }); // returns YYYY-MM-DD
+        // Format datetime in Manila timezone (Asia/Manila, UTC+8) — returns "M/D/YYYY HH:mm:ss"
+        const manilaNow = new Date().toLocaleString("en-US", { timeZone: "Asia/Manila" });
 
         // 4. Add a new transaction row to the correct area tab (CDO or MISOR) via GAS
         let sheetError = null;
+
+        // Use the user's name if provided, otherwise fall back to area - SYSTEM
+        const cancelledByValue = req.body.cancelled_by
+            ? `${req.body.cancelled_by} - SYSTEM`
+            : `${resolvedArea} - SYSTEM`;
 
         try {
             const sheetUrl = new URL(GOOGLE_SHEET_URL);
@@ -282,12 +287,12 @@ router.post("/human-force", async (req, res) => {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    date: manilaDateStr,
+                    date: manilaNow,
                     ticket: ticket_number,
                     refcode: reference_code || "",
                     booth: booth_code || ticketInfo.boothCode || "",
                     status: "DENIED ❌",
-                    cancelled_by: resolvedArea + " - SYSTEM",
+                    cancelled_by: cancelledByValue,
                     reason_denied_ticket: reaseon_for_deny,
                 }),
             });
@@ -303,20 +308,110 @@ router.post("/human-force", async (req, res) => {
             sheetError = `Failed to update sheet: ${sheetWriteErr.message}`;
         }
 
-        // 5. Save to database with Manila date
+        // 5. Save to database with Manila date (date only for DB)
+        const manilaDateOnlyStr = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Manila" });
+
         const result = await pool.query(
             `
             INSERT INTO cancellation_human_force (date, area, reaseon_for_deny, booth_id, ticket_number, reference_code, booth_code)
             VALUES ($1::date, $2, $3, $4::int, $5, $6, $7)
             RETURNING id
             `,
-            [manilaDateStr, resolvedArea, reaseon_for_deny, resolvedBoothId, ticket_number, reference_code || null, booth_code || null]
+            [manilaDateOnlyStr, resolvedArea, reaseon_for_deny, resolvedBoothId, ticket_number, reference_code || null, booth_code || null]
         );
 
         res.status(201).json({
             id: result.rows[0].id,
             area: resolvedArea,
             message: `Transaction added to ${resolvedArea} tab. Record saved with reason: ${reaseon_for_deny}.`,
+            sheet_warning: sheetError || null,
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+/* ─────────────── Update ticket reason in sheet (Ticket Details form) ─────────────── */
+router.post("/update-ticket-reason", async (req, res) => {
+    try {
+        const { ticket_number, reaseon_for_deny } = req.body;
+
+        if (!ticket_number || !reaseon_for_deny) {
+            return res.status(400).json({ error: "ticket_number and reaseon_for_deny are required" });
+        }
+
+        const normalizedReason = reaseon_for_deny.toUpperCase();
+        if (normalizedReason !== "FORCE CANCEL" && normalizedReason !== "HUMAN ERROR") {
+            return res.status(400).json({ error: 'reaseon_for_deny must be "FORCE CANCEL" or "HUMAN ERROR"' });
+        }
+
+        // 1. Find ticket in Google Sheet to determine the area (CDO or MISOR)
+        let ticketInfo;
+        try {
+            ticketInfo = await findTicketInSheet(ticket_number);
+        } catch (sheetErr) {
+            return res.status(400).json({ error: sheetErr.message });
+        }
+
+        // 2. Update the reason in the Google Sheet using GAS UPDATE_REASON
+        //    This only modifies the REASON FOR DENIED TICKET column in the matched row
+        //    It does NOT add a new transaction row
+        let sheetError = null;
+        let sheetSkipped = false;
+        try {
+            const sheetUrl = new URL(GOOGLE_SHEET_URL);
+            const sheetResponse = await fetch(sheetUrl.toString(), {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    type: "UPDATE_REASON",
+                    area: ticketInfo.area,
+                    ticket: ticket_number,
+                    reason_denied_ticket: reaseon_for_deny,
+                }),
+            });
+
+            const sheetResultText = await sheetResponse.text();
+            console.log(`GAS UPDATE_REASON response for ticket ${ticket_number} in ${ticketInfo.area}: ${sheetResultText}`);
+
+            if (sheetResultText.includes("Error") || sheetResultText.includes("❌")) {
+                sheetError = sheetResultText.replace(/[❌⚠️✅]/g, "").trim();
+            } else if (sheetResultText.includes("⏭️")) {
+                // Skipped because reason already set or status is APPROVED
+                sheetSkipped = true;
+                sheetError = sheetResultText.replace(/[❌⚠️✅⏭️]/g, "").trim();
+            }
+        } catch (sheetWriteErr) {
+            console.error(`Failed to update reason in sheet for ticket ${ticket_number}: ${sheetWriteErr.message}`);
+            sheetError = `Failed to update sheet: ${sheetWriteErr.message}`;
+        }
+
+        // 3. Format date in Manila timezone
+        const manilaDateStr = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Manila" });
+
+        // 4. Save to database with Manila date
+        const result = await pool.query(
+            `
+            INSERT INTO cancellation_human_force (date, area, reaseon_for_deny, booth_id, ticket_number)
+            VALUES ($1::date, $2, $3, $4::int, $5)
+            RETURNING id
+            `,
+            [manilaDateStr, ticketInfo.area, reaseon_for_deny, null, ticket_number]
+        );
+
+        if (sheetSkipped) {
+            return res.status(201).json({
+                id: result.rows[0].id,
+                area: ticketInfo.area,
+                message: `Ticket "${ticket_number}" found in ${ticketInfo.area}. Reason recorded in database, but sheet update was skipped.`,
+                sheet_warning: sheetError || null,
+            });
+        }
+
+        res.status(201).json({
+            id: result.rows[0].id,
+            area: ticketInfo.area,
+            message: `Ticket "${ticket_number}" found in ${ticketInfo.area}. Reason updated successfully.`,
             sheet_warning: sheetError || null,
         });
     } catch (err) {
