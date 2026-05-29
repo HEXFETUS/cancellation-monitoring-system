@@ -14,10 +14,6 @@ export default function OutletsPage() {
     const [searchQuery, setSearchQuery] = useState("");
     const [currentPage, setCurrentPage] = useState(1);
 
-    useEffect(() => {
-        loadRecords();
-    }, []);
-
     const loadRecords = async () => {
         setLoading(true);
         setError(null);
@@ -28,12 +24,16 @@ export default function OutletsPage() {
                     .filter((record) => record.booth_code?.trim())
                     .sort((a, b) => a.booth_code.localeCompare(b.booth_code, undefined, { numeric: true }))
             );
-        } catch (err: any) {
-            setError(err.message || "Failed to load records");
+        } catch (err) {
+            setError(err instanceof Error ? (err instanceof Error ? err.message : String(err)) : "Failed to load records");
         } finally {
             setLoading(false);
         }
     };
+
+    useEffect(() => {
+        loadRecords();
+    }, []);
 
     // Reset to page 1 when search changes
     useEffect(() => {
@@ -65,7 +65,7 @@ export default function OutletsPage() {
     const visiblePages = useMemo(() => {
         const MAX_VISIBLE = 10;
         let start = Math.max(1, currentPage - Math.floor(MAX_VISIBLE / 2));
-        let end = Math.min(totalPages, start + MAX_VISIBLE - 1);
+        const end = Math.min(totalPages, start + MAX_VISIBLE - 1);
         if (end - start + 1 < MAX_VISIBLE) {
             start = Math.max(1, end - MAX_VISIBLE + 1);
         }
@@ -182,8 +182,8 @@ export default function OutletsPage() {
         try {
             const data = await fetchOperators();
             setOperators(data);
-        } catch (err: any) {
-            setFormError(err.message || "Failed to load operators");
+        } catch (err) {
+            setFormError(err instanceof Error ? (err instanceof Error ? err.message : String(err)) : "Failed to load operators");
         }
     };
 
@@ -255,8 +255,8 @@ export default function OutletsPage() {
             showToast(`Booth "${createdBooth.booth_code}" has been saved successfully.`);
             closeAddModal();
             loadOperators();
-        } catch (err: any) {
-            setFormError(err.message || "Failed to save booth");
+        } catch (err) {
+            setFormError(err instanceof Error ? (err instanceof Error ? err.message : String(err)) : "Failed to save booth");
             setIsConfirmModalOpen(false);
         } finally {
             setIsSaving(false);
@@ -300,8 +300,8 @@ export default function OutletsPage() {
             showToast(`Operator "${createdOperator.operator}" has been saved successfully.`);
             closeAddOperatorModal();
             loadOperators();
-        } catch (err: any) {
-            setFormErrorOperator(err.message || "Failed to save operator");
+        } catch (err) {
+            setFormErrorOperator(err instanceof Error ? (err instanceof Error ? err.message : String(err)) : "Failed to save operator");
             setIsConfirmOperatorModalOpen(false);
         } finally {
             setIsSavingOperator(false);

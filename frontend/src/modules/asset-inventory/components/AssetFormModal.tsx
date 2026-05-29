@@ -105,8 +105,8 @@ export default function AssetFormModal({
         try {
             await onSubmit(values);
             onClose();
-        } catch (err: any) {
-            setError(err.message || "Save failed");
+        } catch (err) {
+            setError(err instanceof Error ? (err instanceof Error ? err.message : String(err)) : "Save failed");
         } finally {
             setSaving(false);
         }

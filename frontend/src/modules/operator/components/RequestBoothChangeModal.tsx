@@ -79,8 +79,8 @@ export default function RequestBoothChangeModal({
                 reason: reason.trim() || undefined,
             });
             await onSubmitted();
-        } catch (e: any) {
-            setError(e.message || "Failed to submit");
+        } catch (e) {
+            setError(e instanceof Error ? (e instanceof Error ? e.message : String(e)) : "Failed to submit");
         } finally {
             setSaving(false);
         }

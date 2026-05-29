@@ -54,8 +54,8 @@ export default function OperatorProfilesPage() {
             ]);
             setOperators(opsRes);
             setUsers(usersRes);
-        } catch (e: any) {
-            setError(e.message || "Failed to load");
+        } catch (e) {
+            setError(e instanceof Error ? (e instanceof Error ? e.message : String(e)) : "Failed to load");
         } finally {
             setLoading(false);
         }
@@ -135,8 +135,8 @@ export default function OperatorProfilesPage() {
             await refresh();
             setActiveMainId(created.id);
             showOk(`Main operator "${created.operator}" created.`);
-        } catch (e: any) {
-            showErr(e.message || "Failed to create main operator");
+        } catch (e) {
+            showErr(e instanceof Error ? (e instanceof Error ? e.message : String(e)) : "Failed to create main operator");
         } finally {
             setCreatingMain(false);
         }
@@ -155,8 +155,8 @@ export default function OperatorProfilesPage() {
             setSingleName("");
             await refresh();
             showOk("Sub-operator added.");
-        } catch (e: any) {
-            showErr(e.message || "Failed to add sub-operator");
+        } catch (e) {
+            showErr(e instanceof Error ? (e instanceof Error ? e.message : String(e)) : "Failed to add sub-operator");
         } finally {
             setCreatingSingle(false);
         }
@@ -176,8 +176,8 @@ export default function OperatorProfilesPage() {
         for (const name of lines) {
             try {
                 await createOperator({ operator: name, parent_operator_id: activeMainId });
-            } catch (e: any) {
-                errors.push(`${name}: ${e.message ?? "failed"}`);
+            } catch (e) {
+                errors.push(`${name}: ${(e instanceof Error ? e.message : String(e)) ?? "failed"}`);
             }
         }
         await refresh();
@@ -236,8 +236,8 @@ export default function OperatorProfilesPage() {
             } else {
                 showOk(parts.join(" "));
             }
-        } catch (e: any) {
-            showErr(e.message || "Failed to assign sub-operators");
+        } catch (e) {
+            showErr(e instanceof Error ? (e instanceof Error ? e.message : String(e)) : "Failed to assign sub-operators");
         } finally {
             setAssigning(false);
         }

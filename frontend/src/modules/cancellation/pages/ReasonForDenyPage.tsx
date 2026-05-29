@@ -80,7 +80,7 @@ export default function ReasonForDenyPage() {
         } catch (err) {
             setMessage({
                 type: "error",
-                text: err instanceof Error ? err.message : "Failed to save record.",
+                text: err instanceof Error ? (err instanceof Error ? err.message : String(err)) : "Failed to save record.",
             });
         } finally {
             setGeneralSending(false);
@@ -126,7 +126,7 @@ export default function ReasonForDenyPage() {
         } catch (err) {
             setMessage({
                 type: "error",
-                text: err instanceof Error ? err.message : "Failed to save record.",
+                text: err instanceof Error ? (err instanceof Error ? err.message : String(err)) : "Failed to save record.",
             });
         } finally {
             setCellphoneSending(false);

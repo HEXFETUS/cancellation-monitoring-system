@@ -20,7 +20,7 @@ import {
     RefreshCw,
     TrendingUp,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ComponentType } from "react";
 import { useAuth } from "../../context/AuthContext";
 import OperatorDashboard from "../../modules/operator/pages/OperatorDashboard";
 import CsrDashboard from "../../modules/csr/pages/CsrDashboard";
@@ -111,7 +111,7 @@ function KpiCard({
     label: string;
     value: string;
     change: string;
-    icon: any;
+    icon: ComponentType<{ className?: string }>;
     gradient: string;
 }) {
     const isPositive = change.startsWith("+");
@@ -169,7 +169,7 @@ function StatCard({
 }: {
     label: string;
     value: string;
-    icon: any;
+    icon: ComponentType<{ className?: string }>;
     color: string;
 }) {
     return (

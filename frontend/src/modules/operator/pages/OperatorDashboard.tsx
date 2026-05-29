@@ -87,8 +87,8 @@ export default function OperatorDashboard() {
                     setCancelRecords(cancelRecs);
                     setHumanForce(hf);
                 }
-            } catch (err: any) {
-                if (!cancelled) setError(err.message || "Failed to load");
+            } catch (err) {
+                if (!cancelled) setError(err instanceof Error ? (err instanceof Error ? err.message : String(err)) : "Failed to load");
             } finally {
                 if (!cancelled) setLoading(false);
             }

@@ -26,7 +26,9 @@ type SidebarUser = {
     department?: string;
 };
 
-const iconMap: Record<string, any> = {
+import type { LucideIcon } from "lucide-react";
+
+const iconMap: Record<string, LucideIcon> = {
     Dashboard: LayoutDashboard,
     "My POS": Monitor,
     "POS Inventory": Monitor,

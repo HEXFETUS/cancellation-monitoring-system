@@ -57,8 +57,8 @@ export default function UserLogsPage() {
             const res = await fetch(apiUrl("/api/users/logs"));
             if (!res.ok) throw new Error(await getErrorMessage(res, "Failed to fetch user logs"));
             setLogs(await res.json());
-        } catch (err: any) {
-            setError(err.message || "Could not load user logs");
+        } catch (err) {
+            setError(err instanceof Error ? (err instanceof Error ? err.message : String(err)) : "Could not load user logs");
         } finally {
             setLoading(false);
         }
