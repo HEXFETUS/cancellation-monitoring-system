@@ -34,14 +34,28 @@ app.use("/api/office-departments", officeDepartmentRoutes);
 app.use("/api/booth-change-requests", boothChangeRequestRoutes);
 
 const PORT = Number(process.env.PORT || 5050);
+<<<<<<< HEAD
+
+if (PORT !== 5050) {
+    throw new Error(`Invalid PORT ${PORT}. This backend must run on port 5050.`);
+}
+=======
+>>>>>>> 95f757df2d1b3d5229baee4770f1451d802e0078
 
 if (PORT !== 5050) {
     throw new Error(`Invalid PORT ${PORT}. This backend must run on port 5050.`);
 }
 
-initDatabase()
-    .then(() => {
-        app.listen(PORT, () => {
-            console.log(`Server running on port ${PORT}`);
+// Don't auto-bootstrap (init DB + listen) when the module is imported under a
+// test runner — tests replace the DB pool with an in-memory one and drive the
+// app through supertest. Vitest sets NODE_ENV to "test" automatically.
+if (process.env.NODE_ENV !== "test") {
+    initDatabase()
+        .then(() => {
+            app.listen(PORT, () => {
+                console.log(`Server running on port ${PORT}`);
+            });
         });
-    });
+}
+
+export default app;

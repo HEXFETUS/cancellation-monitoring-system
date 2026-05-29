@@ -134,8 +134,17 @@ router.get("/operators", async (_req, res) => {
 
 /* =========================
    CREATE OPERATOR
-========================= */
+   ---------------------------------------------------------------
+   Wrapped in a transaction so that, when the caller's chosen
+   parent is itself currently a sub (parent_operator_id IS NOT NULL),
+   we atomically auto-promote the parent to main BEFORE attaching
+   the new child — mirroring the auto-promote pattern that
+   POST /api/pos/operators/:id/assign-subs already uses. This keeps
+   the one-level-nesting invariant intact across all admin write
+   paths and heals any pre-existing buggy rows on the next save.
+   ========================= */
 router.post("/operators", async (req, res) => {
+    const client = await pool.connect();
     try {
         const { operator, parent_operator_id } = req.body;
         const operatorName = String(operator || "").trim();
@@ -144,47 +153,70 @@ router.post("/operators", async (req, res) => {
             return res.status(400).json({ error: "Operator name is required" });
         }
 
-        const duplicate = await pool.query(
-            `SELECT id FROM operator_list WHERE LOWER(TRIM(operator)) = LOWER($1) LIMIT 1`,
-            [operatorName]
-        );
-
-        if (duplicate.rows.length > 0) {
-            return res.status(400).json({ error: "Operator already exists" });
-        }
-
-        // Validate parent_operator_id when provided. Enforce a single level
-        // of nesting — a sub-operator's parent must itself be a main operator
-        // (parent_operator_id IS NULL).
+        // Coerce parent_operator_id up-front so we can fail fast on bad input
+        // without opening a transaction.
         let parentId = null;
-        if (parent_operator_id !== undefined && parent_operator_id !== null && parent_operator_id !== "") {
+        if (
+            parent_operator_id !== undefined &&
+            parent_operator_id !== null &&
+            parent_operator_id !== ""
+        ) {
             parentId = Number(parent_operator_id);
             if (!Number.isFinite(parentId)) {
                 return res.status(400).json({ error: "Invalid parent_operator_id" });
             }
-            const parentRow = await pool.query(
-                `SELECT id, parent_operator_id FROM operator_list WHERE id = $1::int`,
+        }
+
+        await client.query("BEGIN");
+
+        // Duplicate-name check (existing validation, preserved).
+        const duplicate = await client.query(
+            `SELECT id FROM operator_list WHERE LOWER(TRIM(operator)) = LOWER($1) LIMIT 1`,
+            [operatorName]
+        );
+        if (duplicate.rows.length > 0) {
+            await client.query("ROLLBACK");
+            return res.status(400).json({ error: "Operator already exists" });
+        }
+
+        if (parentId !== null) {
+            // Lock the parent row to prevent concurrent attaches from racing
+            // into a half-promoted state — same locking discipline as
+            // assign-subs.
+            const parentRow = await client.query(
+                `SELECT id, parent_operator_id FROM operator_list WHERE id = $1::int FOR UPDATE`,
                 [parentId]
             );
             if (parentRow.rows.length === 0) {
+                await client.query("ROLLBACK");
                 return res.status(400).json({ error: "Parent operator not found" });
             }
+            // Auto-promote the parent to main if it is itself currently a sub.
+            // This replaces the previous 400 rejection
+            // ("Parent must be a main operator (one level of nesting only)").
             if (parentRow.rows[0].parent_operator_id !== null) {
-                return res.status(400).json({
-                    error: "Parent must be a main operator (one level of nesting only)",
-                });
+                await client.query(
+                    `UPDATE operator_list
+                     SET parent_operator_id = NULL, updated_at = CURRENT_TIMESTAMP
+                     WHERE id = $1::int`,
+                    [parentId]
+                );
             }
         }
 
-        const result = await pool.query(
+        const result = await client.query(
             `INSERT INTO operator_list (operator, parent_operator_id) VALUES ($1, $2) RETURNING *`,
             [operatorName, parentId]
         );
 
+        await client.query("COMMIT");
         res.status(201).json(result.rows[0]);
     } catch (err) {
+        await client.query("ROLLBACK").catch(() => {});
         console.error("POST operators error:", err.message);
         res.status(500).json({ error: "Failed to create operator" });
+    } finally {
+        client.release();
     }
 });
 
@@ -298,8 +330,17 @@ router.post("/operators/:id/assign-subs", async (req, res) => {
 
 /* =========================
    UPDATE OPERATOR (currently only parent linkage)
-========================= */
+   ---------------------------------------------------------------
+   Wrapped in the same transaction pattern as POST /operators above:
+   when the supplied parent_operator_id resolves to an operator that
+   is itself a sub, auto-promote that parent to main inside the same
+   transaction instead of returning 400. Adds a guard so the patch
+   path can never create a NEW invariant violation: if the target
+   currently has children, it cannot be re-parented under another
+   operator (must be detached first).
+   ========================= */
 router.patch("/operators/:id", async (req, res) => {
+    const client = await pool.connect();
     try {
         const id = Number(req.params.id);
         if (!Number.isFinite(id)) {
@@ -308,18 +349,16 @@ router.patch("/operators/:id", async (req, res) => {
 
         const { parent_operator_id } = req.body ?? {};
 
-        // Validate the target id exists and isn't itself a sub-operator
-        // (we only allow one level of nesting).
-        const meRow = await pool.query(
-            `SELECT id, parent_operator_id FROM operator_list WHERE id = $1::int`,
-            [id]
-        );
-        if (meRow.rows.length === 0) {
-            return res.status(404).json({ error: "Operator not found" });
-        }
-
+        // Coerce parent_operator_id and run the self-parent guard up-front
+        // so bad payloads fail fast before we open a transaction.
         let parentId = null;
-        if (parent_operator_id !== undefined && parent_operator_id !== null && parent_operator_id !== "") {
+        let parentSupplied = false;
+        if (
+            parent_operator_id !== undefined &&
+            parent_operator_id !== null &&
+            parent_operator_id !== ""
+        ) {
+            parentSupplied = true;
             parentId = Number(parent_operator_id);
             if (!Number.isFinite(parentId)) {
                 return res.status(400).json({ error: "Invalid parent_operator_id" });
@@ -327,31 +366,73 @@ router.patch("/operators/:id", async (req, res) => {
             if (parentId === id) {
                 return res.status(400).json({ error: "An operator can't be its own parent" });
             }
-            const parentRow = await pool.query(
-                `SELECT id, parent_operator_id FROM operator_list WHERE id = $1::int`,
+        }
+
+        await client.query("BEGIN");
+
+        // Target-existence check (existing validation, preserved).
+        const meRow = await client.query(
+            `SELECT id, parent_operator_id FROM operator_list WHERE id = $1::int`,
+            [id]
+        );
+        if (meRow.rows.length === 0) {
+            await client.query("ROLLBACK");
+            return res.status(404).json({ error: "Operator not found" });
+        }
+
+        if (parentSupplied) {
+            // Guard: do not allow the patch to create a new invariant
+            // violation. If the target itself currently has children, it
+            // must remain a main — moving it under another operator would
+            // produce an operator P with children AND a non-NULL parent.
+            const childrenOfTarget = await client.query(
+                `SELECT 1 FROM operator_list WHERE parent_operator_id = $1::int LIMIT 1`,
+                [id]
+            );
+            if (childrenOfTarget.rows.length > 0) {
+                await client.query("ROLLBACK");
+                return res.status(400).json({
+                    error: "Operator has sub-operators; detach them before making it a sub",
+                });
+            }
+
+            // Lock the parent row to prevent concurrent attaches from racing
+            // into a half-promoted state.
+            const parentRow = await client.query(
+                `SELECT id, parent_operator_id FROM operator_list WHERE id = $1::int FOR UPDATE`,
                 [parentId]
             );
             if (parentRow.rows.length === 0) {
+                await client.query("ROLLBACK");
                 return res.status(400).json({ error: "Parent operator not found" });
             }
+            // Auto-promote the parent to main if it is itself currently a sub.
             if (parentRow.rows[0].parent_operator_id !== null) {
-                return res.status(400).json({
-                    error: "Parent must be a main operator (one level of nesting only)",
-                });
+                await client.query(
+                    `UPDATE operator_list
+                     SET parent_operator_id = NULL, updated_at = CURRENT_TIMESTAMP
+                     WHERE id = $1::int`,
+                    [parentId]
+                );
             }
         }
 
-        const result = await pool.query(
+        const result = await client.query(
             `UPDATE operator_list
              SET parent_operator_id = $1, updated_at = CURRENT_TIMESTAMP
              WHERE id = $2::int
              RETURNING *`,
             [parentId, id]
         );
+
+        await client.query("COMMIT");
         res.json(result.rows[0]);
     } catch (err) {
+        await client.query("ROLLBACK").catch(() => {});
         console.error("PATCH operators error:", err.message);
         res.status(500).json({ error: "Failed to update operator" });
+    } finally {
+        client.release();
     }
 });
 

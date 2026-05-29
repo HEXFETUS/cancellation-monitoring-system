@@ -93,12 +93,24 @@ export default function MyPosPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user?.id, filterOperatorId]);
 
-    const isMainOperator = me?.operator_id !== null && me?.parent_operator_id === null;
+    // Resolve the logged-in user's operator profile from either the /api/users/me endpoint
+    // or from the operators list (matched by user_id).
+    // Uses Number() coercion because the APIs return ids as different types (string vs number).
+    const myOperator = useMemo(() => {
+        const myOpId = me?.operator_id != null ? Number(me.operator_id) : null;
+        if (myOpId != null) return allOperators.find((o) => Number(o.id) === myOpId) ?? null;
+        const myUserId = user?.id != null ? Number(user.id) : null;
+        if (myUserId != null) return allOperators.find((o) => o.user_id != null && Number(o.user_id) === myUserId) ?? null;
+        return null;
+    }, [me, allOperators, user?.id]);
+
+    const isMainOperator = myOperator !== null && myOperator.parent_operator_id == null;
     // Automatically detect sub-operators that belong to this main operator
     const myDirectSubs = useMemo(() => {
-        if (!isMainOperator || !me?.operator_id) return [] as OperatorInfo[];
-        return allOperators.filter((o) => o.parent_operator_id === me.operator_id);
-    }, [isMainOperator, me, allOperators]);
+        if (!isMainOperator || !myOperator) return [] as OperatorInfo[];
+        const myId = Number(myOperator.id);
+        return allOperators.filter((o) => o.parent_operator_id != null && Number(o.parent_operator_id) === myId);
+    }, [isMainOperator, myOperator, allOperators]);
 
     const pendingByPos = useMemo(() => {
         const map = new Map<number, BoothChangeRequest>();

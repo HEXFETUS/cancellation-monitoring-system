@@ -28,13 +28,6 @@ const LOCATION_CODE: Record<AssetLocation, string> = {
     obs: "OBS",
 };
 
-const LOCATION_DEPT: Record<AssetLocation, string> = {
-    office: "Office",
-    payout: "Payout",
-    drawcourt: "Drawcourt",
-    obs: "OBS",
-};
-
 function buildPrefix(asset: AssetWithLocation, stations: PayoutStation[]): string {
     const loc = LOCATION_CODE[asset.location] ?? "AST";
     if (asset.location === "payout") {

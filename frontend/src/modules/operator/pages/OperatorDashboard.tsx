@@ -3,10 +3,10 @@ import {
     Activity,
     ArrowRightLeft,
     CheckCircle2,
-    Clock,
     Monitor,
     XCircle,
     Ban,
+    FileX,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../../context/AuthContext";
@@ -16,18 +16,25 @@ import {
     listBoothChangeRequests,
     type BoothChangeRequest,
 } from "../../pos/services/boothChangeRequests";
+import { fetchCancellationRecords, fetchCancellationHumanForce } from "../../cancellation/services";
+import type { CancellationRecord, CancellationHumanForce } from "../../cancellation/types";
 import RequestBoothChangeModal from "../components/RequestBoothChangeModal";
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 
 const teal = "#92C7CF";
-const tealLight = "#AAD7D9";
 
 interface Me {
     id: number;
     operator_id: number | null;
     parent_operator_id: number | null;
     operator_name: string | null;
+}
+
+/** Get today's date string in YYYY-MM-DD format. */
+function todayStr() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 export default function OperatorDashboard() {
@@ -37,6 +44,8 @@ export default function OperatorDashboard() {
     const [booths, setBooths] = useState<BoothInfo[]>([]);
     const [requests, setRequests] = useState<BoothChangeRequest[]>([]);
     const [operators, setOperators] = useState<OperatorInfo[]>([]);
+    const [cancelRecords, setCancelRecords] = useState<CancellationRecord[]>([]);
+    const [humanForce, setHumanForce] = useState<CancellationHumanForce[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
 
@@ -61,11 +70,13 @@ export default function OperatorDashboard() {
                     }
                     : null;
 
-                const [pos, reqs, ops, bh] = await Promise.all([
+                const [pos, reqs, ops, bh, cancelRecs, hf] = await Promise.all([
                     fetchPosRecords({ user_id: String(user.id) }),
                     listBoothChangeRequests({ userId: user.id }),
                     fetchOperators().catch(() => [] as OperatorInfo[]),
                     fetchBoothInfo().catch(() => [] as BoothInfo[]),
+                    fetchCancellationRecords(todayStr()).catch(() => [] as CancellationRecord[]),
+                    fetchCancellationHumanForce(todayStr()).catch(() => [] as CancellationHumanForce[]),
                 ]);
                 if (!cancelled) {
                     setMe(meSafe);
@@ -73,6 +84,8 @@ export default function OperatorDashboard() {
                     setRequests(reqs);
                     setOperators(ops);
                     setBooths(bh);
+                    setCancelRecords(cancelRecs);
+                    setHumanForce(hf);
                 }
             } catch (err: any) {
                 if (!cancelled) setError(err.message || "Failed to load");
@@ -83,42 +96,67 @@ export default function OperatorDashboard() {
         return () => { cancelled = true; };
     }, [user?.id]);
 
+    // Resolve the logged-in user's operator profile (with type-safe Number() coercion)
+    const myOperator = useMemo(() => {
+        const myOpId = me?.operator_id != null ? Number(me.operator_id) : null;
+        if (myOpId != null) return operators.find((o) => Number(o.id) === myOpId) ?? null;
+        const myUserId = user?.id != null ? Number(user.id) : null;
+        if (myUserId != null) return operators.find((o) => o.user_id != null && Number(o.user_id) === myUserId) ?? null;
+        return null;
+    }, [me, operators, user?.id]);
+
     // IDs of sub-operators whose parent is the logged-in operator
     const subOperatorIds = useMemo(() => {
-        if (!me?.operator_id) return new Set<number>();
+        if (!myOperator) return new Set<number>();
+        const myId = Number(myOperator.id);
         return new Set(
             operators
-                .filter((op) => op.parent_operator_id === me.operator_id)
-                .map((op) => op.id)
+                .filter((op) => op.parent_operator_id != null && Number(op.parent_operator_id) === myId)
+                .map((op) => Number(op.id))
         );
-    }, [operators, me?.operator_id]);
+    }, [operators, myOperator]);
 
-    const hasSubs = subOperatorIds.size > 0;
+    // Records owned directly by the logged-in operator
+    const mainRecords = useMemo(() => {
+        if (!myOperator) return [];
+        const myOpId = Number(myOperator.id);
+        return records.filter((r) => r.operator_id != null && Number(r.operator_id) === myOpId);
+    }, [records, myOperator]);
 
-    // Split records into main (directly owned) and sub (owned by sub-operators)
-    const mainRecords = useMemo(
-        () => (me?.operator_id ? records.filter((r) => r.operator_id === me.operator_id) : []),
-        [records, me?.operator_id]
+    // Records owned by sub-operators
+    const subRecords = useMemo(
+        () => records.filter((r) => r.operator_id != null && subOperatorIds.has(Number(r.operator_id))),
+        [records, subOperatorIds]
     );
 
-    const subRecords = useMemo(
-        () => records.filter((r) => r.operator_id != null && subOperatorIds.has(r.operator_id)),
-        [records, subOperatorIds]
+    // Combined records (main + sub) for the "Your Devices" section
+    const allRecords = useMemo(
+        () => [...mainRecords, ...subRecords],
+        [mainRecords, subRecords]
     );
 
     function computeStats(recs: PosRecord[]) {
         const total = recs.length;
         const active = recs.filter((r) => (r.status || "").toLowerCase() === "active").length;
         const inactive = recs.filter((r) => (r.status || "").toLowerCase() === "inactive").length;
-        const pending = recs.filter((r) => (r.status || "").toLowerCase() === "pending").length;
-        const approved = recs.filter((r) => (r.status || "").toLowerCase() === "approved").length;
-        const rejected = recs.filter((r) => (r.status || "").toLowerCase() === "rejected").length;
-        const cancelled = recs.filter((r) => (r.status || "").toLowerCase() === "cancelled").length;
-        return { total, active, inactive, pending, approved, rejected, cancelled };
+        return { total, active, inactive };
     }
 
-    const mainStats = useMemo(() => computeStats(mainRecords), [mainRecords]);
-    const subStats = useMemo(() => computeStats(subRecords), [subRecords]);
+    // Combined (main + sub) stats for "Your Devices"
+    const combinedStats = useMemo(() => computeStats(allRecords), [allRecords]);
+
+    // ── Cancellation stats for today ─────────────────────────────────
+    const cancelStats = useMemo(() => {
+        const approved = cancelRecords.reduce((sum, r) => sum + (Number(r.approved) || 0), 0);
+        const denied = cancelRecords.reduce((sum, r) => sum + (Number(r.denied) || 0), 0);
+        const forceCancel = humanForce.filter((r) =>
+            ((r.reaseon_for_deny || "")).toUpperCase().includes("FORCE CANCEL")
+        ).length;
+        const humanError = humanForce.filter((r) =>
+            ((r.reaseon_for_deny || "")).toUpperCase().includes("HUMAN ERROR")
+        ).length;
+        return { approved, denied, forceCancel, humanError };
+    }, [cancelRecords, humanForce]);
 
     const recent = requests.slice(0, 5);
 
@@ -138,7 +176,7 @@ export default function OperatorDashboard() {
                         {user?.name || "Operator"}
                     </h1>
                     <p className="mt-1 text-sm text-ink-muted">
-                        Here's a quick look at your devices and recent requests.
+                        Here's a quick look at your devices, cancellation records, and recent requests.
                     </p>
                 </div>
             </div>
@@ -149,7 +187,7 @@ export default function OperatorDashboard() {
                 </div>
             )}
 
-            {/* ── Main operator device status cards ── */}
+            {/* ── Device status cards (main + sub combined) ── */}
             <div>
                 <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-ink-muted">
                     Your Devices
@@ -157,107 +195,57 @@ export default function OperatorDashboard() {
                 <div className="grid gap-4 sm:grid-cols-3">
                     <StatCard
                         label="My Devices"
-                        value={loading ? "—" : mainStats.total}
+                        value={loading ? "—" : combinedStats.total}
                         icon={Monitor}
                         color={teal}
                     />
                     <StatCard
                         label="Active"
-                        value={loading ? "—" : mainStats.active}
+                        value={loading ? "—" : combinedStats.active}
                         icon={CheckCircle2}
                         color="#6BBF6B"
                     />
                     <StatCard
                         label="Inactive"
-                        value={loading ? "—" : mainStats.inactive}
+                        value={loading ? "—" : combinedStats.inactive}
                         icon={Activity}
                         color="#E8B4B8"
                     />
                 </div>
+            </div>
 
-                <div className="mt-2 grid gap-4 sm:grid-cols-4">
-                    <StatCard
-                        label="Pending"
-                        value={loading ? "—" : mainStats.pending}
-                        icon={Clock}
-                        color="#F2D7B5"
-                    />
+            {/* ── Cancellation summary cards (today) ── */}
+            <div>
+                <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-ink-muted">
+                    Today's Cancellation Records
+                </h2>
+                <div className="grid gap-4 sm:grid-cols-4">
                     <StatCard
                         label="Approved"
-                        value={loading ? "—" : mainStats.approved}
+                        value={loading ? "—" : cancelStats.approved}
                         icon={CheckCircle2}
-                        color={tealLight}
+                        color="#6BBF6B"
                     />
                     <StatCard
                         label="Rejected"
-                        value={loading ? "—" : mainStats.rejected}
+                        value={loading ? "—" : cancelStats.denied}
                         icon={XCircle}
                         color="#E8B4B8"
                     />
                     <StatCard
-                        label="Cancelled"
-                        value={loading ? "—" : mainStats.cancelled}
+                        label="Force Cancel"
+                        value={loading ? "—" : cancelStats.forceCancel}
                         icon={Ban}
                         color="#9CA3AF"
                     />
+                    <StatCard
+                        label="Human Error"
+                        value={loading ? "—" : cancelStats.humanError}
+                        icon={FileX}
+                        color="#F2D7B5"
+                    />
                 </div>
             </div>
-
-            {/* ── Sub-operator device status cards (only if subs exist) ── */}
-            {hasSubs && (
-                <div>
-                    <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-ink-muted">
-                        Sub-Operator Devices
-                    </h2>
-                    <div className="grid gap-4 sm:grid-cols-3">
-                        <StatCard
-                            label="Sub Devices"
-                            value={loading ? "—" : subStats.total}
-                            icon={Monitor}
-                            color={tealLight}
-                        />
-                        <StatCard
-                            label="Active"
-                            value={loading ? "—" : subStats.active}
-                            icon={CheckCircle2}
-                            color="#6BBF6B"
-                        />
-                        <StatCard
-                            label="Inactive"
-                            value={loading ? "—" : subStats.inactive}
-                            icon={Activity}
-                            color="#E8B4B8"
-                        />
-                    </div>
-
-                    <div className="mt-2 grid gap-4 sm:grid-cols-4">
-                        <StatCard
-                            label="Pending"
-                            value={loading ? "—" : subStats.pending}
-                            icon={Clock}
-                            color="#F2D7B5"
-                        />
-                        <StatCard
-                            label="Approved"
-                            value={loading ? "—" : subStats.approved}
-                            icon={CheckCircle2}
-                            color={tealLight}
-                        />
-                        <StatCard
-                            label="Rejected"
-                            value={loading ? "—" : subStats.rejected}
-                            icon={XCircle}
-                            color="#E8B4B8"
-                        />
-                        <StatCard
-                            label="Cancelled"
-                            value={loading ? "—" : subStats.cancelled}
-                            icon={Ban}
-                            color="#9CA3AF"
-                        />
-                    </div>
-                </div>
-            )}
 
             {/* Recent requests + CTA */}
             <div className="grid gap-4 lg:grid-cols-3">
@@ -332,7 +320,9 @@ export default function OperatorDashboard() {
                         ]);
                         setRecords(pos);
                         setRequests(reqs);
-                    } catch (_) { }
+                    } catch {
+                        setError("Booth change submitted, but refresh failed.");
+                    }
                 }}
             />
         </div>
