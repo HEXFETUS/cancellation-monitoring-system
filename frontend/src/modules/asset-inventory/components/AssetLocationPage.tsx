@@ -52,8 +52,8 @@ export default function AssetLocationPage({
         try {
             setStationsError("");
             setStations(await listPayoutStations());
-        } catch (err: any) {
-            setStationsError(err.message || "Could not load stations");
+        } catch (err) {
+            setStationsError(err instanceof Error ? (err instanceof Error ? err.message : String(err)) : "Could not load stations");
         }
     };
 
@@ -62,8 +62,8 @@ export default function AssetLocationPage({
         try {
             setDeptsError("");
             setDepartments(await listOfficeDepartments());
-        } catch (err: any) {
-            setDeptsError(err.message || "Could not load departments");
+        } catch (err) {
+            setDeptsError(err instanceof Error ? (err instanceof Error ? err.message : String(err)) : "Could not load departments");
         }
     };
 
@@ -89,8 +89,8 @@ export default function AssetLocationPage({
         if (!confirm(`Delete "${row.itemDescription}"? This cannot be undone.`)) return;
         try {
             await deleteAsset(Number(row.id));
-        } catch (err: any) {
-            alert(err.message || "Failed to delete");
+        } catch (err) {
+            alert(err instanceof Error ? (err instanceof Error ? err.message : String(err)) : "Failed to delete");
         }
     };
 

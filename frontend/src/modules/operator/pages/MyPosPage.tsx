@@ -81,8 +81,8 @@ export default function MyPosPage() {
             setBooths(boothData);
             setRequests(reqData);
             setAllOperators(ops);
-        } catch (err: any) {
-            setError(err.message || "Failed to load");
+        } catch (err) {
+            setError(err instanceof Error ? (err instanceof Error ? err.message : String(err)) : "Failed to load");
         } finally {
             setLoading(false);
         }

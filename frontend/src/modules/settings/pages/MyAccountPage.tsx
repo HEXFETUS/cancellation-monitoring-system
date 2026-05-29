@@ -46,8 +46,8 @@ export default function MyAccountPage() {
                 if (!res.ok) throw new Error("Failed to load profile");
                 const data = await res.json();
                 if (!cancelled) setMe(data);
-            } catch (e: any) {
-                if (!cancelled) setError(e.message || "Failed to load");
+            } catch (e) {
+                if (!cancelled) setError(e instanceof Error ? (e instanceof Error ? e.message : String(e)) : "Failed to load");
             } finally {
                 if (!cancelled) setLoading(false);
             }
@@ -63,8 +63,8 @@ export default function MyAccountPage() {
             const res = await fetch(apiUrl(`/api/users/me?id=${user.id}`));
             if (!res.ok) throw new Error("Failed to load profile");
             setMe(await res.json());
-        } catch (e: any) {
-            setError(e.message || "Failed to load");
+        } catch (e) {
+            setError(e instanceof Error ? (e instanceof Error ? e.message : String(e)) : "Failed to load");
         } finally {
             setLoading(false);
         }
@@ -101,8 +101,8 @@ export default function MyAccountPage() {
             setMe((prev) => (prev ? { ...prev, name: trimmed } : prev));
             setEditingName(false);
             setNameMsg({ kind: "ok", text: "Name updated." });
-        } catch (e: any) {
-            setNameMsg({ kind: "err", text: e.message || "Failed to save" });
+        } catch (e) {
+            setNameMsg({ kind: "err", text: e instanceof Error ? (e instanceof Error ? e.message : String(e)) : "Failed to save" });
         } finally {
             setSavingName(false);
         }
@@ -134,8 +134,8 @@ export default function MyAccountPage() {
             setNewPwd("");
             setConfirmPwd("");
             setPwdMsg({ kind: "ok", text: "Password changed successfully." });
-        } catch (err: any) {
-            setPwdMsg({ kind: "err", text: err.message || "Failed to change password" });
+        } catch (err) {
+            setPwdMsg({ kind: "err", text: err instanceof Error ? (err instanceof Error ? err.message : String(err)) : "Failed to change password" });
         } finally {
             setChanging(false);
         }

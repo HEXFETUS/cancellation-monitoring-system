@@ -80,10 +80,10 @@ export default function CreateUserAccountPage() {
         try {
             const res = await fetch(`${API_BASE_URL}/api/users`);
             if (res.ok) {
-                const users = await res.json();
+                const users: { email?: string }[] = await res.json();
                 const email = `${username}@hexa.prime`;
                 const duplicate = users.find(
-                    (u: any) => u.email?.toLowerCase() === email.toLowerCase()
+                    (u) => u.email?.toLowerCase() === email.toLowerCase()
                 );
                 if (duplicate) {
                     setDuplicateError("Email already exists. Please use a different username.");
@@ -132,10 +132,10 @@ export default function CreateUserAccountPage() {
         try {
             const res = await fetch(`${API_BASE_URL}/api/users`);
             if (res.ok) {
-                const users = await res.json();
+                const users: { email?: string }[] = await res.json();
                 const email = `${form.username}@hexa.prime`;
                 const duplicate = users.find(
-                    (u: any) => u.email?.toLowerCase() === email.toLowerCase()
+                    (u) => u.email?.toLowerCase() === email.toLowerCase()
                 );
                 if (duplicate) {
                     setMessage({ type: "error", text: "Email already exists. Please use a different username." });
@@ -214,8 +214,8 @@ export default function CreateUserAccountPage() {
                 operator_id: null,
             });
             setDuplicateError("");
-        } catch (err: any) {
-            setMessage({ type: "error", text: err.message || "Could not create user" });
+        } catch (err) {
+            setMessage({ type: "error", text: err instanceof Error ? (err instanceof Error ? err.message : String(err)) : "Could not create user" });
         }
     };
 

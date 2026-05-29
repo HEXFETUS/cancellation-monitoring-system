@@ -175,8 +175,8 @@ export default function BulkGenerateQrModal({
             try {
                 await createAssetCode(input);
                 perPrefixAssigned.set(prefix, used + 1);
-            } catch (e: any) {
-                errors.push(`${asset.itemDescription}: ${e.message ?? "failed"}`);
+            } catch (e) {
+                errors.push(`${asset.itemDescription}: ${(e instanceof Error ? e.message : String(e)) ?? "failed"}`);
             }
             done += 1;
             setProgress(done);

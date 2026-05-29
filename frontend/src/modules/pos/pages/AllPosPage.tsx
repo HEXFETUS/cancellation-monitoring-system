@@ -135,13 +135,13 @@ export default function AllPosPage() {
             closeChangeBoothModal();
             setSuccessMessage(`Booth for device ${changeBoothRecord.device_no} successfully changed to ${newBoothCode.trim()}`);
             setTimeout(() => setSuccessMessage(null), 4000);
-        } catch (err: any) {
+        } catch (err) {
             // Show operator mismatch error as inline toast below the New Booth Code input
-            if (err.message?.toLowerCase().includes("operator mismatch")) {
+            if ((err instanceof Error ? err.message : String(err))?.toLowerCase().includes("operator mismatch")) {
                 closeConfirmModal();
-                setErrorBoothMessage(err.message);
+                setErrorBoothMessage((err instanceof Error ? err.message : String(err)));
             } else {
-                alert(err.message || "Failed to change booth");
+                alert(err instanceof Error ? (err instanceof Error ? err.message : String(err)) : "Failed to change booth");
             }
         }
     };
@@ -197,9 +197,9 @@ export default function AllPosPage() {
             closeConvertAreaModal();
             setSuccessMessage(`Area for device ${convertAreaRecord.device_no} successfully converted to ${newArea}`);
             setTimeout(() => setSuccessMessage(null), 4000);
-        } catch (err: any) {
+        } catch (err) {
             closeConvertAreaConfirm();
-            setConvertAreaError(err.message || "Failed to convert area");
+            setConvertAreaError(err instanceof Error ? (err instanceof Error ? err.message : String(err)) : "Failed to convert area");
         }
     };
 
@@ -221,25 +221,25 @@ export default function AllPosPage() {
     // Pagination
     const [currentPage, setCurrentPage] = useState(1);
 
-    useEffect(() => {
-        loadRecords();
-
-        window.addEventListener("pos:status-change", loadRecords);
-        return () => window.removeEventListener("pos:status-change", loadRecords);
-    }, []);
-
     const loadRecords = async () => {
         setLoading(true);
         setError(null);
         try {
             const data = await fetchPosRecords();
             setRecords(data);
-        } catch (err: any) {
-            setError(err.message || "Failed to load POS records");
+        } catch (err) {
+            setError(err instanceof Error ? (err instanceof Error ? err.message : String(err)) : "Failed to load POS records");
         } finally {
             setLoading(false);
         }
     };
+
+    useEffect(() => {
+        loadRecords();
+
+        window.addEventListener("pos:status-change", loadRecords);
+        return () => window.removeEventListener("pos:status-change", loadRecords);
+    }, []);
 
     const handleSubmitNewPos = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -262,8 +262,8 @@ export default function AllPosPage() {
             setRecords((prev) => [...prev, createdRecord]);
             setFormErrors({});
             resetForm();
-        } catch (err: any) {
-            alert(err.message || "Failed to add new POS record");
+        } catch (err) {
+            alert(err instanceof Error ? (err instanceof Error ? err.message : String(err)) : "Failed to add new POS record");
         }
     };
 
@@ -273,8 +273,8 @@ export default function AllPosPage() {
             setRecords(prev =>
                 prev.map(r => (r.id === id ? { ...r, sticker: !currentSticker } : r))
             );
-        } catch (err: any) {
-            alert(err.message || "Failed to update sticker status");
+        } catch (err) {
+            alert(err instanceof Error ? (err instanceof Error ? err.message : String(err)) : "Failed to update sticker status");
         }
     };
 
@@ -331,7 +331,7 @@ export default function AllPosPage() {
     const visiblePages = useMemo(() => {
         const MAX_VISIBLE = 10;
         let start = Math.max(1, currentPage - Math.floor(MAX_VISIBLE / 2));
-        let end = Math.min(totalPages, start + MAX_VISIBLE - 1);
+        const end = Math.min(totalPages, start + MAX_VISIBLE - 1);
         if (end - start + 1 < MAX_VISIBLE) {
             start = Math.max(1, end - MAX_VISIBLE + 1);
         }
@@ -409,7 +409,7 @@ export default function AllPosPage() {
 
                             <select
                                 value={filterField}
-                                onChange={(e) => setFilterField(e.target.value as any)}
+                                onChange={(e) => setFilterField(e.target.value as typeof filterField)}
                                 className="rounded-lg border border-warm bg-card py-2 pl-9 pr-8 text-sm text-ink focus:border-teal focus:outline-none focus:ring-1 focus:ring-teal transition-all shadow-sm appearance-none cursor-pointer"
                             >
                                 <option value="all">All Fields</option>

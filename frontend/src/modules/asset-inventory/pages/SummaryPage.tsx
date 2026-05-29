@@ -108,8 +108,8 @@ export default function SummaryPage() {
                 setError("");
                 const data = await listAllAssets();
                 if (!cancelled) setAssets(data);
-            } catch (err: any) {
-                if (!cancelled) setError(err.message || "Could not load assets");
+            } catch (err) {
+                if (!cancelled) setError(err instanceof Error ? (err instanceof Error ? err.message : String(err)) : "Could not load assets");
             } finally {
                 if (!cancelled) setLoading(false);
             }

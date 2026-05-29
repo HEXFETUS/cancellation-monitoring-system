@@ -78,7 +78,7 @@ function AreaCardSkeleton() {
 function AnimatedNumber({ value, className }: { value: number; className?: string }) {
     const [display, setDisplay] = useState(0);
     useEffect(() => {
-        let start = display;
+        const start = display;
         const diff = value - start;
         if (diff === 0) return;
         const duration = 600;
@@ -193,7 +193,7 @@ export default function CancellationRecordsPage() {
                     setHumanForce(humanForceRows);
                 }
             } catch (err) {
-                if (!ignore) setError(err instanceof Error ? err.message : "Unable to load cancellation records");
+                if (!ignore) setError(err instanceof Error ? (err instanceof Error ? err.message : String(err)) : "Unable to load cancellation records");
             } finally {
                 if (!ignore) setLoading(false);
             }
@@ -232,7 +232,7 @@ export default function CancellationRecordsPage() {
                 );
             }
         } catch (err) {
-            if (manual) setError(err instanceof Error ? err.message : "Unable to sync cancellation summary");
+            if (manual) setError(err instanceof Error ? (err instanceof Error ? err.message : String(err)) : "Unable to sync cancellation summary");
         } finally {
             setSyncing(false);
             setManualSyncing(false);
