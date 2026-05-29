@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
+import { useAuth } from "../../../context/AuthContext";
 import { Send, RotateCcw, Ticket, AlertTriangle, UserX, CheckCircle2, XCircle, Hash, Store, Smartphone } from "lucide-react";
-import { addHumanForceRecord } from "../services";
+import { addHumanForceRecord, updateTicketReason } from "../services";
 
 const reasonOptions = [
     { value: "", label: "Select a reason…" },
@@ -9,6 +10,7 @@ const reasonOptions = [
 ];
 
 export default function ReasonForDenyPage() {
+    const { user } = useAuth();
     const [generalValue, setGeneralValue] = useState("");
     const [generalReason, setGeneralReason] = useState("");
     const [generalSending, setGeneralSending] = useState(false);
@@ -56,7 +58,7 @@ export default function ReasonForDenyPage() {
         setMessage(null);
 
         try {
-            const result = await addHumanForceRecord({
+            const result = await updateTicketReason({
                 ticket_number: generalValue.trim(),
                 reaseon_for_deny: generalReason,
             });
@@ -102,6 +104,7 @@ export default function ReasonForDenyPage() {
                 reference_code: cellphoneReferenceCode.trim() || undefined,
                 booth_code: cellphoneBoothCode.trim() || undefined,
                 reaseon_for_deny: cellphoneReason,
+                cancelled_by: user?.name || undefined,
             });
             if (result.sheet_warning) {
                 setMessage({

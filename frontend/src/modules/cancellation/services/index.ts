@@ -150,6 +150,7 @@ export async function addHumanForceRecord(data: {
     reference_code?: string;
     booth_code?: string;
     reaseon_for_deny: string;
+    cancelled_by?: string;
 }): Promise<{ id: number; message?: string; sheet?: unknown; sheet_warning?: string | null }> {
     const response = await fetch(`${API_BASE}/human-force`, {
         method: "POST",
@@ -157,4 +158,16 @@ export async function addHumanForceRecord(data: {
         body: JSON.stringify(data),
     });
     return handleResponse<{ id: number; message?: string; sheet?: unknown; sheet_warning?: string | null }>(response);
+}
+
+export async function updateTicketReason(data: {
+    ticket_number: string;
+    reaseon_for_deny: string;
+}): Promise<{ id: number; message?: string; sheet_warning?: string | null }> {
+    const response = await fetch(`${API_BASE}/update-ticket-reason`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+    });
+    return handleResponse<{ id: number; message?: string; sheet_warning?: string | null }>(response);
 }
