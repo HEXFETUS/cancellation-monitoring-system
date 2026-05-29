@@ -18,6 +18,8 @@ const SERIAL_TABLES = [
     "office_departments",
     "booth_change_requests",
     "repair_records",
+    "diagnosis_logs",
+    "billing_transmittals",
 ];
 
 async function syncSerialSequence(client, tableName) {
@@ -508,6 +510,51 @@ async function initDatabase() {
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         `);
+
+        /* =========================
+           diagnosis_logs — final diagnosis audit trail for POS repair
+        ========================= */
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS diagnosis_logs (
+                id SERIAL PRIMARY KEY,
+                repair_record_id INTEGER NOT NULL REFERENCES repair_records(id) ON DELETE CASCADE,
+                requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                requested_by VARCHAR(255),
+                pos_diagnosis VARCHAR(255),
+                repaired_by VARCHAR(255),
+                remarks TEXT,
+                status VARCHAR(50),
+                forwarded_at TIMESTAMP,
+                returned_at TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        await client.query(
+            "CREATE INDEX IF NOT EXISTS idx_diagnosis_logs_repair_record ON diagnosis_logs(repair_record_id)"
+        );
+
+        /* =========================
+           billing_transmittals — billing codes for released repairs
+        ========================= */
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS billing_transmittals (
+                id SERIAL PRIMARY KEY,
+                billing_code VARCHAR(100) NOT NULL,
+                diagnosis_log_id INTEGER REFERENCES diagnosis_logs(id) ON DELETE SET NULL,
+                received_by VARCHAR(255),
+                user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                repair_record_id INTEGER REFERENCES repair_records(id) ON DELETE CASCADE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        await client.query(
+            "ALTER TABLE billing_transmittals ADD COLUMN IF NOT EXISTS repair_record_id INTEGER REFERENCES repair_records(id) ON DELETE CASCADE"
+        );
+        await client.query(
+            "CREATE INDEX IF NOT EXISTS idx_billing_transmittals_repair_record ON billing_transmittals(repair_record_id)"
+        );
 
         for (const tableName of SERIAL_TABLES) {
             await syncSerialSequence(client, tableName);

@@ -47,6 +47,9 @@ export interface UpdateRepairRecordPayload {
     with_charger?: boolean;
     with_box?: boolean;
     delivered_by?: string | null;
+    status?: string;
+    forwarded?: boolean;
+    released?: boolean;
 }
 
 function apiUrl(path: string) {
@@ -127,13 +130,30 @@ export async function proceedRepairRecord(id: number): Promise<RepairRecord> {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-            status: "For Repair",
+            status: "Pending",
             forwarded: true,
         }),
     });
 
     if (!res.ok) {
         throw new Error(await getErrorMessage(res, "Failed to proceed repair record"));
+    }
+
+    return res.json();
+}
+
+export async function moveRepairRecordToForReleased(
+    id: number,
+    payload: { diagnosis_id: number; requested_by?: string | null }
+): Promise<RepairRecord> {
+    const res = await fetch(apiUrl(`/api/repair-records/${id}/for-released`), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+        throw new Error(await getErrorMessage(res, "Failed to move repair record to For Released"));
     }
 
     return res.json();

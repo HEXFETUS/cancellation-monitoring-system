@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { Wrench, BarChart3, FileSearch, Menu } from "lucide-react";
+import { Wrench, ClipboardList, BarChart3, FileSearch, Menu } from "lucide-react";
 import RepairRequestPage from "./RepairRequestPage";
+import RepairManagementPage from "./RepairManagementPage";
 import RepairLogPage from "./RepairLogPage";
 import ReleasedLogPage from "./ReleasedLogPage";
 import DiagnosisListPage from "./DiagnosisListPage";
@@ -8,7 +9,8 @@ import DiagnosisListPage from "./DiagnosisListPage";
 const teal = "#92C7CF";
 
 const leftTabs = [
-    { id: "repair-request", label: "REPAIR REQUEST", icon: Wrench },
+    { id: "repair-request", label: "REPAIR REQUEST", icon: ClipboardList },
+    { id: "repair-management", label: "REPAIR MANAGEMENT", icon: Wrench },
     { id: "reports", label: "REPORTS", icon: BarChart3 },
     { id: "diagnosis", label: "LIST OF DIAGNOSIS", icon: FileSearch },
 ];
@@ -19,7 +21,7 @@ const subTabs = [
 ];
 
 export default function PosRepairRequestPage() {
-    const [activeTab, setActiveTab] = useState("repair-request");
+    const [activeTab, setActiveTab] = useState("repair-management");
     const [activeSubTab, setActiveSubTab] = useState("repair-logs");
     const [sidebarOpen, setSidebarOpen] = useState(true);
 
@@ -108,6 +110,7 @@ export default function PosRepairRequestPage() {
             {/* Main content area */}
             <div className="flex-1 min-w-0">
                 {activeTab === "repair-request" && <RepairRequestPage />}
+                {activeTab === "repair-management" && <RepairManagementPage />}
                 {activeTab === "diagnosis" && <DiagnosisListPage />}
                 {activeTab === "reports" && (
                     <div>

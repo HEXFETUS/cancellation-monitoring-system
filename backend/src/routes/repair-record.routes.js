@@ -10,11 +10,27 @@ const REPAIR_SELECT = `
         pr.device_no,
         pr.area,
         ol.operator AS operator_name,
-        dl.name AS diagnosis_name
+        dl.name AS diagnosis_name,
+        pd.repaired_by,
+        pd.remarks,
+        bt.billing_code,
+        bt.received_by
     FROM repair_records rr
     LEFT JOIN pos_records pr ON rr.pos_record_id = pr.id
     LEFT JOIN operator_list ol ON rr.operator_id = ol.id
     LEFT JOIN diagnosis_list dl ON rr.diagnosis_id = dl.id
+    LEFT JOIN LATERAL (
+        SELECT repaired_by, remarks FROM diagnosis_logs
+        WHERE repair_record_id = rr.id
+        ORDER BY id DESC
+        LIMIT 1
+    ) pd ON true
+    LEFT JOIN LATERAL (
+        SELECT billing_code, received_by FROM billing_transmittals
+        WHERE repair_record_id = rr.id
+        ORDER BY id DESC
+        LIMIT 1
+    ) bt ON true
 `;
 
 /* =========================
@@ -83,11 +99,13 @@ router.post("/", async (req, res) => {
             }
         }
 
-        // Check if pos_record_id already exists with NULL status, forwarded=false, released=true
+        // Reuse a cleared/unforwarded repair row for this POS instead of creating a duplicate.
         const existingRecord = await pool.query(
-            `SELECT id FROM repair_records 
+            `SELECT id, released FROM repair_records 
              WHERE pos_record_id = $1 AND status IS NULL 
-             AND forwarded = false AND released = true`,
+             AND forwarded = false AND re_repair = false
+             ORDER BY id DESC
+             LIMIT 1`,
             [pos_record_id]
         );
 
@@ -106,6 +124,8 @@ router.post("/", async (req, res) => {
                     with_charger = $6,
                     with_box = $7,
                     status = $8,
+                    re_repair = CASE WHEN released = true THEN true ELSE re_repair END,
+                    released = false,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = $9
                 RETURNING *
@@ -118,7 +138,7 @@ router.post("/", async (req, res) => {
                     delivered_by || null,
                     with_charger ?? false,
                     with_box ?? false,
-                    "For Request",
+                    "For Checking",
                     existingId,
                 ]
             );
@@ -141,7 +161,7 @@ router.post("/", async (req, res) => {
                     delivered_by || null,
                     with_charger ?? false,
                     with_box ?? false,
-                    "For Request",
+                    "For Checking",
                 ]
             );
         }
@@ -177,6 +197,7 @@ router.put("/:id", async (req, res) => {
             forwarded,
             released,
             re_repair,
+            repaired_by,
         } = req.body;
 
         // Resolve operator_id from operator_name if not provided directly
@@ -236,6 +257,111 @@ router.put("/:id", async (req, res) => {
     } catch (err) {
         console.error("PUT repair_record error:", err.message);
         res.status(500).json({ error: "Failed to update repair record" });
+    }
+});
+
+/* =========================
+   MOVE TO FOR RELEASED + CREATE DIAGNOSIS LOG
+========================= */
+router.patch("/:id/for-released", async (req, res) => {
+    const client = await pool.connect();
+
+    try {
+        const { id } = req.params;
+        const { diagnosis_id, requested_by } = req.body;
+
+        if (!diagnosis_id) {
+            return res.status(400).json({ error: "Diagnosis is required" });
+        }
+
+        await client.query("BEGIN");
+
+        const repairResult = await client.query(
+            `SELECT id, pos_record_id FROM repair_records WHERE id = $1::int FOR UPDATE`,
+            [id]
+        );
+
+        if (repairResult.rows.length === 0) {
+            await client.query("ROLLBACK");
+            return res.status(404).json({ error: "Repair record not found" });
+        }
+
+        const diagnosisResult = await client.query(
+            `SELECT id, name FROM diagnosis_list WHERE id = $1::int`,
+            [diagnosis_id]
+        );
+
+        if (diagnosisResult.rows.length === 0) {
+            await client.query("ROLLBACK");
+            return res.status(400).json({ error: "Diagnosis not found" });
+        }
+
+        const repairRecord = repairResult.rows[0];
+        const diagnosis = diagnosisResult.rows[0];
+
+        await client.query(
+            `
+            UPDATE repair_records SET
+                diagnosis_id = $1,
+                status = 'For Released',
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = $2::int
+            `,
+            [diagnosis.id, id]
+        );
+
+        if (repairRecord.pos_record_id) {
+            await client.query(
+                `
+                UPDATE pos_records SET
+                    status = 'Inactive',
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = $1::int
+                `,
+                [repairRecord.pos_record_id]
+            );
+        }
+
+        await client.query(
+            `
+            INSERT INTO diagnosis_logs (
+                repair_record_id,
+                requested_at,
+                requested_by,
+                pos_diagnosis,
+                repaired_by,
+                remarks,
+                status,
+                forwarded_at,
+                returned_at,
+                created_at,
+                updated_at
+            ) VALUES (
+                $1,
+                CURRENT_TIMESTAMP,
+                $2,
+                $3,
+                'Hexa IT',
+                NULL,
+                'Inactive',
+                CURRENT_TIMESTAMP,
+                CURRENT_TIMESTAMP,
+                CURRENT_TIMESTAMP,
+                CURRENT_TIMESTAMP
+            )
+            `,
+            [id, requested_by || null, diagnosis.name]
+        );
+
+        const full = await client.query(`${REPAIR_SELECT} WHERE rr.id = $1::int`, [id]);
+        await client.query("COMMIT");
+        res.json(full.rows[0]);
+    } catch (err) {
+        await client.query("ROLLBACK");
+        console.error("PATCH repair_record/for-released error:", err.message);
+        res.status(500).json({ error: "Failed to move repair record to For Released" });
+    } finally {
+        client.release();
     }
 });
 
