@@ -23,6 +23,7 @@ import {
 import { useEffect, useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import OperatorDashboard from "../../modules/operator/pages/OperatorDashboard";
+import CsrDashboard from "../../modules/csr/pages/CsrDashboard";
 
 /* ---------------- Glow & gradient helpers ---------------- */
 const teal = "#92C7CF";
@@ -270,9 +271,13 @@ export default function DashboardHome() {
     const { user } = useAuth();
 
     // Operators get a dashboard scoped to their own POS devices and requests
-    // — no totals across the entire org.
     if (user?.usertype === "operator") {
         return <OperatorDashboard />;
+    }
+
+    // CSR gets a dedicated dashboard focused on cancellations, repairs, and inquiries
+    if (user?.usertype === "csr") {
+        return <CsrDashboard />;
     }
 
     return <AdminDashboardHome />;

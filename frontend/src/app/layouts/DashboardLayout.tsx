@@ -73,7 +73,7 @@ export default function DashboardLayout() {
 
     const displayName = sidebarUser?.name?.trim() || authUser?.name?.trim() || "User";
     const displayDepartment = sidebarUser?.department?.trim() || authUser?.department?.trim();
-    const sidebarDisplayName = displayDepartment
+    let sidebarDisplayName = displayDepartment
         ? `${displayDepartment}-${displayName}`
         : displayName;
     const displayUserType =
@@ -88,10 +88,17 @@ export default function DashboardLayout() {
 
     const isOperator = (sidebarUser?.usertype ?? authUser?.usertype) === "operator";
     const isPurchaser = (sidebarUser?.usertype ?? authUser?.usertype) === "purchaser";
+    const isCsr = (sidebarUser?.usertype ?? authUser?.usertype) === "csr";
+
+    // For CSR, show "CSR-Name" instead of department prefix like "ACCOUNT-Name"
+    if (isCsr) {
+        sidebarDisplayName = `CSR-${displayName}`;
+    }
 
     // Operators get a slim sidebar with only their own POS view.
     // Purchasers get a slim sidebar with only Assets.
-    // Admin/CSR see the full menu.
+    // CSR gets only Dashboard and POS Repair.
+    // Admin see the full menu.
     const navItems = isOperator
         ? [
             { name: "Dashboard", path: "/app/dashboard" },
@@ -103,14 +110,19 @@ export default function DashboardLayout() {
                 { name: "Assets", path: "/app/asset-inventory" },
                 { name: "Settings", path: "/app/settings" },
             ]
-            : [
-                { name: "Dashboard", path: "/app/dashboard" },
-                { name: "POS", path: "/app/pos" },
-                { name: "POS Repair", path: "/app/pos-repair" },
-                { name: "Cancellation", path: "/app/cancellation" },
-                { name: "Assets", path: "/app/asset-inventory" },
-                { name: "Settings", path: "/app/settings" },
-            ];
+            : isCsr
+                ? [
+                    { name: "Dashboard", path: "/app/dashboard" },
+                    { name: "POS Repair", path: "/app/csr-pos-repair" },
+                ]
+                : [
+                    { name: "Dashboard", path: "/app/dashboard" },
+                    { name: "POS", path: "/app/pos" },
+                    { name: "POS Repair", path: "/app/pos-repair" },
+                    { name: "Cancellation", path: "/app/cancellation" },
+                    { name: "Assets", path: "/app/asset-inventory" },
+                    { name: "Settings", path: "/app/settings" },
+                ];
 
     return (
         <div
