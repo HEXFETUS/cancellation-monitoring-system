@@ -34,13 +34,6 @@ app.use("/api/office-departments", officeDepartmentRoutes);
 app.use("/api/booth-change-requests", boothChangeRequestRoutes);
 
 const PORT = Number(process.env.PORT || 5050);
-<<<<<<< HEAD
-
-if (PORT !== 5050) {
-    throw new Error(`Invalid PORT ${PORT}. This backend must run on port 5050.`);
-}
-=======
->>>>>>> 95f757df2d1b3d5229baee4770f1451d802e0078
 
 if (PORT !== 5050) {
     throw new Error(`Invalid PORT ${PORT}. This backend must run on port 5050.`);
