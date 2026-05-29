@@ -168,6 +168,7 @@ export default function CsrRepairRequestPage() {
                 delivered_by: formData.deliveredBy,
                 with_charger: formData.accessories.withCharger,
                 with_box: formData.accessories.withBox,
+                status: "For Request",
             });
             const message = response.isUpdate
                 ? "Repair record updated successfully!"

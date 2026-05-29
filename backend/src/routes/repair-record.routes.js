@@ -78,6 +78,7 @@ router.post("/", async (req, res) => {
             delivered_by,
             with_charger,
             with_box,
+            status,
         } = req.body;
 
         if (!date) {
@@ -86,6 +87,8 @@ router.post("/", async (req, res) => {
         if (!pos_record_id) {
             return res.status(400).json({ error: "POS record is required" });
         }
+
+        const initialStatus = status === "For Request" ? "For Request" : "For Checking";
 
         // Resolve operator_id from operator_name if not provided directly
         let resolvedOperatorId = operator_id || null;
@@ -138,7 +141,7 @@ router.post("/", async (req, res) => {
                     delivered_by || null,
                     with_charger ?? false,
                     with_box ?? false,
-                    "For Checking",
+                    initialStatus,
                     existingId,
                 ]
             );
@@ -161,7 +164,7 @@ router.post("/", async (req, res) => {
                     delivered_by || null,
                     with_charger ?? false,
                     with_box ?? false,
-                    "For Checking",
+                    initialStatus,
                 ]
             );
         }

@@ -125,13 +125,14 @@ export async function releaseRepairRecord(id: number): Promise<RepairRecord> {
     return res.json();
 }
 
-export async function proceedRepairRecord(id: number): Promise<RepairRecord> {
+export async function proceedRepairRecord(id: number, diagnosisId?: number): Promise<RepairRecord> {
     const res = await fetch(apiUrl(`/api/repair-records/${id}`), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
             status: "Pending",
             forwarded: true,
+            ...(diagnosisId ? { diagnosis_id: diagnosisId } : {}),
         }),
     });
 

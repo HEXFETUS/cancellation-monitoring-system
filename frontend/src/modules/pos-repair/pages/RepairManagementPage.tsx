@@ -154,11 +154,13 @@ interface ForReleasedModalProps {
     record: RepairRecord;
     diagnoses: DiagnosisItem[];
     loading: boolean;
+    title?: string;
+    proceedLabel?: string;
     onCancel: () => void;
     onProceed: (diagnosisId: number) => void;
 }
 
-function ForReleasedModal({ record, diagnoses, loading, onCancel, onProceed }: ForReleasedModalProps) {
+function ForReleasedModal({ record, diagnoses, loading, title = "Final Diagnosis", proceedLabel = "Proceed", onCancel, onProceed }: ForReleasedModalProps) {
     const [diagnosisId, setDiagnosisId] = useState<number | null>(record.diagnosis_id);
     const selectedDiagnosis = diagnoses.find((d) => d.id === record.diagnosis_id);
     const orderedDiagnoses = selectedDiagnosis
@@ -177,7 +179,7 @@ function ForReleasedModal({ record, diagnoses, loading, onCancel, onProceed }: F
                 <div className="p-6">
                     <div className="mb-5 flex items-start justify-between gap-4">
                         <div>
-                            <h2 className="text-lg font-bold text-ink">Final Diagnosis</h2>
+                            <h2 className="text-lg font-bold text-ink">{title}</h2>
                             <p className="mt-0.5 text-sm text-ink-muted">POS #: {record.device_no || record.id}</p>
                         </div>
                         <button onClick={onCancel} disabled={loading} className="rounded-lg p-1.5 transition-colors hover:bg-gray-100 disabled:opacity-50">
@@ -205,7 +207,7 @@ function ForReleasedModal({ record, diagnoses, loading, onCancel, onProceed }: F
                             Cancel
                         </button>
                         <button onClick={handleProceed} disabled={loading || !diagnosisId} className="rounded-xl bg-gradient-to-r from-teal to-teal-dark px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-teal/25 transition-all hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-50">
-                            {loading ? "Proceeding..." : "Proceed"}
+                            {loading ? "Proceeding..." : proceedLabel}
                         </button>
                     </div>
                 </div>
@@ -225,8 +227,8 @@ export default function RepairManagementPage() {
     const [editingRecord, setEditingRecord] = useState<RepairRecord | null>(null);
     const [recordToDelete, setRecordToDelete] = useState<RepairRecord | null>(null);
     const [deleting, setDeleting] = useState(false);
-    const [recordToProceed, setRecordToProceed] = useState<RepairRecord | null>(null);
     const [proceeding, setProceeding] = useState(false);
+    const [recordToForRepair, setRecordToForRepair] = useState<RepairRecord | null>(null);
     const [recordToForReleased, setRecordToForReleased] = useState<RepairRecord | null>(null);
     const [forwardingRelease, setForwardingRelease] = useState(false);
     const [recordToRelease, setRecordToRelease] = useState<RepairRecord | null>(null);
@@ -265,11 +267,11 @@ export default function RepairManagementPage() {
     const handleEditClose = () => setEditingRecord(null);
     const handleEditSave = (updatedRecord: RepairRecord) => { setRecords((prev) => prev.map((r) => (r.id === updatedRecord.id ? updatedRecord : r))); setEditingRecord(null); };
 
-    const handleProceed = (record: RepairRecord) => setRecordToProceed(record);
-    const handleConfirmProceed = async () => {
-        if (!recordToProceed) return;
+    const handleProceed = (record: RepairRecord) => setRecordToForRepair(record);
+    const handleConfirmProceed = async (diagnosisId: number) => {
+        if (!recordToForRepair) return;
         setProceeding(true);
-        try { const updated = await proceedRepairRecord(recordToProceed.id); setRecords((prev) => prev.map((r) => (r.id === updated.id ? updated : r))); setRecordToProceed(null); showToast("Repair record moved to For Repair successfully!", "success"); }
+        try { const updated = await proceedRepairRecord(recordToForRepair.id, diagnosisId); setRecords((prev) => prev.map((r) => (r.id === updated.id ? updated : r))); setRecordToForRepair(null); showToast("Repair record moved to For Repair successfully!", "success"); }
         catch (err) { console.error("Failed to proceed repair record:", err); showToast(err instanceof Error ? err.message : "Failed to proceed repair record", "error"); }
         finally { setProceeding(false); }
     };
@@ -486,6 +488,17 @@ export default function RepairManagementPage() {
             </div>
 
             {editingRecord && <EditModal record={editingRecord} diagnoses={diagnoses} onClose={handleEditClose} onSave={handleEditSave} showToast={showToast} />}
+            {recordToForRepair && (
+                <ForReleasedModal
+                    record={recordToForRepair}
+                    diagnoses={diagnoses}
+                    loading={proceeding}
+                    title="Final Diagnosis"
+                    proceedLabel="Proceed"
+                    onCancel={() => setRecordToForRepair(null)}
+                    onProceed={handleConfirmProceed}
+                />
+            )}
             {recordToForReleased && (
                 <ForReleasedModal
                     record={recordToForReleased}
@@ -496,7 +509,6 @@ export default function RepairManagementPage() {
                 />
             )}
 
-            <RepairConfirmationModal open={recordToProceed !== null} title="Move to For Repair?" message={recordToProceed ? `This will move POS #${recordToProceed.device_no || recordToProceed.id} to the For Repair tab.` : undefined} confirmLabel="For Repair" loading={proceeding} onCancel={() => setRecordToProceed(null)} onConfirm={handleConfirmProceed} />
             <RepairConfirmationModal open={recordToRelease !== null} title="Release repair record?" message={recordToRelease ? `This will mark POS #${recordToRelease.device_no || recordToRelease.id} as "Released".` : undefined} confirmLabel="Release" loading={releasing} onCancel={() => setRecordToRelease(null)} onConfirm={handleConfirmRelease} />
             <RepairConfirmationModal open={recordToDelete !== null} title="Delete repair record?" message="Are you sure you want to delete this repair record? This action cannot be undone." confirmLabel="Delete Record" loading={deleting} variant="delete" onCancel={() => setRecordToDelete(null)} onConfirm={handleConfirmDelete} />
         </div>
