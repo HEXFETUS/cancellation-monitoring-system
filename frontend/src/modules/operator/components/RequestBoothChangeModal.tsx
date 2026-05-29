@@ -35,10 +35,32 @@ export default function RequestBoothChangeModal({
 
     if (!open || !posRecord) return null;
 
-    // Filter to booths within the same operator (when device has one)
+    // Derive the device's area from its booth code or from posRecord.area
+    const deviceArea = posRecord.area
+        ? posRecord.area.trim().toUpperCase()
+        : posRecord.booth_code
+            ? posRecord.booth_code.startsWith("CDO-") || posRecord.booth_code.startsWith("CD0-")
+                ? "CDO"
+                : posRecord.booth_code.startsWith("MOE-") || posRecord.booth_code.startsWith("MOW-")
+                    ? "MISOR"
+                    : null
+            : null;
+
+    // Filter to booths within the same operator AND same area
     const availableBooths = booths.filter((b) => {
         if (b.id === posRecord.booth_id) return false;
-        if (posRecord.operator_id && b.operator_id && b.operator_id !== posRecord.operator_id) return false;
+        // Same operator check
+        if (posRecord.operator_id && b.operator_id && Number(b.operator_id) !== Number(posRecord.operator_id)) return false;
+        // Same area check — derive area from booth code if we know the device's area
+        if (deviceArea) {
+            const boothCode = (b.booth_code || "").trim().toUpperCase();
+            const boothArea = boothCode.startsWith("MOE-") || boothCode.startsWith("MOW-")
+                ? "MISOR"
+                : boothCode.startsWith("CDO-") || boothCode.startsWith("CD0-")
+                    ? "CDO"
+                    : null;
+            if (boothArea && boothArea !== deviceArea) return false;
+        }
         return true;
     });
 
