@@ -41,6 +41,33 @@ const POS_SELECT = `
     ) pos_repair_status ON true
 `;
 
+// Slim SELECT used when filtering by user_id (operator view). Operator
+// dashboards display the device's own status, not the merged repair
+// status, so we can drop the LATERAL JOIN. This also keeps the in-memory
+// test Postgres (pg-mem) happy — its planner trips on the combination of
+// nested LATERALs and the operator-membership IN-CTE clause below.
+const POS_SELECT_BY_USER = `
+    SELECT 
+        p.id,
+        p.device_no,
+        p.serial_number,
+        p.serial_number AS serial_no,
+        p.area,
+        p.status,
+        p.sticker,
+        p.booth_id,
+        p.operator_id,
+        p.created_at,
+        p.updated_at,
+        b.booth_code,
+        b.location AS booth_location,
+        b.coordinate,
+        o.operator
+    FROM pos_records p
+    LEFT JOIN booth_info b ON p.booth_id = b.id
+    LEFT JOIN operator_list o ON p.operator_id = o.id
+`;
+
 const BOOTH_INFO_SELECT = `
     SELECT
         b.id,
@@ -570,7 +597,13 @@ router.get("/", async (req, res) => {
             as_operator_id,
         } = req.query;
 
-        let query = `${POS_SELECT} WHERE 1=1`;
+        // When the caller is an operator user (filtered by user_id), use
+        // the slim SELECT that omits the repair_records LATERAL JOIN.
+        // Operator-facing pages display the device's own status, not the
+        // repair status, and the slim form keeps the in-memory test
+        // Postgres planner happy when combined with the IN-CTE below.
+        const baseSelect = user_id ? POS_SELECT_BY_USER : POS_SELECT;
+        let query = `${baseSelect} WHERE 1=1`;
 
         const params = [];
         let idx = 1;

@@ -53,6 +53,50 @@ const SCHEMA_DDL = `
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         sticker BOOLEAN DEFAULT false
     );
+
+    -- repair_records and diagnosis_logs are created by init.js in production
+    -- (see backend/src/config/init.js). The GET /api/pos query LEFT JOINs
+    -- them via a nested LATERAL to surface the latest diagnosis status.
+    -- Tests don't seed rows here, so the LATERAL yields NULL and tests
+    -- continue to assert against the operator/POS shape only.
+    CREATE TABLE diagnosis_list (
+        id SERIAL PRIMARY KEY,
+        diagnosis VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE repair_records (
+        id SERIAL PRIMARY KEY,
+        date DATE NOT NULL,
+        pos_record_id INTEGER REFERENCES pos_records(id) ON DELETE SET NULL,
+        ntc BOOLEAN DEFAULT false,
+        operator_id INTEGER REFERENCES operator_list(id) ON DELETE SET NULL,
+        diagnosis_id INTEGER REFERENCES diagnosis_list(id) ON DELETE SET NULL,
+        delivered_by VARCHAR(255),
+        with_charger BOOLEAN DEFAULT false,
+        with_box BOOLEAN DEFAULT false,
+        status VARCHAR(50) DEFAULT 'Pending',
+        forwarded BOOLEAN DEFAULT false,
+        released BOOLEAN DEFAULT false,
+        re_repair BOOLEAN DEFAULT false,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE diagnosis_logs (
+        id SERIAL PRIMARY KEY,
+        repair_record_id INTEGER NOT NULL REFERENCES repair_records(id) ON DELETE CASCADE,
+        requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        requested_by VARCHAR(255),
+        pos_diagnosis VARCHAR(255),
+        repaired_by VARCHAR(255),
+        remarks TEXT,
+        status VARCHAR(50),
+        forwarded_at TIMESTAMP,
+        returned_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
 `;
 
 function init() {
