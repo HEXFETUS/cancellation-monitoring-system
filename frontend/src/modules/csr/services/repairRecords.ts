@@ -39,7 +39,7 @@ export interface CreateRepairRecordPayload {
     delivered_by: string;
     with_charger: boolean;
     with_box: boolean;
-    status?: "For Request" | "For Checking";
+    status?: "For Request" | "For Repair";
 }
 
 export interface UpdateRepairRecordPayload {

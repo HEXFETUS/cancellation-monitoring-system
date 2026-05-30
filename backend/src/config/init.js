@@ -20,6 +20,7 @@ const SERIAL_TABLES = [
     "repair_records",
     "diagnosis_logs",
     "billing_transmittals",
+    "released_logs",
 ];
 
 async function syncSerialSequence(client, tableName) {
@@ -554,6 +555,22 @@ async function initDatabase() {
         );
         await client.query(
             "CREATE INDEX IF NOT EXISTS idx_billing_transmittals_repair_record ON billing_transmittals(repair_record_id)"
+        );
+
+        /* =========================
+           released_logs — final release log for repaired POS
+        ========================= */
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS released_logs (
+                id SERIAL PRIMARY KEY,
+                billing_transmittal_id INTEGER REFERENCES billing_transmittals(id) ON DELETE SET NULL,
+                repair_record_id INTEGER REFERENCES repair_records(id) ON DELETE CASCADE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        await client.query(
+            "CREATE INDEX IF NOT EXISTS idx_released_logs_repair_record ON released_logs(repair_record_id)"
         );
 
         for (const tableName of SERIAL_TABLES) {

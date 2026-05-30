@@ -33,6 +33,65 @@ const REPAIR_SELECT = `
     ) bt ON true
 `;
 
+async function createDiagnosisLog(
+    client,
+    {
+        repairRecordId,
+        requestedBy = null,
+        diagnosisName,
+        repairedBy,
+        status,
+        returnedAt = null,
+    }
+) {
+    await client.query(
+        `
+        INSERT INTO diagnosis_logs (
+            repair_record_id,
+            requested_at,
+            requested_by,
+            pos_diagnosis,
+            repaired_by,
+            remarks,
+            status,
+            forwarded_at,
+            returned_at,
+            created_at,
+            updated_at
+        ) VALUES (
+            $1,
+            CURRENT_TIMESTAMP,
+            $2,
+            $3,
+            $4,
+            NULL,
+            $5,
+            CURRENT_TIMESTAMP,
+            ${returnedAt === "now" ? "CURRENT_TIMESTAMP" : "NULL"},
+            CURRENT_TIMESTAMP,
+            CURRENT_TIMESTAMP
+        )
+        `,
+        [repairRecordId, requestedBy, diagnosisName, repairedBy, status]
+    );
+}
+
+async function getNextHexaBillingCode(client) {
+    const result = await client.query(`
+        SELECT billing_code
+        FROM billing_transmittals
+        WHERE billing_code ~ '^HEXA-[0-9]{4}$'
+        ORDER BY CAST(SUBSTRING(billing_code FROM 6) AS INTEGER) DESC
+        LIMIT 1
+    `);
+
+    const currentNumber = result.rows[0]?.billing_code
+        ? Number(result.rows[0].billing_code.slice(5))
+        : 0;
+
+    return `HEXA-${String(currentNumber + 1).padStart(4, "0")}`;
+}
+
 /* =========================
    GET ALL REPAIR RECORDS
 ========================= */
@@ -88,7 +147,8 @@ router.post("/", async (req, res) => {
             return res.status(400).json({ error: "POS record is required" });
         }
 
-        const initialStatus = status === "For Request" ? "For Request" : "For Checking";
+        const createStatuses = new Set(["For Request", "For Repair"]);
+        const initialStatus = createStatuses.has(status) ? status : "For Repair";
 
         // Resolve operator_id from operator_name if not provided directly
         let resolvedOperatorId = operator_id || null;
@@ -306,7 +366,7 @@ router.patch("/:id/for-released", async (req, res) => {
             `
             UPDATE repair_records SET
                 diagnosis_id = $1,
-                status = 'For Released',
+                status = 'For Release',
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = $2::int
             `,
@@ -325,36 +385,14 @@ router.patch("/:id/for-released", async (req, res) => {
             );
         }
 
-        await client.query(
-            `
-            INSERT INTO diagnosis_logs (
-                repair_record_id,
-                requested_at,
-                requested_by,
-                pos_diagnosis,
-                repaired_by,
-                remarks,
-                status,
-                forwarded_at,
-                returned_at,
-                created_at,
-                updated_at
-            ) VALUES (
-                $1,
-                CURRENT_TIMESTAMP,
-                $2,
-                $3,
-                'Hexa IT',
-                NULL,
-                'Inactive',
-                CURRENT_TIMESTAMP,
-                CURRENT_TIMESTAMP,
-                CURRENT_TIMESTAMP,
-                CURRENT_TIMESTAMP
-            )
-            `,
-            [id, requested_by || null, diagnosis.name]
-        );
+        await createDiagnosisLog(client, {
+            repairRecordId: id,
+            requestedBy: requested_by || null,
+            diagnosisName: diagnosis.name,
+            repairedBy: "Hexa IT",
+            status: "Inactive",
+            returnedAt: "now",
+        });
 
         const full = await client.query(`${REPAIR_SELECT} WHERE rr.id = $1::int`, [id]);
         await client.query("COMMIT");
@@ -362,7 +400,337 @@ router.patch("/:id/for-released", async (req, res) => {
     } catch (err) {
         await client.query("ROLLBACK");
         console.error("PATCH repair_record/for-released error:", err.message);
-        res.status(500).json({ error: "Failed to move repair record to For Released" });
+        res.status(500).json({ error: "Failed to move repair record to For Release" });
+    } finally {
+        client.release();
+    }
+});
+
+/* =========================
+   MOVE TO UNDERGOING REPAIR + SAVE TECHNICIAN
+========================= */
+router.patch("/:id/undergoing-repair", async (req, res) => {
+    const client = await pool.connect();
+
+    try {
+        const { id } = req.params;
+        const { repaired_by, requested_by } = req.body;
+
+        if (!repaired_by?.trim()) {
+            return res.status(400).json({ error: "Technician is required" });
+        }
+
+        await client.query("BEGIN");
+
+        const repairResult = await client.query(
+            `
+            SELECT rr.id, rr.pos_record_id, dl.name AS diagnosis_name, pr.status AS pos_status
+            FROM repair_records rr
+            LEFT JOIN diagnosis_list dl ON rr.diagnosis_id = dl.id
+            LEFT JOIN pos_records pr ON rr.pos_record_id = pr.id
+            WHERE rr.id = $1::int
+            FOR UPDATE OF rr
+            `,
+            [id]
+        );
+
+        if (repairResult.rows.length === 0) {
+            await client.query("ROLLBACK");
+            return res.status(404).json({ error: "Repair record not found" });
+        }
+
+        const repairRecord = repairResult.rows[0];
+
+        await client.query(
+            `
+            UPDATE repair_records SET
+                status = 'Undergoing Repair',
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = $1::int
+            `,
+            [id]
+        );
+
+        await createDiagnosisLog(client, {
+            repairRecordId: id,
+            requestedBy: requested_by || repaired_by.trim(),
+            diagnosisName: repairRecord.diagnosis_name || null,
+            repairedBy: repaired_by.trim(),
+            status: "Under Repair",
+        });
+
+        const full = await client.query(`${REPAIR_SELECT} WHERE rr.id = $1::int`, [id]);
+        await client.query("COMMIT");
+        res.json(full.rows[0]);
+    } catch (err) {
+        await client.query("ROLLBACK");
+        console.error("PATCH repair_record/undergoing-repair error:", err.message);
+        res.status(500).json({ error: "Failed to move repair record to Undergoing Repair" });
+    } finally {
+        client.release();
+    }
+});
+
+/* =========================
+   RECEIVE FROM REPAIR + CREATE BILLING TRANSMITTAL
+========================= */
+router.patch("/:id/received", async (req, res) => {
+    const client = await pool.connect();
+
+    try {
+        const { id } = req.params;
+        const { billing_code, remarks, received_by, user_id, unrepairable_retired } = req.body;
+
+        if (!remarks?.trim()) {
+            return res.status(400).json({ error: "Remarks are required" });
+        }
+
+        await client.query("BEGIN");
+
+        const repairResult = await client.query(
+            `
+            SELECT id, pos_record_id
+            FROM repair_records
+            WHERE id = $1::int
+            FOR UPDATE
+            `,
+            [id]
+        );
+
+        if (repairResult.rows.length === 0) {
+            await client.query("ROLLBACK");
+            return res.status(404).json({ error: "Repair record not found" });
+        }
+
+        const repairRecord = repairResult.rows[0];
+        const diagnosisLogResult = await client.query(
+            `
+            SELECT id
+            FROM diagnosis_logs
+            WHERE repair_record_id = $1::int
+            ORDER BY id DESC
+            LIMIT 1
+            FOR UPDATE
+            `,
+            [id]
+        );
+
+        if (diagnosisLogResult.rows.length === 0) {
+            await client.query("ROLLBACK");
+            return res.status(400).json({ error: "Diagnosis log not found" });
+        }
+
+        const diagnosisLogId = diagnosisLogResult.rows[0].id;
+
+        await client.query(
+            `
+            UPDATE diagnosis_logs SET
+                status = 'Inactive',
+                remarks = $1,
+                returned_at = CURRENT_TIMESTAMP,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = $2::int
+            `,
+            [remarks.trim(), diagnosisLogId]
+        );
+
+        await client.query(
+            `
+            UPDATE repair_records SET
+                status = 'For Release',
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = $1::int
+            `,
+            [id]
+        );
+
+        if (unrepairable_retired && repairRecord.pos_record_id) {
+            await client.query(
+                `
+                UPDATE pos_records SET
+                    status = 'Retired',
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = $1::int
+                `,
+                [repairRecord.pos_record_id]
+            );
+        }
+
+        await client.query(
+            `
+            INSERT INTO billing_transmittals (
+                billing_code,
+                diagnosis_log_id,
+                received_by,
+                user_id,
+                repair_record_id,
+                created_at,
+                updated_at
+            ) VALUES (
+                $1,
+                $2,
+                $3,
+                $4,
+                $5,
+                CURRENT_TIMESTAMP,
+                CURRENT_TIMESTAMP
+            )
+            `,
+            [billing_code?.trim() || "", diagnosisLogId, received_by || null, user_id || null, id]
+        );
+
+        const full = await client.query(`${REPAIR_SELECT} WHERE rr.id = $1::int`, [id]);
+        await client.query("COMMIT");
+        res.json(full.rows[0]);
+    } catch (err) {
+        await client.query("ROLLBACK");
+        console.error("PATCH repair_record/received error:", err.message);
+        res.status(500).json({ error: "Failed to receive repair record" });
+    } finally {
+        client.release();
+    }
+});
+
+/* =========================
+   RELEASE REPAIR RECORD + CREATE RELEASED LOG
+========================= */
+router.patch("/:id/release", async (req, res) => {
+    const client = await pool.connect();
+
+    try {
+        const { id } = req.params;
+        const { received_by, user_id } = req.body;
+
+        if (!received_by?.trim()) {
+            return res.status(400).json({ error: "Received By is required" });
+        }
+
+        await client.query("BEGIN");
+
+        const repairResult = await client.query(
+            `
+            SELECT id
+            FROM repair_records
+            WHERE id = $1::int
+            FOR UPDATE
+            `,
+            [id]
+        );
+
+        if (repairResult.rows.length === 0) {
+            await client.query("ROLLBACK");
+            return res.status(404).json({ error: "Repair record not found" });
+        }
+
+        const billingResult = await client.query(
+            `
+            SELECT id, billing_code
+            FROM billing_transmittals
+            WHERE repair_record_id = $1::int
+            ORDER BY id DESC
+            LIMIT 1
+            FOR UPDATE
+            `,
+            [id]
+        );
+
+        let billingTransmittalId = billingResult.rows[0]?.id;
+        const hexaBillingCode = await getNextHexaBillingCode(client);
+
+        if (billingTransmittalId) {
+            await client.query(
+                `
+                UPDATE billing_transmittals SET
+                    billing_code = CASE
+                        WHEN billing_code ~ '^HEXA-[0-9]{4}$' THEN billing_code
+                        ELSE $1
+                    END,
+                    received_by = $2,
+                    user_id = $3,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = $4::int
+                `,
+                [hexaBillingCode, received_by.trim(), user_id || null, billingTransmittalId]
+            );
+        } else {
+            const diagnosisLogResult = await client.query(
+                `
+                SELECT id
+                FROM diagnosis_logs
+                WHERE repair_record_id = $1::int
+                ORDER BY id DESC
+                LIMIT 1
+                `,
+                [id]
+            );
+
+            if (diagnosisLogResult.rows.length === 0) {
+                await client.query("ROLLBACK");
+                return res.status(400).json({ error: "Diagnosis log not found" });
+            }
+
+            const insertedBilling = await client.query(
+                `
+                INSERT INTO billing_transmittals (
+                    billing_code,
+                    diagnosis_log_id,
+                    received_by,
+                    user_id,
+                    repair_record_id,
+                    created_at,
+                    updated_at
+                ) VALUES (
+                    $1,
+                    $2,
+                    $3,
+                    $4,
+                    $5,
+                    CURRENT_TIMESTAMP,
+                    CURRENT_TIMESTAMP
+                )
+                RETURNING id
+                `,
+                [hexaBillingCode, diagnosisLogResult.rows[0].id, received_by.trim(), user_id || null, id]
+            );
+            billingTransmittalId = insertedBilling.rows[0].id;
+        }
+
+        await client.query(
+            `
+            UPDATE repair_records SET
+                status = 'Released',
+                forwarded = false,
+                released = true,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = $1::int
+            `,
+            [id]
+        );
+
+        await client.query(
+            `
+            INSERT INTO released_logs (
+                billing_transmittal_id,
+                repair_record_id,
+                created_at,
+                updated_at
+            ) VALUES (
+                $1,
+                $2,
+                CURRENT_TIMESTAMP,
+                CURRENT_TIMESTAMP
+            )
+            `,
+            [billingTransmittalId, id]
+        );
+
+        const full = await client.query(`${REPAIR_SELECT} WHERE rr.id = $1::int`, [id]);
+        await client.query("COMMIT");
+        res.json(full.rows[0]);
+    } catch (err) {
+        await client.query("ROLLBACK");
+        console.error("PATCH repair_record/release error:", err.message);
+        res.status(500).json({ error: "Failed to release repair record" });
     } finally {
         client.release();
     }
