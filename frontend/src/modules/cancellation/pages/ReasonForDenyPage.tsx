@@ -3,6 +3,8 @@ import { useAuth } from "../../../context/AuthContext";
 import { Send, RotateCcw, Ticket, AlertTriangle, UserX, CheckCircle2, XCircle, Hash, Store, Smartphone } from "lucide-react";
 import { addHumanForceRecord } from "../services";
 
+const teal = "#92C7CF";
+
 const reasonOptions = [
     { value: "", label: "Select a reason…" },
     { value: "HUMAN ERROR", label: "HUMAN ERROR" },

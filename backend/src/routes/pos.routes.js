@@ -10,7 +10,7 @@ const POS_SELECT = `
         p.serial_number,
         p.serial_number AS serial_no,
         p.area,
-        p.status,
+        COALESCE(pos_repair_status.status, p.status) AS status,
         p.sticker,
         p.booth_id,
         p.operator_id,
@@ -23,6 +23,22 @@ const POS_SELECT = `
     FROM pos_records p
     LEFT JOIN booth_info b ON p.booth_id = b.id
     LEFT JOIN operator_list o ON p.operator_id = o.id
+    LEFT JOIN LATERAL (
+        SELECT latest_log.status
+        FROM repair_records rr
+        JOIN LATERAL (
+            SELECT status
+            FROM diagnosis_logs
+            WHERE repair_record_id = rr.id
+            ORDER BY id DESC
+            LIMIT 1
+        ) latest_log ON true
+        WHERE rr.pos_record_id = p.id
+          AND rr.status IS NOT NULL
+          AND latest_log.status IS NOT NULL
+        ORDER BY rr.id DESC
+        LIMIT 1
+    ) pos_repair_status ON true
 `;
 
 const BOOTH_INFO_SELECT = `
@@ -582,13 +598,6 @@ router.get("/", async (req, res) => {
             params.push(operator_id);
             idx++;
         }
-
-        // Filter out POS records that already exist in repair_records with non-NULL status
-        query += ` AND p.id NOT IN (
-            SELECT pos_record_id 
-            FROM repair_records 
-            WHERE status IS NOT NULL
-        )`;
 
         // Resolve operator from user_id when caller is an operator user.
         // Main operators see their own POS records AND those of any sub-operator
