@@ -25,7 +25,6 @@ export default function RepairRequestPage() {
         operator: "",
         diagnosis: "",
         accessories: { ntc: false, withCharger: false, withBox: false },
-        deliveredBy: "",
     });
 
     // Toast state
@@ -46,7 +45,7 @@ export default function RepairRequestPage() {
 
     // Validation: check if required fields are filled
     const isFormValid =
-        formData.operator.trim() !== "" && formData.diagnosis.trim() !== "" && formData.deliveredBy.trim() !== "";
+        formData.operator.trim() !== "" && formData.diagnosis.trim() !== "";
 
     // Autocomplete state
     const [searchResults, setSearchResults] = useState<PosRecord[]>([]);
@@ -137,7 +136,6 @@ export default function RepairRequestPage() {
             const missingFields = [];
             if (!formData.operator.trim()) missingFields.push("Operator");
             if (!formData.diagnosis.trim()) missingFields.push("Diagnosis");
-            if (!formData.deliveredBy.trim()) missingFields.push("Delivered By");
             showToast(`Please fill in the following fields: ${missingFields.join(", ")}`);
             return false;
         }
@@ -165,9 +163,10 @@ export default function RepairRequestPage() {
                 ntc: formData.accessories.ntc,
                 operator_name: formData.operator,
                 diagnosis_id: diagnosisId,
-                delivered_by: formData.deliveredBy,
+                delivered_by: "",
                 with_charger: formData.accessories.withCharger,
                 with_box: formData.accessories.withBox,
+                status: "For Repair",
             });
             const message = response.isUpdate
                 ? "Repair record updated successfully!"
@@ -182,7 +181,6 @@ export default function RepairRequestPage() {
                 operator: "",
                 diagnosis: "",
                 accessories: { ntc: false, withCharger: false, withBox: false },
-                deliveredBy: "",
             });
             setPosRecordId(null);
             setDiagnosisId(null);
@@ -212,7 +210,6 @@ export default function RepairRequestPage() {
             operator: "",
             diagnosis: "",
             accessories: { ntc: false, withCharger: false, withBox: false },
-            deliveredBy: "",
         });
         setPosRecordId(null);
         setDiagnosisId(null);
@@ -510,21 +507,6 @@ export default function RepairRequestPage() {
                                 </label>
                             ))}
                         </div>
-                    </div>
-
-                    {/* Row 5: Delivered By */}
-                    <div>
-                        <label className={labelClass}>
-                            Delivered By <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                            type="text"
-                            value={formData.deliveredBy}
-                            onChange={(e) => handleChange("deliveredBy", e.target.value)}
-                            className={inputClass}
-                            style={inputStyle}
-                            placeholder="Delivered by"
-                        />
                     </div>
 
                     {/* Actions */}
