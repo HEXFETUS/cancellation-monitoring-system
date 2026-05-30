@@ -6,6 +6,7 @@ import {
     fetchOperators,
 } from "../../pos/services";
 import type { OperatorInfo } from "../../pos/types";
+import CreateSubOperatorUserModal from "../components/CreateSubOperatorUserModal";
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 
@@ -43,6 +44,10 @@ export default function OperatorProfilesPage() {
     // Bulk-assign existing operators as subs of the active main
     const [assignSelection, setAssignSelection] = useState<Set<number>>(new Set());
     const [assigning, setAssigning] = useState(false);
+
+    // Create-user modal target. The page can host a single modal at a time;
+    // we track the sub-operator we're creating an account for.
+    const [creatingUserFor, setCreatingUserFor] = useState<OperatorInfo | null>(null);
 
     const refresh = async () => {
         try {
@@ -499,14 +504,15 @@ export default function OperatorProfilesPage() {
 
                                         <div className="flex items-center gap-2">
                                             {!linkedUser && (
-                                                <a
-                                                    href="/app/settings"
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setCreatingUserFor(sub)}
                                                     className="inline-flex items-center gap-1 rounded-lg border border-warm bg-card px-2.5 py-1 text-xs font-medium text-ink transition hover:bg-cream"
-                                                    title="Open Create User; pick this sub from the Operator Profile dropdown"
+                                                    title="Create a login account for this sub-operator"
                                                 >
                                                     <UserPlus size={12} />
                                                     Create user
-                                                </a>
+                                                </button>
                                             )}
                                         </div>
                                     </li>
@@ -515,6 +521,23 @@ export default function OperatorProfilesPage() {
                         </ul>
                     )}
                 </section>
+            )}
+
+            {creatingUserFor && (
+                <CreateSubOperatorUserModal
+                    subOperator={creatingUserFor}
+                    parentOperator={
+                        operators.find(
+                            (o) => o.id === creatingUserFor.parent_operator_id
+                        ) ?? null
+                    }
+                    onClose={() => setCreatingUserFor(null)}
+                    onCreated={async (text) => {
+                        setCreatingUserFor(null);
+                        await refresh();
+                        showOk(text);
+                    }}
+                />
             )}
         </div>
     );
