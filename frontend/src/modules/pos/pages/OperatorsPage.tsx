@@ -12,22 +12,22 @@ export default function OperatorsPage() {
     const [searchQuery, setSearchQuery] = useState("");
     const [currentPage, setCurrentPage] = useState(1);
 
-    useEffect(() => {
-        loadRecords();
-    }, []);
-
     const loadRecords = async () => {
         setLoading(true);
         setError(null);
         try {
             const data = await fetchPosRecords();
             setRecords(data);
-        } catch (err: any) {
-            setError(err.message || "Failed to load records");
+        } catch (err) {
+            setError(err instanceof Error ? (err instanceof Error ? err.message : String(err)) : "Failed to load records");
         } finally {
             setLoading(false);
         }
     };
+
+    useEffect(() => {
+        loadRecords();
+    }, []);
 
     // Filter out records without an operator, then sort by operator name (ascending)
     const sortedRecords = useMemo(() => {
@@ -71,7 +71,7 @@ export default function OperatorsPage() {
     const visiblePages = useMemo(() => {
         const MAX_VISIBLE = 10;
         let start = Math.max(1, currentPage - Math.floor(MAX_VISIBLE / 2));
-        let end = Math.min(totalPages, start + MAX_VISIBLE - 1);
+        const end = Math.min(totalPages, start + MAX_VISIBLE - 1);
         if (end - start + 1 < MAX_VISIBLE) {
             start = Math.max(1, end - MAX_VISIBLE + 1);
         }

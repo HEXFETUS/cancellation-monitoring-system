@@ -1,102 +1,70 @@
 import {
-    Monitor,
-    Activity,
-    RotateCcw,
-    UserCircle,
-    Users,
-    Store,
     Wrench,
     BarChart3,
-    FileText,
-    Calendar,
-    PieChart,
     ArrowUpRight,
     Clock,
     CheckCircle2,
-    AlertTriangle,
-    Smartphone,
-    ClipboardList,
-    Settings,
-    RefreshCw,
     TrendingUp,
+    Headset,
 } from "lucide-react";
-import { useEffect, useState, type ComponentType } from "react";
-import { useAuth } from "../../context/AuthContext";
-import OperatorDashboard from "../../modules/operator/pages/OperatorDashboard";
-import CsrDashboard from "../../modules/csr/pages/CsrDashboard";
+import { useEffect, useState } from "react";
+import { useAuth } from "../../../context/AuthContext";
 
 /* ---------------- Glow & gradient helpers ---------------- */
 const teal = "#92C7CF";
 const tealLight = "#AAD7D9";
 const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 
-/* ---------------- Data ---------------- */
+/* ---------------- CSR-focused KPI Data (POS Repair only) ---------------- */
 const kpiCards = [
     {
-        label: "Total POS Units",
-        value: "140",
-        change: "+4.2%",
-        icon: Monitor,
+        label: "Open Repair Requests",
+        value: "12",
+        change: "+3.1%",
+        icon: Wrench,
         gradient: "from-[#92C7CF] to-[#AAD7D9]",
     },
     {
-        label: "Active Repairs",
-        value: "8",
-        change: "-2.1%",
-        icon: Wrench,
-        gradient: "from-[#E8B4B8] to-[#D69CA0]",
-    },
-    {
-        label: "Cancellation Records",
-        value: "705",
-        change: "+12.5%",
-        icon: FileText,
+        label: "Pending Parts",
+        value: "3",
+        change: "-1.2%",
+        icon: Package,
         gradient: "from-[#F2D7B5] to-[#E5C599]",
     },
     {
-        label: "System Uptime",
-        value: "99.8%",
-        change: "Last 30d",
-        icon: Activity,
+        label: "Ready for Pickup",
+        value: "4",
+        change: "+2.0%",
+        icon: CheckCircle2,
         gradient: "from-[#92C7CF] to-[#AAD7D9]",
+    },
+    {
+        label: "Completed Repairs",
+        value: "142",
+        change: "+8.5%",
+        icon: BarChart3,
+        gradient: "from-[#E8B4B8] to-[#D69CA0]",
     },
 ];
 
-const posInventoryItems = [
-    { label: "Active POS", value: "128", icon: Monitor, color: teal },
-    { label: "Offline Devices", value: "12", icon: Activity, color: "#E8B4B8" },
-    { label: "Pending Reset", value: "5", icon: RotateCcw, color: "#F2D7B5" },
-    { label: "Operators", value: "23", icon: Users, color: teal },
-    { label: "Outlets", value: "18", icon: Store, color: tealLight },
-];
-
-const posRepairItems = [
-    { label: "Repair Requests", value: "8", icon: Wrench, color: "#E8B4B8" },
-    { label: "Repair Logs", value: "156", icon: BarChart3, color: teal },
-    { label: "Completed", value: "142", icon: CheckCircle2, color: "#6BBF6B" },
+const repairStatusItems = [
+    { label: "Open Requests", value: "8", icon: Wrench, color: "#E8B4B8" },
+    { label: "Pending Parts", value: "3", icon: Package, color: "#F2D7B5" },
+    { label: "Ready for Pickup", value: "4", icon: CheckCircle2, color: "#6BBF6B" },
+    { label: "Completed", value: "142", icon: BarChart3, color: teal },
     { label: "Released", value: "138", icon: ArrowUpRight, color: tealLight },
 ];
 
-const cancellationItems = [
-    { label: "Total Records", value: "128", icon: FileText, color: teal },
-    { label: "Daily Report", value: "12", icon: Calendar, color: tealLight },
-    { label: "Monthly Report", value: "45", icon: BarChart3, color: "#F2D7B5" },
-    { label: "Yearly Report", value: "520", icon: PieChart, color: "#E8B4B8" },
-];
-
 const quickActions = [
-    { label: "New POS Entry", icon: Smartphone, href: "/app/pos" },
-    { label: "Report Issue", icon: AlertTriangle, href: "/app/pos-repair" },
-    { label: "View Cancellations", icon: ClipboardList, href: "/app/cancellation" },
-    { label: "Manage Settings", icon: Settings, href: "/app/settings" },
+    { label: "Log POS Issue", icon: Wrench, href: "/app/csr-pos-repair" },
 ];
 
 const recentActivity: { action: string; time: string; type: "success" | "warning" | "info" }[] = [
-    { action: "POS #A102 went offline", time: "2 min ago", type: "warning" },
     { action: "Repair #R045 completed", time: "15 min ago", type: "success" },
-    { action: "New cancellation filed", time: "1 hr ago", type: "info" },
-    { action: "Operator Jane added to Outlet 3", time: "2 hrs ago", type: "info" },
-    { action: "Stock count updated", time: "4 hrs ago", type: "success" },
+    { action: "POS #A102 reported offline", time: "12 min ago", type: "warning" },
+    { action: "Parts delivered for Repair #R042", time: "1 hr ago", type: "info" },
+    { action: "Repair #R038 marked ready for pickup", time: "2 hrs ago", type: "success" },
+    { action: "New repair request filed for POS #B203", time: "3 hrs ago", type: "info" },
 ];
 
 /* ---------------- Components ---------------- */
@@ -111,7 +79,7 @@ function KpiCard({
     label: string;
     value: string;
     change: string;
-    icon: ComponentType<{ className?: string }>;
+    icon: any;
     gradient: string;
 }) {
     const isPositive = change.startsWith("+");
@@ -169,7 +137,7 @@ function StatCard({
 }: {
     label: string;
     value: string;
-    icon: ComponentType<{ className?: string }>;
+    icon: any;
     color: string;
 }) {
     return (
@@ -254,11 +222,9 @@ function ActivityItem({
     );
 }
 
-/* ---------------- Main Dashboard ---------------- */
-
+/* ---------------- Helper ---------------- */
 function formatLoginTime(value: string | null) {
     if (!value) return "-";
-
     return new Date(value).toLocaleString(undefined, {
         month: "short",
         day: "2-digit",
@@ -267,28 +233,33 @@ function formatLoginTime(value: string | null) {
     });
 }
 
-export default function DashboardHome() {
-    const { user } = useAuth();
-
-    // Operators get a dashboard scoped to their own POS devices and requests
-    if (user?.usertype === "operator") {
-        return <OperatorDashboard />;
-    }
-
-    // CSR gets a dedicated dashboard focused on cancellations, repairs, and inquiries
-    if (user?.usertype === "csr") {
-        return <CsrDashboard />;
-    }
-
-    return <AdminDashboardHome />;
+/* ---------------- SVG icons (not in lucide) ---------------- */
+function Package({ className }: { className?: string }) {
+    return (
+        <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className={className}
+        >
+            <path d="M16.5 9.4 7.55 4.24" />
+            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+            <polyline points="3.29 7 12 12 20.71 7" />
+            <line x1="12" y1="22" x2="12" y2="12" />
+        </svg>
+    );
 }
 
-function AdminDashboardHome() {
+/* ---------------- Main CSR Dashboard (POS Repair only) ---------------- */
+export default function CsrDashboard() {
     const { user } = useAuth();
     const [currentUser, setCurrentUser] = useState(user);
     const [lastLogin, setLastLogin] = useState<string | null>(null);
-    const displayName = currentUser?.name || user?.name || "User";
-    const displayPosition = currentUser?.position?.trim() || user?.position?.trim();
+    const displayName = currentUser?.name || user?.name || "CSR";
 
     useEffect(() => {
         setCurrentUser(user);
@@ -299,36 +270,24 @@ function AdminDashboardHome() {
 
         fetch(`${API_BASE_URL}/api/users/me?id=${user.id}`)
             .then((res) => {
-                if (!res.ok) {
-                    throw new Error("Failed to fetch current user");
-                }
-
+                if (!res.ok) throw new Error("Failed to fetch current user");
                 return res.json();
             })
             .then((data) => {
-                if (!ignored) {
-                    setCurrentUser({ ...user, ...data });
-                }
+                if (!ignored) setCurrentUser({ ...user, ...data });
             })
             .catch(() => {});
 
         fetch(`${API_BASE_URL}/api/users/${user.id}/latest-login`)
             .then((res) => {
-                if (!res.ok) {
-                    throw new Error("Failed to fetch latest login");
-                }
-
+                if (!res.ok) throw new Error("Failed to fetch latest login");
                 return res.json();
             })
             .then((data) => {
-                if (!ignored) {
-                    setLastLogin(data.login_at ?? null);
-                }
+                if (!ignored) setLastLogin(data.login_at ?? null);
             })
             .catch(() => {
-                if (!ignored) {
-                    setLastLogin(null);
-                }
+                if (!ignored) setLastLogin(null);
             });
 
         return () => {
@@ -366,7 +325,7 @@ function AdminDashboardHome() {
                                     background: `linear-gradient(135deg, ${teal} 0%, ${tealLight} 100%)`,
                                 }}
                             >
-                                <UserCircle className="h-7 w-7" />
+                                <Headset className="h-7 w-7" />
                             </div>
                         </div>
                         <div>
@@ -377,9 +336,9 @@ function AdminDashboardHome() {
                                 {displayName}
                             </h1>
                             <div className="mt-1 flex items-center gap-2 text-sm text-gray-600">
-                                <span>
-                                    {displayPosition ? `${displayPosition} • ` : ""}
-                                    Hexaprime Inc.
+                                <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold bg-teal-100/50 text-teal-700">
+                                    <Headset className="h-3 w-3" />
+                                    CSR Support
                                 </span>
                                 <span className="inline-block w-1 h-1 rounded-full bg-gray-300" />
                                 <span className="inline-flex items-center gap-1">
@@ -395,9 +354,7 @@ function AdminDashboardHome() {
 
                     {/* Quick badges */}
                     <div className="flex items-center gap-3">
-                        <div
-                            className="rounded-xl px-4 py-2.5 backdrop-blur-sm border border-white/30 bg-white/15 shadow-sm"
-                        >
+                        <div className="rounded-xl px-4 py-2.5 backdrop-blur-sm border border-white/30 bg-white/15 shadow-sm">
                             <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-500">
                                 Last Login
                             </p>
@@ -416,37 +373,16 @@ function AdminDashboardHome() {
                 ))}
             </div>
 
-            {/* ===== Overview Sections ===== */}
+            {/* ===== POS Repair Sections ===== */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <SectionCard title="POS Inventory Overview">
+                <SectionCard title="Repair Status Overview">
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                        {posInventoryItems.map((item) => (
+                        {repairStatusItems.map((item) => (
                             <StatCard key={item.label} {...item} />
                         ))}
                     </div>
                 </SectionCard>
 
-                <SectionCard title="POS Repair Overview">
-                    <div className="grid grid-cols-2 gap-3">
-                        {posRepairItems.map((item) => (
-                            <StatCard key={item.label} {...item} />
-                        ))}
-                    </div>
-                </SectionCard>
-            </div>
-
-            {/* ===== Third Row: Cancellation + Activity + Quick Actions ===== */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Cancellation Overview */}
-                <SectionCard title="Cancellation Overview">
-                    <div className="grid grid-cols-2 gap-3">
-                        {cancellationItems.map((item) => (
-                            <StatCard key={item.label} {...item} />
-                        ))}
-                    </div>
-                </SectionCard>
-
-                {/* Recent Activity */}
                 <SectionCard title="Recent Activity">
                     <div className="divide-y divide-white/20">
                         {recentActivity.map((act, idx) => (
@@ -454,10 +390,12 @@ function AdminDashboardHome() {
                         ))}
                     </div>
                 </SectionCard>
+            </div>
 
-                {/* Quick Actions */}
+            {/* ===== Quick Actions ===== */}
+            <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
                 <SectionCard title="Quick Actions">
-                    <div className="flex flex-col gap-2.5">
+                    <div className="flex flex-col gap-2.5 max-w-md">
                         {quickActions.map((action) => {
                             const Icon = action.icon;
                             return (
@@ -486,7 +424,7 @@ function AdminDashboardHome() {
                 </SectionCard>
             </div>
 
-            {/* ===== System Overview Panel ===== */}
+            {/* ===== POS Repair Info Panel ===== */}
             <div className="relative rounded-3xl p-6 sm:p-8 border border-white/40 backdrop-blur-xl bg-white/20 shadow-lg overflow-hidden transition-all duration-300 hover:shadow-xl">
                 {/* Decorative gradient blob */}
                 <div
@@ -503,26 +441,30 @@ function AdminDashboardHome() {
                                 color: teal,
                             }}
                         >
-                            <RefreshCw className="h-6 w-6" />
+                            <Wrench className="h-6 w-6" />
                         </div>
                         <div>
                             <h3 className="text-xl font-semibold text-gray-800">
-                                System Overview
+                                POS Repair Management
                             </h3>
                             <p className="mt-1 text-sm text-gray-600 leading-relaxed max-w-2xl">
-                                Real-time monitoring of POS terminals, repair requests,
-                                cancellation records, automation services, and overall system
-                                health across all active booths.
+                                Log and track POS repair requests. Monitor repair status,
+                                manage parts, and coordinate with the repair team.
                             </p>
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
-                        <span
-                            className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold backdrop-blur-sm border border-white/20 bg-emerald-100/30 text-emerald-700 shadow-sm"
+                        <a
+                            href="/app/csr-pos-repair"
+                            className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all duration-300 hover:shadow-md"
+                            style={{
+                                background: `linear-gradient(135deg, ${teal}, ${tealLight})`,
+                                color: "white",
+                            }}
                         >
-                            <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                            All Systems Normal
-                        </span>
+                            Open POS Repair
+                            <ArrowUpRight className="h-3 w-3" />
+                        </a>
                     </div>
                 </div>
             </div>

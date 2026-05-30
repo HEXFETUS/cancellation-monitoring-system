@@ -26,8 +26,8 @@ export default function RequestResetPage() {
                 filter === "all" ? {} : { status: filter }
             );
             setRequests(data);
-        } catch (err: any) {
-            setError(err.message || "Failed to load");
+        } catch (err) {
+            setError(err instanceof Error ? (err instanceof Error ? err.message : String(err)) : "Failed to load");
         } finally {
             setLoading(false);
         }
@@ -56,8 +56,8 @@ export default function RequestResetPage() {
                 admin_notes: notesById[req.id] || "",
             });
             await refresh();
-        } catch (e: any) {
-            alert(e.message || "Approval failed");
+        } catch (e) {
+            alert(e instanceof Error ? (e instanceof Error ? e.message : String(e)) : "Approval failed");
         } finally {
             setBusyId(null);
         }
@@ -77,8 +77,8 @@ export default function RequestResetPage() {
                 admin_notes: note,
             });
             await refresh();
-        } catch (e: any) {
-            alert(e.message || "Reject failed");
+        } catch (e) {
+            alert(e instanceof Error ? (e instanceof Error ? e.message : String(e)) : "Reject failed");
         } finally {
             setBusyId(null);
         }

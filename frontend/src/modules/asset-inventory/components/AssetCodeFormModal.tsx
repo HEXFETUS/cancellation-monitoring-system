@@ -205,8 +205,8 @@ export default function AssetCodeFormModal({ open, initial, onClose, onSubmit }:
         try {
             await onSubmit(v);
             onClose();
-        } catch (e: any) {
-            setErr(e.message || "Save failed");
+        } catch (e) {
+            setErr(e instanceof Error ? (e instanceof Error ? e.message : String(e)) : "Save failed");
         } finally {
             setSaving(false);
         }

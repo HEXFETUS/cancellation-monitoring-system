@@ -57,8 +57,8 @@ export default function AssetCodingPage() {
             setAssets(allAssets);
             setStations(allStations);
             setDepartments(allDepartments);
-        } catch (e: any) {
-            setError(e.message || "Could not load asset codes");
+        } catch (e) {
+            setError(e instanceof Error ? (e instanceof Error ? e.message : String(e)) : "Could not load asset codes");
         } finally {
             setLoading(false);
         }
@@ -138,8 +138,8 @@ export default function AssetCodingPage() {
         try {
             await deleteAssetCode(row.id);
             await refresh();
-        } catch (e: any) {
-            alert(e.message);
+        } catch (e) {
+            alert((e instanceof Error ? e.message : String(e)));
         }
     };
     const handleRegenerate = async (row: AssetCode) => {
@@ -147,8 +147,8 @@ export default function AssetCodingPage() {
         try {
             await regenerateQr(row.id);
             await refresh();
-        } catch (e: any) {
-            alert(e.message);
+        } catch (e) {
+            alert((e instanceof Error ? e.message : String(e)));
         }
     };
     const handleSubmit = async (input: AssetCodeInput) => {

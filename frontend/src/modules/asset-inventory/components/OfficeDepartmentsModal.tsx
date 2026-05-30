@@ -69,8 +69,8 @@ export default function OfficeDepartmentsModal({
             }
             await onChanged();
             cancelEdit();
-        } catch (e: any) {
-            setError(e.message || "Save failed");
+        } catch (e) {
+            setError(e instanceof Error ? (e instanceof Error ? e.message : String(e)) : "Save failed");
         } finally {
             setSaving(false);
         }
@@ -81,8 +81,8 @@ export default function OfficeDepartmentsModal({
         try {
             await deleteOfficeDepartment(d.id);
             await onChanged();
-        } catch (e: any) {
-            alert(e.message || "Delete failed");
+        } catch (e) {
+            alert(e instanceof Error ? (e instanceof Error ? e.message : String(e)) : "Delete failed");
         }
     };
 

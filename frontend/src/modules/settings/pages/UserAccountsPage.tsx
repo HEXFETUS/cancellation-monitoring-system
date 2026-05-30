@@ -234,8 +234,8 @@ export default function UserAccountsPage({ onSuccess }: { onSuccess: (message: s
             if (!res.ok) throw new Error(await getErrorMessage(res, "Failed to fetch users"));
             const data = await res.json();
             setUsers(data);
-        } catch (err: any) {
-            setError(err.message || "Could not load users");
+        } catch (err) {
+            setError(err instanceof Error ? (err instanceof Error ? err.message : String(err)) : "Could not load users");
         } finally {
             setLoading(false);
         }
@@ -323,8 +323,8 @@ export default function UserAccountsPage({ onSuccess }: { onSuccess: (message: s
                     await fetchOperators();
                     setEditingId(null);
                     showSuccessToast("User account updated successfully.");
-                } catch (err: any) {
-                    setError(err.message);
+                } catch (err) {
+                    setError((err instanceof Error ? err.message : String(err)));
                 } finally {
                     setConfirmAction(null);
                 }
@@ -343,8 +343,8 @@ export default function UserAccountsPage({ onSuccess }: { onSuccess: (message: s
                     if (!res.ok) throw new Error(await getErrorMessage(res, "Failed to delete user"));
                     await fetchUsers();
                     showSuccessToast("User account deleted successfully.");
-                } catch (err: any) {
-                    setError(err.message);
+                } catch (err) {
+                    setError((err instanceof Error ? err.message : String(err)));
                 } finally {
                     setConfirmAction(null);
                 }
@@ -364,8 +364,8 @@ export default function UserAccountsPage({ onSuccess }: { onSuccess: (message: s
             setPasswordModalUser(null);
             showSuccessToast("User password changed successfully.");
             return null;
-        } catch (err: any) {
-            const message = err.message || "Failed to change password";
+        } catch (err) {
+            const message = err instanceof Error ? (err instanceof Error ? err.message : String(err)) : "Failed to change password";
             if (message !== SAME_PASSWORD_ERROR) {
                 setError(message);
             }

@@ -10,7 +10,7 @@ const POS_SELECT = `
         p.serial_number,
         p.serial_number AS serial_no,
         p.area,
-        p.status,
+        COALESCE(pos_repair_status.status, p.status) AS status,
         p.sticker,
         p.booth_id,
         p.operator_id,
@@ -23,6 +23,22 @@ const POS_SELECT = `
     FROM pos_records p
     LEFT JOIN booth_info b ON p.booth_id = b.id
     LEFT JOIN operator_list o ON p.operator_id = o.id
+    LEFT JOIN LATERAL (
+        SELECT latest_log.status
+        FROM repair_records rr
+        JOIN LATERAL (
+            SELECT status
+            FROM diagnosis_logs
+            WHERE repair_record_id = rr.id
+            ORDER BY id DESC
+            LIMIT 1
+        ) latest_log ON true
+        WHERE rr.pos_record_id = p.id
+          AND rr.status IS NOT NULL
+          AND latest_log.status IS NOT NULL
+        ORDER BY rr.id DESC
+        LIMIT 1
+    ) pos_repair_status ON true
 `;
 
 const BOOTH_INFO_SELECT = `
@@ -515,6 +531,28 @@ router.post("/booth-info", async (req, res) => {
         res.status(500).json({ error: "Failed to create booth info" });
     } finally {
         client.release();
+    }
+});
+
+/* =========================
+   GET AVAILABLE POS RECORDS
+   Returns POS records that are not already in repair_records with non-NULL status
+========================= */
+router.get("/available", async (_req, res) => {
+    try {
+        const result = await pool.query(`
+            ${POS_SELECT}
+            WHERE p.id NOT IN (
+                SELECT pos_record_id 
+                FROM repair_records 
+                WHERE status IS NOT NULL
+            )
+            ORDER BY p.id ASC
+        `);
+        res.json(result.rows);
+    } catch (err) {
+        console.error("GET available POS error:", err.message);
+        res.status(500).json({ error: "Failed to fetch available POS records" });
     }
 });
 

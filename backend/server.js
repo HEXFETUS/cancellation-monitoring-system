@@ -12,6 +12,8 @@ import assetCodeRoutes from "./src/routes/asset-code.routes.js";
 import payoutStationRoutes from "./src/routes/payout-station.routes.js";
 import officeDepartmentRoutes from "./src/routes/office-department.routes.js";
 import boothChangeRequestRoutes from "./src/routes/booth-change-request.routes.js";
+import diagnosisListRoutes from "./src/routes/diagnosis-list.routes.js";
+import repairRecordRoutes from "./src/routes/repair-record.routes.js";
 import initDatabase from "./src/config/init.js";
 
 dotenv.config();
@@ -32,6 +34,8 @@ app.use("/api/asset-codes", assetCodeRoutes);
 app.use("/api/payout-stations", payoutStationRoutes);
 app.use("/api/office-departments", officeDepartmentRoutes);
 app.use("/api/booth-change-requests", boothChangeRequestRoutes);
+app.use("/api/diagnosis-list", diagnosisListRoutes);
+app.use("/api/repair-records", repairRecordRoutes);
 
 const PORT = Number(process.env.PORT || 5050);
 

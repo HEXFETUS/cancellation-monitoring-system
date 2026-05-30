@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../../../context/AuthContext";
 import { Send, RotateCcw, Ticket, AlertTriangle, UserX, CheckCircle2, XCircle, Hash, Store, Smartphone } from "lucide-react";
-import { addHumanForceRecord, updateTicketReason } from "../services";
+import { addHumanForceRecord } from "../services";
+
+const teal = "#92C7CF";
 
 const reasonOptions = [
     { value: "", label: "Select a reason…" },
@@ -78,7 +80,7 @@ export default function ReasonForDenyPage() {
         } catch (err) {
             setMessage({
                 type: "error",
-                text: err instanceof Error ? err.message : "Failed to save record.",
+                text: err instanceof Error ? (err instanceof Error ? err.message : String(err)) : "Failed to save record.",
             });
         } finally {
             setGeneralSending(false);
@@ -124,7 +126,7 @@ export default function ReasonForDenyPage() {
         } catch (err) {
             setMessage({
                 type: "error",
-                text: err instanceof Error ? err.message : "Failed to save record.",
+                text: err instanceof Error ? (err instanceof Error ? err.message : String(err)) : "Failed to save record.",
             });
         } finally {
             setCellphoneSending(false);

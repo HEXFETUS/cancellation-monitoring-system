@@ -3,12 +3,12 @@ import { ClipboardList, Save, RotateCcw, AlertCircle, CheckCircle, X } from "luc
 import { listDiagnoses, type DiagnosisItem } from "../services/diagnosisList";
 import { searchPosRecords, type PosRecord } from "../services/posRecords";
 import { createRepairRecord } from "../services/repairRecords";
-import RepairConfirmationModal from "../components/RepairConfirmationModal";
+import CsrConfirmationModal from "../components/CsrConfirmationModal";
 
 const teal = "#92C7CF";
 const tealLight = "#AAD7D9";
 
-export default function RepairRequestPage() {
+export default function CsrRepairRequestPage() {
     const [diagnoses, setDiagnoses] = useState<DiagnosisItem[]>([]);
     const [diagnosesLoading, setDiagnosesLoading] = useState(true);
 
@@ -168,6 +168,7 @@ export default function RepairRequestPage() {
                 delivered_by: formData.deliveredBy,
                 with_charger: formData.accessories.withCharger,
                 with_box: formData.accessories.withBox,
+                status: "For Request",
             });
             const message = response.isUpdate
                 ? "Repair record updated successfully!"
@@ -318,7 +319,7 @@ export default function RepairRequestPage() {
                         </div>
                         <div>
                             <h1 className="text-lg font-bold text-gray-800">New Repair Record</h1>
-                            <p className="text-sm text-gray-600">Create a POS repair intake record</p>
+                            <p className="text-sm text-gray-600">Create a CSR repair intake record</p>
                         </div>
                     </div>
                     <span
@@ -558,7 +559,7 @@ export default function RepairRequestPage() {
                 </div>
             </div>
 
-            <RepairConfirmationModal
+            <CsrConfirmationModal
                 open={showSaveConfirm}
                 title="Save repair record?"
                 message={`This will create a repair record for POS ${formData.posNumber || "selected POS"}.`}

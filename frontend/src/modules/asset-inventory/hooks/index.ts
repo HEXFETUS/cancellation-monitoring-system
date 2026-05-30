@@ -30,8 +30,8 @@ export function useAssets(location: AssetLocation): UseAssetsResult {
             setError("");
             const data = await listAssets(location);
             setRows(data);
-        } catch (err: any) {
-            setError(err.message || "Could not load assets");
+        } catch (err) {
+            setError(err instanceof Error ? (err instanceof Error ? err.message : String(err)) : "Could not load assets");
         } finally {
             setLoading(false);
         }

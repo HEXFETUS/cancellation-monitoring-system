@@ -65,7 +65,7 @@ export default function ConvertAreaLogsPage({ dateFrom, dateTo }: ConvertAreaLog
     const visiblePages = useMemo(() => {
         const MAX_VISIBLE = 10;
         let start = Math.max(1, currentPage - Math.floor(MAX_VISIBLE / 2));
-        let end = Math.min(totalPages, start + MAX_VISIBLE - 1);
+        const end = Math.min(totalPages, start + MAX_VISIBLE - 1);
         if (end - start + 1 < MAX_VISIBLE) {
             start = Math.max(1, end - MAX_VISIBLE + 1);
         }
