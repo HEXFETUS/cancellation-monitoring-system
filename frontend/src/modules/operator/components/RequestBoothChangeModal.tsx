@@ -1,13 +1,19 @@
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { useAuth } from "../../../context/AuthContext";
-import type { BoothInfo, PosRecord } from "../../pos/types";
+import type { BoothInfo, OperatorInfo, PosRecord } from "../../pos/types";
 import { createBoothChangeRequest } from "../../pos/services/boothChangeRequests";
 
 interface Props {
     open: boolean;
     posRecord: PosRecord | null;
     booths: BoothInfo[];
+    /**
+     * Full operator list. Used to compute the operator-family root so a
+     * sub-operator can request changes to booths owned by sibling subs or
+     * the parent main, but not to operators in another family.
+     */
+    operators?: OperatorInfo[];
     onClose: () => void;
     onSubmitted: () => Promise<void>;
 }
@@ -16,6 +22,7 @@ export default function RequestBoothChangeModal({
     open,
     posRecord,
     booths,
+    operators = [],
     onClose,
     onSubmitted,
 }: Props) {
@@ -46,11 +53,24 @@ export default function RequestBoothChangeModal({
                     : null
             : null;
 
-    // Filter to booths within the same operator AND same area
+    // Build a map of operator_id -> root operator_id (parent or self).
+    // Subs belong to the same family as their parent and siblings.
+    const operatorRoot = (id: number | null | undefined): number | null => {
+        if (id == null) return null;
+        const op = operators.find((o) => Number(o.id) === Number(id));
+        if (!op) return Number(id);
+        return Number(op.parent_operator_id ?? op.id);
+    };
+    const deviceRoot = operatorRoot(posRecord.operator_id ?? null);
+
+    // Filter to booths within the same operator FAMILY (main + subs) AND same area
     const availableBooths = booths.filter((b) => {
         if (b.id === posRecord.booth_id) return false;
-        // Same operator check
-        if (posRecord.operator_id && b.operator_id && Number(b.operator_id) !== Number(posRecord.operator_id)) return false;
+        // Same operator-family check (main + all its subs share a root)
+        if (deviceRoot != null && b.operator_id != null) {
+            const boothRoot = operatorRoot(b.operator_id);
+            if (boothRoot != null && boothRoot !== deviceRoot) return false;
+        }
         // Same area check — derive area from booth code if we know the device's area
         if (deviceArea) {
             const boothCode = (b.booth_code || "").trim().toUpperCase();
@@ -140,7 +160,7 @@ export default function RequestBoothChangeModal({
                         </select>
                         {availableBooths.length === 0 && (
                             <p className="mt-1 text-xs text-ink-subtle">
-                                No alternate booths are available for your operator.
+                                No alternate booths are available within your operator family.
                             </p>
                         )}
                     </label>

@@ -1,4 +1,4 @@
-import { CheckCircle2, Trash2, AlertTriangle } from "lucide-react";
+import { CheckCircle2, AlertTriangle } from "lucide-react";
 
 type ConfirmationVariant = "save" | "delete";
 
