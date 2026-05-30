@@ -40,12 +40,6 @@ export default function CsrConfirmationModal({
 
     return (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 px-4 backdrop-blur-sm">
-            <button
-                type="button"
-                aria-label="Close confirmation"
-                className="absolute inset-0 h-full w-full cursor-default"
-                onClick={loading ? undefined : onCancel}
-            />
             <div className="relative z-10 w-full max-w-md rounded-2xl bg-white shadow-2xl border border-warm overflow-hidden">
                 {/* Accent bar */}
                 <div

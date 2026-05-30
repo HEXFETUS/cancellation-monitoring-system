@@ -12,9 +12,7 @@ import {
     AlertCircle,
     CheckCircle,
     RotateCcw,
-    CalendarDays,
     CreditCard,
-    UserRound,
     Minus,
     Plus,
     ListChecks,
@@ -28,6 +26,7 @@ import RepairConfirmationModal from "../components/RepairConfirmationModal";
 import TransmittalModal from "../components/TransmittalModal";
 import { EditModal, FinalDiagnosisModal, ReceivedModal, TechnicianModal } from "../components/RepairManagementModals";
 import { BatchCheckedPosModal, BatchForRepairModal, BatchReceivedPosModal } from "../components/BatchProcessingModals";
+import CsrBatchForReleaseModal from "../../csr/components/CsrBatchForReleaseModal";
 
 const teal = "#92C7CF";
 
@@ -98,9 +97,14 @@ export default function RepairManagementPage() {
     const [recordToReceive, setRecordToReceive] = useState<RepairRecord | null>(null);
     const [receiving, setReceiving] = useState(false);
     const [recordToRelease, setRecordToRelease] = useState<RepairRecord | null>(null);
+    const [batchReleasePreview, setBatchReleasePreview] = useState<{
+        records: RepairRecord[];
+        billingCode: string;
+        receivedBy: string;
+    } | null>(null);
     const [showTransmittal, setShowTransmittal] = useState(false);
     const [expandedReleasedIds, setExpandedReleasedIds] = useState<Set<number>>(new Set());
-    const [batchModal, setBatchModal] = useState<"for-repair" | "checked" | "received" | null>(null);
+    const [batchModal, setBatchModal] = useState<"for-repair" | "checked" | "received" | "release" | null>(null);
     const [batchProcessing, setBatchProcessing] = useState(false);
     const [toast, setToast] = useState<{ show: boolean; message: string; type: "error" | "success" }>({ show: false, message: "", type: "error" });
 
@@ -295,6 +299,19 @@ export default function RepairManagementPage() {
         }
     };
 
+    const handleBatchRelease = ({
+        billingCode,
+        receivedBy,
+        records: selectedRecords,
+    }: {
+        billingCode: string;
+        receivedBy: string;
+        records: RepairRecord[];
+    }) => {
+        setBatchModal(null);
+        setBatchReleasePreview({ records: selectedRecords, billingCode, receivedBy });
+    };
+
     const toggleReleasedGroup = (id: number) => {
         setExpandedReleasedIds((prev) => {
             const next = new Set(prev);
@@ -317,15 +334,10 @@ export default function RepairManagementPage() {
 
         return Array.from(groups.entries()).map(([billingCode, items]) => {
             const latestRecord = items.reduce((latest, item) => (new Date(item.date).getTime() > new Date(latest.date).getTime() ? item : latest), items[0]);
-            const receivedByNames = new Set(items.map((item) => (item.received_by || "").trim().toLowerCase()));
-            const releasedDates = new Set(items.map((item) => formatDateNumeric(item.date)));
-
             return {
                 billingCode,
                 records: items,
                 latestRecord,
-                hasMixedReceivedBy: receivedByNames.size > 1,
-                hasMixedReleaseDate: releasedDates.size > 1,
             };
         });
     }, [filteredRecords]);
@@ -353,7 +365,7 @@ export default function RepairManagementPage() {
                         );
                     })}
                 </div>
-                {(activeStatusTab === "for-checking" || activeStatusTab === "for-repair" || activeStatusTab === "undergoing-repair") && (
+                {(activeStatusTab === "for-checking" || activeStatusTab === "for-repair" || activeStatusTab === "undergoing-repair" || activeStatusTab === "for-release") && (
                     <div className="mb-2 ml-auto flex items-center gap-2">
                         {activeStatusTab === "undergoing-repair" && (
                             <button
@@ -366,7 +378,7 @@ export default function RepairManagementPage() {
                             </button>
                         )}
                         <button
-                            onClick={() => setBatchModal(activeStatusTab === "for-checking" ? "for-repair" : activeStatusTab === "for-repair" ? "checked" : "received")}
+                            onClick={() => setBatchModal(activeStatusTab === "for-checking" ? "for-repair" : activeStatusTab === "for-repair" ? "checked" : activeStatusTab === "undergoing-repair" ? "received" : "release")}
                             disabled={filteredRecords.length === 0 || batchProcessing}
                             className="inline-flex h-10 items-center gap-2 rounded-xl bg-teal px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-dark disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
                         >
@@ -411,22 +423,10 @@ export default function RepairManagementPage() {
                                             onClick={() => toggleReleasedGroup(firstRecord.id)}
                                             className="flex w-full flex-wrap items-center gap-x-8 gap-y-2 bg-card px-5 py-3 text-left text-sm font-bold text-ink transition-colors hover:bg-surface"
                                         >
-                                            {!group.hasMixedReleaseDate && (
-                                                <span className="inline-flex items-center gap-2">
-                                                    <CalendarDays className="h-4 w-4 text-[#92C7CF]" />
-                                                    Date Released: {formatDateNumeric(group.latestRecord.date)}
-                                                </span>
-                                            )}
                                             <span className="inline-flex items-center gap-2">
                                                 <CreditCard className="h-4 w-4 text-[#3B82A0]" />
                                                 Billing Code: {firstRecord.billing_code || "-"}
                                             </span>
-                                            {!group.hasMixedReceivedBy && (
-                                                <span className="inline-flex items-center gap-2">
-                                                    <UserRound className="h-4 w-4 text-[#6B7280]" />
-                                                    Received By: {group.latestRecord.received_by || "-"}
-                                                </span>
-                                            )}
                                             <span className="inline-flex items-center rounded-full bg-[#92C7CF]/20 px-2 py-0.5 text-xs font-bold text-[#1F2937]">
                                                 {group.records.length} POS
                                             </span>
@@ -441,7 +441,7 @@ export default function RepairManagementPage() {
                                                 <table className="w-full text-sm">
                                                     <thead>
                                                         <tr className="border-b border-warm bg-cream text-left text-xs font-bold uppercase text-ink-muted">
-                                                            {group.hasMixedReleaseDate && <th className="whitespace-nowrap px-4 py-3">Date Released</th>}
+                                                            <th className="whitespace-nowrap px-4 py-3">Date Released</th>
                                                             <th className="whitespace-nowrap px-4 py-3">POS No</th>
                                                             <th className="whitespace-nowrap px-4 py-3">Serial No</th>
                                                             <th className="whitespace-nowrap px-4 py-3">Area</th>
@@ -449,13 +449,13 @@ export default function RepairManagementPage() {
                                                             <th className="whitespace-nowrap px-4 py-3">Diagnosis</th>
                                                             <th className="whitespace-nowrap px-4 py-3">Repaired By</th>
                                                             <th className="whitespace-nowrap px-4 py-3">Remarks</th>
-                                                            {group.hasMixedReceivedBy && <th className="whitespace-nowrap px-4 py-3">Received By</th>}
+                                                            <th className="whitespace-nowrap px-4 py-3">Received By</th>
                                                         </tr>
                                                     </thead>
                                                     <tbody>
                                                         {group.records.map((record) => (
                                                             <tr key={record.id} className="text-ink transition hover:bg-cream/50">
-                                                                {group.hasMixedReleaseDate && <td className="px-4 py-3.5">{formatDateNumeric(record.date)}</td>}
+                                                                <td className="px-4 py-3.5">{formatDateNumeric(record.date)}</td>
                                                                 <td className="px-4 py-3.5 font-medium">{record.device_no || "-"}</td>
                                                                 <td className="px-4 py-3.5">{record.serial_number || "-"}</td>
                                                                 <td className="px-4 py-3.5">{record.area || "-"}</td>
@@ -463,7 +463,7 @@ export default function RepairManagementPage() {
                                                                 <td className="px-4 py-3.5">{record.diagnosis_name || "-"}</td>
                                                                 <td className="px-4 py-3.5">{record.repaired_by || "-"}</td>
                                                                 <td className="px-4 py-3.5">{record.remarks || "-"}</td>
-                                                                {group.hasMixedReceivedBy && <td className="px-4 py-3.5">{record.received_by || "-"}</td>}
+                                                                <td className="px-4 py-3.5">{record.received_by || "-"}</td>
                                                             </tr>
                                                         ))}
                                                     </tbody>
@@ -602,6 +602,20 @@ export default function RepairManagementPage() {
                     onClose={() => setRecordToRelease(null)}
                 />
             )}
+            {batchReleasePreview && (
+                <TransmittalModal
+                    mode="release"
+                    records={batchReleasePreview.records}
+                    userId={user?.id ?? null}
+                    issuedBy={user?.name ?? user?.email ?? ""}
+                    initialBillingCode={batchReleasePreview.billingCode}
+                    initialReceivedBy={batchReleasePreview.receivedBy}
+                    initialPreview
+                    onReleased={handleTransmittalReleased}
+                    showToast={showToast}
+                    onClose={() => setBatchReleasePreview(null)}
+                />
+            )}
             {showTransmittal && (
                 <TransmittalModal
                     records={filterRecordsByTab(records, "undergoing-repair")}
@@ -628,6 +642,14 @@ export default function RepairManagementPage() {
                     records={filterRecordsByTab(records, "undergoing-repair")}
                     onCancel={() => setBatchModal(null)}
                     onProceed={handleBatchReceived}
+                />
+            )}
+            {batchModal === "release" && (
+                <CsrBatchForReleaseModal
+                    records={filterRecordsByTab(records, "for-release")}
+                    loading={batchProcessing}
+                    onCancel={() => setBatchModal(null)}
+                    onProceed={handleBatchRelease}
                 />
             )}
 

@@ -53,7 +53,7 @@ const POS_SELECT_BY_USER = `
         p.serial_number,
         p.serial_number AS serial_no,
         p.area,
-        COALESCE(pos_repair_status.status, p.status) AS status,
+        p.status AS status,
         p.sticker,
         p.booth_id,
         p.operator_id,

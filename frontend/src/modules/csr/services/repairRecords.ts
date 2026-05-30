@@ -42,6 +42,23 @@ export interface CreateRepairRecordPayload {
     status?: "For Request" | "For Repair";
 }
 
+export interface ReceivedByOption {
+    received_by: string;
+    usage_count: number;
+}
+
+export interface BillingCodeOption {
+    billing_code: string;
+    operator_id: number | null;
+    operator_name: string | null;
+    pos_count: number;
+}
+
+export interface RepairRequestEligibility {
+    eligible: boolean;
+    error: string | null;
+}
+
 export interface UpdateRepairRecordPayload {
     diagnosis_id?: number | null;
     ntc?: boolean;
@@ -77,6 +94,16 @@ export async function createRepairRecord(payload: CreateRepairRecordPayload): Pr
     return res.json();
 }
 
+export async function checkRepairRequestEligibility(posRecordId: number): Promise<RepairRequestEligibility> {
+    const res = await fetch(apiUrl(`/api/repair-records/pos/${posRecordId}/request-eligibility`));
+
+    if (!res.ok) {
+        throw new Error(await getErrorMessage(res, "Failed to check POS repair eligibility"));
+    }
+
+    return res.json();
+}
+
 export async function listRepairRecords(): Promise<RepairRecord[]> {
     const res = await fetch(apiUrl("/api/repair-records"));
     if (!res.ok) throw new Error(await getErrorMessage(res, "Failed to load repair records"));
@@ -106,14 +133,29 @@ export interface ProceedRepairRecordPayload {
     forwarded: boolean;
 }
 
-export async function releaseRepairRecord(id: number): Promise<RepairRecord> {
-    const res = await fetch(apiUrl(`/api/repair-records/${id}`), {
-        method: "PUT",
+export async function listReceivedByOptions(): Promise<ReceivedByOption[]> {
+    const res = await fetch(apiUrl("/api/repair-records/received-by/list"));
+    if (!res.ok) throw new Error(await getErrorMessage(res, "Failed to load receivers"));
+    const payload = await res.json();
+    return Array.isArray(payload) ? payload : payload.data ?? payload.rows ?? [];
+}
+
+export async function listBillingCodeOptions(operatorId?: number | null): Promise<BillingCodeOption[]> {
+    const query = operatorId ? `?operator_id=${encodeURIComponent(String(operatorId))}` : "";
+    const res = await fetch(apiUrl(`/api/repair-records/billing-codes/list${query}`));
+    if (!res.ok) throw new Error(await getErrorMessage(res, "Failed to load billing codes"));
+    const payload = await res.json();
+    return Array.isArray(payload) ? payload : payload.data ?? payload.rows ?? [];
+}
+
+export async function releaseRepairRecord(
+    id: number,
+    payload: { billing_code: string; received_by: string; user_id?: number | null }
+): Promise<RepairRecord> {
+    const res = await fetch(apiUrl(`/api/repair-records/${id}/release`), {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            status: "Released",
-            released: true,
-        }),
+        body: JSON.stringify(payload),
     });
 
     if (!res.ok) {

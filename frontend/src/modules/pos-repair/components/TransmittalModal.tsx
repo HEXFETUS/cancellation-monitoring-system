@@ -11,6 +11,9 @@ interface TransmittalModalProps {
     mode?: "forwarded" | "release";
     userId?: number | null;
     issuedBy?: string;
+    initialPreview?: boolean;
+    initialBillingCode?: string;
+    initialReceivedBy?: string;
     onReleased?: (record: RepairRecord) => void;
     showToast?: (message: string, type?: "error" | "success") => void;
     onClose: () => void;
@@ -38,11 +41,18 @@ function escapeHtml(value: string) {
         .replace(/'/g, "&#039;");
 }
 
+function getOperatorKey(value: number | string | null | undefined) {
+    return value == null ? "none" : String(value);
+}
+
 export default function TransmittalModal({
     record,
     records: recordsProp,
     mode = "forwarded",
     userId,
+    initialPreview = false,
+    initialBillingCode,
+    initialReceivedBy,
     onReleased,
     showToast,
     onClose,
@@ -50,13 +60,14 @@ export default function TransmittalModal({
     const [filterBy, setFilterBy] = useState<"device" | "serial" | "operator" | "issue">("device");
     const [query, setQuery] = useState("");
     const [forwardedTo, setForwardedTo] = useState("");
-    const [receivedBy, setReceivedBy] = useState("");
+    const initialReleaseRecord = record ?? recordsProp?.[0];
+    const [receivedBy, setReceivedBy] = useState(initialReceivedBy ?? initialReleaseRecord?.received_by ?? "");
     const [showConfirm, setShowConfirm] = useState(false);
-    const [showReleasePreview, setShowReleasePreview] = useState(false);
+    const [showReleasePreview, setShowReleasePreview] = useState(initialPreview);
     const [savingRelease, setSavingRelease] = useState(false);
     const [savedRelease, setSavedRelease] = useState(false);
     const [releasedRecord, setReleasedRecord] = useState<RepairRecord | null>(null);
-    const [releaseBillingCode, setReleaseBillingCode] = useState(record?.billing_code || "");
+    const [releaseBillingCode, setReleaseBillingCode] = useState(initialBillingCode ?? initialReleaseRecord?.billing_code ?? "");
     const [billingCodeRecords, setBillingCodeRecords] = useState<BillingCodeRepairRecord[]>([]);
     const [receivedByOptions, setReceivedByOptions] = useState<ReceivedByOption[]>([]);
     const [checkingBillingCode, setCheckingBillingCode] = useState(false);
@@ -92,14 +103,16 @@ export default function TransmittalModal({
     };
 
     const releaseRecord = releasedRecord ?? record ?? records[0];
-    const releaseRecords = releaseRecord ? [releaseRecord] : [];
+    const releaseRecords = releasedRecord ? [releasedRecord] : records;
     const billingCode = releaseBillingCode.trim();
+    const isHexaItRepair = (releaseRecord?.repaired_by || "").trim().toLowerCase() === "hexa it";
     const hasBillingCodeLetter = /[A-Za-z]/.test(billingCode);
     const hasBillingCodeNumber = /\d/.test(billingCode);
     const isBillingCodeValid = Boolean(billingCode && hasBillingCodeLetter && hasBillingCodeNumber);
+    const isBillingCodeAllowed = isHexaItRepair ? !billingCode || isBillingCodeValid : isBillingCodeValid;
     const billingCodeMatches = billingCodeRecords.filter((item) => item.id !== releaseRecord?.id);
-    const hasBillingCodeOperatorConflict = billingCodeMatches.some((item) => item.operator_id !== releaseRecord?.operator_id);
-    const canProceedRelease = Boolean(isBillingCodeValid && !hasBillingCodeOperatorConflict && receivedBy.trim() && releaseRecord);
+    const hasBillingCodeOperatorConflict = Boolean(billingCode) && billingCodeMatches.some((item) => getOperatorKey(item.operator_id) !== getOperatorKey(releaseRecord?.operator_id));
+    const canProceedRelease = Boolean(isBillingCodeAllowed && !hasBillingCodeOperatorConflict && receivedBy.trim() && releaseRecord);
     const releaseDate = formatDateNumeric(new Date().toISOString());
     const releaseIssuedBy = "AVEGAIL P. HORMOSISIMA";
 
@@ -165,15 +178,16 @@ export default function TransmittalModal({
         if (!canProceedRelease || !releaseRecord) return;
         setSavingRelease(true);
         try {
-            const updated = await releaseRepairRecord(releaseRecord.id, {
+            const updatedRecords = await Promise.all(releaseRecords.map((item) => releaseRepairRecord(item.id, {
                 billing_code: billingCode,
                 received_by: receivedBy.trim(),
                 user_id: userId ?? null,
-            });
-            setReleasedRecord(updated);
-            setReleaseBillingCode(updated.billing_code || billingCode);
+            })));
+            const updated = updatedRecords[0];
+            setReleasedRecord(updatedRecords.length === 1 ? updated ?? null : null);
+            setReleaseBillingCode(updated?.billing_code || billingCode);
             setSavedRelease(true);
-            onReleased?.(updated);
+            updatedRecords.forEach((item) => onReleased?.(item));
             showToast?.("Saved / Ready to Print You may now reprint anytime", "success");
         } catch (err) {
             showToast?.(err instanceof Error ? err.message : "Failed to release POS record", "error");
@@ -386,8 +400,11 @@ export default function TransmittalModal({
                     <div className="space-y-5 px-8 pb-8">
                         <div className="grid gap-3 md:grid-cols-[1fr_1fr]">
                             <label className="space-y-1 text-sm font-semibold text-ink-muted">
-                                Billing Code <span className="text-red-500">*</span>
-                                <input value={releaseBillingCode} onChange={(e) => setReleaseBillingCode(e.target.value)} placeholder="BC-123" className="h-11 w-full rounded-md border border-warm bg-white px-3 text-sm text-ink outline-none transition placeholder:text-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
+                                Billing Code {!isHexaItRepair && <span className="text-red-500">*</span>}
+                                <input value={releaseBillingCode} onChange={(e) => setReleaseBillingCode(e.target.value)} placeholder={isHexaItRepair ? "Auto-generated for Hexa IT" : "BC-123"} className="h-11 w-full rounded-md border border-warm bg-white px-3 text-sm text-ink outline-none transition placeholder:text-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
+                                {isHexaItRepair && !billingCode && (
+                                    <span className="block text-xs font-medium text-ink-muted">Leave blank to auto-generate a HEXA billing code.</span>
+                                )}
                                 {billingCode && !isBillingCodeValid && (
                                     <span className="block text-xs font-medium text-red-600">Billing Code must contain letters and numbers.</span>
                                 )}

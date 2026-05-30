@@ -14,7 +14,7 @@ const leftTabs = [
     { id: "released-log", label: "RELEASED LOG", icon: ArrowUpRight },
 ];
 
-export default function CsrPosRepairPage() {
+export default function CsrTabbedPage() {
     const [activeTab, setActiveTab] = useState("pos-repair-management");
     const [sidebarOpen, setSidebarOpen] = useState(true);
 
