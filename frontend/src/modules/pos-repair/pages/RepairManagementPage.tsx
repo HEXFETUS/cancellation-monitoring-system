@@ -18,6 +18,7 @@ import {
     Minus,
     Plus,
     ListChecks,
+    Printer,
 } from "lucide-react";
 import { useAuth } from "../../../context/AuthContext";
 import { listRepairRecords, updateRepairRecord, clearRepairRecord, proceedRepairRecord, releaseRepairRecord, moveRepairRecordToForRelease, moveRepairRecordToUndergoingRepair, receiveRepairRecord } from "../services/repairRecords";
@@ -97,7 +98,7 @@ export default function RepairManagementPage() {
     const [recordToReceive, setRecordToReceive] = useState<RepairRecord | null>(null);
     const [receiving, setReceiving] = useState(false);
     const [recordToRelease, setRecordToRelease] = useState<RepairRecord | null>(null);
-    const [recordToTransmittal, setRecordToTransmittal] = useState<RepairRecord | null>(null);
+    const [showTransmittal, setShowTransmittal] = useState(false);
     const [releasing, setReleasing] = useState(false);
     const [expandedReleasedIds, setExpandedReleasedIds] = useState<Set<number>>(new Set());
     const [batchModal, setBatchModal] = useState<"for-repair" | "checked" | "received" | null>(null);
@@ -231,11 +232,7 @@ export default function RepairManagementPage() {
     };
 
     const handleRelease = (record: RepairRecord) => {
-        if ((record.repaired_by || "").trim().toLowerCase() === "hexa it") {
-            setRecordToRelease(record);
-            return;
-        }
-        setRecordToTransmittal(record);
+        setRecordToRelease(record);
     };
     const handleConfirmRelease = async (receivedBy: string) => {
         if (!recordToRelease) return;
@@ -349,14 +346,26 @@ export default function RepairManagementPage() {
                     })}
                 </div>
                 {(activeStatusTab === "for-checking" || activeStatusTab === "for-repair" || activeStatusTab === "undergoing-repair") && (
-                    <button
-                        onClick={() => setBatchModal(activeStatusTab === "for-checking" ? "for-repair" : activeStatusTab === "for-repair" ? "checked" : "received")}
-                        disabled={filteredRecords.length === 0 || batchProcessing}
-                        className="mb-2 ml-auto inline-flex h-10 items-center gap-2 rounded-xl bg-teal px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-dark disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
-                    >
-                        <ListChecks className="h-4 w-4" />
-                        Process Batch
-                    </button>
+                    <div className="mb-2 ml-auto flex items-center gap-2">
+                        {activeStatusTab === "undergoing-repair" && (
+                            <button
+                                onClick={() => setShowTransmittal(true)}
+                                disabled={filteredRecords.length === 0}
+                                className="inline-flex h-10 items-center gap-2 rounded-xl border border-warm bg-white px-4 text-sm font-semibold text-ink shadow-sm transition hover:bg-surface disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
+                            >
+                                <Printer className="h-4 w-4" />
+                                Transmittal
+                            </button>
+                        )}
+                        <button
+                            onClick={() => setBatchModal(activeStatusTab === "for-checking" ? "for-repair" : activeStatusTab === "for-repair" ? "checked" : "received")}
+                            disabled={filteredRecords.length === 0 || batchProcessing}
+                            className="inline-flex h-10 items-center gap-2 rounded-xl bg-teal px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-dark disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
+                        >
+                            <ListChecks className="h-4 w-4" />
+                            Process Batch
+                        </button>
+                    </div>
                 )}
             </div>
 
@@ -568,10 +577,10 @@ export default function RepairManagementPage() {
                     onProceed={handleConfirmRelease}
                 />
             )}
-            {recordToTransmittal && (
+            {showTransmittal && (
                 <TransmittalModal
-                    record={recordToTransmittal}
-                    onClose={() => setRecordToTransmittal(null)}
+                    records={filterRecordsByTab(records, "undergoing-repair")}
+                    onClose={() => setShowTransmittal(false)}
                 />
             )}
             {batchModal === "for-repair" && (
