@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Check, List, X } from "lucide-react";
-import type { RepairRecord } from "../services/repairRecords";
+import { listBillingCodeOptions } from "../services/repairRecords";
+import type { BillingCodeOption, RepairRecord } from "../services/repairRecords";
 import type { DiagnosisItem } from "../services/diagnosisList";
 
 const technicians = ["iFIX", "DIGIFIX", "SUMNI", "TANGENT", "BMC"];
@@ -144,6 +145,7 @@ export function BatchReceivedPosModal({
     const operators = useMemo(() => Array.from(new Set(records.map((r) => r.operator_name).filter(Boolean))), [records]);
     const [operator, setOperator] = useState("");
     const [billingCode, setBillingCode] = useState("");
+    const [billingCodeOptions, setBillingCodeOptions] = useState<BillingCodeOption[]>([]);
     const visibleRecords = operator ? records.filter((r) => r.operator_name === operator) : records;
     const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set(records.map((r) => r.id)));
     const [remarksById, setRemarksById] = useState<Record<number, string>>({});
@@ -151,13 +153,43 @@ export function BatchReceivedPosModal({
     const selectedRecords = visibleRecords.filter((r) => selectedIds.has(r.id));
     const selectedOperators = Array.from(new Set(selectedRecords.map((r) => r.operator_name || "")));
     const hasDifferentOperators = selectedOperators.length > 1;
+    const selectedOperatorId = selectedRecords.length > 0 && !hasDifferentOperators ? selectedRecords[0].operator_id : null;
     const canProceed = selectedRecords.length > 0 && !hasDifferentOperators && selectedRecords.every((r) => (remarksById[r.id] || "").trim());
+
+    useEffect(() => {
+        let ignore = false;
+
+        async function loadBillingCodes() {
+            try {
+                const options = await listBillingCodeOptions(selectedOperatorId);
+                if (!ignore) setBillingCodeOptions(options);
+            } catch {
+                if (!ignore) setBillingCodeOptions([]);
+            }
+        }
+
+        loadBillingCodes();
+
+        return () => {
+            ignore = true;
+        };
+    }, [selectedOperatorId]);
 
     return (
         <ModalShell title="Received POS" icon={<List className="h-5 w-5 text-amber-600" />} onCancel={onCancel}>
             <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
                 <div className="flex items-center gap-3"><label className="text-sm font-semibold text-ink">Filter by Operator:</label><select value={operator} onChange={(e) => setOperator(e.target.value)} className="rounded-lg border border-warm bg-card px-3 py-2 text-sm"><option value="">All</option>{operators.map((item) => <option key={item} value={item}>{item}</option>)}</select></div>
-                <div className="flex items-center gap-3"><label className="text-sm font-semibold text-ink">Billing Code:</label><input value={billingCode} onChange={(e) => setBillingCode(e.target.value)} placeholder="Enter billing code" className="rounded-lg border border-warm bg-card px-3 py-2 text-sm" /></div>
+                <div className="flex items-center gap-3">
+                    <label className="text-sm font-semibold text-ink">Billing Code:</label>
+                    <input value={billingCode} onChange={(e) => setBillingCode(e.target.value)} list="batch-billing-code-options" placeholder="Enter or select billing code" className="rounded-lg border border-warm bg-card px-3 py-2 text-sm" />
+                    <datalist id="batch-billing-code-options">
+                        {billingCodeOptions.map((option) => (
+                            <option key={`${option.billing_code}-${option.operator_id ?? "none"}`} value={option.billing_code}>
+                                {option.operator_name || "Unknown operator"} - {option.pos_count} POS
+                            </option>
+                        ))}
+                    </datalist>
+                </div>
             </div>
             <div className="overflow-hidden rounded-xl border border-warm">
                 <table className="w-full text-sm">
