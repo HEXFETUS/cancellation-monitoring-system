@@ -206,6 +206,51 @@ router.get("/received-by/list", async (_req, res) => {
 });
 
 /* =========================
+   CHECK POS REPAIR REQUEST ELIGIBILITY
+========================= */
+router.get("/pos/:posRecordId/request-eligibility", async (req, res) => {
+    try {
+        const { posRecordId } = req.params;
+
+        const posRecord = await pool.query(
+            `SELECT id, status FROM pos_records WHERE id = $1::int LIMIT 1`,
+            [posRecordId]
+        );
+
+        if (posRecord.rows.length === 0) {
+            return res.status(404).json({ eligible: false, error: "POS record not found" });
+        }
+
+        if (String(posRecord.rows[0].status || "").trim().toLowerCase() === "not released") {
+            return res.json({ eligible: false, error: "The POS is already being repaired" });
+        }
+
+        const latestRepairRecord = await pool.query(
+            `
+            SELECT id, forwarded, released
+            FROM repair_records
+            WHERE pos_record_id = $1::int
+            ORDER BY id DESC
+            LIMIT 1
+            `,
+            [posRecordId]
+        );
+
+        if (latestRepairRecord.rows.length > 0) {
+            const latest = latestRepairRecord.rows[0];
+            if (latest.forwarded !== false || latest.released !== true) {
+                return res.json({ eligible: false, error: "The POS is already being repaired" });
+            }
+        }
+
+        res.json({ eligible: true, error: null });
+    } catch (err) {
+        console.error("GET repair_records/pos/request-eligibility error:", err.message);
+        res.status(500).json({ eligible: false, error: "Failed to check POS repair eligibility" });
+    }
+});
+
+/* =========================
    GET SINGLE REPAIR RECORD
 ========================= */
 router.get("/:id", async (req, res) => {
@@ -245,6 +290,37 @@ router.post("/", async (req, res) => {
         }
         if (!pos_record_id) {
             return res.status(400).json({ error: "POS record is required" });
+        }
+
+        const posRecord = await pool.query(
+            `SELECT id, status FROM pos_records WHERE id = $1::int LIMIT 1`,
+            [pos_record_id]
+        );
+
+        if (posRecord.rows.length === 0) {
+            return res.status(404).json({ error: "POS record not found" });
+        }
+
+        if (String(posRecord.rows[0].status || "").trim().toLowerCase() === "not released") {
+            return res.status(400).json({ error: "The POS is already being repaired" });
+        }
+
+        const latestRepairRecord = await pool.query(
+            `
+            SELECT id, forwarded, released
+            FROM repair_records
+            WHERE pos_record_id = $1::int
+            ORDER BY id DESC
+            LIMIT 1
+            `,
+            [pos_record_id]
+        );
+
+        if (latestRepairRecord.rows.length > 0) {
+            const latest = latestRepairRecord.rows[0];
+            if (latest.forwarded !== false || latest.released !== true) {
+                return res.status(400).json({ error: "The POS is already being repaired" });
+            }
         }
 
         const createStatuses = new Set(["For Request", "For Repair"]);

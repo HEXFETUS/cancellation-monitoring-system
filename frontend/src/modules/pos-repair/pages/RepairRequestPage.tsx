@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ClipboardList, Save, RotateCcw, AlertCircle, CheckCircle, X } from "lucide-react";
 import { listDiagnoses, type DiagnosisItem } from "../services/diagnosisList";
 import { searchPosRecords, type PosRecord } from "../services/posRecords";
-import { createRepairRecord } from "../services/repairRecords";
+import { checkRepairRequestEligibility, createRepairRecord } from "../services/repairRecords";
 import RepairConfirmationModal from "../components/RepairConfirmationModal";
 
 const teal = "#92C7CF";
@@ -13,6 +13,9 @@ export default function RepairRequestPage() {
     const [diagnosesLoading, setDiagnosesLoading] = useState(true);
 
     const [posRecordId, setPosRecordId] = useState<number | null>(null);
+    const [selectedPosStatus, setSelectedPosStatus] = useState("");
+    const [posEligibilityError, setPosEligibilityError] = useState("");
+    const [checkingPosEligibility, setCheckingPosEligibility] = useState(false);
     const [diagnosisId, setDiagnosisId] = useState<number | null>(null);
     const [saving, setSaving] = useState(false);
     const [showSaveConfirm, setShowSaveConfirm] = useState(false);
@@ -45,7 +48,11 @@ export default function RepairRequestPage() {
 
     // Validation: check if required fields are filled
     const isFormValid =
-        formData.operator.trim() !== "" && formData.diagnosis.trim() !== "";
+        posRecordId !== null &&
+        formData.operator.trim() !== "" &&
+        formData.diagnosis.trim() !== "" &&
+        !posEligibilityError &&
+        !checkingPosEligibility;
 
     // Autocomplete state
     const [searchResults, setSearchResults] = useState<PosRecord[]>([]);
@@ -91,10 +98,14 @@ export default function RepairRequestPage() {
 
     const handleFieldChange = (field: "serialNumber" | "posNumber", value: string) => {
         handleChange(field, value);
+        setPosRecordId(null);
+        setSelectedPosStatus("");
+        setPosEligibilityError("");
+        setCheckingPosEligibility(false);
         handleSearch(value, field);
     };
 
-    const handleSelectRecord = (record: PosRecord) => {
+    const handleSelectRecord = async (record: PosRecord) => {
         setFormData((prev) => ({
             ...prev,
             serialNumber: record.serial_number || "",
@@ -103,8 +114,33 @@ export default function RepairRequestPage() {
             operator: record.operator || "",
         }));
         setPosRecordId(record.id);
+        setSelectedPosStatus(record.status || "");
+        setPosEligibilityError("");
         setSearchResults([]);
         setActiveDropdown(null);
+
+        if (record.status?.trim().toLowerCase() === "not released") {
+            const message = "The POS is already being repaired";
+            setPosEligibilityError(message);
+            showToast(message);
+            return;
+        }
+
+        setCheckingPosEligibility(true);
+        try {
+            const result = await checkRepairRequestEligibility(record.id);
+            if (!result.eligible) {
+                const message = result.error || "The POS is already being repaired";
+                setPosEligibilityError(message);
+                showToast(message);
+            }
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : "Failed to check POS repair eligibility";
+            setPosEligibilityError(message);
+            showToast(message);
+        } finally {
+            setCheckingPosEligibility(false);
+        }
     };
 
     // Close dropdown on outside click
@@ -129,6 +165,21 @@ export default function RepairRequestPage() {
     const validateForm = () => {
         if (!posRecordId) {
             showToast("Please select a POS record by searching in Serial Number or POS Number.");
+            return false;
+        }
+
+        if (selectedPosStatus.trim().toLowerCase() === "not released") {
+            showToast("The POS is already being repaired");
+            return false;
+        }
+
+        if (posEligibilityError) {
+            showToast(posEligibilityError);
+            return false;
+        }
+
+        if (checkingPosEligibility) {
+            showToast("Please wait while checking POS repair eligibility.");
             return false;
         }
 
@@ -183,6 +234,8 @@ export default function RepairRequestPage() {
                 accessories: { ntc: false, withCharger: false, withBox: false },
             });
             setPosRecordId(null);
+            setSelectedPosStatus("");
+            setPosEligibilityError("");
             setDiagnosisId(null);
         } catch (err: unknown) {
             const message = err instanceof Error ? err.message : "Failed to save repair record";
@@ -212,6 +265,9 @@ export default function RepairRequestPage() {
             accessories: { ntc: false, withCharger: false, withBox: false },
         });
         setPosRecordId(null);
+        setSelectedPosStatus("");
+        setPosEligibilityError("");
+        setCheckingPosEligibility(false);
         setDiagnosisId(null);
         setSearchResults([]);
         setActiveDropdown(null);

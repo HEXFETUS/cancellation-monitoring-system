@@ -52,6 +52,11 @@ export interface ReceivedByOption {
     usage_count: number;
 }
 
+export interface RepairRequestEligibility {
+    eligible: boolean;
+    error: string | null;
+}
+
 export interface CreateRepairRecordPayload {
     date: string;
     pos_record_id: number;
@@ -97,6 +102,16 @@ export async function createRepairRecord(payload: CreateRepairRecordPayload): Pr
 
     if (!res.ok) {
         throw new Error(await getErrorMessage(res, "Failed to create repair record"));
+    }
+
+    return res.json();
+}
+
+export async function checkRepairRequestEligibility(posRecordId: number): Promise<RepairRequestEligibility> {
+    const res = await fetch(apiUrl(`/api/repair-records/pos/${posRecordId}/request-eligibility`));
+
+    if (!res.ok) {
+        throw new Error(await getErrorMessage(res, "Failed to check POS repair eligibility"));
     }
 
     return res.json();

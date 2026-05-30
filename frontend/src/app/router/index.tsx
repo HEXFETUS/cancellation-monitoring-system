@@ -14,7 +14,7 @@ import AssetInventoryTabbedPage from "../../modules/asset-inventory/pages/AssetI
 
 import SettingsPage from "../../modules/settings/pages/SettingsPage";
 import MyPosPage from "../../modules/operator/pages/MyPosPage";
-import CsrPosRepairPage from "../../modules/csr/pages/CsrPosRepairPage";
+import CsrTabbedPage from "../../modules/csr/pages/CsrTabbedPage";
 
 export const router = createBrowserRouter([
     {
@@ -63,7 +63,7 @@ export const router = createBrowserRouter([
                 path: "csr-pos-repair",
                 element: (
                     <RoleGuard allow={["csr"]} fallback="/app/dashboard">
-                        <CsrPosRepairPage />
+                        <CsrTabbedPage />
                     </RoleGuard>
                 ),
             },
