@@ -554,6 +554,12 @@ async function initDatabase() {
             "ALTER TABLE billing_transmittals ADD COLUMN IF NOT EXISTS repair_record_id INTEGER REFERENCES repair_records(id) ON DELETE CASCADE"
         );
         await client.query(
+            "ALTER TABLE billing_transmittals DROP CONSTRAINT IF EXISTS billing_transmittals_billing_code_key"
+        );
+        await client.query(
+            "DROP INDEX IF EXISTS billing_transmittals_billing_code_key"
+        );
+        await client.query(
             "CREATE INDEX IF NOT EXISTS idx_billing_transmittals_repair_record ON billing_transmittals(repair_record_id)"
         );
 

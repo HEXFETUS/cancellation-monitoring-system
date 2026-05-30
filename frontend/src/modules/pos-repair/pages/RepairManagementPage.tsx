@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
     Wrench,
     ClipboardList,
@@ -21,12 +21,12 @@ import {
     Printer,
 } from "lucide-react";
 import { useAuth } from "../../../context/AuthContext";
-import { listRepairRecords, updateRepairRecord, clearRepairRecord, proceedRepairRecord, releaseRepairRecord, moveRepairRecordToForRelease, moveRepairRecordToUndergoingRepair, receiveRepairRecord } from "../services/repairRecords";
+import { listRepairRecords, updateRepairRecord, clearRepairRecord, proceedRepairRecord, moveRepairRecordToForRelease, moveRepairRecordToUndergoingRepair, receiveRepairRecord } from "../services/repairRecords";
 import type { RepairRecord } from "../services/repairRecords";
 import { listDiagnoses, type DiagnosisItem } from "../services/diagnosisList";
 import RepairConfirmationModal from "../components/RepairConfirmationModal";
 import TransmittalModal from "../components/TransmittalModal";
-import { EditModal, FinalDiagnosisModal, ReceivedModal, ReleaseModal, TechnicianModal } from "../components/RepairManagementModals";
+import { EditModal, FinalDiagnosisModal, ReceivedModal, TechnicianModal } from "../components/RepairManagementModals";
 import { BatchCheckedPosModal, BatchForRepairModal, BatchReceivedPosModal } from "../components/BatchProcessingModals";
 
 const teal = "#92C7CF";
@@ -99,7 +99,6 @@ export default function RepairManagementPage() {
     const [receiving, setReceiving] = useState(false);
     const [recordToRelease, setRecordToRelease] = useState<RepairRecord | null>(null);
     const [showTransmittal, setShowTransmittal] = useState(false);
-    const [releasing, setReleasing] = useState(false);
     const [expandedReleasedIds, setExpandedReleasedIds] = useState<Set<number>>(new Set());
     const [batchModal, setBatchModal] = useState<"for-repair" | "checked" | "received" | null>(null);
     const [batchProcessing, setBatchProcessing] = useState(false);
@@ -231,23 +230,9 @@ export default function RepairManagementPage() {
         }
     };
 
-    const handleRelease = (record: RepairRecord) => {
-        setRecordToRelease(record);
-    };
-    const handleConfirmRelease = async (receivedBy: string) => {
-        if (!recordToRelease) return;
-        setReleasing(true);
-        try {
-            const updated = await releaseRepairRecord(recordToRelease.id, {
-                received_by: receivedBy,
-                user_id: user?.id ?? null,
-            });
-            setRecords((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
-            setRecordToRelease(null);
-            showToast("Repair record released successfully!", "success");
-        }
-        catch (err) { console.error("Failed to release repair record:", err); showToast(err instanceof Error ? err.message : "Failed to release repair record", "error"); }
-        finally { setReleasing(false); }
+    const handleRelease = (record: RepairRecord) => setRecordToRelease(record);
+    const handleTransmittalReleased = (updated: RepairRecord) => {
+        setRecords((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
     };
 
     const handleDelete = (record: RepairRecord) => setRecordToDelete(record);
@@ -322,6 +307,29 @@ export default function RepairManagementPage() {
         });
     };
 
+    const releasedGroups = useMemo(() => {
+        const groups = new Map<string, RepairRecord[]>();
+
+        filteredRecords.forEach((record) => {
+            const key = record.billing_code || `no-billing-${record.id}`;
+            groups.set(key, [...(groups.get(key) ?? []), record]);
+        });
+
+        return Array.from(groups.entries()).map(([billingCode, items]) => {
+            const latestRecord = items.reduce((latest, item) => (new Date(item.date).getTime() > new Date(latest.date).getTime() ? item : latest), items[0]);
+            const receivedByNames = new Set(items.map((item) => (item.received_by || "").trim().toLowerCase()));
+            const releasedDates = new Set(items.map((item) => formatDateNumeric(item.date)));
+
+            return {
+                billingCode,
+                records: items,
+                latestRecord,
+                hasMixedReceivedBy: receivedByNames.size > 1,
+                hasMixedReleaseDate: releasedDates.size > 1,
+            };
+        });
+    }, [filteredRecords]);
+
     const colCount = isForChecking || isForRepair ? 7 : isUndergoingRepair ? 8 : isForRelease ? 9 : 7 + (showAccessories ? 3 : 0) + (showActions ? 1 : 0) + (showRepairedBy ? 1 : 0) + (showRemarks ? 1 : 0) + (showBillingInfo ? 2 : 0);
 
     return (
@@ -393,26 +401,34 @@ export default function RepairManagementPage() {
                         {filteredRecords.length === 0 ? (
                             <div className="px-4 py-10 text-center text-gray-400">No records found in this category.</div>
                         ) : (
-                            filteredRecords.map((record) => {
-                                const isExpanded = expandedReleasedIds.has(record.id);
+                            releasedGroups.map((group) => {
+                                const firstRecord = group.records[0];
+                                const isExpanded = expandedReleasedIds.has(firstRecord.id);
                                 return (
-                                    <div key={record.id} className="overflow-hidden rounded-xl border border-warm bg-card shadow-sm">
+                                    <div key={group.billingCode} className="overflow-hidden rounded-xl border border-warm bg-card shadow-sm">
                                         <button
                                             type="button"
-                                            onClick={() => toggleReleasedGroup(record.id)}
+                                            onClick={() => toggleReleasedGroup(firstRecord.id)}
                                             className="flex w-full flex-wrap items-center gap-x-8 gap-y-2 bg-card px-5 py-3 text-left text-sm font-bold text-ink transition-colors hover:bg-surface"
                                         >
-                                            <span className="inline-flex items-center gap-2">
-                                                <CalendarDays className="h-4 w-4 text-[#92C7CF]" />
-                                                Date Released: {formatDateNumeric(record.date)}
-                                            </span>
+                                            {!group.hasMixedReleaseDate && (
+                                                <span className="inline-flex items-center gap-2">
+                                                    <CalendarDays className="h-4 w-4 text-[#92C7CF]" />
+                                                    Date Released: {formatDateNumeric(group.latestRecord.date)}
+                                                </span>
+                                            )}
                                             <span className="inline-flex items-center gap-2">
                                                 <CreditCard className="h-4 w-4 text-[#3B82A0]" />
-                                                Billing Code: {record.billing_code || "-"}
+                                                Billing Code: {firstRecord.billing_code || "-"}
                                             </span>
-                                            <span className="inline-flex items-center gap-2">
-                                                <UserRound className="h-4 w-4 text-[#6B7280]" />
-                                                Received By: {record.received_by || "-"}
+                                            {!group.hasMixedReceivedBy && (
+                                                <span className="inline-flex items-center gap-2">
+                                                    <UserRound className="h-4 w-4 text-[#6B7280]" />
+                                                    Received By: {group.latestRecord.received_by || "-"}
+                                                </span>
+                                            )}
+                                            <span className="inline-flex items-center rounded-full bg-[#92C7CF]/20 px-2 py-0.5 text-xs font-bold text-[#1F2937]">
+                                                {group.records.length} POS
                                             </span>
                                             {isExpanded ? (
                                                 <Minus className="ml-auto h-5 w-5 text-[#3B82A0]" />
@@ -425,6 +441,7 @@ export default function RepairManagementPage() {
                                                 <table className="w-full text-sm">
                                                     <thead>
                                                         <tr className="border-b border-warm bg-cream text-left text-xs font-bold uppercase text-ink-muted">
+                                                            {group.hasMixedReleaseDate && <th className="whitespace-nowrap px-4 py-3">Date Released</th>}
                                                             <th className="whitespace-nowrap px-4 py-3">POS No</th>
                                                             <th className="whitespace-nowrap px-4 py-3">Serial No</th>
                                                             <th className="whitespace-nowrap px-4 py-3">Area</th>
@@ -432,18 +449,23 @@ export default function RepairManagementPage() {
                                                             <th className="whitespace-nowrap px-4 py-3">Diagnosis</th>
                                                             <th className="whitespace-nowrap px-4 py-3">Repaired By</th>
                                                             <th className="whitespace-nowrap px-4 py-3">Remarks</th>
+                                                            {group.hasMixedReceivedBy && <th className="whitespace-nowrap px-4 py-3">Received By</th>}
                                                         </tr>
                                                     </thead>
                                                     <tbody>
-                                                        <tr className="text-ink transition hover:bg-cream/50">
-                                                            <td className="px-4 py-3.5 font-medium">{record.device_no || "-"}</td>
-                                                            <td className="px-4 py-3.5">{record.serial_number || "-"}</td>
-                                                            <td className="px-4 py-3.5">{record.area || "-"}</td>
-                                                            <td className="px-4 py-3.5">{record.operator_name || "-"}</td>
-                                                            <td className="px-4 py-3.5">{record.diagnosis_name || "-"}</td>
-                                                            <td className="px-4 py-3.5">{record.repaired_by || "-"}</td>
-                                                            <td className="px-4 py-3.5">{record.remarks || "-"}</td>
-                                                        </tr>
+                                                        {group.records.map((record) => (
+                                                            <tr key={record.id} className="text-ink transition hover:bg-cream/50">
+                                                                {group.hasMixedReleaseDate && <td className="px-4 py-3.5">{formatDateNumeric(record.date)}</td>}
+                                                                <td className="px-4 py-3.5 font-medium">{record.device_no || "-"}</td>
+                                                                <td className="px-4 py-3.5">{record.serial_number || "-"}</td>
+                                                                <td className="px-4 py-3.5">{record.area || "-"}</td>
+                                                                <td className="px-4 py-3.5">{record.operator_name || "-"}</td>
+                                                                <td className="px-4 py-3.5">{record.diagnosis_name || "-"}</td>
+                                                                <td className="px-4 py-3.5">{record.repaired_by || "-"}</td>
+                                                                <td className="px-4 py-3.5">{record.remarks || "-"}</td>
+                                                                {group.hasMixedReceivedBy && <td className="px-4 py-3.5">{record.received_by || "-"}</td>}
+                                                            </tr>
+                                                        ))}
                                                     </tbody>
                                                 </table>
                                             </div>
@@ -570,11 +592,14 @@ export default function RepairManagementPage() {
                 />
             )}
             {recordToRelease && (
-                <ReleaseModal
+                <TransmittalModal
+                    mode="release"
                     record={recordToRelease}
-                    loading={releasing}
-                    onCancel={() => setRecordToRelease(null)}
-                    onProceed={handleConfirmRelease}
+                    userId={user?.id ?? null}
+                    issuedBy={user?.name ?? user?.email ?? ""}
+                    onReleased={handleTransmittalReleased}
+                    showToast={showToast}
+                    onClose={() => setRecordToRelease(null)}
                 />
             )}
             {showTransmittal && (

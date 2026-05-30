@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AlertTriangle, Save, X } from "lucide-react";
-import type { RepairRecord } from "../services/repairRecords";
-import { updateRepairRecord } from "../services/repairRecords";
+import type { BillingCodeOption, RepairRecord } from "../services/repairRecords";
+import { listBillingCodeOptions, updateRepairRecord } from "../services/repairRecords";
 import type { DiagnosisItem } from "../services/diagnosisList";
 import RepairConfirmationModal from "./RepairConfirmationModal";
 
@@ -178,10 +178,30 @@ interface ReceivedModalProps {
 
 export function ReceivedModal({ record, loading, onCancel, onProceed }: ReceivedModalProps) {
     const [billingCode, setBillingCode] = useState("");
+    const [billingCodeOptions, setBillingCodeOptions] = useState<BillingCodeOption[]>([]);
     const [remarks, setRemarks] = useState("");
     const [unrepairableRetired, setUnrepairableRetired] = useState(false);
     const [showConfirm, setShowConfirm] = useState(false);
     const remarksValid = remarks.trim().length > 0;
+
+    useEffect(() => {
+        let ignore = false;
+
+        async function loadBillingCodes() {
+            try {
+                const options = await listBillingCodeOptions(record.operator_id);
+                if (!ignore) setBillingCodeOptions(options);
+            } catch {
+                if (!ignore) setBillingCodeOptions([]);
+            }
+        }
+
+        loadBillingCodes();
+
+        return () => {
+            ignore = true;
+        };
+    }, [record.operator_id]);
 
     const handleProceed = () => {
         if (!remarksValid) return;
@@ -200,7 +220,14 @@ export function ReceivedModal({ record, loading, onCancel, onProceed }: Received
                     <div className="space-y-4">
                         <div>
                             <label className="mb-1.5 block text-sm font-semibold text-ink">Billing Code</label>
-                            <input value={billingCode} onChange={(e) => setBillingCode(e.target.value)} disabled={loading} className="w-full rounded-xl border border-warm bg-card px-4 py-3 text-sm text-ink focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20 disabled:cursor-not-allowed disabled:opacity-70" placeholder="Enter billing code" />
+                            <input value={billingCode} onChange={(e) => setBillingCode(e.target.value)} disabled={loading} list={`billing-code-options-${record.id}`} className="w-full rounded-xl border border-warm bg-card px-4 py-3 text-sm text-ink focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20 disabled:cursor-not-allowed disabled:opacity-70" placeholder="Enter or select billing code" />
+                            <datalist id={`billing-code-options-${record.id}`}>
+                                {billingCodeOptions.map((option) => (
+                                    <option key={`${option.billing_code}-${option.operator_id ?? "none"}`} value={option.billing_code}>
+                                        {option.operator_name || "Unknown operator"} - {option.pos_count} POS
+                                    </option>
+                                ))}
+                            </datalist>
                         </div>
                         <div>
                             <label className="mb-1.5 block text-sm font-semibold text-ink">Remarks <span className="text-rose-500">*</span></label>

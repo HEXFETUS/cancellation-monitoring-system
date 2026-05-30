@@ -106,6 +106,106 @@ router.get("/", async (_req, res) => {
 });
 
 /* =========================
+   GET RECORDS BY BILLING CODE
+========================= */
+router.get("/billing-code/:billingCode", async (req, res) => {
+    try {
+        const { billingCode } = req.params;
+        const code = billingCode?.trim();
+
+        if (!code) {
+            return res.status(400).json({ error: "Billing Code is required" });
+        }
+
+        const result = await pool.query(
+            `
+            SELECT
+                rr.id,
+                rr.operator_id,
+                pr.device_no,
+                pr.serial_number,
+                pr.area,
+                ol.operator AS operator_name,
+                bt.billing_code
+            FROM billing_transmittals bt
+            JOIN repair_records rr ON rr.id = bt.repair_record_id
+            LEFT JOIN pos_records pr ON rr.pos_record_id = pr.id
+            LEFT JOIN operator_list ol ON rr.operator_id = ol.id
+            WHERE LOWER(TRIM(bt.billing_code)) = LOWER($1)
+            ORDER BY rr.id ASC
+            `,
+            [code]
+        );
+
+        res.json(result.rows);
+    } catch (err) {
+        console.error("GET repair_records/billing-code error:", err.message);
+        res.status(500).json({ error: "Failed to fetch billing code records" });
+    }
+});
+
+/* =========================
+   GET EXISTING BILLING CODES
+========================= */
+router.get("/billing-codes/list", async (req, res) => {
+    try {
+        const operatorId = req.query.operator_id ? Number(req.query.operator_id) : null;
+
+        if (req.query.operator_id && !Number.isFinite(operatorId)) {
+            return res.status(400).json({ error: "Invalid operator" });
+        }
+
+        const result = await pool.query(
+            `
+            SELECT
+                bt.billing_code,
+                rr.operator_id,
+                ol.operator AS operator_name,
+                COUNT(DISTINCT rr.id)::int AS pos_count
+            FROM billing_transmittals bt
+            JOIN repair_records rr ON rr.id = bt.repair_record_id
+            LEFT JOIN operator_list ol ON rr.operator_id = ol.id
+            WHERE TRIM(bt.billing_code) <> ''
+              AND bt.billing_code !~ '^HEXA-[0-9]{4}$'
+              AND ($1::int IS NULL OR rr.operator_id = $1::int)
+            GROUP BY bt.billing_code, rr.operator_id, ol.operator
+            ORDER BY MAX(bt.updated_at) DESC, bt.billing_code ASC
+            `,
+            [operatorId]
+        );
+
+        res.json(result.rows);
+    } catch (err) {
+        console.error("GET repair_records/billing-codes error:", err.message);
+        res.status(500).json({ error: "Failed to fetch billing codes" });
+    }
+});
+
+/* =========================
+   GET EXISTING RECEIVERS
+========================= */
+router.get("/received-by/list", async (_req, res) => {
+    try {
+        const result = await pool.query(
+            `
+            SELECT
+                received_by,
+                COUNT(*)::int AS usage_count
+            FROM billing_transmittals
+            WHERE TRIM(COALESCE(received_by, '')) <> ''
+            GROUP BY received_by
+            ORDER BY MAX(updated_at) DESC, received_by ASC
+            `
+        );
+
+        res.json(result.rows);
+    } catch (err) {
+        console.error("GET repair_records/received-by error:", err.message);
+        res.status(500).json({ error: "Failed to fetch receivers" });
+    }
+});
+
+/* =========================
    GET SINGLE REPAIR RECORD
 ========================= */
 router.get("/:id", async (req, res) => {
@@ -599,7 +699,8 @@ router.patch("/:id/release", async (req, res) => {
 
     try {
         const { id } = req.params;
-        const { received_by, user_id } = req.body;
+        const { billing_code, received_by, user_id } = req.body;
+        const providedBillingCode = billing_code?.trim() || "";
 
         if (!received_by?.trim()) {
             return res.status(400).json({ error: "Received By is required" });
@@ -609,10 +710,17 @@ router.patch("/:id/release", async (req, res) => {
 
         const repairResult = await client.query(
             `
-            SELECT id
-            FROM repair_records
-            WHERE id = $1::int
-            FOR UPDATE
+            SELECT rr.id, rr.operator_id, pd.repaired_by
+            FROM repair_records rr
+            LEFT JOIN LATERAL (
+                SELECT repaired_by
+                FROM diagnosis_logs
+                WHERE repair_record_id = rr.id
+                ORDER BY id DESC
+                LIMIT 1
+            ) pd ON true
+            WHERE rr.id = $1::int
+            FOR UPDATE OF rr
             `,
             [id]
         );
@@ -620,6 +728,15 @@ router.patch("/:id/release", async (req, res) => {
         if (repairResult.rows.length === 0) {
             await client.query("ROLLBACK");
             return res.status(404).json({ error: "Repair record not found" });
+        }
+
+        const repairRecord = repairResult.rows[0];
+        const repairedBy = repairRecord.repaired_by?.trim().toLowerCase() || "";
+        const isHexaItRepair = repairedBy === "hexa it";
+
+        if (!isHexaItRepair && !providedBillingCode) {
+            await client.query("ROLLBACK");
+            return res.status(400).json({ error: "Billing Code is required" });
         }
 
         const billingResult = await client.query(
@@ -635,22 +752,45 @@ router.patch("/:id/release", async (req, res) => {
         );
 
         let billingTransmittalId = billingResult.rows[0]?.id;
-        const hexaBillingCode = await getNextHexaBillingCode(client);
+        const billingCodeForRelease = providedBillingCode || billingResult.rows[0]?.billing_code || (isHexaItRepair ? await getNextHexaBillingCode(client) : "");
+
+        if (!billingCodeForRelease) {
+            await client.query("ROLLBACK");
+            return res.status(400).json({ error: "Billing Code is required" });
+        }
+
+        const billingOperatorConflict = await client.query(
+            `
+            SELECT rr.id, ol.operator AS operator_name
+            FROM billing_transmittals bt
+            JOIN repair_records rr ON rr.id = bt.repair_record_id
+            LEFT JOIN operator_list ol ON rr.operator_id = ol.id
+            WHERE LOWER(TRIM(bt.billing_code)) = LOWER($1)
+              AND rr.id <> $2::int
+              AND rr.operator_id IS DISTINCT FROM $3::int
+            LIMIT 1
+            `,
+            [billingCodeForRelease, id, repairRecord.operator_id]
+        );
+
+        if (billingOperatorConflict.rows.length > 0) {
+            await client.query("ROLLBACK");
+            return res.status(400).json({
+                error: `Billing Code already belongs to another operator (${billingOperatorConflict.rows[0].operator_name || "Unknown"}).`,
+            });
+        }
 
         if (billingTransmittalId) {
             await client.query(
                 `
                 UPDATE billing_transmittals SET
-                    billing_code = CASE
-                        WHEN billing_code ~ '^HEXA-[0-9]{4}$' THEN billing_code
-                        ELSE $1
-                    END,
+                    billing_code = $1,
                     received_by = $2,
                     user_id = $3,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = $4::int
                 `,
-                [hexaBillingCode, received_by.trim(), user_id || null, billingTransmittalId]
+                [billingCodeForRelease, received_by.trim(), user_id || null, billingTransmittalId]
             );
         } else {
             const diagnosisLogResult = await client.query(
@@ -690,7 +830,7 @@ router.patch("/:id/release", async (req, res) => {
                 )
                 RETURNING id
                 `,
-                [hexaBillingCode, diagnosisLogResult.rows[0].id, received_by.trim(), user_id || null, id]
+                [billingCodeForRelease, diagnosisLogResult.rows[0].id, received_by.trim(), user_id || null, id]
             );
             billingTransmittalId = insertedBilling.rows[0].id;
         }
