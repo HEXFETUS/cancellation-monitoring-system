@@ -4,67 +4,31 @@ import {
     ArrowUpRight,
     Clock,
     CheckCircle2,
-    TrendingUp,
     Headset,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { ComponentType, ReactNode } from "react";
 import { useAuth } from "../../../context/AuthContext";
+import { listRepairRecords } from "../services/repairRecords";
+import type { RepairRecord } from "../services/repairRecords";
 
 /* ---------------- Glow & gradient helpers ---------------- */
 const teal = "#92C7CF";
 const tealLight = "#AAD7D9";
 const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
+type DashboardIcon = ComponentType<{ className?: string }>;
 
-/* ---------------- CSR-focused KPI Data (POS Repair only) ---------------- */
-const kpiCards = [
-    {
-        label: "Open Repair Requests",
-        value: "12",
-        change: "+3.1%",
-        icon: Wrench,
-        gradient: "from-[#92C7CF] to-[#AAD7D9]",
-    },
-    {
-        label: "Pending Parts",
-        value: "3",
-        change: "-1.2%",
-        icon: Package,
-        gradient: "from-[#F2D7B5] to-[#E5C599]",
-    },
-    {
-        label: "Ready for Pickup",
-        value: "4",
-        change: "+2.0%",
-        icon: CheckCircle2,
-        gradient: "from-[#92C7CF] to-[#AAD7D9]",
-    },
-    {
-        label: "Completed Repairs",
-        value: "142",
-        change: "+8.5%",
-        icon: BarChart3,
-        gradient: "from-[#E8B4B8] to-[#D69CA0]",
-    },
-];
-
-const repairStatusItems = [
-    { label: "Open Requests", value: "8", icon: Wrench, color: "#E8B4B8" },
-    { label: "Pending Parts", value: "3", icon: Package, color: "#F2D7B5" },
-    { label: "Ready for Pickup", value: "4", icon: CheckCircle2, color: "#6BBF6B" },
-    { label: "Completed", value: "142", icon: BarChart3, color: teal },
-    { label: "Released", value: "138", icon: ArrowUpRight, color: tealLight },
+const repairStatuses = [
+    { id: "request", status: "For Request", label: "For Request", icon: Wrench, color: "#E8B4B8" },
+    { id: "for-repair", status: "For Repair", label: "For Repair", icon: Package, color: "#F2D7B5" },
+    { id: "pending", status: "Pending", label: "Pending", icon: Clock, color: "#F2D7B5" },
+    { id: "undergoing-repair", status: "Undergoing Repair", label: "Undergoing Repair", icon: BarChart3, color: teal },
+    { id: "for-release", status: "For Release", label: "For Release", icon: CheckCircle2, color: "#6BBF6B" },
+    { id: "released", status: "Released", label: "Released Today", icon: ArrowUpRight, color: tealLight },
 ];
 
 const quickActions = [
     { label: "Log POS Issue", icon: Wrench, href: "/app/csr-pos-repair" },
-];
-
-const recentActivity: { action: string; time: string; type: "success" | "warning" | "info" }[] = [
-    { action: "Repair #R045 completed", time: "15 min ago", type: "success" },
-    { action: "POS #A102 reported offline", time: "12 min ago", type: "warning" },
-    { action: "Parts delivered for Repair #R042", time: "1 hr ago", type: "info" },
-    { action: "Repair #R038 marked ready for pickup", time: "2 hrs ago", type: "success" },
-    { action: "New repair request filed for POS #B203", time: "3 hrs ago", type: "info" },
 ];
 
 /* ---------------- Components ---------------- */
@@ -72,17 +36,14 @@ const recentActivity: { action: string; time: string; type: "success" | "warning
 function KpiCard({
     label,
     value,
-    change,
     icon: Icon,
     gradient,
 }: {
     label: string;
     value: string;
-    change: string;
-    icon: any;
+    icon: DashboardIcon;
     gradient: string;
 }) {
-    const isPositive = change.startsWith("+");
     return (
         <div className="group relative rounded-2xl p-px bg-linear-to-br from-white/40 to-transparent transition-all duration-500 hover:scale-[1.02]">
             <div className="relative rounded-2xl p-5 h-full overflow-hidden backdrop-blur-xl border border-white/30 bg-white/25 shadow-lg transition-all duration-500 hover:shadow-xl">
@@ -110,20 +71,6 @@ function KpiCard({
                         <Icon className="h-5 w-5" />
                     </div>
                 </div>
-
-                <div className="mt-3 flex items-center gap-1.5">
-                    <span
-                        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                            isPositive
-                                ? "bg-emerald-100/70 text-emerald-700"
-                                : "bg-rose-100/70 text-rose-700"
-                        }`}
-                    >
-                        {isPositive ? <TrendingUp className="h-3 w-3" /> : null}
-                        {change}
-                    </span>
-                    <span className="text-xs text-gray-400">vs last month</span>
-                </div>
             </div>
         </div>
     );
@@ -137,7 +84,7 @@ function StatCard({
 }: {
     label: string;
     value: string;
-    icon: any;
+    icon: DashboardIcon;
     color: string;
 }) {
     return (
@@ -167,7 +114,7 @@ function SectionCard({
     className = "",
 }: {
     title: string;
-    children: React.ReactNode;
+    children: ReactNode;
     className?: string;
 }) {
     return (
@@ -230,7 +177,68 @@ function formatLoginTime(value: string | null) {
         day: "2-digit",
         hour: "2-digit",
         minute: "2-digit",
+        timeZone: "Asia/Manila",
     });
+}
+
+function isToday(value: string) {
+    if (!value) return false;
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return false;
+
+    const now = new Date();
+    return (
+        date.getFullYear() === now.getFullYear() &&
+        date.getMonth() === now.getMonth() &&
+        date.getDate() === now.getDate()
+    );
+}
+
+function filterRecordsByDashboardStatus(records: RepairRecord[], statusId: string): RepairRecord[] {
+    const target = repairStatuses.find((item) => item.id === statusId)?.status;
+    if (!target) return [];
+
+    if (statusId === "released") {
+        return records.filter((record) => record.status === target && isToday(record.date));
+    }
+
+    if (statusId === "request") {
+        return records.filter(
+            (record) =>
+                record.status === target &&
+                record.forwarded === false &&
+                record.released === false &&
+                record.re_repair === false
+        );
+    }
+
+    return records.filter((record) => record.status === target);
+}
+
+function formatRelativeTime(value: string) {
+    const date = new Date(value);
+    const diffMs = Date.now() - date.getTime();
+
+    if (Number.isNaN(diffMs) || diffMs < 0) return "just now";
+
+    const minutes = Math.floor(diffMs / 60000);
+    if (minutes < 1) return "just now";
+    if (minutes < 60) return `${minutes} min ago`;
+
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours} hr${hours === 1 ? "" : "s"} ago`;
+
+    const days = Math.floor(hours / 24);
+    if (days < 7) return `${days} day${days === 1 ? "" : "s"} ago`;
+
+    return date.toLocaleDateString("en-PH", { month: "short", day: "2-digit" });
+}
+
+function activityType(status: string): "success" | "warning" | "info" {
+    if (status === "Released" || status === "For Release") return "success";
+    if (status === "Pending" || status === "Undergoing Repair") return "warning";
+    return "info";
 }
 
 /* ---------------- SVG icons (not in lucide) ---------------- */
@@ -259,11 +267,75 @@ export default function CsrDashboard() {
     const { user } = useAuth();
     const [currentUser, setCurrentUser] = useState(user);
     const [lastLogin, setLastLogin] = useState<string | null>(null);
-    const displayName = currentUser?.name || user?.name || "CSR";
+    const [repairRecords, setRepairRecords] = useState<RepairRecord[]>([]);
+    const [repairLoading, setRepairLoading] = useState(true);
+    const [repairError, setRepairError] = useState<string | null>(null);
+    const displayName = currentUser?.id === user?.id ? currentUser?.name || user?.name || "CSR" : user?.name || "CSR";
+
+    const counts = useMemo(
+        () =>
+            Object.fromEntries(
+                repairStatuses.map((status) => [
+                    status.id,
+                    filterRecordsByDashboardStatus(repairRecords, status.id).length,
+                ])
+            ) as Record<string, number>,
+        [repairRecords]
+    );
+
+    const kpiCards = [
+        {
+            label: "For Request",
+            value: repairLoading ? "..." : String(counts.request ?? 0),
+            icon: Wrench,
+            gradient: "from-[#92C7CF] to-[#AAD7D9]",
+        },
+        {
+            label: "Pending",
+            value: repairLoading ? "..." : String(counts.pending ?? 0),
+            icon: Clock,
+            gradient: "from-[#F2D7B5] to-[#E5C599]",
+        },
+        {
+            label: "For Release",
+            value: repairLoading ? "..." : String(counts["for-release"] ?? 0),
+            icon: CheckCircle2,
+            gradient: "from-[#92C7CF] to-[#AAD7D9]",
+        },
+        {
+            label: "Released Today",
+            value: repairLoading ? "..." : String(counts.released ?? 0),
+            icon: ArrowUpRight,
+            gradient: "from-[#E8B4B8] to-[#D69CA0]",
+        },
+    ];
+
+    const repairStatusItems = repairStatuses.map((status) => ({
+        ...status,
+        value: repairLoading ? "..." : String(counts[status.id] ?? 0),
+    }));
+
+    const recentActivity = useMemo(
+        () =>
+            [...repairRecords]
+                .sort(
+                    (a, b) =>
+                        new Date(b.updated_at || b.created_at || b.date).getTime() -
+                        new Date(a.updated_at || a.created_at || a.date).getTime()
+                )
+                .slice(0, 5)
+                .map((record) => {
+                    const timestamp = record.updated_at || record.created_at || record.date;
+                    return {
+                        action: `POS #${record.device_no || record.id} is ${record.status}`,
+                        time: formatRelativeTime(timestamp),
+                        type: activityType(record.status),
+                    };
+                }),
+        [repairRecords]
+    );
 
     useEffect(() => {
-        setCurrentUser(user);
-
         if (!user?.id) return;
 
         let ignored = false;
@@ -294,6 +366,28 @@ export default function CsrDashboard() {
             ignored = true;
         };
     }, [user]);
+
+    useEffect(() => {
+        let ignored = false;
+
+        listRepairRecords()
+            .then((records) => {
+                if (!ignored) setRepairRecords(records);
+            })
+            .catch((err) => {
+                if (!ignored) {
+                    setRepairError(err instanceof Error ? err.message : "Failed to load repair records");
+                    setRepairRecords([]);
+                }
+            })
+            .finally(() => {
+                if (!ignored) setRepairLoading(false);
+            });
+
+        return () => {
+            ignored = true;
+        };
+    }, []);
 
     return (
         <div className="space-y-7">
@@ -384,11 +478,17 @@ export default function CsrDashboard() {
                 </SectionCard>
 
                 <SectionCard title="Recent Activity">
-                    <div className="divide-y divide-white/20">
-                        {recentActivity.map((act, idx) => (
-                            <ActivityItem key={idx} {...act} />
-                        ))}
-                    </div>
+                    {repairError ? (
+                        <p className="py-8 text-center text-sm text-rose-500">{repairError}</p>
+                    ) : recentActivity.length === 0 && !repairLoading ? (
+                        <p className="py-8 text-center text-sm text-gray-400">No repair activity yet.</p>
+                    ) : (
+                        <div className="divide-y divide-white/20">
+                            {recentActivity.map((act, idx) => (
+                                <ActivityItem key={idx} {...act} />
+                            ))}
+                        </div>
+                    )}
                 </SectionCard>
             </div>
 

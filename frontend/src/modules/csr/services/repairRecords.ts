@@ -65,6 +65,9 @@ export interface UpdateRepairRecordPayload {
     with_charger?: boolean;
     with_box?: boolean;
     delivered_by?: string | null;
+    status?: string;
+    forwarded?: boolean;
+    released?: boolean;
 }
 
 function apiUrl(path: string) {
@@ -165,18 +168,76 @@ export async function releaseRepairRecord(
     return res.json();
 }
 
-export async function proceedRepairRecord(id: number): Promise<RepairRecord> {
+export async function proceedRepairRecord(id: number, diagnosisId?: number): Promise<RepairRecord> {
     const res = await fetch(apiUrl(`/api/repair-records/${id}`), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-            status: "For Repair",
+            status: "Pending",
             forwarded: true,
+            ...(diagnosisId ? { diagnosis_id: diagnosisId } : {}),
         }),
     });
 
     if (!res.ok) {
         throw new Error(await getErrorMessage(res, "Failed to proceed repair record"));
+    }
+
+    return res.json();
+}
+
+export async function moveRepairRecordToForRelease(
+    id: number,
+    payload: { diagnosis_id: number; requested_by?: string | null }
+): Promise<RepairRecord> {
+    const res = await fetch(apiUrl(`/api/repair-records/${id}/for-released`), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+        throw new Error(await getErrorMessage(res, "Failed to move repair record to For Release"));
+    }
+
+    return res.json();
+}
+
+export async function moveRepairRecordToUndergoingRepair(
+    id: number,
+    payload: { repaired_by: string; requested_by?: string | null }
+): Promise<RepairRecord> {
+    const res = await fetch(apiUrl(`/api/repair-records/${id}/undergoing-repair`), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+        throw new Error(await getErrorMessage(res, "Failed to move repair record to Undergoing Repair"));
+    }
+
+    return res.json();
+}
+
+export async function receiveRepairRecord(
+    id: number,
+    payload: {
+        billing_code: string;
+        remarks: string;
+        received_by?: string | null;
+        user_id?: number | null;
+        unrepairable_retired: boolean;
+    }
+): Promise<RepairRecord> {
+    const res = await fetch(apiUrl(`/api/repair-records/${id}/received`), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+        throw new Error(await getErrorMessage(res, "Failed to receive repair record"));
     }
 
     return res.json();
