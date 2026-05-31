@@ -1,46 +1,43 @@
 import { useState } from "react";
-import { Wrench, BarChart3, FileSearch, Menu } from "lucide-react";
-import RepairRequestPage from "./RepairRequestPage";
-import RepairLogPage from "./RepairLogPage";
-import ReleasedLogPage from "./ReleasedLogPage";
-import DiagnosisListPage from "./DiagnosisListPage";
+import { Wrench, ClipboardList, FileText, ArrowUpRight, Menu, Stethoscope } from "lucide-react";
+import CsrRepairRequestPage from "./CsrRepairRequestPage";
+import CsrRepairManagementPage from "./CsrRepairManagementPage";
+import CsrRepairLogPage from "./CsrRepairLogPage";
+import CsrReleasedLogPage from "./CsrReleasedLogPage";
+import CsrDiagnosisListPage from "./CsrDiagnosisListPage";
 
 const teal = "#92C7CF";
 
 const leftTabs = [
-    { id: "repair-request", label: "REPAIR REQUEST", icon: Wrench },
-    { id: "reports", label: "REPORTS", icon: BarChart3 },
-    { id: "diagnosis", label: "LIST OF DIAGNOSIS", icon: FileSearch },
+    { id: "repair-request", label: "REPAIR REQUEST", icon: ClipboardList },
+    { id: "pos-repair-management", label: "REPAIR MANAGEMENT", icon: Wrench },
+    { id: "repair-log", label: "REPAIR LOG", icon: FileText },
+    { id: "released-log", label: "RELEASED LOG", icon: ArrowUpRight },
+    { id: "diagnosis-list", label: "DIAGNOSIS LIST", icon: Stethoscope },
 ];
 
-const subTabs = [
-    { id: "repair-logs", label: "Repair Logs" },
-    { id: "released-logs", label: "Released Logs" },
-];
-
-export default function PosRepairRequestPage() {
-    const [activeTab, setActiveTab] = useState("repair-request");
-    const [activeSubTab, setActiveSubTab] = useState("repair-logs");
+export default function CsrTabbedPage() {
+    const [activeTab, setActiveTab] = useState("pos-repair-management");
     const [sidebarOpen, setSidebarOpen] = useState(true);
 
     return (
         <div className="flex flex-col gap-6 lg:flex-row lg:gap-8">
             {/* Left sidebar tabs — collapsible */}
             <div
-                className={`transition-all duration-300 ${
-                    sidebarOpen
+                className={`transition-all duration-300 ${sidebarOpen
                         ? "lg:w-60 lg:shrink-0"
                         : "lg:w-20 lg:shrink-0"
-                }`}
+                    }`}
             >
                 <div className="flex gap-2 overflow-x-auto pb-2 lg:flex-col lg:space-y-3 lg:overflow-visible lg:pb-0">
-                    {/* Collapse toggle button — icon only */}
+                    {/* Collapse toggle button */}
                     <button
                         onClick={() => setSidebarOpen((v) => !v)}
                         className="hidden lg:flex shrink-0 items-center gap-2 rounded-2xl px-4 py-2.5 text-left text-xs font-sm transition-all duration-200 lg:w-full lg:gap-3 lg:px-3 lg:py-2 text-slate-600 hover:bg-white/40 hover:text-slate-800"
                         title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
                     >
-                        <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+                        <span
+                            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
                             style={{
                                 background: "rgba(146,199,207,0.12)",
                                 color: teal,
@@ -93,9 +90,8 @@ export default function PosRepairRequestPage() {
                                     <Icon className="h-5 w-5" />
                                 </span>
                                 <span
-                                    className={`whitespace-nowrap lg:whitespace-normal transition-all duration-200 ${
-                                        isCollapsed ? "hidden" : "inline"
-                                    }`}
+                                    className={`whitespace-nowrap lg:whitespace-normal transition-all duration-200 ${isCollapsed ? "hidden" : "inline"
+                                        }`}
                                 >
                                     {tab.label}
                                 </span>
@@ -107,52 +103,11 @@ export default function PosRepairRequestPage() {
 
             {/* Main content area */}
             <div className="flex-1 min-w-0">
-                {activeTab === "repair-request" && <RepairRequestPage />}
-                {activeTab === "diagnosis" && <DiagnosisListPage />}
-                {activeTab === "reports" && (
-                    <div>
-                        <div className="mb-6 flex gap-2 overflow-x-auto border-b pb-2"
-                            style={{ borderColor: "rgba(146,199,207,0.20)" }}
-                        >
-                            {subTabs.map((tab) => {
-                                const isSubActive = activeSubTab === tab.id;
-                                return (
-                                    <button
-                                        key={tab.id}
-                                        onClick={() => setActiveSubTab(tab.id)}
-                                        className="shrink-0 rounded-xl px-3 py-2 text-xs font-medium transition-all duration-200 sm:px-4 sm:text-sm"
-                                        style={{
-                                            background: isSubActive
-                                                ? "rgba(146,199,207,0.15)"
-                                                : "transparent",
-                                            border: isSubActive
-                                                ? "1px solid rgba(146,199,207,0.25)"
-                                                : "1px solid transparent",
-                                            color: isSubActive ? "#1F2937" : "#6B7280",
-                                        }}
-                                        onMouseEnter={(e) => {
-                                            if (!isSubActive) {
-                                                e.currentTarget.style.background = "rgba(146,199,207,0.06)";
-                                            }
-                                        }}
-                                        onMouseLeave={(e) => {
-                                            if (!isSubActive) {
-                                                e.currentTarget.style.background = "transparent";
-                                            }
-                                        }}
-                                    >
-                                        {tab.label}
-                                    </button>
-                                );
-                            })}
-                        </div>
-
-                        <div>
-                            {activeSubTab === "repair-logs" && <RepairLogPage />}
-                            {activeSubTab === "released-logs" && <ReleasedLogPage />}
-                        </div>
-                    </div>
-                )}
+                {activeTab === "repair-request" && <CsrRepairRequestPage />}
+                {activeTab === "pos-repair-management" && <CsrRepairManagementPage />}
+                {activeTab === "repair-log" && <CsrRepairLogPage />}
+                {activeTab === "released-log" && <CsrReleasedLogPage />}
+                {activeTab === "diagnosis-list" && <CsrDiagnosisListPage />}
             </div>
         </div>
     );

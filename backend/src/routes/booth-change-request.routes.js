@@ -125,13 +125,33 @@ router.post("/", async (req, res) => {
         }
         const targetBooth = boothResult.rows[0];
 
-        // Enforce same-operator rule
-        if (pos.operator_id && targetBooth.operator_id && Number(pos.operator_id) !== Number(targetBooth.operator_id)) {
-            return res.status(400).json({
-                error:
-                    "Device and target booth belong to different operators. " +
-                    "You can only request a booth change within your operator boundary.",
-            });
+        // Enforce same-operator-family rule.
+        //
+        // A "family" is the main operator plus all its subs. We compute the
+        // root for both the device's operator and the target booth's
+        // operator, then require them to match. This lets a sub-operator
+        // request a change to any booth in the same main, and lets a main
+        // request changes across its subs — but never across two unrelated
+        // mains.
+        if (pos.operator_id && targetBooth.operator_id) {
+            const familyResult = await pool.query(
+                `SELECT id, COALESCE(parent_operator_id, id) AS root_id
+                 FROM operator_list
+                 WHERE id = $1::int OR id = $2::int`,
+                [pos.operator_id, targetBooth.operator_id]
+            );
+            const map = new Map(
+                familyResult.rows.map((row) => [Number(row.id), Number(row.root_id)])
+            );
+            const posRoot = map.get(Number(pos.operator_id));
+            const boothRoot = map.get(Number(targetBooth.operator_id));
+            if (posRoot != null && boothRoot != null && posRoot !== boothRoot) {
+                return res.status(400).json({
+                    error:
+                        "Device and target booth belong to different operators. " +
+                        "You can only request a booth change within your operator family (main + sub-operators).",
+                });
+            }
         }
 
         // Enforce same-area rule when the device has an area

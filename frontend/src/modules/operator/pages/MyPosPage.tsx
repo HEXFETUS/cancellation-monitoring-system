@@ -327,6 +327,7 @@ export default function MyPosPage() {
                 open={!!requesting}
                 posRecord={requesting}
                 booths={booths}
+                operators={allOperators}
                 onClose={() => setRequesting(null)}
                 onSubmitted={async () => {
                     setRequesting(null);

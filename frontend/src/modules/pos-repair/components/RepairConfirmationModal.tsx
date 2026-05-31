@@ -2,7 +2,7 @@ import { CheckCircle2, AlertTriangle } from "lucide-react";
 
 type ConfirmationVariant = "save" | "delete";
 
-interface CsrConfirmationModalProps {
+interface RepairConfirmationModalProps {
     open: boolean;
     title: string;
     message?: string;
@@ -14,7 +14,7 @@ interface CsrConfirmationModalProps {
     onConfirm: () => void;
 }
 
-export default function CsrConfirmationModal({
+export default function RepairConfirmationModal({
     open,
     title,
     message,
@@ -24,7 +24,7 @@ export default function CsrConfirmationModal({
     variant = "save",
     onCancel,
     onConfirm,
-}: CsrConfirmationModalProps) {
+}: RepairConfirmationModalProps) {
     if (!open) return null;
 
     const isDelete = variant === "delete";

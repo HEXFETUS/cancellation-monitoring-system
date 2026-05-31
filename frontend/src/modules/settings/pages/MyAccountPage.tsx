@@ -14,6 +14,8 @@ interface Me {
     department?: string;
     operator_id?: number | null;
     operator_name?: string | null;
+    parent_operator_id?: number | null;
+    parent_operator_name?: string | null;
 }
 
 export default function MyAccountPage() {
@@ -243,11 +245,24 @@ export default function MyAccountPage() {
                                 </dd>
                             </div>
                             <Field label="Email" value={me.email} />
-                            <Field label="Role" value={me.usertype} />
+                            <Field
+                                label="Role"
+                                value={
+                                    me.usertype === "operator" && me.parent_operator_id != null
+                                        ? "Sub-Operator"
+                                        : me.usertype
+                                }
+                            />
                             {me.usertype === "operator" && (
                                 <Field
                                     label="Operator Profile"
-                                    value={me.operator_name || "Not yet assigned"}
+                                    value={
+                                        me.operator_name
+                                            ? me.parent_operator_name
+                                                ? `${me.operator_name} (under ${me.parent_operator_name})`
+                                                : me.operator_name
+                                            : "Not yet assigned"
+                                    }
                                 />
                             )}
                         </dl>

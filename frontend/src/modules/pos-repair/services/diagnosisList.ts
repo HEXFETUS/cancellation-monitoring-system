@@ -46,14 +46,6 @@ export async function listDiagnoses(): Promise<DiagnosisItem[]> {
     return (rows as Wire[]).map(fromWire).filter((d) => d.name.trim().length > 0);
 }
 
-export async function listAllDiagnoses(): Promise<DiagnosisItem[]> {
-    const res = await fetch(apiUrl("/api/diagnosis-list"));
-    if (!res.ok) throw new Error(await getErrorMessage(res, "Failed to load diagnoses"));
-    const payload = await res.json();
-    const rows = Array.isArray(payload) ? payload : payload.data ?? payload.rows ?? [];
-    return (rows as Wire[]).map(fromWire);
-}
-
 export async function createDiagnosis(name: string): Promise<DiagnosisItem> {
     const res = await fetch(apiUrl("/api/diagnosis-list"), {
         method: "POST",

@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo } from "react";
 import {
     Wrench,
     ClipboardList,
-    Clock,
     AlertTriangle,
     CheckCircle2,
     ArrowUpRight,
@@ -10,50 +9,48 @@ import {
     Trash2,
     RefreshCw,
     X,
-    Save,
     AlertCircle,
     CheckCircle,
-    ListChecks,
+    RotateCcw,
     CreditCard,
     Minus,
     Plus,
+    ListChecks,
+    Printer,
 } from "lucide-react";
 import { useAuth } from "../../../context/AuthContext";
-import { listRepairRecords, updateRepairRecord, clearRepairRecord, proceedRepairRecord } from "../services/repairRecords";
+import { listRepairRecords, updateRepairRecord, clearRepairRecord, proceedRepairRecord, moveRepairRecordToForRelease, moveRepairRecordToUndergoingRepair, receiveRepairRecord } from "../services/repairRecords";
 import type { RepairRecord } from "../services/repairRecords";
 import { listDiagnoses, type DiagnosisItem } from "../services/diagnosisList";
-import TransmittalModal from "../../pos-repair/components/TransmittalModal";
-import CsrConfirmationModal from "../components/CsrConfirmationModal";
-import CsrBatchForRepairModal from "../components/CsrBatchForRepairModal";
-import CsrBatchForReleaseModal from "../components/CsrBatchForReleaseModal";
-import CsrPagination from "../components/CsrPagination";
+import RepairConfirmationModal from "../components/RepairConfirmationModal";
+import TransmittalModal from "../components/TransmittalModal";
+import { EditModal, FinalDiagnosisModal, ReceivedModal, TechnicianModal } from "../components/RepairManagementModals";
+import { BatchCheckedPosModal, BatchForRepairModal, BatchReceivedPosModal } from "../components/BatchProcessingModals";
+import CsrBatchForReleaseModal from "../../csr/components/CsrBatchForReleaseModal";
 
 const teal = "#92C7CF";
 
 const statusTabs = [
-    { id: "request", label: "For Request", icon: ClipboardList },
+    { id: "for-checking", label: "For Checking", icon: ClipboardList },
     { id: "for-repair", label: "For Repair", icon: Wrench },
-    { id: "pending", label: "Pending", icon: Clock },
     { id: "undergoing-repair", label: "Undergoing Repair", icon: AlertTriangle },
     { id: "for-release", label: "For Release", icon: CheckCircle2 },
     { id: "released", label: "Released", icon: ArrowUpRight },
 ];
 
 const tabStatusMap: Record<string, string> = {
-    "request": "For Request",
-    "for-repair": "For Repair",
-    "pending": "Pending",
+    "for-checking": "For Repair",
+    "for-repair": "Pending",
     "undergoing-repair": "Undergoing Repair",
     "for-release": "For Release",
     "released": "Released",
 };
 
-const noActionTabs = ["for-repair", "undergoing-repair"];
+const noActionTabs: string[] = [];
 
 function filterRecordsByTab(records: RepairRecord[], tabId: string): RepairRecord[] {
     const status = tabStatusMap[tabId];
     if (!status) return [];
-
     if (tabId === "released") {
         const now = new Date();
         const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
@@ -65,18 +62,10 @@ function filterRecordsByTab(records: RepairRecord[], tabId: string): RepairRecor
             return logStr === todayStr;
         });
     }
-
-    if (tabId === "request") {
-        return records.filter(
-            (r) =>
-                r.status === status &&
-                r.forwarded === false &&
-                r.released === false &&
-                r.re_repair === false
-        );
+    if (tabId === "for-checking" || tabId === "for-release") {
+        return records.filter((r) => r.status === status);
     }
-
-    return records.filter((r) => r.status === status);
+    return records.filter((r) => r.forwarded === true && r.status === status);
 }
 
 function formatDate(dateStr: string): string {
@@ -89,10 +78,6 @@ function formatDate(dateStr: string): string {
 
 function formatYesNo(value: boolean): string { return value ? "Yes" : "No"; }
 
-function isNonHexaTechnician(record: RepairRecord): boolean {
-    return (record.repaired_by || "").trim().toLowerCase() !== "hexa it";
-}
-
 function formatDateNumeric(dateStr: string): string {
     if (!dateStr) return "-";
     try {
@@ -101,91 +86,9 @@ function formatDateNumeric(dateStr: string): string {
     } catch { return dateStr; }
 }
 
-interface EditModalProps {
-    record: RepairRecord;
-    diagnoses: DiagnosisItem[];
-    onClose: () => void;
-    onSave: (updatedRecord: RepairRecord) => void;
-    showToast: (message: string, type: "error" | "success") => void;
-}
-
-function EditModal({ record, diagnoses, onClose, onSave, showToast }: EditModalProps) {
-    const [diagnosisId, setDiagnosisId] = useState<number | null>(record.diagnosis_id);
-    const [ntc, setNtc] = useState<boolean>(record.ntc);
-    const [withCharger, setWithCharger] = useState<boolean>(record.with_charger);
-    const [withBox, setWithBox] = useState<boolean>(record.with_box);
-    const [deliveredBy, setDeliveredBy] = useState<string>(record.delivered_by || "");
-    const [saving, setSaving] = useState(false);
-    const [showSaveConfirm, setShowSaveConfirm] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-
-    const handleSave = () => setShowSaveConfirm(true);
-
-    const handleConfirmSave = async () => {
-        try {
-            setSaving(true); setError(null);
-            const updated = await updateRepairRecord(record.id, { diagnosis_id: diagnosisId, ntc, with_charger: withCharger, with_box: withBox, delivered_by: deliveredBy || null });
-            onSave(updated); showToast("Repair record updated successfully!", "success");
-        } catch (err) {
-            const message = err instanceof Error ? err.message : "Failed to save changes";
-            setError(message); showToast(message, "error");
-        } finally { setSaving(false); }
-    };
-
-    return (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 backdrop-blur-sm pt-16 px-4">
-            <div className="relative w-full max-w-md animate-in fade-in zoom-in-95 duration-200 rounded-2xl bg-white shadow-2xl border border-warm overflow-hidden">
-                <div className="h-2 bg-gradient-to-r from-teal to-teal-dark" />
-                <div className="p-6">
-                    <div className="flex items-center justify-between mb-6">
-                        <div><h2 className="text-lg font-bold text-ink">Edit Repair Record</h2><p className="text-sm text-ink-muted mt-0.5">POS #: {record.device_no || record.id}</p></div>
-                        <button onClick={onClose} className="rounded-lg p-1.5 hover:bg-gray-100 transition-colors"><X className="h-5 w-5 text-gray-400" /></button>
-                    </div>
-                    <div className="space-y-4">
-                        <div><label className="block text-sm font-semibold text-ink mb-1.5">Diagnosis <span className="text-rose-500">*</span></label>
-                            <select value={diagnosisId ?? ""} onChange={(e) => setDiagnosisId(e.target.value ? Number(e.target.value) : null)} className="w-full rounded-xl border border-warm bg-card px-4 py-3 text-sm text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20 transition-all shadow-sm">
-                                <option value="">Select diagnosis...</option>{diagnoses.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-                            </select>
-                        </div>
-                        <div><label className="block text-sm font-semibold text-ink mb-1.5">NTC</label>
-                            <div className="flex gap-4">
-                                <label className="flex items-center gap-2 cursor-pointer"><input type="radio" name="ntc" checked={ntc === true} onChange={() => setNtc(true)} className="h-4 w-4 text-teal-600 focus:ring-teal-500" /><span className="text-sm text-gray-700">Yes</span></label>
-                                <label className="flex items-center gap-2 cursor-pointer"><input type="radio" name="ntc" checked={ntc === false} onChange={() => setNtc(false)} className="h-4 w-4 text-teal-600 focus:ring-teal-500" /><span className="text-sm text-gray-700">No</span></label>
-                            </div>
-                        </div>
-                        <div><label className="block text-sm font-semibold text-ink mb-1.5">With Charger</label>
-                            <div className="flex gap-4">
-                                <label className="flex items-center gap-2 cursor-pointer"><input type="radio" name="withCharger" checked={withCharger === true} onChange={() => setWithCharger(true)} className="h-4 w-4 text-teal-600 focus:ring-teal-500" /><span className="text-sm text-gray-700">Yes</span></label>
-                                <label className="flex items-center gap-2 cursor-pointer"><input type="radio" name="withCharger" checked={withCharger === false} onChange={() => setWithCharger(false)} className="h-4 w-4 text-teal-600 focus:ring-teal-500" /><span className="text-sm text-gray-700">No</span></label>
-                            </div>
-                        </div>
-                        <div><label className="block text-sm font-semibold text-ink mb-1.5">With Box</label>
-                            <div className="flex gap-4">
-                                <label className="flex items-center gap-2 cursor-pointer"><input type="radio" name="withBox" checked={withBox === true} onChange={() => setWithBox(true)} className="h-4 w-4 text-teal-600 focus:ring-teal-500" /><span className="text-sm text-gray-700">Yes</span></label>
-                                <label className="flex items-center gap-2 cursor-pointer"><input type="radio" name="withBox" checked={withBox === false} onChange={() => setWithBox(false)} className="h-4 w-4 text-teal-600 focus:ring-teal-500" /><span className="text-sm text-gray-700">No</span></label>
-                            </div>
-                        </div>
-                        <div><label className="block text-sm font-semibold text-ink mb-1.5">Delivered By <span className="text-rose-500">*</span></label>
-                            <input type="text" value={deliveredBy} onChange={(e) => setDeliveredBy(e.target.value)} placeholder="Enter name of deliverer..." className="w-full rounded-xl border border-warm bg-card px-4 py-3 text-sm text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20 transition-all shadow-sm" />
-                        </div>
-                        {error && <p className="text-sm text-rose-500 flex items-center gap-1"><AlertTriangle size={14} />{error}</p>}
-                    </div>
-                    <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-warm/60">
-                        <button onClick={onClose} className="rounded-xl border-2 border-gray-200 px-6 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-all active:scale-[0.98]">Cancel</button>
-                        <button onClick={handleSave} disabled={saving} className="rounded-xl bg-gradient-to-r from-teal to-teal-dark px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-teal/25 hover:shadow-xl hover:shadow-teal/30 hover:from-teal-dark hover:to-teal transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none disabled:active:scale-100">
-                            {saving ? <span className="inline-flex items-center gap-2"><div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />Saving...</span> : <span className="inline-flex items-center gap-2"><Save className="h-4 w-4" />Save Changes</span>}
-                        </button>
-                    </div>
-                </div>
-            </div>
-            <CsrConfirmationModal open={showSaveConfirm} title="Save changes?" message={`This will update POS #${record.device_no || record.id}.`} confirmLabel="Save Changes" loading={saving} onCancel={() => setShowSaveConfirm(false)} onConfirm={handleConfirmSave} />
-        </div>
-    );
-}
-
-export default function CsrRepairManagementPage() {
+export default function RepairManagementPage() {
     const { user } = useAuth();
-    const [activeStatusTab, setActiveStatusTab] = useState("request");
+    const [activeStatusTab, setActiveStatusTab] = useState("for-checking");
     const [records, setRecords] = useState<RepairRecord[]>([]);
     const [filteredRecords, setFilteredRecords] = useState<RepairRecord[]>([]);
     const [loading, setLoading] = useState(true);
@@ -194,21 +97,27 @@ export default function CsrRepairManagementPage() {
     const [editingRecord, setEditingRecord] = useState<RepairRecord | null>(null);
     const [recordToDelete, setRecordToDelete] = useState<RepairRecord | null>(null);
     const [deleting, setDeleting] = useState(false);
-    const [recordToProceed, setRecordToProceed] = useState<RepairRecord | null>(null);
     const [proceeding, setProceeding] = useState(false);
+    const [recordToForRepair, setRecordToForRepair] = useState<RepairRecord | null>(null);
+    const [recordToTechnician, setRecordToTechnician] = useState<RepairRecord | null>(null);
+    const [savingTechnician, setSavingTechnician] = useState(false);
+    const [recordToForReleased, setRecordToForReleased] = useState<RepairRecord | null>(null);
+    const [forwardingRelease, setForwardingRelease] = useState(false);
+    const [recordToReset, setRecordToReset] = useState<RepairRecord | null>(null);
+    const [resetting, setResetting] = useState(false);
+    const [recordToReceive, setRecordToReceive] = useState<RepairRecord | null>(null);
+    const [receiving, setReceiving] = useState(false);
     const [recordToRelease, setRecordToRelease] = useState<RepairRecord | null>(null);
     const [batchReleasePreview, setBatchReleasePreview] = useState<{
         records: RepairRecord[];
         billingCode: string;
         receivedBy: string;
     } | null>(null);
-    const [showBatchForRepair, setShowBatchForRepair] = useState(false);
-    const [showBatchForRelease, setShowBatchForRelease] = useState(false);
+    const [showTransmittal, setShowTransmittal] = useState(false);
     const [expandedReleasedIds, setExpandedReleasedIds] = useState<Set<number>>(new Set());
+    const [batchModal, setBatchModal] = useState<"for-repair" | "checked" | "received" | "release" | null>(null);
     const [batchProcessing, setBatchProcessing] = useState(false);
     const [toast, setToast] = useState<{ show: boolean; message: string; type: "error" | "success" }>({ show: false, message: "", type: "error" });
-    const [page, setPage] = useState(1);
-    const pageSize = 20;
 
     const showToast = (message: string, type: "error" | "success" = "error") => {
         setToast({ show: true, message, type });
@@ -217,11 +126,15 @@ export default function CsrRepairManagementPage() {
     const hideToast = () => setToast({ show: false, message: "", type: "error" });
 
     const showActions = !noActionTabs.includes(activeStatusTab);
-    const showAccessories = activeStatusTab === "request";
-    const showRepairedBy = activeStatusTab === "for-repair" || activeStatusTab === "undergoing-repair" || activeStatusTab === "for-release" || activeStatusTab === "released";
+    const isForChecking = activeStatusTab === "for-checking";
+    const isForRepair = activeStatusTab === "for-repair";
+    const isUndergoingRepair = activeStatusTab === "undergoing-repair";
+    const isForRelease = activeStatusTab === "for-release";
+    const isReleased = activeStatusTab === "released";
+    const showAccessories = false;
+    const showRepairedBy = activeStatusTab === "undergoing-repair" || activeStatusTab === "for-release" || activeStatusTab === "released";
     const showRemarks = activeStatusTab === "for-release" || activeStatusTab === "released";
     const showBillingInfo = activeStatusTab === "released";
-    const isReleased = activeStatusTab === "released";
 
     const fetchRecords = async () => {
         try { setLoading(true); setError(null); const data = await listRepairRecords(); setRecords(data); }
@@ -233,53 +146,108 @@ export default function CsrRepairManagementPage() {
 
     useEffect(() => { fetchRecords(); fetchDiagnoses(); }, []);
     useEffect(() => { setFilteredRecords(filterRecordsByTab(records, activeStatusTab)); }, [records, activeStatusTab]);
-    useEffect(() => { setPage(1); }, [activeStatusTab]);
 
     const handleEdit = (record: RepairRecord) => setEditingRecord(record);
     const handleEditClose = () => setEditingRecord(null);
     const handleEditSave = (updatedRecord: RepairRecord) => { setRecords((prev) => prev.map((r) => (r.id === updatedRecord.id ? updatedRecord : r))); setEditingRecord(null); };
 
-    const handleProceed = (record: RepairRecord) => setRecordToProceed(record);
-    const handleConfirmProceed = async () => {
-        if (!recordToProceed) return;
+    const handleProceed = (record: RepairRecord) => setRecordToForRepair(record);
+    const handleConfirmProceed = async (diagnosisId: number) => {
+        if (!recordToForRepair) return;
         setProceeding(true);
-        try { const updated = await proceedRepairRecord(recordToProceed.id); setRecords((prev) => prev.map((r) => (r.id === updated.id ? updated : r))); setRecordToProceed(null); showToast("Repair record forwarded to For Repair successfully!", "success"); }
+        try { const updated = await proceedRepairRecord(recordToForRepair.id, diagnosisId); setRecords((prev) => prev.map((r) => (r.id === updated.id ? updated : r))); setRecordToForRepair(null); showToast("Repair record moved to For Repair successfully!", "success"); }
         catch (err) { console.error("Failed to proceed repair record:", err); showToast(err instanceof Error ? err.message : "Failed to proceed repair record", "error"); }
         finally { setProceeding(false); }
     };
 
-    const handleBatchForRepair = async () => {
-        setBatchProcessing(true);
+    const handleForReleased = (record: RepairRecord) => setRecordToForReleased(record);
+    const handleConfirmForReleased = async (diagnosisId: number) => {
+        if (!recordToForReleased) return;
+        setForwardingRelease(true);
         try {
-            const updatedRecords = await Promise.all(filteredRecords.map((record) => proceedRepairRecord(record.id)));
-            const updatedById = new Map(updatedRecords.map((record) => [record.id, record]));
-            setRecords((prev) => prev.map((record) => updatedById.get(record.id) ?? record));
-            setShowBatchForRepair(false);
-            showToast("Repair requests forwarded to For Repair successfully!", "success");
+            const updated = await moveRepairRecordToForRelease(recordToForReleased.id, {
+                diagnosis_id: diagnosisId,
+                requested_by: user?.name ?? user?.email ?? null,
+            });
+            setRecords((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+            setRecordToForReleased(null);
+            showToast("Repair record moved to For Release successfully!", "success");
         } catch (err) {
-            console.error("Failed to batch proceed repair records:", err);
-            showToast(err instanceof Error ? err.message : "Failed to process repair requests", "error");
+            console.error("Failed to move repair record to For Release:", err);
+            showToast(err instanceof Error ? err.message : "Failed to move repair record to For Release", "error");
         } finally {
-            setBatchProcessing(false);
+            setForwardingRelease(false);
+        }
+    };
+
+    const handleResetToForRepair = async () => {
+        if (!recordToReset) return;
+        setResetting(true);
+        try {
+            const updated = await updateRepairRecord(recordToReset.id, { status: "For Repair", forwarded: true });
+            setRecords((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+            setRecordToReset(null);
+            showToast("Repair record reset to For Repair successfully!", "success");
+        } catch (err) {
+            console.error("Failed to reset repair record:", err);
+            showToast(err instanceof Error ? err.message : "Failed to reset repair record", "error");
+        } finally {
+            setResetting(false);
+        }
+    };
+
+    const handleTechnicianProceed = async (technician: string) => {
+        if (!recordToTechnician) return;
+        setSavingTechnician(true);
+        try {
+            const updated = await moveRepairRecordToUndergoingRepair(recordToTechnician.id, {
+                repaired_by: technician,
+                requested_by: user?.name ?? user?.email ?? null,
+            });
+            setRecords((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+            setRecordToTechnician(null);
+            showToast("Repair record moved to Undergoing Repair successfully!", "success");
+        } catch (err) {
+            console.error("Failed to assign technician:", err);
+            showToast(err instanceof Error ? err.message : "Failed to assign technician", "error");
+        } finally {
+            setSavingTechnician(false);
+        }
+    };
+
+    const handleReceiveProceed = async ({
+        billingCode,
+        remarks,
+        unrepairableRetired,
+    }: {
+        billingCode: string;
+        remarks: string;
+        unrepairableRetired: boolean;
+    }) => {
+        if (!recordToReceive) return;
+        setReceiving(true);
+        try {
+            const updated = await receiveRepairRecord(recordToReceive.id, {
+                billing_code: billingCode,
+                remarks,
+                received_by: user?.name ?? user?.email ?? null,
+                user_id: user?.id ?? null,
+                unrepairable_retired: unrepairableRetired,
+            });
+            setRecords((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+            setRecordToReceive(null);
+            showToast("Repair record received successfully!", "success");
+        } catch (err) {
+            console.error("Failed to receive repair record:", err);
+            showToast(err instanceof Error ? err.message : "Failed to receive repair record", "error");
+        } finally {
+            setReceiving(false);
         }
     };
 
     const handleRelease = (record: RepairRecord) => setRecordToRelease(record);
     const handleTransmittalReleased = (updated: RepairRecord) => {
-        setRecords((prev) => prev.map((record) => (record.id === updated.id ? updated : record)));
-    };
-
-    const handleBatchForRelease = async ({
-        billingCode,
-        receivedBy,
-        records: selectedRecords,
-    }: {
-        billingCode: string;
-        receivedBy: string;
-        records: RepairRecord[];
-    }) => {
-        setShowBatchForRelease(false);
-        setBatchReleasePreview({ records: selectedRecords, billingCode, receivedBy });
+        setRecords((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
     };
 
     const handleDelete = (record: RepairRecord) => setRecordToDelete(record);
@@ -291,11 +259,78 @@ export default function CsrRepairManagementPage() {
         finally { setDeleting(false); }
     };
 
+    const handleBatchForRepair = async (items: Array<{ record: RepairRecord; diagnosisId: number }>) => {
+        setBatchProcessing(true);
+        try {
+            const updatedRecords = await Promise.all(items.map((item) => proceedRepairRecord(item.record.id, item.diagnosisId)));
+            setRecords((prev) => prev.map((record) => updatedRecords.find((updated) => updated.id === record.id) ?? record));
+            setBatchModal(null);
+            showToast("Selected POS records moved to For Repair successfully!", "success");
+        } catch (err) {
+            showToast(err instanceof Error ? err.message : "Failed to process selected POS records", "error");
+        } finally {
+            setBatchProcessing(false);
+        }
+    };
+
+    const handleBatchChecked = async (technician: string, selectedRecords: RepairRecord[]) => {
+        setBatchProcessing(true);
+        try {
+            const updatedRecords = await Promise.all(selectedRecords.map((record) => moveRepairRecordToUndergoingRepair(record.id, {
+                repaired_by: technician,
+                requested_by: user?.name ?? user?.email ?? null,
+            })));
+            setRecords((prev) => prev.map((record) => updatedRecords.find((updated) => updated.id === record.id) ?? record));
+            setBatchModal(null);
+            showToast("Selected POS records moved to Undergoing Repair successfully!", "success");
+        } catch (err) {
+            showToast(err instanceof Error ? err.message : "Failed to process selected POS records", "error");
+        } finally {
+            setBatchProcessing(false);
+        }
+    };
+
+    const handleBatchReceived = async ({ billingCode, items }: { billingCode: string; items: Array<{ record: RepairRecord; remarks: string; unrepairableRetired: boolean }> }) => {
+        setBatchProcessing(true);
+        try {
+            const updatedRecords = await Promise.all(items.map((item) => receiveRepairRecord(item.record.id, {
+                billing_code: billingCode,
+                remarks: item.remarks,
+                received_by: user?.name ?? user?.email ?? null,
+                user_id: user?.id ?? null,
+                unrepairable_retired: item.unrepairableRetired,
+            })));
+            setRecords((prev) => prev.map((record) => updatedRecords.find((updated) => updated.id === record.id) ?? record));
+            setBatchModal(null);
+            showToast("Selected POS records received successfully!", "success");
+        } catch (err) {
+            showToast(err instanceof Error ? err.message : "Failed to receive selected POS records", "error");
+        } finally {
+            setBatchProcessing(false);
+        }
+    };
+
+    const handleBatchRelease = ({
+        billingCode,
+        receivedBy,
+        records: selectedRecords,
+    }: {
+        billingCode: string;
+        receivedBy: string;
+        records: RepairRecord[];
+    }) => {
+        setBatchModal(null);
+        setBatchReleasePreview({ records: selectedRecords, billingCode, receivedBy });
+    };
+
     const toggleReleasedGroup = (id: number) => {
         setExpandedReleasedIds((prev) => {
             const next = new Set(prev);
-            if (next.has(id)) next.delete(id);
-            else next.add(id);
+            if (next.has(id)) {
+                next.delete(id);
+            } else {
+                next.add(id);
+            }
             return next;
         });
     };
@@ -318,18 +353,12 @@ export default function CsrRepairManagementPage() {
         });
     }, [filteredRecords]);
 
-    const standardTotalPages = Math.ceil(filteredRecords.length / pageSize);
-    const pagedRecords = filteredRecords.slice((page - 1) * pageSize, page * pageSize);
-
-    const groupTotalPages = Math.ceil(releasedGroups.length / pageSize);
-    const pagedGroups = releasedGroups.slice((page - 1) * pageSize, page * pageSize);
-
-    const colCount = 7 + (showAccessories ? 3 : 0) + (showActions ? 1 : 0) + (showRepairedBy ? 1 : 0) + (showRemarks ? 1 : 0) + (showBillingInfo ? 2 : 0);
+    const colCount = isForChecking || isForRepair ? 7 : isUndergoingRepair ? 8 : isForRelease ? 9 : 7 + (showAccessories ? 3 : 0) + (showActions ? 1 : 0) + (showRepairedBy ? 1 : 0) + (showRemarks ? 1 : 0) + (showBillingInfo ? 2 : 0);
 
     return (
         <div className="space-y-6">
-            <div className="flex flex-wrap items-center justify-between gap-3" style={{ borderBottom: "1px solid rgba(146,199,207,0.25)" }}>
-                <div className="flex flex-wrap gap-2 overflow-x-auto">
+            <div className="flex items-center justify-between gap-3 overflow-x-auto flex-wrap" style={{ borderBottom: "1px solid rgba(146,199,207,0.25)" }}>
+                <div className="flex flex-wrap gap-2">
                     {statusTabs.map((tab) => {
                         const Icon = tab.icon;
                         const isActive = activeStatusTab === tab.id;
@@ -347,35 +376,27 @@ export default function CsrRepairManagementPage() {
                         );
                     })}
                 </div>
-                {activeStatusTab === "request" && (
-                    <button
-                        type="button"
-                        onClick={() => setShowBatchForRepair(true)}
-                        disabled={filteredRecords.length === 0 || batchProcessing}
-                        className="mb-2 inline-flex shrink-0 items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
-                        style={{
-                            background: "linear-gradient(to right, #92C7CF, #AAD7D9)",
-                            boxShadow: "0 4px 16px rgba(146,199,207,0.25)",
-                        }}
-                    >
-                        <ListChecks className="h-4 w-4" />
-                        Process Batch
-                    </button>
-                )}
-                {activeStatusTab === "for-release" && (
-                    <button
-                        type="button"
-                        onClick={() => setShowBatchForRelease(true)}
-                        disabled={filteredRecords.filter(isNonHexaTechnician).length === 0 || batchProcessing}
-                        className="mb-2 inline-flex shrink-0 items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
-                        style={{
-                            background: "linear-gradient(to right, #92C7CF, #AAD7D9)",
-                            boxShadow: "0 4px 16px rgba(146,199,207,0.25)",
-                        }}
-                    >
-                        <ListChecks className="h-4 w-4" />
-                        Process Batch
-                    </button>
+                {(activeStatusTab === "for-checking" || activeStatusTab === "for-repair" || activeStatusTab === "undergoing-repair" || activeStatusTab === "for-release") && (
+                    <div className="mb-2 ml-auto flex items-center gap-2">
+                        {activeStatusTab === "undergoing-repair" && (
+                            <button
+                                onClick={() => setShowTransmittal(true)}
+                                disabled={filteredRecords.length === 0}
+                                className="inline-flex h-10 items-center gap-2 rounded-xl border border-warm bg-white px-4 text-sm font-semibold text-ink shadow-sm transition hover:bg-surface disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
+                            >
+                                <Printer className="h-4 w-4" />
+                                Transmittal
+                            </button>
+                        )}
+                        <button
+                            onClick={() => setBatchModal(activeStatusTab === "for-checking" ? "for-repair" : activeStatusTab === "for-repair" ? "checked" : activeStatusTab === "undergoing-repair" ? "received" : "release")}
+                            disabled={filteredRecords.length === 0 || batchProcessing}
+                            className="inline-flex h-10 items-center gap-2 rounded-xl bg-teal px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-dark disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
+                        >
+                            <ListChecks className="h-4 w-4" />
+                            Process Batch
+                        </button>
+                    </div>
                 )}
             </div>
 
@@ -403,8 +424,7 @@ export default function CsrRepairManagementPage() {
                         {filteredRecords.length === 0 ? (
                             <div className="px-4 py-10 text-center text-gray-400">No records found in this category.</div>
                         ) : (
-                            <>
-                            {pagedGroups.map((group) => {
+                            releasedGroups.map((group) => {
                                 const firstRecord = group.records[0];
                                 const isExpanded = expandedReleasedIds.has(firstRecord.id);
                                 return (
@@ -463,25 +483,23 @@ export default function CsrRepairManagementPage() {
                                         )}
                                     </div>
                                 );
-                            })}
-                            <CsrPagination currentPage={page} totalPages={groupTotalPages} totalItems={filteredRecords.length} onPageChange={setPage} />
-                            </>
+                            })
                         )}
                     </div>
                 ) : (
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                             <thead>
-                                <tr className="text-left text-xs font-semibold uppercase tracking-wider text-gray-500" style={{ borderBottom: "1px solid rgba(146,199,207,0.15)" }}>
+                                <tr className="border-b border-warm bg-cream text-left text-xs font-semibold uppercase tracking-wider text-ink-muted">
                                     {showBillingInfo && <th className="px-4 py-4">Billing Code</th>}
-                                    <th className="px-4 py-4">Date</th>
+                                    <th className="px-4 py-4">{isForChecking ? "Date Requested" : isForRepair ? "Date Checked" : isUndergoingRepair ? "Date Forwarded" : isForRelease ? "Date Received" : "Date"}</th>
                                     <th className="px-4 py-4">POS No</th>
                                     <th className="px-4 py-4">Serial No</th>
                                     <th className="px-4 py-4">Area</th>
                                     <th className="px-4 py-4">Operator</th>
                                     <th className="px-4 py-4">Diagnosis</th>
                                     {showAccessories && <><th className="px-4 py-4">NTC</th><th className="px-4 py-4">With Charger</th><th className="px-4 py-4">With Box</th></>}
-                                    <th className="px-4 py-4">Delivered By</th>
+                                    {!isForChecking && !isForRepair && !isUndergoingRepair && !isForRelease && <th className="px-4 py-4">Delivered By</th>}
                                     {showRepairedBy && <th className="px-4 py-4">Repaired By</th>}
                                     {showRemarks && <th className="px-4 py-4">Remarks</th>}
                                     {showBillingInfo && <th className="px-4 py-4">Received By</th>}
@@ -492,8 +510,8 @@ export default function CsrRepairManagementPage() {
                                 {filteredRecords.length === 0 ? (
                                     <tr><td colSpan={colCount} className="px-4 py-10 text-center text-gray-400">No records found in this category.</td></tr>
                                 ) : (
-                                    pagedRecords.map((record, idx) => (
-                                        <tr key={record.id} className="transition-all duration-200 hover:bg-white/10" style={{ borderBottom: idx < pagedRecords.length - 1 ? "1px solid rgba(146,199,207,0.08)" : "none" }}>
+                                    filteredRecords.map((record, idx) => (
+                                        <tr key={record.id} className="transition-all duration-200 hover:bg-white/10" style={{ borderBottom: idx < filteredRecords.length - 1 ? "1px solid rgba(146,199,207,0.08)" : "none" }}>
                                             {showBillingInfo && <td className="px-4 py-3.5 font-medium text-gray-800">{record.billing_code || "-"}</td>}
                                             <td className="px-4 py-3.5 text-gray-700">{formatDate(record.date)}</td>
                                             <td className="px-4 py-3.5 font-medium text-gray-800">{record.device_no || "-"}</td>
@@ -508,25 +526,33 @@ export default function CsrRepairManagementPage() {
                                                     <td className="px-4 py-3.5 text-center"><span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium" style={{ background: record.with_box ? "rgba(107,191,107,0.2)" : "rgba(0,0,0,0.05)", color: record.with_box ? "#2E7D32" : "#9CA3AF" }}>{formatYesNo(record.with_box)}</span></td>
                                                 </>
                                             )}
-                                            <td className="px-4 py-3.5 text-gray-700">{record.delivered_by || "-"}</td>
+                                            {!isForChecking && !isForRepair && !isUndergoingRepair && !isForRelease && <td className="px-4 py-3.5 text-gray-700">{record.delivered_by || "-"}</td>}
                                             {showRepairedBy && <td className="px-4 py-3.5 text-gray-700">{record.repaired_by || "-"}</td>}
                                             {showRemarks && <td className="px-4 py-3.5 text-gray-700">{record.remarks || "-"}</td>}
                                             {showBillingInfo && <td className="px-4 py-3.5 text-gray-700">{record.received_by || "-"}</td>}
                                             {showActions && (
                                                 <td className="px-4 py-3.5">
                                                     <div className="flex items-center justify-center gap-1">
-                                                        {activeStatusTab === "request" && (
-                                                            <button onClick={() => handleProceed(record)} className="rounded-lg p-1.5 transition-colors hover:bg-green-50" title="Proceed" style={{ color: "#16A34A" }}><CheckCircle2 className="h-4 w-4" /></button>
+                                                        {activeStatusTab === "for-checking" && (
+                                                            <>
+                                                                <button onClick={() => handleForReleased(record)} className="rounded-lg p-1.5 transition-colors hover:bg-blue-50" title="For Release" style={{ color: "#2563EB" }}><ArrowUpRight className="h-4 w-4" /></button>
+                                                                <button onClick={() => handleProceed(record)} className="rounded-lg p-1.5 transition-colors hover:bg-green-50" title="For Repair" style={{ color: "#16A34A" }}><Wrench className="h-4 w-4" /></button>
+                                                            </>
                                                         )}
                                                         {activeStatusTab === "for-release" && (
                                                             <button onClick={() => handleRelease(record)} className="rounded-lg p-1.5 transition-colors hover:bg-blue-50" title="Release" style={{ color: "#2563EB" }}><ArrowUpRight className="h-4 w-4" /></button>
                                                         )}
-                                                        {activeStatusTab !== "for-release" && (
+                                                        {activeStatusTab === "undergoing-repair" && (
+                                                            <button onClick={() => setRecordToReceive(record)} className="rounded-lg p-1.5 transition-colors hover:bg-green-50" title="Received" style={{ color: "#16A34A" }}><CheckCircle2 className="h-4 w-4" /></button>
+                                                        )}
+                                                        {activeStatusTab === "for-repair" && (
                                                             <>
-                                                                <button onClick={() => handleEdit(record)} className="rounded-lg p-1.5 transition-colors hover:bg-amber-50" title="Edit" style={{ color: "#F59E0B" }}><Edit className="h-4 w-4" /></button>
-                                                                <button onClick={() => handleDelete(record)} className="rounded-lg p-1.5 transition-colors hover:bg-red-50" title="Delete" style={{ color: "#EF4444" }}><Trash2 className="h-4 w-4" /></button>
+                                                                <button onClick={() => setRecordToReset(record)} className="rounded-lg p-1.5 transition-colors hover:bg-red-50" title="Reset" style={{ color: "#EF4444" }}><RotateCcw className="h-4 w-4" /></button>
+                                                                <button onClick={() => setRecordToTechnician(record)} className="rounded-lg p-1.5 transition-colors hover:bg-green-50" title="Proceed" style={{ color: "#16A34A" }}><CheckCircle2 className="h-4 w-4" /></button>
                                                             </>
                                                         )}
+                                                        {!isForChecking && !isForRepair && !isUndergoingRepair && !isForRelease && <button onClick={() => handleEdit(record)} className="rounded-lg p-1.5 transition-colors hover:bg-amber-50" title="Edit" style={{ color: "#F59E0B" }}><Edit className="h-4 w-4" /></button>}
+                                                        {!isForRepair && !isUndergoingRepair && !isForRelease && <button onClick={() => handleDelete(record)} className="rounded-lg p-1.5 transition-colors hover:bg-red-50" title="Delete" style={{ color: "#EF4444" }}><Trash2 className="h-4 w-4" /></button>}
                                                     </div>
                                                 </td>
                                             )}
@@ -535,17 +561,47 @@ export default function CsrRepairManagementPage() {
                                 )}
                             </tbody>
                         </table>
-                        {filteredRecords.length > 0 && (
-                            <CsrPagination currentPage={page} totalPages={standardTotalPages} totalItems={filteredRecords.length} onPageChange={setPage} />
-                        )}
                     </div>
                 )}
             </div>
 
             {editingRecord && <EditModal record={editingRecord} diagnoses={diagnoses} onClose={handleEditClose} onSave={handleEditSave} showToast={showToast} />}
-
-            <CsrConfirmationModal open={recordToProceed !== null} title="Proceed with repair request?" message={recordToProceed ? `This will forward POS #${recordToProceed.device_no || recordToProceed.id} to "For Repair" status.` : undefined} confirmLabel="Proceed" loading={proceeding} onCancel={() => setRecordToProceed(null)} onConfirm={handleConfirmProceed} />
-            <CsrConfirmationModal open={recordToDelete !== null} title="Delete repair record?" message="Are you sure you want to delete this repair record? This action cannot be undone." confirmLabel="Delete Record" loading={deleting} variant="delete" onCancel={() => setRecordToDelete(null)} onConfirm={handleConfirmDelete} />
+            {recordToForRepair && (
+                <FinalDiagnosisModal
+                    record={recordToForRepair}
+                    diagnoses={diagnoses}
+                    loading={proceeding}
+                    title="Final Diagnosis"
+                    proceedLabel="Proceed"
+                    onCancel={() => setRecordToForRepair(null)}
+                    onProceed={handleConfirmProceed}
+                />
+            )}
+            {recordToForReleased && (
+                <FinalDiagnosisModal
+                    record={recordToForReleased}
+                    diagnoses={diagnoses}
+                    loading={forwardingRelease}
+                    onCancel={() => setRecordToForReleased(null)}
+                    onProceed={handleConfirmForReleased}
+                />
+            )}
+            {recordToTechnician && (
+                <TechnicianModal
+                    record={recordToTechnician}
+                    loading={savingTechnician}
+                    onCancel={() => setRecordToTechnician(null)}
+                    onProceed={handleTechnicianProceed}
+                />
+            )}
+            {recordToReceive && (
+                <ReceivedModal
+                    record={recordToReceive}
+                    loading={receiving}
+                    onCancel={() => setRecordToReceive(null)}
+                    onProceed={handleReceiveProceed}
+                />
+            )}
             {recordToRelease && (
                 <TransmittalModal
                     mode="release"
@@ -571,22 +627,45 @@ export default function CsrRepairManagementPage() {
                     onClose={() => setBatchReleasePreview(null)}
                 />
             )}
-            {showBatchForRepair && (
-                <CsrBatchForRepairModal
-                    records={filteredRecords}
-                    loading={batchProcessing}
-                    onCancel={() => setShowBatchForRepair(false)}
+            {showTransmittal && (
+                <TransmittalModal
+                    records={filterRecordsByTab(records, "undergoing-repair")}
+                    onClose={() => setShowTransmittal(false)}
+                />
+            )}
+            {batchModal === "for-repair" && (
+                <BatchForRepairModal
+                    records={filterRecordsByTab(records, "for-checking")}
+                    diagnoses={diagnoses}
+                    onCancel={() => setBatchModal(null)}
                     onProceed={handleBatchForRepair}
                 />
             )}
-            {showBatchForRelease && (
-                <CsrBatchForReleaseModal
-                    records={filteredRecords.filter(isNonHexaTechnician)}
-                    loading={batchProcessing}
-                    onCancel={() => setShowBatchForRelease(false)}
-                    onProceed={handleBatchForRelease}
+            {batchModal === "checked" && (
+                <BatchCheckedPosModal
+                    records={filterRecordsByTab(records, "for-repair")}
+                    onCancel={() => setBatchModal(null)}
+                    onProceed={handleBatchChecked}
                 />
             )}
+            {batchModal === "received" && (
+                <BatchReceivedPosModal
+                    records={filterRecordsByTab(records, "undergoing-repair")}
+                    onCancel={() => setBatchModal(null)}
+                    onProceed={handleBatchReceived}
+                />
+            )}
+            {batchModal === "release" && (
+                <CsrBatchForReleaseModal
+                    records={filterRecordsByTab(records, "for-release")}
+                    loading={batchProcessing}
+                    onCancel={() => setBatchModal(null)}
+                    onProceed={handleBatchRelease}
+                />
+            )}
+
+            <RepairConfirmationModal open={recordToReset !== null} title="Reset repair record?" message={recordToReset ? `This will move POS #${recordToReset.device_no || recordToReset.id} back to For Repair status.` : undefined} confirmLabel="Reset" loading={resetting} onCancel={() => setRecordToReset(null)} onConfirm={handleResetToForRepair} />
+            <RepairConfirmationModal open={recordToDelete !== null} title="Delete repair record?" message="Are you sure you want to delete this repair record? This action cannot be undone." confirmLabel="Delete Record" loading={deleting} variant="delete" onCancel={() => setRecordToDelete(null)} onConfirm={handleConfirmDelete} />
         </div>
     );
 }

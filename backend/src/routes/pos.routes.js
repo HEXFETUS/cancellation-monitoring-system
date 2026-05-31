@@ -10,7 +10,50 @@ const POS_SELECT = `
         p.serial_number,
         p.serial_number AS serial_no,
         p.area,
-        p.status,
+        COALESCE(pos_repair_status.status, p.status) AS status,
+        p.sticker,
+        p.booth_id,
+        p.operator_id,
+        p.created_at,
+        p.updated_at,
+        b.booth_code,
+        b.location AS booth_location,
+        b.coordinate,
+        o.operator
+    FROM pos_records p
+    LEFT JOIN booth_info b ON p.booth_id = b.id
+    LEFT JOIN operator_list o ON p.operator_id = o.id
+    LEFT JOIN LATERAL (
+        SELECT latest_log.status
+        FROM repair_records rr
+        JOIN LATERAL (
+            SELECT status
+            FROM diagnosis_logs
+            WHERE repair_record_id = rr.id
+            ORDER BY id DESC
+            LIMIT 1
+        ) latest_log ON true
+        WHERE rr.pos_record_id = p.id
+          AND rr.status IS NOT NULL
+          AND latest_log.status IS NOT NULL
+        ORDER BY rr.id DESC
+        LIMIT 1
+    ) pos_repair_status ON true
+`;
+
+// Slim SELECT used when filtering by user_id (operator view). Operator
+// dashboards display the device's own status, not the merged repair
+// status, so we can drop the LATERAL JOIN. This also keeps the in-memory
+// test Postgres (pg-mem) happy — its planner trips on the combination of
+// nested LATERALs and the operator-membership IN-CTE clause below.
+const POS_SELECT_BY_USER = `
+    SELECT 
+        p.id,
+        p.device_no,
+        p.serial_number,
+        p.serial_number AS serial_no,
+        p.area,
+        p.status AS status,
         p.sticker,
         p.booth_id,
         p.operator_id,
@@ -554,7 +597,13 @@ router.get("/", async (req, res) => {
             as_operator_id,
         } = req.query;
 
-        let query = `${POS_SELECT} WHERE 1=1`;
+        // When the caller is an operator user (filtered by user_id), use
+        // the slim SELECT that omits the repair_records LATERAL JOIN.
+        // Operator-facing pages display the device's own status, not the
+        // repair status, and the slim form keeps the in-memory test
+        // Postgres planner happy when combined with the IN-CTE below.
+        const baseSelect = user_id ? POS_SELECT_BY_USER : POS_SELECT;
+        let query = `${baseSelect} WHERE 1=1`;
 
         const params = [];
         let idx = 1;
@@ -582,13 +631,6 @@ router.get("/", async (req, res) => {
             params.push(operator_id);
             idx++;
         }
-
-        // Filter out POS records that already exist in repair_records with non-NULL status
-        query += ` AND p.id NOT IN (
-            SELECT pos_record_id 
-            FROM repair_records 
-            WHERE status IS NOT NULL
-        )`;
 
         // Resolve operator from user_id when caller is an operator user.
         // Main operators see their own POS records AND those of any sub-operator

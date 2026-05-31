@@ -309,6 +309,7 @@ export default function OperatorDashboard() {
                 open={!!requesting}
                 posRecord={requesting}
                 booths={booths}
+                operators={operators}
                 onClose={() => setRequesting(null)}
                 onSubmitted={async () => {
                     setRequesting(null);

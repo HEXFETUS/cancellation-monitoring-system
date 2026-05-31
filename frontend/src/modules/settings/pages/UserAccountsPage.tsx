@@ -545,7 +545,9 @@ export default function UserAccountsPage({ onSuccess }: { onSuccess: (message: s
                                         <td className="px-4 py-3 text-ink-muted">{user.department || "—"}</td>
                                         <td className="px-4 py-3">
                                             <span className="inline-block px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-light/40 text-ink capitalize border border-teal/30">
-                                                {user.usertype}
+                                                {user.usertype === "operator" && user.parent_operator_id != null
+                                                    ? "Sub-Operator"
+                                                    : user.usertype}
                                             </span>
                                         </td>
                                         <td className="px-4 py-3">
