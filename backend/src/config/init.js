@@ -17,6 +17,7 @@ const SERIAL_TABLES = [
     "payout_stations",
     "office_departments",
     "booth_change_requests",
+    "diagnosis_list",
     "repair_records",
     "diagnosis_logs",
     "billing_transmittals",
@@ -435,7 +436,6 @@ async function initDatabase() {
         await client.query(`
             CREATE TABLE IF NOT EXISTS diagnosis_list (
                 id SERIAL PRIMARY KEY,
-                diagnosis_code VARCHAR(100) UNIQUE NOT NULL,
                 name VARCHAR(255) NOT NULL,
                 description TEXT,
                 active BOOLEAN DEFAULT true,
@@ -448,15 +448,15 @@ async function initDatabase() {
         const diagnosisCount = await client.query("SELECT COUNT(*)::int AS n FROM diagnosis_list");
         if (diagnosisCount.rows[0].n === 0) {
             await client.query(`
-                INSERT INTO diagnosis_list (diagnosis_code, name) VALUES
-                    ('screen-damage', 'Screen Damage'),
-                    ('battery-issue', 'Battery Issue'),
-                    ('printer-malfunction', 'Printer Malfunction'),
-                    ('card-reader-error', 'Card Reader Error'),
-                    ('power-supply', 'Power Supply Issue'),
-                    ('software-error', 'Software Error'),
-                    ('keyboard-issue', 'Keyboard Issue'),
-                    ('other', 'Other');
+                INSERT INTO diagnosis_list (name) VALUES
+                    ('Screen Damage'),
+                    ('Battery Issue'),
+                    ('Printer Malfunction'),
+                    ('Card Reader Error'),
+                    ('Power Supply Issue'),
+                    ('Software Error'),
+                    ('Keyboard Issue'),
+                    ('Other');
             `);
         }
 
@@ -571,12 +571,19 @@ async function initDatabase() {
                 id SERIAL PRIMARY KEY,
                 billing_transmittal_id INTEGER REFERENCES billing_transmittals(id) ON DELETE SET NULL,
                 repair_record_id INTEGER REFERENCES repair_records(id) ON DELETE CASCADE,
+                user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         `);
         await client.query(
+            "ALTER TABLE released_logs ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE SET NULL"
+        );
+        await client.query(
             "CREATE INDEX IF NOT EXISTS idx_released_logs_repair_record ON released_logs(repair_record_id)"
+        );
+        await client.query(
+            "CREATE INDEX IF NOT EXISTS idx_released_logs_user ON released_logs(user_id)"
         );
 
         for (const tableName of SERIAL_TABLES) {

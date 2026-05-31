@@ -884,16 +884,18 @@ router.patch("/:id/release", async (req, res) => {
             INSERT INTO released_logs (
                 billing_transmittal_id,
                 repair_record_id,
+                user_id,
                 created_at,
                 updated_at
             ) VALUES (
                 $1,
                 $2,
+                $3,
                 CURRENT_TIMESTAMP,
                 CURRENT_TIMESTAMP
             )
             `,
-            [billingTransmittalId, id]
+            [billingTransmittalId, id, user_id || null]
         );
 
         const full = await client.query(`${REPAIR_SELECT} WHERE rr.id = $1::int`, [id]);

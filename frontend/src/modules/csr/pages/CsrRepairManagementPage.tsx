@@ -26,6 +26,7 @@ import TransmittalModal from "../../pos-repair/components/TransmittalModal";
 import CsrConfirmationModal from "../components/CsrConfirmationModal";
 import CsrBatchForRepairModal from "../components/CsrBatchForRepairModal";
 import CsrBatchForReleaseModal from "../components/CsrBatchForReleaseModal";
+import CsrPagination from "../components/CsrPagination";
 
 const teal = "#92C7CF";
 
@@ -52,6 +53,18 @@ const noActionTabs = ["for-repair", "undergoing-repair"];
 function filterRecordsByTab(records: RepairRecord[], tabId: string): RepairRecord[] {
     const status = tabStatusMap[tabId];
     if (!status) return [];
+
+    if (tabId === "released") {
+        const now = new Date();
+        const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+        return records.filter((r) => {
+            if (r.status !== status) return false;
+            if (!r.date) return false;
+            const d = new Date(r.date);
+            const logStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+            return logStr === todayStr;
+        });
+    }
 
     if (tabId === "request") {
         return records.filter(
@@ -194,6 +207,8 @@ export default function CsrRepairManagementPage() {
     const [expandedReleasedIds, setExpandedReleasedIds] = useState<Set<number>>(new Set());
     const [batchProcessing, setBatchProcessing] = useState(false);
     const [toast, setToast] = useState<{ show: boolean; message: string; type: "error" | "success" }>({ show: false, message: "", type: "error" });
+    const [page, setPage] = useState(1);
+    const pageSize = 20;
 
     const showToast = (message: string, type: "error" | "success" = "error") => {
         setToast({ show: true, message, type });
@@ -218,6 +233,7 @@ export default function CsrRepairManagementPage() {
 
     useEffect(() => { fetchRecords(); fetchDiagnoses(); }, []);
     useEffect(() => { setFilteredRecords(filterRecordsByTab(records, activeStatusTab)); }, [records, activeStatusTab]);
+    useEffect(() => { setPage(1); }, [activeStatusTab]);
 
     const handleEdit = (record: RepairRecord) => setEditingRecord(record);
     const handleEditClose = () => setEditingRecord(null);
@@ -302,6 +318,12 @@ export default function CsrRepairManagementPage() {
         });
     }, [filteredRecords]);
 
+    const standardTotalPages = Math.ceil(filteredRecords.length / pageSize);
+    const pagedRecords = filteredRecords.slice((page - 1) * pageSize, page * pageSize);
+
+    const groupTotalPages = Math.ceil(releasedGroups.length / pageSize);
+    const pagedGroups = releasedGroups.slice((page - 1) * pageSize, page * pageSize);
+
     const colCount = 7 + (showAccessories ? 3 : 0) + (showActions ? 1 : 0) + (showRepairedBy ? 1 : 0) + (showRemarks ? 1 : 0) + (showBillingInfo ? 2 : 0);
 
     return (
@@ -381,7 +403,8 @@ export default function CsrRepairManagementPage() {
                         {filteredRecords.length === 0 ? (
                             <div className="px-4 py-10 text-center text-gray-400">No records found in this category.</div>
                         ) : (
-                            releasedGroups.map((group) => {
+                            <>
+                            {pagedGroups.map((group) => {
                                 const firstRecord = group.records[0];
                                 const isExpanded = expandedReleasedIds.has(firstRecord.id);
                                 return (
@@ -440,7 +463,9 @@ export default function CsrRepairManagementPage() {
                                         )}
                                     </div>
                                 );
-                            })
+                            })}
+                            <CsrPagination currentPage={page} totalPages={groupTotalPages} totalItems={filteredRecords.length} onPageChange={setPage} />
+                            </>
                         )}
                     </div>
                 ) : (
@@ -467,8 +492,8 @@ export default function CsrRepairManagementPage() {
                                 {filteredRecords.length === 0 ? (
                                     <tr><td colSpan={colCount} className="px-4 py-10 text-center text-gray-400">No records found in this category.</td></tr>
                                 ) : (
-                                    filteredRecords.map((record, idx) => (
-                                        <tr key={record.id} className="transition-all duration-200 hover:bg-white/10" style={{ borderBottom: idx < filteredRecords.length - 1 ? "1px solid rgba(146,199,207,0.08)" : "none" }}>
+                                    pagedRecords.map((record, idx) => (
+                                        <tr key={record.id} className="transition-all duration-200 hover:bg-white/10" style={{ borderBottom: idx < pagedRecords.length - 1 ? "1px solid rgba(146,199,207,0.08)" : "none" }}>
                                             {showBillingInfo && <td className="px-4 py-3.5 font-medium text-gray-800">{record.billing_code || "-"}</td>}
                                             <td className="px-4 py-3.5 text-gray-700">{formatDate(record.date)}</td>
                                             <td className="px-4 py-3.5 font-medium text-gray-800">{record.device_no || "-"}</td>
@@ -487,7 +512,7 @@ export default function CsrRepairManagementPage() {
                                             {showRepairedBy && <td className="px-4 py-3.5 text-gray-700">{record.repaired_by || "-"}</td>}
                                             {showRemarks && <td className="px-4 py-3.5 text-gray-700">{record.remarks || "-"}</td>}
                                             {showBillingInfo && <td className="px-4 py-3.5 text-gray-700">{record.received_by || "-"}</td>}
-            {showActions && (
+                                            {showActions && (
                                                 <td className="px-4 py-3.5">
                                                     <div className="flex items-center justify-center gap-1">
                                                         {activeStatusTab === "request" && (
@@ -510,6 +535,9 @@ export default function CsrRepairManagementPage() {
                                 )}
                             </tbody>
                         </table>
+                        {filteredRecords.length > 0 && (
+                            <CsrPagination currentPage={page} totalPages={standardTotalPages} totalItems={filteredRecords.length} onPageChange={setPage} />
+                        )}
                     </div>
                 )}
             </div>

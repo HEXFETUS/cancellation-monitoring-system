@@ -14,6 +14,8 @@ import officeDepartmentRoutes from "./src/routes/office-department.routes.js";
 import boothChangeRequestRoutes from "./src/routes/booth-change-request.routes.js";
 import diagnosisListRoutes from "./src/routes/diagnosis-list.routes.js";
 import repairRecordRoutes from "./src/routes/repair-record.routes.js";
+import diagnosisLogRoutes from "./src/routes/diagnosis-log.routes.js";
+import releasedLogRoutes from "./src/routes/released-log.routes.js";
 import initDatabase from "./src/config/init.js";
 
 dotenv.config();
@@ -23,7 +25,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// routes
+// Routes
 app.use("/api/health", healthRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/auth", authRoutes);
@@ -36,6 +38,8 @@ app.use("/api/office-departments", officeDepartmentRoutes);
 app.use("/api/booth-change-requests", boothChangeRequestRoutes);
 app.use("/api/diagnosis-list", diagnosisListRoutes);
 app.use("/api/repair-records", repairRecordRoutes);
+app.use("/api/diagnosis-logs", diagnosisLogRoutes);
+app.use("/api/released-logs", releasedLogRoutes);
 
 const PORT = Number(process.env.PORT || 5050);
 
