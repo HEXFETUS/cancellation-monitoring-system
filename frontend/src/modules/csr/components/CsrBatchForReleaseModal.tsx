@@ -32,7 +32,7 @@ export default function CsrBatchForReleaseModal({
     const eligibleRecords = useMemo(() => records.filter(isNonHexaTechnician), [records]);
     const initialSavedBillingCodes = getSavedBillingCodes(eligibleRecords);
     const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set());
-    const [billingCode, setBillingCode] = useState(() => initialSavedBillingCodes.length === 1 ? initialSavedBillingCodes[0] : "");
+    const [billingCode, setBillingCode] = useState("");
     const [receivedBy, setReceivedBy] = useState("");
     const [filterBy, setFilterBy] = useState<"billing" | "operator">("billing");
     const [filterValue, setFilterValue] = useState("");
