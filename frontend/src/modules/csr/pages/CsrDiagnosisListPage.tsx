@@ -18,8 +18,8 @@ import {
     deleteDiagnosis,
 } from "../services/diagnosisList";
 import type { DiagnosisItem } from "../services/diagnosisList";
-import CsrConfirmationModal from "../../csr/components/CsrConfirmationModal";
-import Pagination from "../components/Pagination";
+import CsrConfirmationModal from "../components/CsrConfirmationModal";
+import CsrPagination from "../components/CsrPagination";
 
 const teal = "#92C7CF";
 
@@ -126,7 +126,7 @@ function FormModal({ mode, initialName = "", onClose, onSave, saving, error }: F
 }
 
 /* ─── Main Page ─── */
-export default function DiagnosisListPage() {
+export default function CsrDiagnosisListPage() {
     const [items, setItems] = useState<DiagnosisItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -371,7 +371,7 @@ export default function DiagnosisListPage() {
                                             className="transition-all duration-200 hover:bg-white/10"
                                             style={{
                                                 borderBottom:
-                                                    idx < pagedItems.length - 1
+                                                    idx < items.length - 1
                                                         ? "1px solid rgba(146,199,207,0.08)"
                                                         : "none",
                                             }}
@@ -410,7 +410,7 @@ export default function DiagnosisListPage() {
                     </div>
                 )}
                 {items.length > 0 && (
-                    <Pagination
+                    <CsrPagination
                         currentPage={page}
                         totalPages={totalPages}
                         totalItems={items.length}

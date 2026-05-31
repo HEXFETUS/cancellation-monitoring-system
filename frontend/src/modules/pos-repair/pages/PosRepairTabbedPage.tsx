@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Wrench, ClipboardList, BarChart3, FileSearch, Menu } from "lucide-react";
+import { Wrench, ClipboardList, BarChart3, FileSearch, Menu, Search } from "lucide-react";
 import RepairRequestPage from "./RepairRequestPage";
 import RepairManagementPage from "./RepairManagementPage";
 import RepairLogPage from "./RepairLogPage";
@@ -12,7 +12,7 @@ const leftTabs = [
     { id: "repair-request", label: "REPAIR REQUEST", icon: ClipboardList },
     { id: "repair-management", label: "REPAIR MANAGEMENT", icon: Wrench },
     { id: "reports", label: "REPORTS", icon: BarChart3 },
-    { id: "diagnosis", label: "LIST OF DIAGNOSIS", icon: FileSearch },
+    { id: "diagnosis", label: "DIAGNOSIS LIST", icon: FileSearch },
 ];
 
 const subTabs = [
@@ -20,20 +20,21 @@ const subTabs = [
     { id: "released-logs", label: "Released Logs" },
 ];
 
-export default function PosRepairRequestPage() {
+export default function PosRepairTabbedPage() {
     const [activeTab, setActiveTab] = useState("repair-management");
     const [activeSubTab, setActiveSubTab] = useState("repair-logs");
+    const [repairLogSearch, setRepairLogSearch] = useState("");
+    const [releasedLogSearch, setReleasedLogSearch] = useState("");
     const [sidebarOpen, setSidebarOpen] = useState(true);
 
     return (
         <div className="flex flex-col gap-6 lg:flex-row lg:gap-8">
             {/* Left sidebar tabs — collapsible */}
             <div
-                className={`transition-all duration-300 ${
-                    sidebarOpen
+                className={`transition-all duration-300 ${sidebarOpen
                         ? "lg:w-60 lg:shrink-0"
                         : "lg:w-20 lg:shrink-0"
-                }`}
+                    }`}
             >
                 <div className="flex gap-2 overflow-x-auto pb-2 lg:flex-col lg:space-y-3 lg:overflow-visible lg:pb-0">
                     {/* Collapse toggle button — icon only */}
@@ -95,9 +96,8 @@ export default function PosRepairRequestPage() {
                                     <Icon className="h-5 w-5" />
                                 </span>
                                 <span
-                                    className={`whitespace-nowrap lg:whitespace-normal transition-all duration-200 ${
-                                        isCollapsed ? "hidden" : "inline"
-                                    }`}
+                                    className={`whitespace-nowrap lg:whitespace-normal transition-all duration-200 ${isCollapsed ? "hidden" : "inline"
+                                        }`}
                                 >
                                     {tab.label}
                                 </span>
@@ -114,45 +114,66 @@ export default function PosRepairRequestPage() {
                 {activeTab === "diagnosis" && <DiagnosisListPage />}
                 {activeTab === "reports" && (
                     <div>
-                        <div className="mb-6 flex gap-2 overflow-x-auto border-b pb-2"
+                        <div className="mb-6 flex items-center gap-2 border-b pb-2"
                             style={{ borderColor: "rgba(146,199,207,0.20)" }}
                         >
-                            {subTabs.map((tab) => {
-                                const isSubActive = activeSubTab === tab.id;
-                                return (
-                                    <button
-                                        key={tab.id}
-                                        onClick={() => setActiveSubTab(tab.id)}
-                                        className="shrink-0 rounded-xl px-3 py-2 text-xs font-medium transition-all duration-200 sm:px-4 sm:text-sm"
-                                        style={{
-                                            background: isSubActive
-                                                ? "rgba(146,199,207,0.15)"
-                                                : "transparent",
-                                            border: isSubActive
-                                                ? "1px solid rgba(146,199,207,0.25)"
-                                                : "1px solid transparent",
-                                            color: isSubActive ? "#1F2937" : "#6B7280",
-                                        }}
-                                        onMouseEnter={(e) => {
-                                            if (!isSubActive) {
-                                                e.currentTarget.style.background = "rgba(146,199,207,0.06)";
-                                            }
-                                        }}
-                                        onMouseLeave={(e) => {
-                                            if (!isSubActive) {
-                                                e.currentTarget.style.background = "transparent";
-                                            }
-                                        }}
-                                    >
-                                        {tab.label}
-                                    </button>
-                                );
-                            })}
+                            <div className="flex gap-2 overflow-x-auto">
+                                {subTabs.map((tab) => {
+                                    const isSubActive = activeSubTab === tab.id;
+                                    return (
+                                        <button
+                                            key={tab.id}
+                                            onClick={() => setActiveSubTab(tab.id)}
+                                            className="shrink-0 rounded-xl px-3 py-2 text-xs font-medium transition-all duration-200 sm:px-4 sm:text-sm"
+                                            style={{
+                                                background: isSubActive
+                                                    ? "rgba(146,199,207,0.15)"
+                                                    : "transparent",
+                                                border: isSubActive
+                                                    ? "1px solid rgba(146,199,207,0.25)"
+                                                    : "1px solid transparent",
+                                                color: isSubActive ? "#1F2937" : "#6B7280",
+                                            }}
+                                            onMouseEnter={(e) => {
+                                                if (!isSubActive) {
+                                                    e.currentTarget.style.background = "rgba(146,199,207,0.06)";
+                                                }
+                                            }}
+                                            onMouseLeave={(e) => {
+                                                if (!isSubActive) {
+                                                    e.currentTarget.style.background = "transparent";
+                                                }
+                                            }}
+                                        >
+                                            {tab.label}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+
+                            <div className="ml-auto relative">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+                                <input
+                                    type="text"
+                                    value={activeSubTab === "repair-logs" ? repairLogSearch : releasedLogSearch}
+                                    onChange={(e) =>
+                                        activeSubTab === "repair-logs"
+                                            ? setRepairLogSearch(e.target.value)
+                                            : setReleasedLogSearch(e.target.value)
+                                    }
+                                    placeholder={activeSubTab === "repair-logs" ? "Search POS / Serial Number…" : "Search Billing Code…"}
+                                    className="pl-9 pr-4 py-2 text-sm rounded-xl border border-gray-200/60 bg-white/40 backdrop-blur-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-300/50 focus:border-teal-300 w-64"
+                                />
+                            </div>
                         </div>
 
                         <div>
-                            {activeSubTab === "repair-logs" && <RepairLogPage />}
-                            {activeSubTab === "released-logs" && <ReleasedLogPage />}
+                            {activeSubTab === "repair-logs" && (
+                                <RepairLogPage search={repairLogSearch} onSearchChange={setRepairLogSearch} />
+                            )}
+                            {activeSubTab === "released-logs" && (
+                                <ReleasedLogPage search={releasedLogSearch} onSearchChange={setReleasedLogSearch} />
+                            )}
                         </div>
                     </div>
                 )}

@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { Wrench, ClipboardList, FileText, ArrowUpRight, Menu } from "lucide-react";
+import { Wrench, ClipboardList, FileText, ArrowUpRight, Menu, Stethoscope } from "lucide-react";
 import CsrRepairRequestPage from "./CsrRepairRequestPage";
 import CsrRepairManagementPage from "./CsrRepairManagementPage";
 import CsrRepairLogPage from "./CsrRepairLogPage";
 import CsrReleasedLogPage from "./CsrReleasedLogPage";
+import CsrDiagnosisListPage from "./CsrDiagnosisListPage";
 
 const teal = "#92C7CF";
 
@@ -12,6 +13,7 @@ const leftTabs = [
     { id: "pos-repair-management", label: "REPAIR MANAGEMENT", icon: Wrench },
     { id: "repair-log", label: "REPAIR LOG", icon: FileText },
     { id: "released-log", label: "RELEASED LOG", icon: ArrowUpRight },
+    { id: "diagnosis-list", label: "DIAGNOSIS LIST", icon: Stethoscope },
 ];
 
 export default function CsrTabbedPage() {
@@ -105,6 +107,7 @@ export default function CsrTabbedPage() {
                 {activeTab === "pos-repair-management" && <CsrRepairManagementPage />}
                 {activeTab === "repair-log" && <CsrRepairLogPage />}
                 {activeTab === "released-log" && <CsrReleasedLogPage />}
+                {activeTab === "diagnosis-list" && <CsrDiagnosisListPage />}
             </div>
         </div>
     );

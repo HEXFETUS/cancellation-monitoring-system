@@ -7,7 +7,7 @@ import DashboardLayout from "../../app/layouts/DashboardLayout";
 import DashboardHome from "../../pages/dashboard/DashboardHome";
 
 import PosInventoryTabbedPage from "../../modules/pos/pages/PosInventoryTabbedPage";
-import PosRepairRequestPage from "../../modules/pos-repair/pages/PosRepairRequestPage";
+import PosRepairTabbedPage from "../../modules/pos-repair/pages/PosRepairTabbedPage";
 
 import CancellationTabbedPage from "../../modules/cancellation/pages/CancellationTabbedPage";
 import AssetInventoryTabbedPage from "../../modules/asset-inventory/pages/AssetInventoryTabbedPage";
@@ -15,6 +15,7 @@ import AssetInventoryTabbedPage from "../../modules/asset-inventory/pages/AssetI
 import SettingsPage from "../../modules/settings/pages/SettingsPage";
 import MyPosPage from "../../modules/operator/pages/MyPosPage";
 import CsrTabbedPage from "../../modules/csr/pages/CsrTabbedPage";
+import PosDiagnosisListPage from "../../modules/pos-repair/pages/DiagnosisListPage";
 
 export const router = createBrowserRouter([
     {
@@ -54,7 +55,15 @@ export const router = createBrowserRouter([
                 path: "pos-repair",
                 element: (
                     <RoleGuard allow={["admin", "csr"]}>
-                        <PosRepairRequestPage />
+                        <PosRepairTabbedPage />
+                    </RoleGuard>
+                ),
+            },
+            {
+                path: "pos-repair/diagnosis-list",
+                element: (
+                    <RoleGuard allow={["admin", "csr"]}>
+                        <PosDiagnosisListPage />
                     </RoleGuard>
                 ),
             },

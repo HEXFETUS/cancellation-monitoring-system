@@ -51,7 +51,18 @@ const noActionTabs: string[] = [];
 function filterRecordsByTab(records: RepairRecord[], tabId: string): RepairRecord[] {
     const status = tabStatusMap[tabId];
     if (!status) return [];
-    if (tabId === "for-checking" || tabId === "for-release" || tabId === "released") {
+    if (tabId === "released") {
+        const now = new Date();
+        const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+        return records.filter((r) => {
+            if (r.status !== status) return false;
+            if (!r.date) return false;
+            const d = new Date(r.date);
+            const logStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+            return logStr === todayStr;
+        });
+    }
+    if (tabId === "for-checking" || tabId === "for-release") {
         return records.filter((r) => r.status === status);
     }
     return records.filter((r) => r.forwarded === true && r.status === status);

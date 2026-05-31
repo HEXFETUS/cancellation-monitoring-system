@@ -97,6 +97,26 @@ const SCHEMA_DDL = `
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE billing_transmittals (
+        id SERIAL PRIMARY KEY,
+        billing_code VARCHAR(100) NOT NULL,
+        diagnosis_log_id INTEGER REFERENCES diagnosis_logs(id) ON DELETE SET NULL,
+        received_by VARCHAR(255),
+        user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        repair_record_id INTEGER REFERENCES repair_records(id) ON DELETE CASCADE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE released_logs (
+        id SERIAL PRIMARY KEY,
+        billing_transmittal_id INTEGER REFERENCES billing_transmittals(id) ON DELETE SET NULL,
+        repair_record_id INTEGER REFERENCES repair_records(id) ON DELETE CASCADE,
+        user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
 `;
 
 function init() {
