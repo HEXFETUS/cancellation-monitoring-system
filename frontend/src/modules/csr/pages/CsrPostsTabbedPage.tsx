@@ -462,7 +462,8 @@ export default function CsrPostsTabbedPage() {
                     e.preventDefault();
                     const files = Array.from(e.dataTransfer.files).filter(
                       (f) =>
-                        f.type.startsWith("image/") || f.type.startsWith("video/")
+                        /\.(jpe?g|png|mp4)$/i.test(f.name) &&
+                        /^(image\/(jpe?g|png)|video\/mp4)$/i.test(f.type)
                     );
                     setMediaFiles((prev) => [...prev, ...files]);
                   }}
@@ -470,7 +471,7 @@ export default function CsrPostsTabbedPage() {
                   <input
                     type="file"
                     multiple
-                    accept="image/*,video/*"
+                    accept=".jpg,.jpeg,.png,.mp4,image/jpeg,image/png,video/mp4"
                     className="hidden"
                     id="media-upload"
                     onChange={(e) => {
@@ -597,15 +598,26 @@ export default function CsrPostsTabbedPage() {
                         {/* Media previews */}
                         {post.media_urls.length > 0 && (
                           <div className="mt-3 flex flex-wrap gap-2">
-                            {post.media_urls.map((url, i) => (
-                              <img
-                                key={i}
-                                src={`${API_BASE}${url}`}
-                                alt={`Media ${i + 1}`}
-                                className="h-16 w-16 rounded-lg object-cover"
-                                style={{ border: "1px solid #E5E1DA" }}
-                              />
-                            ))}
+                            {post.media_urls.map((url, i) =>
+                              /\.mp4$/i.test(url) ? (
+                                <video
+                                  key={i}
+                                  src={`${API_BASE}${url}`}
+                                  controls
+                                  preload="metadata"
+                                  className="h-16 w-16 rounded-lg object-cover"
+                                  style={{ border: "1px solid #E5E1DA" }}
+                                />
+                              ) : (
+                                <img
+                                  key={i}
+                                  src={`${API_BASE}${url}`}
+                                  alt={`Media ${i + 1}`}
+                                  className="h-16 w-16 rounded-lg object-cover"
+                                  style={{ border: "1px solid #E5E1DA" }}
+                                />
+                              )
+                            )}
                           </div>
                         )}
                       </div>

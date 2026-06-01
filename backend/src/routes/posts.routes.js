@@ -28,11 +28,16 @@ const upload = multer({
     storage,
     limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB max
     fileFilter: (req, file, cb) => {
-        const allowed = /jpeg|jpg|png|gif|webp|mp4|mov|avi|pdf/;
-        const ext = allowed.test(path.extname(file.originalname).toLowerCase());
-        const mime = allowed.test(file.mimetype);
-        if (ext || mime) return cb(null, true);
-        cb(new Error("Only images, videos, and PDFs are allowed"));
+        // Only JPG, PNG, and MP4 are accepted. The accept set used to be
+        // wider (gif/webp/mov/avi/pdf) but the product narrowed it; keeping
+        // those would cause broken-image renders on the landing page since
+        // those types either don't decode in <img> or aren't <video>-friendly.
+        const allowedExt = /\.(jpe?g|png|mp4)$/i;
+        const allowedMime = /^(image\/(jpe?g|png)|video\/mp4)$/i;
+        if (allowedExt.test(file.originalname) && allowedMime.test(file.mimetype)) {
+            return cb(null, true);
+        }
+        cb(new Error("Only .jpg, .png, and .mp4 files are allowed"));
     },
 });
 
