@@ -11,6 +11,12 @@ import PosRepairTabbedPage from "../../modules/pos-repair/pages/PosRepairTabbedP
 
 import CancellationTabbedPage from "../../modules/cancellation/pages/CancellationTabbedPage";
 import AssetInventoryTabbedPage from "../../modules/asset-inventory/pages/AssetInventoryTabbedPage";
+import AssetSummaryPage from "../../modules/asset-inventory/pages/SummaryPage";
+import AssetOfficePage from "../../modules/asset-inventory/pages/OfficePage";
+import AssetPayoutPage from "../../modules/asset-inventory/pages/PayoutPage";
+import AssetDrawcourtPage from "../../modules/asset-inventory/pages/DrawcourtPage";
+import AssetObsPage from "../../modules/asset-inventory/pages/ObsPage";
+import AssetCodingPage from "../../modules/asset-inventory/pages/AssetCodingPage";
 
 import SettingsPage from "../../modules/settings/pages/SettingsPage";
 import MyPosPage from "../../modules/operator/pages/MyPosPage";
@@ -29,7 +35,7 @@ export const router = createBrowserRouter([
             {
                 path: "dashboard",
                 element: (
-                    <RoleGuard allow={["admin", "csr", "operator"]} fallback="/app/asset-inventory">
+                    <RoleGuard allow={["admin", "csr", "operator"]} fallback="/app/asset-inventory/summary">
                         <DashboardHome />
                     </RoleGuard>
                 ),
@@ -91,6 +97,58 @@ export const router = createBrowserRouter([
                 element: (
                     <RoleGuard allow={["admin", "purchaser"]}>
                         <AssetInventoryTabbedPage />
+                    </RoleGuard>
+                ),
+            },
+            // Direct routes for each asset section. Used by the purchaser
+            // sidebar (one nav item per section) and by anyone who deep-links
+            // to a specific asset view. Admin's tabbed UX at the parent path
+            // above is unchanged.
+            {
+                path: "asset-inventory/summary",
+                element: (
+                    <RoleGuard allow={["admin", "purchaser"]}>
+                        <AssetSummaryPage />
+                    </RoleGuard>
+                ),
+            },
+            {
+                path: "asset-inventory/office",
+                element: (
+                    <RoleGuard allow={["admin", "purchaser"]}>
+                        <AssetOfficePage />
+                    </RoleGuard>
+                ),
+            },
+            {
+                path: "asset-inventory/payout",
+                element: (
+                    <RoleGuard allow={["admin", "purchaser"]}>
+                        <AssetPayoutPage />
+                    </RoleGuard>
+                ),
+            },
+            {
+                path: "asset-inventory/drawcourt",
+                element: (
+                    <RoleGuard allow={["admin", "purchaser"]}>
+                        <AssetDrawcourtPage />
+                    </RoleGuard>
+                ),
+            },
+            {
+                path: "asset-inventory/obs",
+                element: (
+                    <RoleGuard allow={["admin", "purchaser"]}>
+                        <AssetObsPage />
+                    </RoleGuard>
+                ),
+            },
+            {
+                path: "asset-inventory/asset-coding",
+                element: (
+                    <RoleGuard allow={["admin", "purchaser"]}>
+                        <AssetCodingPage />
                     </RoleGuard>
                 ),
             },

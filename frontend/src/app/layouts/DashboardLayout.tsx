@@ -10,6 +10,10 @@ import {
     Package,
     Settings,
     User,
+    Building2,
+    MapPin,
+    Eye,
+    Code,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useEffect, useState } from "react";
@@ -36,6 +40,12 @@ const iconMap: Record<string, LucideIcon> = {
     "POS Repair": Wrench,
     Cancellation: FileText,
     "Asset Inventory": Package,
+    Summary: LayoutDashboard,
+    Office: Building2,
+    Payout: MapPin,
+    Drawcourt: Monitor,
+    OBS: Eye,
+    "Asset Coding": Code,
     Settings: Settings,
 };
 
@@ -98,7 +108,8 @@ export default function DashboardLayout() {
     }
 
     // Operators get a slim sidebar with only their own POS view.
-    // Purchasers get a slim sidebar with only Assets.
+    // Purchasers get one sidebar entry per asset section (instead of
+    // a single "Assets" link that hid the sub-tabs inside).
     // CSR gets only Dashboard and POS Repair.
     // Admin see the full menu.
     const navItems = isOperator
@@ -109,7 +120,12 @@ export default function DashboardLayout() {
         ]
         : isPurchaser
             ? [
-                { name: "Assets", path: "/app/asset-inventory" },
+                { name: "Summary", path: "/app/asset-inventory/summary" },
+                { name: "Office", path: "/app/asset-inventory/office" },
+                { name: "Payout", path: "/app/asset-inventory/payout" },
+                { name: "Drawcourt", path: "/app/asset-inventory/drawcourt" },
+                { name: "OBS", path: "/app/asset-inventory/obs" },
+                { name: "Asset Coding", path: "/app/asset-inventory/asset-coding" },
                 { name: "Settings", path: "/app/settings" },
             ]
             : isCsr
