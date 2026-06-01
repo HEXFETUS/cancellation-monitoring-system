@@ -238,7 +238,7 @@ export default function DiagnosisListPage() {
 
     /* ─── Pagination ─── */
     const [page, setPage] = useState(1);
-    const pageSize = 20;
+    const pageSize = 10;
     const totalPages = Math.ceil(items.length / pageSize);
     const pagedItems = items.slice((page - 1) * pageSize, page * pageSize);
 
