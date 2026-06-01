@@ -21,6 +21,11 @@ import AssetCodingPage from "../../modules/asset-inventory/pages/AssetCodingPage
 import SettingsPage from "../../modules/settings/pages/SettingsPage";
 import MyPosPage from "../../modules/operator/pages/MyPosPage";
 import CsrTabbedPage from "../../modules/csr/pages/CsrTabbedPage";
+import CsrRepairRequestPage from "../../modules/csr/pages/CsrRepairRequestPage";
+import CsrRepairManagementPage from "../../modules/csr/pages/CsrRepairManagementPage";
+import CsrRepairLogPage from "../../modules/csr/pages/CsrRepairLogPage";
+import CsrReleasedLogPage from "../../modules/csr/pages/CsrReleasedLogPage";
+import CsrDiagnosisListPage from "../../modules/csr/pages/CsrDiagnosisListPage";
 import PosDiagnosisListPage from "../../modules/pos-repair/pages/DiagnosisListPage";
 
 export const router = createBrowserRouter([
@@ -79,6 +84,50 @@ export const router = createBrowserRouter([
                 element: (
                     <RoleGuard allow={["csr"]} fallback="/app/dashboard">
                         <CsrTabbedPage />
+                    </RoleGuard>
+                ),
+            },
+            // Direct routes for each CSR sub-section so the sidebar can
+            // expose them as top-level nav items. The parent
+            // /app/csr-pos-repair still renders the tabbed UX for
+            // anyone who deep-links there or already had it bookmarked.
+            {
+                path: "csr-pos-repair/repair-request",
+                element: (
+                    <RoleGuard allow={["csr"]} fallback="/app/dashboard">
+                        <CsrRepairRequestPage />
+                    </RoleGuard>
+                ),
+            },
+            {
+                path: "csr-pos-repair/repair-management",
+                element: (
+                    <RoleGuard allow={["csr"]} fallback="/app/dashboard">
+                        <CsrRepairManagementPage />
+                    </RoleGuard>
+                ),
+            },
+            {
+                path: "csr-pos-repair/repair-log",
+                element: (
+                    <RoleGuard allow={["csr"]} fallback="/app/dashboard">
+                        <CsrRepairLogPage />
+                    </RoleGuard>
+                ),
+            },
+            {
+                path: "csr-pos-repair/released-log",
+                element: (
+                    <RoleGuard allow={["csr"]} fallback="/app/dashboard">
+                        <CsrReleasedLogPage />
+                    </RoleGuard>
+                ),
+            },
+            {
+                path: "csr-pos-repair/diagnosis-list",
+                element: (
+                    <RoleGuard allow={["csr"]} fallback="/app/dashboard">
+                        <CsrDiagnosisListPage />
                     </RoleGuard>
                 ),
             },

@@ -14,6 +14,9 @@ import {
     MapPin,
     Eye,
     Code,
+    ClipboardList,
+    ArrowUpRight,
+    Stethoscope,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useEffect, useState } from "react";
@@ -46,6 +49,11 @@ const iconMap: Record<string, LucideIcon> = {
     Drawcourt: Monitor,
     OBS: Eye,
     "Asset Coding": Code,
+    "Repair Request": ClipboardList,
+    "Repair Management": Wrench,
+    "Repair Log": FileText,
+    "Released Log": ArrowUpRight,
+    "Diagnosis List": Stethoscope,
     Settings: Settings,
 };
 
@@ -131,7 +139,11 @@ export default function DashboardLayout() {
             : isCsr
                 ? [
                     { name: "Dashboard", path: "/app/dashboard" },
-                    { name: "POS Repair", path: "/app/csr-pos-repair" },
+                    { name: "Repair Request", path: "/app/csr-pos-repair/repair-request" },
+                    { name: "Repair Management", path: "/app/csr-pos-repair/repair-management" },
+                    { name: "Repair Log", path: "/app/csr-pos-repair/repair-log" },
+                    { name: "Released Log", path: "/app/csr-pos-repair/released-log" },
+                    { name: "Diagnosis List", path: "/app/csr-pos-repair/diagnosis-list" },
                 ]
                 : [
                     { name: "Dashboard", path: "/app/dashboard" },
