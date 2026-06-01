@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import {
   ArrowRight,
   ChevronLeft,
@@ -162,6 +162,21 @@ export default function LandingPage() {
   // Announcements from API
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [announcementsLoading, setAnnouncementsLoading] = useState(true);
+
+  // Media lightbox
+  const [selectedMedia, setSelectedMedia] = useState<{ url: string; isVideo: boolean } | null>(null);
+  const lightboxRef = useRef<HTMLDivElement>(null);
+  const closeMedia = useCallback(() => setSelectedMedia(null), []);
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => { if (e.key === "Escape") closeMedia(); };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [closeMedia]);
+  useEffect(() => {
+    if (selectedMedia) document.body.style.overflow = "hidden";
+    else document.body.style.overflow = "";
+    return () => { document.body.style.overflow = ""; };
+  }, [selectedMedia]);
 
   const slide = useSlideshow(slideshowImages, 4500);
 
@@ -724,54 +739,87 @@ export default function LandingPage() {
               </p>
             </div>
 
-            {announcementsLoading ? (
-              <div className="flex items-center justify-center py-16">
-                <Loader2 className="h-8 w-8 animate-spin" style={{ color: "#92C7CF" }} />
-              </div>
-            ) : announcements.length === 0 ? (
-              <p className="mt-12 text-center text-sm" style={{ color: "#999" }}>
-                No posts yet. Check back later.
-              </p>
-            ) : (
-              <div className="mt-16 grid gap-8 md:grid-cols-2">
-                {announcements.map((item) => (
-                  <div
-                    key={item.id}
-                    className="group rounded-2xl p-6 sm:p-8 transition-all duration-300"
-                    style={{
-                      backgroundColor: "white",
-                      border: "1px solid #E5E1DA",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = "#92C7CF";
-                      e.currentTarget.style.boxShadow = "0 8px 30px rgba(146, 199, 207, 0.15)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = "#E5E1DA";
-                      e.currentTarget.style.boxShadow = "none";
-                    }}
-                  >
-                    <div className="flex items-start gap-4">
-                      {/* Badge */}
-                      <div
-                        className="flex-shrink-0 flex items-center justify-center w-14 h-14 rounded-xl"
-                        style={{
-                          backgroundColor:
-                            item.type === "event"
-                              ? "rgba(146, 199, 207, 0.12)"
-                              : "rgba(229, 225, 218, 0.5)",
-                          color: item.type === "event" ? "#92C7CF" : "#6b6b6b",
-                        }}
-                      >
-                        {item.type === "event" ? (
-                          <Calendar className="h-6 w-6" />
-                        ) : (
-                          <Newspaper className="h-6 w-6" />
-                        )}
-                      </div>
+            {(() => {
+              if (announcementsLoading) {
+                return (
+                  <div className="flex items-center justify-center py-16">
+                    <Loader2 className="h-8 w-8 animate-spin" style={{ color: "#92C7CF" }} />
+                  </div>
+                );
+              }
 
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
+              const threeDaysAgo = new Date();
+              threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+              const recentAnnouncements = announcements.filter(
+                (item) => new Date(item.created_at) >= threeDaysAgo
+              );
+
+              if (recentAnnouncements.length === 0) {
+                return (
+                  <p className="mt-12 text-center text-sm" style={{ color: "#999" }}>
+                    No recent posts in the last 3 days. Check back later.
+                  </p>
+                );
+              }
+
+              return (
+                <div className="mt-16 mx-auto max-w-5xl grid gap-10 md:grid-cols-2">
+                  {recentAnnouncements.map((item) => (
+                    <article
+                      key={item.id}
+                      className="group rounded-2xl overflow-hidden transition-all duration-300 bg-white"
+                      style={{
+                        border: "1px solid #E5E1DA",
+                        boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.borderColor = "#92C7CF";
+                        e.currentTarget.style.boxShadow = "0 12px 40px rgba(146, 199, 207, 0.18)";
+                        e.currentTarget.style.transform = "translateY(-2px)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor = "#E5E1DA";
+                        e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.04)";
+                        e.currentTarget.style.transform = "translateY(0)";
+                      }}
+                    >
+                      {/* Media hero */}
+                      {item.media_urls.length > 0 && (
+                        <div>
+                          {item.media_urls.map((url, i) =>
+                            /\.mp4$/i.test(url) ? (
+                              <button
+                                key={i}
+                                onClick={() => setSelectedMedia({ url: `${API_BASE}${url}`, isVideo: true })}
+                                className="w-full block focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#92C7CF]"
+                              >
+                                <video
+                                  src={`${API_BASE}${url}`}
+                                  preload="metadata"
+                                  className="w-full h-auto max-h-96 object-contain bg-gray-100"
+                                  onClick={(e) => { e.stopPropagation(); setSelectedMedia({ url: `${API_BASE}${url}`, isVideo: true }); }}
+                                />
+                              </button>
+                            ) : (
+                              <button
+                                key={i}
+                                onClick={() => setSelectedMedia({ url: `${API_BASE}${url}`, isVideo: false })}
+                                className="w-full block focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#92C7CF]"
+                              >
+                                <img
+                                  src={`${API_BASE}${url}`}
+                                  alt={`${item.title} media ${i + 1}`}
+                                  className="w-full h-auto max-h-96 object-contain bg-gray-100"
+                                />
+                              </button>
+                            )
+                          )}
+                        </div>
+                      )}
+
+                      {/* Content */}
+                      <div className="p-5 sm:p-6 text-center">
+                        <div className="flex items-center justify-center gap-2 flex-wrap">
                           <span
                             className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider"
                             style={{
@@ -803,43 +851,17 @@ export default function LandingPage() {
                         </p>
 
                         {item.location && (
-                          <div className="mt-4 flex items-center gap-1.5 text-xs" style={{ color: "#999" }}>
+                          <div className="mt-4 flex items-center justify-center gap-1.5 text-xs" style={{ color: "#999" }}>
                             <MapPin className="h-3.5 w-3.5" style={{ color: "#92C7CF" }} />
                             {item.location}
                           </div>
                         )}
-
-                        {/* Media attachments */}
-                        {item.media_urls.length > 0 && (
-                          <div className="mt-4 flex flex-wrap gap-2">
-                            {item.media_urls.map((url, i) =>
-                              /\.mp4$/i.test(url) ? (
-                                <video
-                                  key={i}
-                                  src={`${API_BASE}${url}`}
-                                  controls
-                                  preload="metadata"
-                                  className="h-20 w-20 rounded-lg object-cover"
-                                  style={{ border: "1px solid #E5E1DA" }}
-                                />
-                              ) : (
-                                <img
-                                  key={i}
-                                  src={`${API_BASE}${url}`}
-                                  alt={`${item.title} media ${i + 1}`}
-                                  className="h-20 w-20 rounded-lg object-cover"
-                                  style={{ border: "1px solid #E5E1DA" }}
-                                />
-                              )
-                            )}
-                          </div>
-                        )}
                       </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                    </article>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
         </section>
 
@@ -895,6 +917,46 @@ export default function LandingPage() {
           </div>
         </section>
       </main>
+
+      {/* ─── MEDIA LIGHTBOX ─── */}
+      {selectedMedia && (
+        <div
+          ref={lightboxRef}
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+          onClick={closeMedia}
+        >
+          <div
+            className="relative max-w-5xl w-full max-h-[90vh] flex items-center justify-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close button */}
+            <button
+              onClick={closeMedia}
+              className="absolute -top-12 right-0 text-white/80 hover:text-white transition-colors p-1"
+              aria-label="Close"
+            >
+              <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+
+            {selectedMedia.isVideo ? (
+              <video
+                src={selectedMedia.url}
+                controls
+                autoPlay
+                className="w-full max-h-[85vh] rounded-lg object-contain"
+              />
+            ) : (
+              <img
+                src={selectedMedia.url}
+                alt="Enlarged media"
+                className="w-full max-h-[85vh] rounded-lg object-contain"
+              />
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ─── FOOTER ─── */}
       <footer

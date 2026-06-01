@@ -24,6 +24,7 @@ const SERIAL_TABLES = [
     "released_logs",
     "lottery_results",
     "announcements",
+    "messages",
 ];
 
 async function syncSerialSequence(client, tableName) {
@@ -615,6 +616,23 @@ async function initDatabase() {
                 media_urls TEXT DEFAULT '[]',
                 location VARCHAR(255),
                 created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        /* =========================
+           messages — user-to-admin messaging with file upload support
+        ========================= */
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS messages (
+                id SERIAL PRIMARY KEY,
+                sender_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                message TEXT NOT NULL,
+                attachment_url TEXT,
+                reply TEXT,
+                replied_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                replied_at TIMESTAMP,
+                is_read BOOLEAN DEFAULT false,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         `);
