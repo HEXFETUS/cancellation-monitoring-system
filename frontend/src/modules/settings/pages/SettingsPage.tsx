@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Users, UserPlus, ClipboardList, Menu, Check, X, Building2 } from "lucide-react";
+import { Users, UserPlus, ClipboardList, Menu, Check, X, Building2, UserCircle } from "lucide-react";
 import UserAccountsPage from "./UserAccountsPage";
 import CreateUserAccountPage from "./CreateUserAccountPage";
 import UserLogsPage from "./UserLogsPage";
@@ -11,6 +11,7 @@ const teal = "#92C7CF";
 
 const leftTabs = [
     { id: "user-accounts", label: "USERS", icon: Users },
+    { id: "my-account", label: "MY ACCOUNT", icon: UserCircle },
 ];
 
 const userSubTabs = [
@@ -205,6 +206,8 @@ function AdminSettingsPage() {
                         </div>
                     </div>
                 )}
+
+                {activeTab === "my-account" && <MyAccountPage />}
             </div>
         </div>
     );

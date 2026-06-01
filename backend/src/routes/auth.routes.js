@@ -28,7 +28,7 @@ router.post("/login", async (req, res) => {
 
         // Look up user by email. The login field is called username in the UI.
         const result = await pool.query(
-            "SELECT id, name, email, usertype, position, department, password FROM users WHERE LOWER(email) = LOWER($1)",
+            "SELECT id, name, email, usertype, position, department, profile_picture, password FROM users WHERE LOWER(email) = LOWER($1)",
             [username.trim()]
         );
 
@@ -63,6 +63,7 @@ router.post("/login", async (req, res) => {
             usertype: user.usertype,
             position: user.position,
             department: user.department,
+            profile_picture: user.profile_picture,
             user_log_id: logResult.rows[0].id,
         });
     } catch (err) {

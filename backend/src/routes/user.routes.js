@@ -1,8 +1,44 @@
 import express from "express";
 import bcrypt from "bcryptjs";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
+import { fileURLToPath } from "url";
 import pool from "../config/db.js";
 
 const router = express.Router();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Reuse the same uploads directory as posts/announcements so server.js's
+// static handler at /uploads serves profile pictures too.
+const uploadsDir = path.join(__dirname, "..", "public", "uploads");
+if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+const profileStorage = multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, uploadsDir),
+    filename: (_req, file, cb) => {
+        const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+        const ext = path.extname(file.originalname);
+        cb(null, `profile-${uniqueSuffix}${ext}`);
+    },
+});
+
+const profileUpload = multer({
+    storage: profileStorage,
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB max for avatars
+    fileFilter: (_req, file, cb) => {
+        const allowedExt = /\.(jpe?g|png|gif|webp)$/i;
+        const allowedMime = /^image\/(jpe?g|png|gif|webp)$/i;
+        if (allowedExt.test(file.originalname) && allowedMime.test(file.mimetype)) {
+            return cb(null, true);
+        }
+        cb(new Error("Only .jpg, .png, .gif, and .webp images are allowed"));
+    },
+});
 
 const VALID_USER_TYPES = new Set(["admin", "csr", "operator", "purchaser"]);
 
@@ -32,7 +68,7 @@ function isBcryptHash(value) {
 router.get("/", async (req, res) => {
     try {
         const result = await pool.query(
-            `SELECT u.id, u.name, u.email, u.usertype, u.position, u.department,
+            `SELECT u.id, u.name, u.email, u.usertype, u.position, u.department, u.profile_picture,
                     ol.id AS operator_id, ol.operator AS operator_name,
                     ol.parent_operator_id,
                     parent.operator AS parent_operator_name
@@ -56,7 +92,7 @@ router.get("/me", async (req, res) => {
             return res.status(400).json({ error: "User ID is required" });
         }
         const result = await pool.query(
-            `SELECT u.id, u.name, u.email, u.usertype, u.position, u.department,
+            `SELECT u.id, u.name, u.email, u.usertype, u.position, u.department, u.profile_picture,
                     ol.id AS operator_id, ol.operator AS operator_name,
                     ol.parent_operator_id,
                     parent.operator AS parent_operator_name
@@ -359,6 +395,52 @@ router.patch("/:id/name", async (req, res) => {
     } catch (err) {
         console.error("PATCH user name error:", err.message);
         res.status(500).json({ error: "Failed to update name" });
+    }
+});
+
+// POST /api/users/:id/profile-picture - Upload or replace a user's profile picture.
+// Accepts a single image file under the field name `profile_picture`. The
+// previous picture (if any) is best-effort deleted from disk so we don't
+// accumulate orphaned avatars. Returns the updated user row.
+router.post("/:id/profile-picture", profileUpload.single("profile_picture"), async (req, res) => {
+    try {
+        const userId = Number(req.params.id);
+        if (!Number.isFinite(userId)) {
+            return res.status(400).json({ error: "Invalid user id" });
+        }
+        if (!req.file) {
+            return res.status(400).json({ error: "Profile picture file is required" });
+        }
+
+        // Look up the existing avatar so we can clean it up after the update.
+        const existing = await pool.query(
+            "SELECT profile_picture FROM users WHERE id = $1::int",
+            [userId]
+        );
+        if (existing.rows.length === 0) {
+            // Remove the just-uploaded file since the user doesn't exist.
+            fs.unlink(path.join(uploadsDir, req.file.filename), () => {});
+            return res.status(404).json({ error: "User not found" });
+        }
+
+        const newUrl = `/uploads/${req.file.filename}`;
+        const result = await pool.query(
+            `UPDATE users SET profile_picture = $1 WHERE id = $2::int
+             RETURNING id, name, email, usertype, position, department, profile_picture`,
+            [newUrl, userId]
+        );
+
+        // Best-effort cleanup of the previous avatar file.
+        const prev = existing.rows[0].profile_picture;
+        if (prev && typeof prev === "string" && prev.startsWith("/uploads/")) {
+            const prevPath = path.join(uploadsDir, path.basename(prev));
+            fs.unlink(prevPath, () => {});
+        }
+
+        res.json(result.rows[0]);
+    } catch (err) {
+        console.error("Error uploading profile picture:", err.message);
+        res.status(500).json({ error: "Failed to upload profile picture" });
     }
 });
 

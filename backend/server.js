@@ -19,6 +19,7 @@ import repairRecordRoutes from "./src/routes/repair-record.routes.js";
 import diagnosisLogRoutes from "./src/routes/diagnosis-log.routes.js";
 import releasedLogRoutes from "./src/routes/released-log.routes.js";
 import postsRoutes from "./src/routes/posts.routes.js";
+import bulletinRoutes from "./src/routes/bulletin.routes.js";
 import initDatabase from "./src/config/init.js";
 
 dotenv.config();
@@ -52,6 +53,7 @@ app.use("/api/repair-records", repairRecordRoutes);
 app.use("/api/diagnosis-logs", diagnosisLogRoutes);
 app.use("/api/released-logs", releasedLogRoutes);
 app.use("/api/posts", postsRoutes);
+app.use("/api/bulletin", bulletinRoutes);
 
 const PORT = Number(process.env.PORT || 5050);
 

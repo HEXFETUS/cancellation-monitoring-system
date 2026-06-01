@@ -7,6 +7,7 @@ type AuthUser = {
     usertype: string;
     position: string;
     department: string;
+    profile_picture?: string | null;
 };
 
 type StoredAuth = {
@@ -21,6 +22,7 @@ interface AuthContextValue {
     user: AuthUser | null;
     login: (username: string, password: string, rememberMe?: boolean) => Promise<boolean>;
     logout: () => Promise<void>;
+    updateUser: (patch: Partial<AuthUser>) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -99,7 +101,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }
 
             const data = await res.json();
-            const userData = { id: data.id, name: data.name, email: data.email, usertype: data.usertype, position: data.position ?? "", department: data.department ?? "" };
+            const userData = { id: data.id, name: data.name, email: data.email, usertype: data.usertype, position: data.position ?? "", department: data.department ?? "", profile_picture: data.profile_picture ?? null };
             const storedAuth: StoredAuth = {
                 user: userData,
                 logId: String(data.user_log_id),
@@ -137,10 +139,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(null);
     }, []);
 
+    // Merge a partial update into the current auth user and persist it back
+    // to whichever storage holds the active session. Used after profile edits
+    // (e.g. uploading a profile picture) so the new value is visible without
+    // forcing a re-login.
+    const updateUser = useCallback((patch: Partial<AuthUser>) => {
+        setUser((prev) => {
+            if (!prev) return prev;
+            const next = { ...prev, ...patch };
+
+            const persist = (key: "localStorage" | "sessionStorage") => {
+                const raw =
+                    key === "localStorage"
+                        ? localStorage.getItem(AUTH_STORAGE_KEY)
+                        : sessionStorage.getItem(AUTH_STORAGE_KEY);
+                if (!raw) return;
+                try {
+                    const parsed = JSON.parse(raw) as StoredAuth;
+                    parsed.user = { ...parsed.user, ...patch };
+                    const serialized = JSON.stringify(parsed);
+                    if (key === "localStorage") {
+                        localStorage.setItem(AUTH_STORAGE_KEY, serialized);
+                    } else {
+                        sessionStorage.setItem(AUTH_STORAGE_KEY, serialized);
+                    }
+                } catch {
+                    // Ignore malformed storage; in-memory state still updates.
+                }
+            };
+            persist("localStorage");
+            persist("sessionStorage");
+
+            return next;
+        });
+    }, []);
+
     const isAuthenticated = user !== null;
 
     return (
-        <AuthContext.Provider value={{ isAuthenticated, user, login, logout }}>
+        <AuthContext.Provider value={{ isAuthenticated, user, login, logout, updateUser }}>
             {children}
         </AuthContext.Provider>
     );

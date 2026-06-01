@@ -25,6 +25,7 @@ const SERIAL_TABLES = [
     "lottery_results",
     "announcements",
     "messages",
+    "asset_media",
 ];
 
 async function syncSerialSequence(client, tableName) {
@@ -76,6 +77,11 @@ async function initDatabase() {
         // Add position and department columns if they don't exist
         await client.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS position VARCHAR(255) DEFAULT ''");
         await client.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS department VARCHAR(255) DEFAULT ''");
+
+        // Profile picture URL (relative path served from /uploads). NULL means
+        // the UI falls back to the default avatar. Stored as a path string so
+        // we keep the existing static-file machinery used by posts/announcements.
+        await client.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_picture VARCHAR(500)");
 
         // Migrate the usertype CHECK constraint to include 'purchaser'.
         // We drop the old (auto-named) constraint if present and re-add with
@@ -621,7 +627,12 @@ async function initDatabase() {
         `);
 
         /* =========================
-           messages — user-to-admin messaging with file upload support
+           messages — Bulletin Board group chat
+           Originally designed as a user-to-admin DM table; repurposed as the
+           backing store for the shared Bulletin Board chat room. Legacy
+           columns (attachment_url singular, reply/replied_by/replied_at,
+           is_read) are kept intact for backward compatibility but the
+           bulletin routes use the newer columns added below.
         ========================= */
         await client.query(`
             CREATE TABLE IF NOT EXISTS messages (
@@ -636,6 +647,64 @@ async function initDatabase() {
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         `);
+
+        // Bulletin Board extensions: multiple attachments (JSON array of
+        // /uploads/* paths), pin flag for admin moderation, and a self-
+        // reference for in-thread quote replies. ON DELETE SET NULL on the
+        // reply target so deleting the original doesn't cascade-delete every
+        // reply that quoted it; the UI shows "Original message deleted".
+        await client.query(
+            "ALTER TABLE messages ADD COLUMN IF NOT EXISTS attachment_urls TEXT DEFAULT '[]'"
+        );
+        await client.query(
+            "ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_pinned BOOLEAN DEFAULT false"
+        );
+        await client.query(
+            "ALTER TABLE messages ADD COLUMN IF NOT EXISTS reply_to_id INTEGER REFERENCES messages(id) ON DELETE SET NULL"
+        );
+        await client.query(
+            "CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at)"
+        );
+        await client.query(
+            "CREATE INDEX IF NOT EXISTS idx_messages_reply_to ON messages(reply_to_id)"
+        );
+
+        /* =========================
+           bulletin_read_markers — per-user "last read" pointer for the
+           Bulletin Board feed. Storing the highest seen message id (rather
+           than counts) makes unread computation O(1) and survives message
+           deletions cleanly.
+        ========================= */
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS bulletin_read_markers (
+                user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+                last_read_message_id INTEGER NOT NULL DEFAULT 0,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        /* =========================
+           asset_media — photos and videos attached to an asset record.
+           Populated from the QR-scan flow (purchaser scans a sticker, sees
+           the asset details, attaches a picture/video and updates remarks).
+           Files live under <backend>/src/public/uploads and are referenced
+           by relative URL so the existing /uploads static handler serves
+           them.
+        ========================= */
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS asset_media (
+                id SERIAL PRIMARY KEY,
+                asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+                url TEXT NOT NULL,
+                mime_type VARCHAR(100),
+                uploaded_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                caption TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        await client.query(
+            "CREATE INDEX IF NOT EXISTS idx_asset_media_asset ON asset_media(asset_id)"
+        );
 
         for (const tableName of SERIAL_TABLES) {
             await syncSerialSequence(client, tableName);

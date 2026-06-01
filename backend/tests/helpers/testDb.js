@@ -19,6 +19,7 @@ const SCHEMA_DDL = `
         password VARCHAR(255),
         position VARCHAR(255) DEFAULT '',
         department VARCHAR(255) DEFAULT '',
+        profile_picture VARCHAR(500),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -115,6 +116,30 @@ const SCHEMA_DDL = `
         repair_record_id INTEGER REFERENCES repair_records(id) ON DELETE CASCADE,
         user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Bulletin Board chat (group chat). Mirrors the production columns added
+    -- by init.js so any test that touches /api/bulletin or imports the
+    -- bulletin route doesn't trip over a missing column.
+    CREATE TABLE messages (
+        id SERIAL PRIMARY KEY,
+        sender_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        message TEXT NOT NULL,
+        attachment_url TEXT,
+        attachment_urls TEXT DEFAULT '[]',
+        reply TEXT,
+        replied_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        replied_at TIMESTAMP,
+        is_read BOOLEAN DEFAULT false,
+        is_pinned BOOLEAN DEFAULT false,
+        reply_to_id INTEGER REFERENCES messages(id) ON DELETE SET NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE bulletin_read_markers (
+        user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+        last_read_message_id INTEGER NOT NULL DEFAULT 0,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 `;

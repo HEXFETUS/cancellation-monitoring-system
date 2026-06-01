@@ -18,6 +18,7 @@ import {
     ArrowUpRight,
     Stethoscope,
     Megaphone,
+    MessageSquare,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useEffect, useState } from "react";
@@ -56,6 +57,7 @@ const iconMap: Record<string, LucideIcon> = {
     "Released Log": ArrowUpRight,
     "Diagnosis List": Stethoscope,
     Posts: Megaphone,
+    "Bulletin Board": MessageSquare,
     Settings: Settings,
 };
 
@@ -65,6 +67,7 @@ export default function DashboardLayout() {
     const navigate = useNavigate();
     const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
     const [sidebarUser, setSidebarUser] = useState<SidebarUser | null>(authUser);
+    const [bulletinUnread, setBulletinUnread] = useState(0);
 
     useEffect(() => {
         setSidebarUser(authUser);
@@ -92,6 +95,44 @@ export default function DashboardLayout() {
             ignored = true;
         };
     }, [authUser]);
+
+    // Poll the bulletin board unread count so the sidebar badge stays
+    // current. Cheap O(1) query on the backend; 8s cadence is enough — the
+    // badge isn't time-sensitive and the chat page itself polls faster.
+    useEffect(() => {
+        if (!authUser?.id) {
+            setBulletinUnread(0);
+            return;
+        }
+        let cancelled = false;
+
+        const fetchUnread = async () => {
+            if (cancelled) return;
+            try {
+                const res = await fetch(
+                    `${API_BASE_URL}/api/bulletin/unread-count?user_id=${authUser.id}`
+                );
+                if (!res.ok) return;
+                const data = await res.json();
+                if (!cancelled) setBulletinUnread(Number(data?.unread ?? 0));
+            } catch {
+                // Non-fatal — badge just stays at its previous value.
+            }
+        };
+
+        fetchUnread();
+        const interval = window.setInterval(fetchUnread, 8000);
+        const onVisibility = () => {
+            if (document.visibilityState === "visible") fetchUnread();
+        };
+        document.addEventListener("visibilitychange", onVisibility);
+
+        return () => {
+            cancelled = true;
+            window.clearInterval(interval);
+            document.removeEventListener("visibilitychange", onVisibility);
+        };
+    }, [authUser?.id, location.pathname]);
 
     const displayName = sidebarUser?.name?.trim() || authUser?.name?.trim() || "User";
     const displayDepartment = sidebarUser?.department?.trim() || authUser?.department?.trim();
@@ -126,6 +167,7 @@ export default function DashboardLayout() {
         ? [
             { name: "Dashboard", path: "/app/dashboard" },
             { name: "My POS", path: "/app/my-pos" },
+            { name: "Bulletin Board", path: "/app/bulletin-board" },
             { name: "Settings", path: "/app/settings" },
         ]
         : isPurchaser
@@ -136,6 +178,7 @@ export default function DashboardLayout() {
                 { name: "Drawcourt", path: "/app/asset-inventory/drawcourt" },
                 { name: "OBS", path: "/app/asset-inventory/obs" },
                 { name: "Asset Coding", path: "/app/asset-inventory/asset-coding" },
+                { name: "Bulletin Board", path: "/app/bulletin-board" },
                 { name: "Settings", path: "/app/settings" },
             ]
             : isCsr
@@ -147,6 +190,7 @@ export default function DashboardLayout() {
                     { name: "Released Log", path: "/app/csr-pos-repair/released-log" },
                     { name: "Diagnosis List", path: "/app/csr-pos-repair/diagnosis-list" },
                     { name: "Posts", path: "/app/csr-pos-repair/posts" },
+                    { name: "Bulletin Board", path: "/app/bulletin-board" },
                     { name: "Settings", path: "/app/settings" },
                 ]
                 : [
@@ -155,6 +199,7 @@ export default function DashboardLayout() {
                     { name: "POS Repair", path: "/app/pos-repair" },
                     { name: "Cancellation", path: "/app/cancellation" },
                     { name: "Assets", path: "/app/asset-inventory" },
+                    { name: "Bulletin Board", path: "/app/bulletin-board" },
                     { name: "Settings", path: "/app/settings" },
                 ];
 
@@ -331,8 +376,30 @@ export default function DashboardLayout() {
                                         {item.name}
                                     </span>
 
+                                    {/* Unread badge for the Bulletin Board entry */}
+                                    {item.name === "Bulletin Board" && bulletinUnread > 0 && (
+                                        <span
+                                            className="ml-auto inline-flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-[10px] font-bold text-white"
+                                            style={{
+                                                background: "linear-gradient(135deg, #EF4444, #F97316)",
+                                                boxShadow: "0 2px 6px rgba(239,68,68,0.35)",
+                                            }}
+                                        >
+                                            {bulletinUnread > 99 ? "99+" : bulletinUnread}
+                                        </span>
+                                    )}
+
                                     {/* Active dot */}
-                                    {isActive && (
+                                    {isActive && item.name !== "Bulletin Board" && (
+                                        <span
+                                            className="ml-auto w-1.5 h-1.5 rounded-full"
+                                            style={{
+                                                background: teal,
+                                                boxShadow: `0 0 8px ${teal}`,
+                                            }}
+                                        />
+                                    )}
+                                    {isActive && item.name === "Bulletin Board" && bulletinUnread === 0 && (
                                         <span
                                             className="ml-auto w-1.5 h-1.5 rounded-full"
                                             style={{

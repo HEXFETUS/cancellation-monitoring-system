@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Pencil, Plus, QrCode, RefreshCw, Search, Trash2, Wand2 } from "lucide-react";
+import { Pencil, Plus, QrCode, RefreshCw, ScanLine, Search, Trash2, Wand2 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import {
     type AssetCode,
@@ -13,6 +13,7 @@ import {
 import AssetCodeFormModal from "../components/AssetCodeFormModal";
 import BulkGenerateQrModal from "../components/BulkGenerateQrModal";
 import QrPreviewModal from "../components/QrPreviewModal";
+import QrScannerModal from "../components/QrScannerModal";
 import { listAllAssets, type AssetLocation } from "../services";
 import {
     listPayoutStations,
@@ -23,6 +24,7 @@ import {
     type OfficeDepartment,
 } from "../services/officeDepartments";
 import { useCanDelete } from "../hooks/useCanDelete";
+import { useAuth } from "../../../context/AuthContext";
 import type { AssetRow } from "../components/AssetTable";
 
 type AssetWithLocation = AssetRow & { location: AssetLocation };
@@ -41,7 +43,12 @@ export default function AssetCodingPage() {
     const [qrOpen, setQrOpen] = useState(false);
     const [qrCode, setQrCode] = useState<AssetCode | null>(null);
     const [bulkOpen, setBulkOpen] = useState(false);
+    const [scannerOpen, setScannerOpen] = useState(false);
     const canDelete = useCanDelete();
+    const { user } = useAuth();
+    // Purchasers explicitly need the scanner; admins get it too so they can
+    // verify printed stickers without leaving the page.
+    const canScan = user?.usertype === "purchaser" || user?.usertype === "admin";
 
     const refresh = async () => {
         try {
@@ -193,6 +200,16 @@ export default function AssetCodingPage() {
                         <Wand2 size={16} />
                         Generate QR Codes
                     </button>
+                    {canScan && (
+                        <button
+                            onClick={() => setScannerOpen(true)}
+                            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-teal bg-white px-4 py-2 text-sm font-semibold text-ink transition hover:bg-teal/10"
+                            title="Scan an asset's QR code with the camera"
+                        >
+                            <ScanLine size={16} />
+                            Scan QR
+                        </button>
+                    )}
                     <button
                         onClick={handleAdd}
                         className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-teal px-4 py-2 text-sm font-semibold text-ink transition hover:bg-teal-dark"
@@ -345,6 +362,11 @@ export default function AssetCodingPage() {
                 existingCodes={items}
                 onClose={() => setBulkOpen(false)}
                 onGenerated={refresh}
+            />
+
+            <QrScannerModal
+                open={scannerOpen}
+                onClose={() => setScannerOpen(false)}
             />
         </div>
     );
