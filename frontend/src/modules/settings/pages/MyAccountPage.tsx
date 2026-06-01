@@ -72,6 +72,13 @@ export default function MyAccountPage() {
         }
     };
 
+    // Operator, sub-operator, CSR, and purchaser users may edit their own
+    // display name. Admin's name is managed via the admin Users panel.
+    const canEditName =
+        me?.usertype === "operator" ||
+        me?.usertype === "csr" ||
+        me?.usertype === "purchaser";
+
     const startEditName = () => {
         setNameDraft(me?.name || "");
         setNameMsg(null);
@@ -198,7 +205,7 @@ export default function MyAccountPage() {
                                     Name
                                 </dt>
                                 <dd className="mt-0.5">
-                                    {me.usertype === "operator" && editingName ? (
+                                    {canEditName && editingName ? (
                                         <div className="flex items-center gap-2">
                                             <input
                                                 type="text"
@@ -230,7 +237,7 @@ export default function MyAccountPage() {
                                     ) : (
                                         <div className="flex items-center gap-2">
                                             <span className="text-sm text-ink">{me.name}</span>
-                                            {me.usertype === "operator" && (
+                                            {canEditName && (
                                                 <button
                                                     type="button"
                                                     onClick={startEditName}
