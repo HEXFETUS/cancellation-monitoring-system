@@ -2,6 +2,7 @@ import express from "express";
 import crypto from "node:crypto";
 import pool from "../config/db.js";
 import { blockRoles } from "../middleware/role-guard.js";
+import { validateQrPayload } from "../utils/qr-payload.js";
 
 const router = express.Router();
 
@@ -51,10 +52,20 @@ router.get("/", async (_req, res) => {
 // GET /api/asset-codes/by-payload/:payload
 // Useful for a future "scan to look up" feature.
 router.get("/by-payload/:payload", async (req, res) => {
+    const payload = req.params.payload;
+
+    // Reject obvious garbage before hitting the DB. Returning 400 (not 404)
+    // lets the UI surface a "this isn't an asset QR" message distinct from
+    // "valid format, just not in the DB".
+    const reason = validateQrPayload(payload);
+    if (reason) {
+        return res.status(400).json({ error: reason });
+    }
+
     try {
         const result = await pool.query(
             `SELECT ${COLUMNS} FROM asset_codes WHERE qr_payload = $1 LIMIT 1`,
-            [req.params.payload]
+            [payload]
         );
         if (result.rows.length === 0) {
             return res.status(404).json({ error: "QR payload not found" });

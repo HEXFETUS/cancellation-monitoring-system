@@ -28,6 +28,34 @@ const ACCEPTED_MIME = /^(image\/(jpe?g|png)|video\/mp4)$/i;
 const ACCEPTED_EXT = /\.(jpe?g|png|mp4)$/i;
 const MAX_FILE_BYTES = 25 * 1024 * 1024;
 
+// Mirror of backend/src/utils/qr-payload.js. Frontend duplicates the rule so
+// invalid payloads (URLs, vCards, random text, tampered stickers) are caught
+// before we ever round-trip to the API. Keep these two in sync.
+const QR_PAYLOAD_REGEX = /^ASSET-[A-Z0-9-]*[A-F0-9]{4,}$/;
+const QR_PAYLOAD_MAX_LENGTH = 200;
+
+function validateScannedPayload(payload: string): string | null {
+    if (typeof payload !== "string" || payload.length === 0) return "EMPTY_PAYLOAD";
+    if (payload.length > QR_PAYLOAD_MAX_LENGTH) return "PAYLOAD_TOO_LONG";
+    if (!QR_PAYLOAD_REGEX.test(payload)) return "PAYLOAD_FORMAT_INVALID";
+    return null;
+}
+
+function payloadErrorMessage(reason: string, payload: string): string {
+    switch (reason) {
+        case "EMPTY_PAYLOAD":
+            return "The QR appears empty. Try scanning again.";
+        case "PAYLOAD_TOO_LONG":
+            return "This QR is too long to be an asset code. Wrong sticker?";
+        case "PAYLOAD_FORMAT_INVALID":
+            return `This isn't an asset QR. Decoded value: "${
+                payload.length > 60 ? payload.slice(0, 60) + "..." : payload
+            }"`;
+        default:
+            return "This QR is not a valid asset code.";
+    }
+}
+
 interface AssetCodeWire {
     id: number;
     item_code: string;
@@ -162,13 +190,39 @@ export default function QrScannerModal({ open, onClose }: Props) {
     };
 
     const lookup = async (payload: string) => {
+        // Client-side validation first: catches non-asset QRs (URLs, vCards,
+        // random text) without hitting the API. Backend repeats the same
+        // check as defense in depth.
+        const reason = validateScannedPayload(payload);
+        if (reason) {
+            setResult({
+                payload,
+                code: null,
+                error: payloadErrorMessage(reason, payload),
+            });
+            return;
+        }
+
         setResult({ payload, code: null, error: null });
         try {
             const res = await fetch(
                 `${API_BASE_URL}/api/asset-codes/by-payload/${encodeURIComponent(payload)}`
             );
+            if (res.status === 400) {
+                const body = await res.json().catch(() => ({}));
+                setResult({
+                    payload,
+                    code: null,
+                    error: payloadErrorMessage(body?.error ?? "PAYLOAD_FORMAT_INVALID", payload),
+                });
+                return;
+            }
             if (res.status === 404) {
-                setResult({ payload, code: null, error: "No asset code matches this QR." });
+                setResult({
+                    payload,
+                    code: null,
+                    error: "Looks like a valid asset QR, but no matching record exists.",
+                });
                 return;
             }
             if (!res.ok) throw new Error("Lookup failed");
@@ -182,6 +236,23 @@ export default function QrScannerModal({ open, onClose }: Props) {
             });
         }
     };
+
+    // Bridge between the file-based fallback decoder (inside ScannerPanel)
+    // and the parent so a single lookup() pipeline handles both live scans
+    // and uploaded photos.
+    useEffect(() => {
+        if (!open) return;
+        const handler = async (e: Event) => {
+            const detail = (e as CustomEvent<string>).detail;
+            if (typeof detail === "string" && detail.trim()) {
+                await stopScanner();
+                await lookup(detail.trim());
+            }
+        };
+        window.addEventListener("qr-scanner:decoded", handler);
+        return () => window.removeEventListener("qr-scanner:decoded", handler);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [open]);
 
     const handleRescan = async () => {
         setResult(null);
@@ -248,6 +319,41 @@ function ScannerPanel({
     error: string | null;
     scanning: boolean;
 }) {
+    const fileInputRef = useRef<HTMLInputElement | null>(null);
+    const [decoding, setDecoding] = useState(false);
+    const [fileError, setFileError] = useState<string | null>(null);
+
+    const decodeFromFile = async (file: File) => {
+        setDecoding(true);
+        setFileError(null);
+        try {
+            // html5-qrcode supports decoding from a File without keeping a
+            // running camera stream. Mount a hidden host so its internal
+            // helpers have a DOM target, then dispose immediately.
+            const host = document.createElement("div");
+            host.id = `qr-file-host-${Date.now()}`;
+            host.style.display = "none";
+            document.body.appendChild(host);
+            try {
+                const reader = new Html5Qrcode(host.id, { verbose: false });
+                const decoded = await reader.scanFile(file, false);
+                window.dispatchEvent(
+                    new CustomEvent("qr-scanner:decoded", { detail: decoded.trim() })
+                );
+            } finally {
+                host.remove();
+            }
+        } catch (err) {
+            setFileError(
+                err instanceof Error
+                    ? err.message
+                    : "Couldn't read a QR code from that image."
+            );
+        } finally {
+            setDecoding(false);
+        }
+    };
+
     return (
         <>
             {error ? (
@@ -257,8 +363,9 @@ function ScannerPanel({
                         <p className="font-semibold">Camera unavailable</p>
                         <p className="mt-0.5 text-xs">{error}</p>
                         <p className="mt-1 text-xs">
-                            Camera access requires HTTPS or localhost. Check your browser
-                            permissions and try again.
+                            Browsers only allow live camera access on HTTPS or localhost.
+                            On a phone over the LAN you can still scan by uploading a photo
+                            of the QR — use the button below.
                         </p>
                     </div>
                 </div>
@@ -278,6 +385,36 @@ function ScannerPanel({
             <p className="mt-3 text-center text-xs text-ink-subtle">
                 Hold steady. The scan will trigger as soon as the QR is detected.
             </p>
+
+            {/* No-camera fallback: snap or pick a photo. Works on any device
+                regardless of HTTP/HTTPS. `capture="environment"` opens the
+                back camera directly on phones. */}
+            <div className="mt-3 flex flex-col items-center gap-1.5">
+                <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={decoding}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-warm bg-white px-3 py-1.5 text-xs font-medium text-ink hover:bg-cream disabled:opacity-50"
+                >
+                    <ImageIcon size={14} />
+                    {decoding ? "Decoding..." : "Use a photo of the QR"}
+                </button>
+                <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="hidden"
+                    onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) decodeFromFile(f);
+                        if (fileInputRef.current) fileInputRef.current.value = "";
+                    }}
+                />
+                {fileError && (
+                    <p className="text-center text-xs text-red-600">{fileError}</p>
+                )}
+            </div>
         </>
     );
 }

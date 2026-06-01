@@ -2,6 +2,16 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
+// Dev server runs on plain HTTP by default so phones on the LAN can reach
+// it without dealing with self-signed certificate warnings (some Android
+// browsers and security settings hide the "Proceed anyway" option, which
+// blocks the page entirely).
+//
+// Live camera streaming via getUserMedia requires a secure context (HTTPS
+// or localhost), so the QR scanner uses a "scan from a photo" fallback on
+// non-secure origins. To enable HTTPS for live-camera testing on a phone,
+// install @vitejs/plugin-basic-ssl and import it conditionally — or use
+// mkcert for a properly trusted LAN cert.
 export default defineConfig({
   cacheDir: '.vite-cache',
   plugins: [
