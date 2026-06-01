@@ -27,6 +27,7 @@ import CsrRepairLogPage from "../../modules/csr/pages/CsrRepairLogPage";
 import CsrReleasedLogPage from "../../modules/csr/pages/CsrReleasedLogPage";
 import CsrDiagnosisListPage from "../../modules/csr/pages/CsrDiagnosisListPage";
 import PosDiagnosisListPage from "../../modules/pos-repair/pages/DiagnosisListPage";
+import CsrPostsTabbedPage from "../../modules/csr/pages/CsrPostsTabbedPage";
 
 export const router = createBrowserRouter([
     {
@@ -128,6 +129,14 @@ export const router = createBrowserRouter([
                 element: (
                     <RoleGuard allow={["csr"]} fallback="/app/dashboard">
                         <CsrDiagnosisListPage />
+                    </RoleGuard>
+                ),
+            },
+            {
+                path: "csr-pos-repair/posts",
+                element: (
+                    <RoleGuard allow={["csr"]} fallback="/app/dashboard">
+                        <CsrPostsTabbedPage />
                     </RoleGuard>
                 ),
             },

@@ -1,6 +1,8 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+import path from "path";
+import { fileURLToPath } from "url";
 
 import healthRoutes from "./src/routes/health.routes.js";
 import userRoutes from "./src/routes/user.routes.js";
@@ -16,14 +18,20 @@ import diagnosisListRoutes from "./src/routes/diagnosis-list.routes.js";
 import repairRecordRoutes from "./src/routes/repair-record.routes.js";
 import diagnosisLogRoutes from "./src/routes/diagnosis-log.routes.js";
 import releasedLogRoutes from "./src/routes/released-log.routes.js";
+import postsRoutes from "./src/routes/posts.routes.js";
 import initDatabase from "./src/config/init.js";
 
 dotenv.config();
 
 const app = express();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 app.use(cors());
 app.use(express.json());
+
+// Serve uploaded files (images, videos)
+app.use("/uploads", express.static(path.join(__dirname, "public", "uploads")));
 
 // Routes
 app.use("/api/health", healthRoutes);
@@ -40,6 +48,7 @@ app.use("/api/diagnosis-list", diagnosisListRoutes);
 app.use("/api/repair-records", repairRecordRoutes);
 app.use("/api/diagnosis-logs", diagnosisLogRoutes);
 app.use("/api/released-logs", releasedLogRoutes);
+app.use("/api/posts", postsRoutes);
 
 const PORT = Number(process.env.PORT || 5050);
 

@@ -22,6 +22,8 @@ const SERIAL_TABLES = [
     "diagnosis_logs",
     "billing_transmittals",
     "released_logs",
+    "lottery_results",
+    "announcements",
 ];
 
 async function syncSerialSequence(client, tableName) {
@@ -585,6 +587,37 @@ async function initDatabase() {
         await client.query(
             "CREATE INDEX IF NOT EXISTS idx_released_logs_user ON released_logs(user_id)"
         );
+
+        /* =========================
+           lottery_results — CSR-published draw results for the landing page
+        ========================= */
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS lottery_results (
+                id SERIAL PRIMARY KEY,
+                draw_label VARCHAR(255) NOT NULL,
+                winning_number VARCHAR(50) NOT NULL,
+                area VARCHAR(50) NOT NULL CHECK (area IN ('National', 'Local CDO', 'Local MISOR')),
+                draw_date DATE NOT NULL DEFAULT CURRENT_DATE,
+                created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        /* =========================
+           announcements — CSR-published events & news for the landing page
+        ========================= */
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS announcements (
+                id SERIAL PRIMARY KEY,
+                title VARCHAR(255) NOT NULL,
+                caption TEXT,
+                type VARCHAR(20) NOT NULL CHECK (type IN ('event', 'news')),
+                media_urls TEXT DEFAULT '[]',
+                location VARCHAR(255),
+                created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
 
         for (const tableName of SERIAL_TABLES) {
             await syncSerialSequence(client, tableName);

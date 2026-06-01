@@ -17,6 +17,7 @@ import {
     ClipboardList,
     ArrowUpRight,
     Stethoscope,
+    Megaphone,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useEffect, useState } from "react";
@@ -54,6 +55,7 @@ const iconMap: Record<string, LucideIcon> = {
     "Repair Log": FileText,
     "Released Log": ArrowUpRight,
     "Diagnosis List": Stethoscope,
+    Posts: Megaphone,
     Settings: Settings,
 };
 
@@ -144,6 +146,7 @@ export default function DashboardLayout() {
                     { name: "Repair Log", path: "/app/csr-pos-repair/repair-log" },
                     { name: "Released Log", path: "/app/csr-pos-repair/released-log" },
                     { name: "Diagnosis List", path: "/app/csr-pos-repair/diagnosis-list" },
+                    { name: "Posts", path: "/app/csr-pos-repair/posts" },
                     { name: "Settings", path: "/app/settings" },
                 ]
                 : [
