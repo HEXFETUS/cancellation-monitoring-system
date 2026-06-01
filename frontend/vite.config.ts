@@ -15,6 +15,13 @@ export default defineConfig({
         target: 'http://127.0.0.1:5050', // backend port — keep in sync with backend/.env PORT
         changeOrigin: true,
       },
+      // Static media uploaded by CSR (Events & News) is served by the
+      // backend at /uploads/<file>. Without this proxy the dev server
+      // would 404 those URLs and the post media would render as broken.
+      '/uploads': {
+        target: 'http://127.0.0.1:5050',
+        changeOrigin: true,
+      },
     },
   },
 })
