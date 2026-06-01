@@ -812,15 +812,26 @@ export default function LandingPage() {
                         {/* Media attachments */}
                         {item.media_urls.length > 0 && (
                           <div className="mt-4 flex flex-wrap gap-2">
-                            {item.media_urls.map((url, i) => (
-                              <img
-                                key={i}
-                                src={`${API_BASE}${url}`}
-                                alt={`${item.title} media ${i + 1}`}
-                                className="h-20 w-20 rounded-lg object-cover"
-                                style={{ border: "1px solid #E5E1DA" }}
-                              />
-                            ))}
+                            {item.media_urls.map((url, i) =>
+                              /\.mp4$/i.test(url) ? (
+                                <video
+                                  key={i}
+                                  src={`${API_BASE}${url}`}
+                                  controls
+                                  preload="metadata"
+                                  className="h-20 w-20 rounded-lg object-cover"
+                                  style={{ border: "1px solid #E5E1DA" }}
+                                />
+                              ) : (
+                                <img
+                                  key={i}
+                                  src={`${API_BASE}${url}`}
+                                  alt={`${item.title} media ${i + 1}`}
+                                  className="h-20 w-20 rounded-lg object-cover"
+                                  style={{ border: "1px solid #E5E1DA" }}
+                                />
+                              )
+                            )}
                           </div>
                         )}
                       </div>
