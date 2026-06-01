@@ -23,9 +23,13 @@ const userSubTabs = [
 export default function SettingsPage() {
     const { user } = useAuth();
 
-    // Operators and purchasers get a slim, self-scoped settings view (My Account only).
-    // Admin/CSR see the full management UI below.
-    if (user?.usertype === "operator" || user?.usertype === "purchaser") {
+    // Operators, purchasers, and CSR get a slim, self-scoped settings view
+    // (My Account only). Admin sees the full management UI below.
+    if (
+        user?.usertype === "operator" ||
+        user?.usertype === "purchaser" ||
+        user?.usertype === "csr"
+    ) {
         return <MyAccountPage />;
     }
 

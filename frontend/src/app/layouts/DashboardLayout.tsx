@@ -144,6 +144,7 @@ export default function DashboardLayout() {
                     { name: "Repair Log", path: "/app/csr-pos-repair/repair-log" },
                     { name: "Released Log", path: "/app/csr-pos-repair/released-log" },
                     { name: "Diagnosis List", path: "/app/csr-pos-repair/diagnosis-list" },
+                    { name: "Settings", path: "/app/settings" },
                 ]
                 : [
                     { name: "Dashboard", path: "/app/dashboard" },
