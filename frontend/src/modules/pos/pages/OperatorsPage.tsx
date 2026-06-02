@@ -176,10 +176,11 @@ export default function OperatorsPage() {
                                     <td className="px-4 py-3 text-center">
                                         <button
                                             onClick={() => handleView(record)}
-                                            className="inline-flex items-center gap-1.5 rounded-lg border border-warm bg-white px-3 py-1.5 text-xs font-medium text-ink hover:bg-surface transition-colors shadow-sm"
+                                            className="rounded-lg p-1.5 transition-colors hover:bg-blue-50"
+                                            title="View"
+                                            style={{ color: "#2563EB" }}
                                         >
-                                            <Eye size={14} />
-                                            View
+                                            <Eye className="h-4 w-4" />
                                         </button>
                                     </td>
                                 </tr>

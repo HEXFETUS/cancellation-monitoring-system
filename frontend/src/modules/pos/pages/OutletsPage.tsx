@@ -113,6 +113,12 @@ export default function OutletsPage() {
         coordinate: "",
         location: "",
     });
+    const [initialEditForm, setInitialEditForm] = useState({
+        operator: "",
+        booth_code: "",
+        coordinate: "",
+        location: "",
+    });
     const [showEditOperatorDropdown, setShowEditOperatorDropdown] = useState(false);
     const [isEditSaving, setIsEditSaving] = useState(false);
     const [editFormError, setEditFormError] = useState<string | null>(null);
@@ -120,6 +126,13 @@ export default function OutletsPage() {
     const editOperatorDropdownRef = useRef<HTMLDivElement>(null);
 
     const handleEdit = (record: BoothInfo) => {
+        const initial = {
+            operator: record.operator || "",
+            booth_code: record.booth_code || "",
+            coordinate: record.coordinate || "",
+            location: record.booth_location || "",
+        };
+        setInitialEditForm(initial);
         setEditForm({
             id: record.id,
             operator: record.operator || "",
@@ -536,10 +549,11 @@ export default function OutletsPage() {
                                     <td className="px-4 py-3 text-center">
                                         <button
                                             onClick={() => handleEdit(record)}
-                                            className="inline-flex items-center gap-1.5 rounded-lg border border-warm bg-white px-3 py-1.5 text-xs font-medium text-ink hover:bg-surface transition-colors shadow-sm"
+                                            className="rounded-lg p-1.5 transition-colors hover:bg-amber-50"
+                                            title="Edit"
+                                            style={{ color: "#F59E0B" }}
                                         >
-                                            <Edit size={14} />
-                                            Edit
+                                            <Edit className="h-4 w-4" />
                                         </button>
                                     </td>
                                 </tr>
@@ -1019,7 +1033,12 @@ export default function OutletsPage() {
                     </button>
                     <button
                         onClick={openEditConfirmModal}
-                        disabled={!editForm.booth_code.trim() || !editForm.operator.trim() || isEditSaving}
+                        disabled={!editForm.booth_code.trim() || !editForm.operator.trim() || isEditSaving || (
+                            editForm.operator === initialEditForm.operator &&
+                            editForm.booth_code === initialEditForm.booth_code &&
+                            editForm.coordinate === initialEditForm.coordinate &&
+                            editForm.location === initialEditForm.location
+                        )}
                         className="rounded-xl bg-gradient-to-r from-teal to-teal-dark px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-teal/25 hover:shadow-xl hover:shadow-teal/30 hover:from-teal-dark hover:to-teal transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none disabled:active:scale-100"
                     >
                         Save

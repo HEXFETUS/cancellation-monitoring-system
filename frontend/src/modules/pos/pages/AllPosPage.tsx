@@ -619,28 +619,32 @@ export default function AllPosPage() {
                                         })()}
                                     </td>
                                     <td className="px-4 py-3 text-center">
-                                        <input
-                                            type="checkbox"
-                                            checked={record.sticker}
-                                            onChange={() => handleStickerToggle(record.id, record.sticker)}
-                                            className="h-4 w-4 rounded border-warm text-teal focus:ring-teal transition-colors cursor-pointer"
-                                        />
+                                        <div className="flex items-center justify-center">
+                                            <input
+                                                type="checkbox"
+                                                checked={record.sticker}
+                                                onChange={() => handleStickerToggle(record.id, record.sticker)}
+                                                className="h-3 w-3 rounded border-warm text-teal focus:ring-teal transition-colors cursor-pointer"
+                                            />
+                                        </div>
                                     </td>
                                     <td className="px-4 py-3 text-right">
-                                        <div className="flex items-center justify-end gap-2">
+                                        <div className="flex items-center justify-end gap-1">
                                             <button
                                                 onClick={() => openChangeBoothModal(record)}
-                                                className="inline-flex items-center gap-1.5 rounded-lg border border-warm bg-white px-2.5 py-1.5 text-xs font-medium text-ink hover:bg-surface transition-colors shadow-sm"
+                                                className="rounded-lg p-1.5 transition-colors hover:bg-blue-50"
+                                                title="Change Booth"
+                                                style={{ color: "#2563EB" }}
                                             >
-                                                <RefreshCw size={12} />
-                                                Change Booth
+                                                <RefreshCw className="h-4 w-4" />
                                             </button>
                                             <button
                                                 onClick={() => openConvertAreaModal(record)}
-                                                className="inline-flex items-center gap-1.5 rounded-lg border border-warm bg-white px-2.5 py-1.5 text-xs font-medium text-ink hover:bg-surface transition-colors shadow-sm"
+                                                className="rounded-lg p-1.5 transition-colors hover:bg-green-50"
+                                                title="Convert Area"
+                                                style={{ color: "#16A34A" }}
                                             >
-                                                <Map size={12} />
-                                                Convert Area
+                                                <Map className="h-4 w-4" />
                                             </button>
                                         </div>
                                     </td>
