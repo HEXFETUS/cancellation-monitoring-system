@@ -562,6 +562,107 @@ router.post("/booth-info", async (req, res) => {
 });
 
 /* =========================
+   UPDATE BOOTH INFO
+========================= */
+router.put("/booth-info/:id", async (req, res) => {
+    const client = await pool.connect();
+
+    try {
+        const id = Number(req.params.id);
+        if (!Number.isFinite(id)) {
+            return res.status(400).json({ error: "Invalid booth id" });
+        }
+
+        const { booth_code, coordinate, location, operator, operator_id, changed_by } = req.body;
+        const boothCode = String(booth_code || "").trim();
+        const operatorName = String(operator || "").trim();
+
+        if (!boothCode || (!operator_id && !operatorName)) {
+            return res.status(400).json({ error: "Booth code and operator are required" });
+        }
+
+        await client.query("BEGIN");
+
+        // Check booth exists
+        const existing = await client.query(
+            `SELECT id FROM booth_info WHERE id = $1::int`,
+            [id]
+        );
+        if (existing.rows.length === 0) {
+            await client.query("ROLLBACK");
+            return res.status(404).json({ error: "Booth not found" });
+        }
+
+        // Duplicate booth_code check (exclude self)
+        const duplicateBooth = await client.query(
+            `SELECT id FROM booth_info WHERE LOWER(TRIM(booth_code)) = LOWER($1) AND id != $2::int LIMIT 1`,
+            [boothCode, id]
+        );
+        if (duplicateBooth.rows.length > 0) {
+            await client.query("ROLLBACK");
+            return res.status(400).json({ error: "Booth code already exists" });
+        }
+
+        let resolvedOperatorId = operator_id || null;
+
+        if (resolvedOperatorId) {
+            const operatorResult = await client.query(
+                `SELECT id FROM operator_list WHERE id = $1::int`,
+                [resolvedOperatorId]
+            );
+            if (operatorResult.rows.length === 0) {
+                await client.query("ROLLBACK");
+                return res.status(400).json({ error: "Selected operator not found" });
+            }
+            resolvedOperatorId = operatorResult.rows[0].id;
+        } else {
+            const operatorResult = await client.query(
+                `SELECT id FROM operator_list WHERE LOWER(TRIM(operator)) = LOWER($1) LIMIT 1`,
+                [operatorName]
+            );
+
+            if (operatorResult.rows.length > 0) {
+                resolvedOperatorId = operatorResult.rows[0].id;
+            } else {
+                const insertOperator = await client.query(
+                    `INSERT INTO operator_list (operator) VALUES ($1) RETURNING id`,
+                    [operatorName]
+                );
+                resolvedOperatorId = insertOperator.rows[0].id;
+            }
+        }
+
+        await client.query(
+            `UPDATE booth_info
+             SET booth_code = $1,
+                 coordinate = $2,
+                 location = $3,
+                 operator_id = $4,
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = $5::int`,
+            [
+                boothCode,
+                coordinate?.trim() || null,
+                location?.trim() || null,
+                resolvedOperatorId,
+                id
+            ]
+        );
+
+        const result = await client.query(`${BOOTH_INFO_SELECT} WHERE b.id = $1::int`, [id]);
+
+        await client.query("COMMIT");
+        res.json(result.rows[0]);
+    } catch (err) {
+        await client.query("ROLLBACK").catch(() => {});
+        console.error("PUT booth_info error:", err.message);
+        res.status(500).json({ error: "Failed to update booth info" });
+    } finally {
+        client.release();
+    }
+});
+
+/* =========================
    GET AVAILABLE POS RECORDS
    Returns POS records that are not already in repair_records with non-NULL status
 ========================= */
