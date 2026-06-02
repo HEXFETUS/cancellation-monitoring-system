@@ -147,7 +147,7 @@ router.get("/:id/latest-login", async (req, res) => {
 
         const result = await pool.query(
             `
-            SELECT login_at
+            SELECT to_char(login_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS login_at
             FROM user_logs
             WHERE user_id = $1
               AND login_at IS NOT NULL

@@ -207,6 +207,58 @@ router.get("/received-by/list", async (_req, res) => {
 
 /* =========================
    CHECK POS REPAIR REQUEST ELIGIBILITY
+========================= */
+router.get("/pos/:posRecordId/request-eligibility", async (req, res) => {
+    try {
+        const { posRecordId } = req.params;
+        const posRecordIdNum = Number(posRecordId);
+
+        if (!Number.isFinite(posRecordIdNum)) {
+            return res.status(400).json({ error: "Invalid POS record ID" });
+        }
+
+        // Check if POS record exists
+        const posRecord = await pool.query(
+            `SELECT id, status FROM pos_records WHERE id = $1::int LIMIT 1`,
+            [posRecordIdNum]
+        );
+
+        if (posRecord.rows.length === 0) {
+            return res.status(404).json({ eligible: false, error: "POS record not found" });
+        }
+
+        // Check if POS status is "not released" (already being repaired)
+        if (String(posRecord.rows[0].status || "").trim().toLowerCase() === "not released") {
+            return res.json({ eligible: false, error: "The POS is already being repaired" });
+        }
+
+        // Check the latest repair record
+        const latestRepairRecord = await pool.query(
+            `
+                SELECT id, forwarded, released
+                FROM repair_records
+                WHERE pos_record_id = $1::int
+                ORDER BY id DESC
+                LIMIT 1
+                `,
+            [posRecordIdNum]
+        );
+
+        if (latestRepairRecord.rows.length > 0) {
+            const latest = latestRepairRecord.rows[0];
+            if (latest.forwarded !== false || latest.released !== true) {
+                return res.json({ eligible: false, error: "The POS is already being repaired" });
+            }
+        }
+
+        res.json({ eligible: true, error: null });
+    } catch (err) {
+        console.error("GET repair_records/pos/:posRecordId/request-eligibility error:", err.message);
+        res.status(500).json({ eligible: false, error: "Failed to check POS repair eligibility" });
+    }
+});
+
+/* =========================
    GET SINGLE REPAIR RECORD
 ========================= */
 router.get("/:id", async (req, res) => {
@@ -274,7 +326,7 @@ router.post("/", async (req, res) => {
 
         if (latestRepairRecord.rows.length > 0) {
             const latest = latestRepairRecord.rows[0];
-            if (latest.forwarded !== false || latest.released !== true) {
+            if (latest.forwarded !== false && latest.released !== true) {
                 return res.status(400).json({ error: "The POS is already being repaired" });
             }
         }
@@ -294,11 +346,11 @@ router.post("/", async (req, res) => {
             }
         }
 
-        // Reuse a cleared/unforwarded repair row for this POS instead of creating a duplicate.
+        // Check if a record exists with forwarded=false and released=true (already released, needs re-repair)
+        // If yes, update it instead of creating a new one
         const existingRecord = await pool.query(
             `SELECT id, released FROM repair_records 
-             WHERE pos_record_id = $1 AND status IS NULL 
-             AND forwarded = false AND re_repair = false
+             WHERE pos_record_id = $1 AND forwarded = false AND released = true
              ORDER BY id DESC
              LIMIT 1`,
             [pos_record_id]
@@ -306,7 +358,7 @@ router.post("/", async (req, res) => {
 
         let result;
         if (existingRecord.rows.length > 0) {
-            // Update existing record
+            // Update existing record (re-repair case: was released, now needs repair again)
             const existingId = existingRecord.rows[0].id;
             result = await pool.query(
                 `
@@ -319,8 +371,9 @@ router.post("/", async (req, res) => {
                     with_charger = $6,
                     with_box = $7,
                     status = $8,
-                    re_repair = CASE WHEN released = true THEN true ELSE re_repair END,
+                    forwarded = false,
                     released = false,
+                    re_repair = true,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = $9
                 RETURNING *
