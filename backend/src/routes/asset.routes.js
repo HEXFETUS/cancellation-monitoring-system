@@ -6,6 +6,7 @@ import { fileURLToPath } from "url";
 import pool from "../config/db.js";
 import { blockRoles } from "../middleware/role-guard.js";
 import { recordActivity } from "../utils/activity-log.js";
+import { syncAssetInventoryBothWays } from "../services/googleSheets.service.js";
 
 const router = express.Router();
 
@@ -223,6 +224,28 @@ router.post("/", async (req, res) => {
     } catch (err) {
         console.error("POST /api/assets error:", err.message);
         res.status(500).json({ error: "Failed to create asset" });
+    }
+});
+
+// POST /api/assets/sync-google-sheets
+// Two-way sync: import Google Sheet tabs into the database, then export the
+// normalized database rows back to Google Sheets when a Web App URL is set.
+router.post("/sync-google-sheets", async (req, res) => {
+    try {
+        const summary = await syncAssetInventoryBothWays();
+
+        await recordActivity(req, {
+            action: "sync",
+            entity: "asset_inventory_google_sheets",
+            summary: "Synced asset inventory between Google Sheets and database",
+        });
+
+        res.json(summary);
+    } catch (err) {
+        console.error("POST /api/assets/sync-google-sheets error:", err.message);
+        res.status(500).json({
+            error: err.message || "Failed to sync asset inventory from Google Sheets",
+        });
     }
 });
 

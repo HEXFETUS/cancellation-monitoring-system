@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
     Building2,
     Camera,
@@ -6,10 +6,16 @@ import {
     Home,
     MapPin,
     Monitor,
+    RefreshCw,
     Users,
 } from "lucide-react";
 import type { ComponentType } from "react";
-import { listAllAssets, type AssetLocation } from "../services";
+import { useAuth } from "../../../context/AuthContext";
+import {
+    listAllAssets,
+    syncAssetInventoryFromGoogleSheets,
+    type AssetLocation,
+} from "../services";
 import type { AssetRow } from "../components/AssetTable";
 
 type AssetWithLocation = AssetRow & { location: AssetLocation };
@@ -96,9 +102,25 @@ function computeStats(
 }
 
 export default function SummaryPage() {
+    const { user } = useAuth();
     const [assets, setAssets] = useState<AssetWithLocation[]>([]);
     const [loading, setLoading] = useState(true);
+    const [syncing, setSyncing] = useState(false);
     const [error, setError] = useState("");
+    const [syncMessage, setSyncMessage] = useState("");
+
+    const loadAssets = useCallback(async () => {
+        try {
+            setLoading(true);
+            setError("");
+            const data = await listAllAssets();
+            setAssets(data);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Could not load assets");
+        } finally {
+            setLoading(false);
+        }
+    }, []);
 
     useEffect(() => {
         let cancelled = false;
@@ -109,7 +131,7 @@ export default function SummaryPage() {
                 const data = await listAllAssets();
                 if (!cancelled) setAssets(data);
             } catch (err) {
-                if (!cancelled) setError(err instanceof Error ? (err instanceof Error ? err.message : String(err)) : "Could not load assets");
+                if (!cancelled) setError(err instanceof Error ? err.message : "Could not load assets");
             } finally {
                 if (!cancelled) setLoading(false);
             }
@@ -118,6 +140,39 @@ export default function SummaryPage() {
             cancelled = true;
         };
     }, []);
+
+    const canSync = user?.usertype === "purchaser" || user?.usertype === "admin";
+
+    const handleSyncGoogleSheets = async () => {
+        try {
+            setSyncing(true);
+            setError("");
+            setSyncMessage("");
+
+            const summary = await syncAssetInventoryFromGoogleSheets();
+            const tabTotals = Object.values(summary.from_google_sheets.tabs).reduce(
+                (acc, tab) => ({
+                    scanned: acc.scanned + tab.scanned,
+                    inserted: acc.inserted + tab.inserted,
+                    updated: acc.updated + tab.updated,
+                    skipped: acc.skipped + tab.skipped,
+                }),
+                { scanned: 0, inserted: 0, updated: 0, skipped: 0 }
+            );
+
+            await loadAssets();
+            const writeBackMessage = summary.write_configured
+                ? " Database was written back to Google Sheets."
+                : " Database updated, but Google Sheets write-back needs ASSET_INVENTORY_SHEET_URL.";
+            setSyncMessage(
+                `Synced ${tabTotals.scanned} sheet rows into the database: ${tabTotals.inserted} new, ${tabTotals.updated} updated, ${tabTotals.skipped} skipped.${writeBackMessage}`
+            );
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Could not sync Google Sheets");
+        } finally {
+            setSyncing(false);
+        }
+    };
 
     const stats = useMemo(() => computeStats(assets, SECTIONS), [assets]);
 
@@ -135,16 +190,39 @@ export default function SummaryPage() {
     return (
         <div>
             {/* Page header */}
-            <div className="mb-6">
-                <h1 className="text-2xl font-bold text-ink">Asset Inventory Summary</h1>
-                <p className="mt-1 text-sm text-ink-muted">
-                    Live counts and total value across every asset location.
-                </p>
+            <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                    <h1 className="text-2xl font-bold text-ink">Asset Inventory Summary</h1>
+                    <p className="mt-1 text-sm text-ink-muted">
+                        Live counts and total value across every asset location.
+                    </p>
+                </div>
+
+                {canSync && (
+                    <button
+                        type="button"
+                        onClick={handleSyncGoogleSheets}
+                        disabled={syncing || loading}
+                        className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-teal/30 bg-teal px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-teal/90 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                        <RefreshCw
+                            size={16}
+                            className={syncing ? "animate-spin" : ""}
+                        />
+                        {syncing ? "Syncing" : "Sync GSheet"}
+                    </button>
+                )}
             </div>
 
             {error && (
                 <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
                     {error}
+                </div>
+            )}
+
+            {syncMessage && (
+                <div className="mb-4 rounded-lg border border-teal/30 bg-teal/10 px-3 py-2 text-sm text-ink">
+                    {syncMessage}
                 </div>
             )}
 

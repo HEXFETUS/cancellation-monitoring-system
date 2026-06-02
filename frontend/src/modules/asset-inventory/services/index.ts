@@ -92,6 +92,37 @@ export async function listAllAssets(): Promise<Array<AssetRow & { location: Asse
     return data.map(fromWire);
 }
 
+export interface GoogleSheetsSyncSummary {
+    spreadsheet_id: string;
+    mode: "two-way";
+    rule: string;
+    write_configured: boolean;
+    from_google_sheets: {
+        spreadsheet_id: string;
+        tabs: Record<
+            string,
+            {
+                scanned: number;
+                inserted: number;
+                updated: number;
+                skipped: number;
+            }
+        >;
+    };
+    to_google_sheets: unknown | null;
+}
+
+export async function syncAssetInventoryFromGoogleSheets(): Promise<GoogleSheetsSyncSummary> {
+    const res = await fetch(apiUrl("/api/assets/sync-google-sheets"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+    });
+    if (!res.ok) {
+        throw new Error(await getErrorMessage(res, "Failed to sync Google Sheets"));
+    }
+    return res.json();
+}
+
 export async function createAsset(input: AssetInput): Promise<AssetRow> {
     const res = await fetch(apiUrl("/api/assets"), {
         method: "POST",
