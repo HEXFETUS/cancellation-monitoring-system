@@ -5,6 +5,7 @@ import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
 import pool from "../config/db.js";
+import { recordActivity } from "../utils/activity-log.js";
 
 const router = express.Router();
 
@@ -184,6 +185,14 @@ router.post("/", async (req, res) => {
             [name.trim(), email.trim(), hashedPassword, usertype, position.trim(), department.trim()]
         );
 
+        await recordActivity(req, {
+            action: "create",
+            entity: "user",
+            entity_id: result.rows[0].id,
+            summary: `Created ${usertype} account for ${result.rows[0].name}`,
+            details: { email: result.rows[0].email, usertype, position, department },
+        });
+
         res.status(201).json(result.rows[0]);
     } catch (err) {
         if (err.code === "23505") {
@@ -213,6 +222,14 @@ router.put("/:id", async (req, res) => {
         if (result.rows.length === 0) {
             return res.status(404).json({ error: "User not found" });
         }
+
+        await recordActivity(req, {
+            action: "update",
+            entity: "user",
+            entity_id: Number(id),
+            summary: `Updated user ${result.rows[0].name}`,
+            details: { email, usertype, position, department },
+        });
 
         res.json(result.rows[0]);
     } catch (err) {
@@ -257,6 +274,13 @@ router.patch("/:id/password", async (req, res) => {
             [hashedPassword, id]
         );
 
+        await recordActivity(req, {
+            action: "update",
+            entity: "user_password",
+            entity_id: Number(id),
+            summary: `Changed password for user #${id}`,
+        });
+
         res.json({ message: "Password updated successfully", user: result.rows[0] });
     } catch (err) {
         console.error("Error changing password:", err.message);
@@ -277,6 +301,13 @@ router.delete("/:id", async (req, res) => {
         if (result.rows.length === 0) {
             return res.status(404).json({ error: "User not found" });
         }
+
+        await recordActivity(req, {
+            action: "delete",
+            entity: "user",
+            entity_id: Number(id),
+            summary: `Deleted user account #${id}`,
+        });
 
         res.json({ message: "User deleted successfully" });
     } catch (err) {
@@ -436,6 +467,13 @@ router.post("/:id/profile-picture", profileUpload.single("profile_picture"), asy
             const prevPath = path.join(uploadsDir, path.basename(prev));
             fs.unlink(prevPath, () => {});
         }
+
+        await recordActivity(req, {
+            action: "upload",
+            entity: "profile_picture",
+            entity_id: userId,
+            summary: `Updated profile picture for user #${userId}`,
+        });
 
         res.json(result.rows[0]);
     } catch (err) {

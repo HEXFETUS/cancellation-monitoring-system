@@ -1,16 +1,18 @@
 import { useEffect, useState } from "react";
-import { Users, UserPlus, ClipboardList, Menu, Check, X, Building2, UserCircle } from "lucide-react";
+import { Users, UserPlus, ClipboardList, Menu, Check, X, Building2, UserCircle, Activity } from "lucide-react";
 import UserAccountsPage from "./UserAccountsPage";
 import CreateUserAccountPage from "./CreateUserAccountPage";
 import UserLogsPage from "./UserLogsPage";
 import OperatorProfilesPage from "./OperatorProfilesPage";
 import MyAccountPage from "./MyAccountPage";
+import ActivityLogsPage from "./ActivityLogsPage";
 import { useAuth } from "../../../context/AuthContext";
 
 const teal = "#92C7CF";
 
 const leftTabs = [
     { id: "user-accounts", label: "USERS", icon: Users },
+    { id: "activity-logs", label: "ACTIVITY LOGS", icon: Activity },
     { id: "my-account", label: "MY ACCOUNT", icon: UserCircle },
 ];
 
@@ -206,6 +208,8 @@ function AdminSettingsPage() {
                         </div>
                     </div>
                 )}
+
+                {activeTab === "activity-logs" && <ActivityLogsPage />}
 
                 {activeTab === "my-account" && <MyAccountPage />}
             </div>

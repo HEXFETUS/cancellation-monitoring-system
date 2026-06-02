@@ -5,6 +5,7 @@ import fs from "fs";
 import { fileURLToPath } from "url";
 import pool from "../config/db.js";
 import { blockRoles } from "../middleware/role-guard.js";
+import { recordActivity } from "../utils/activity-log.js";
 
 const router = express.Router();
 
@@ -211,7 +212,14 @@ router.post("/", async (req, res) => {
             ]
         );
 
-        res.status(201).json(result.rows[0]);
+        const created = result.rows[0];
+        await recordActivity(req, {
+            action: "create",
+            entity: "asset",
+            entity_id: created.id,
+            summary: `Created asset "${created.item_description}" (${created.location})`,
+        });
+        res.status(201).json(created);
     } catch (err) {
         console.error("POST /api/assets error:", err.message);
         res.status(500).json({ error: "Failed to create asset" });
@@ -281,7 +289,14 @@ router.put("/:id", async (req, res) => {
             return res.status(404).json({ error: "Asset not found" });
         }
 
-        res.json(result.rows[0]);
+        const updated = result.rows[0];
+        await recordActivity(req, {
+            action: "update",
+            entity: "asset",
+            entity_id: updated.id,
+            summary: `Updated asset "${updated.item_description}"`,
+        });
+        res.json(updated);
     } catch (err) {
         console.error("PUT /api/assets/:id error:", err.message);
         res.status(500).json({ error: "Failed to update asset" });
@@ -298,6 +313,12 @@ router.delete("/:id", blockPurchaserDelete, async (req, res) => {
         if (result.rows.length === 0) {
             return res.status(404).json({ error: "Asset not found" });
         }
+        await recordActivity(req, {
+            action: "delete",
+            entity: "asset",
+            entity_id: id,
+            summary: `Deleted asset #${id}`,
+        });
         res.json({ id: result.rows[0].id });
     } catch (err) {
         console.error("DELETE /api/assets/:id error:", err.message);
@@ -329,6 +350,12 @@ router.patch("/:id/remarks", async (req, res) => {
         if (result.rows.length === 0) {
             return res.status(404).json({ error: "Asset not found" });
         }
+        await recordActivity(req, {
+            action: "update",
+            entity: "asset_remarks",
+            entity_id: id,
+            summary: `Updated remarks on asset #${id}`,
+        });
         res.json(result.rows[0]);
     } catch (err) {
         console.error("PATCH /api/assets/:id/remarks error:", err.message);
@@ -408,6 +435,13 @@ router.post("/:id/media", mediaUpload.array("media", 10), async (req, res) => {
             inserted.push(result.rows[0]);
         }
 
+        await recordActivity(req, {
+            action: "upload",
+            entity: "asset_media",
+            entity_id: id,
+            summary: `Uploaded ${inserted.length} media file${inserted.length === 1 ? "" : "s"} to asset #${id}`,
+        });
+
         res.status(201).json(inserted);
     } catch (err) {
         cleanupUploaded();
@@ -447,6 +481,13 @@ router.delete("/:assetId/media/:mediaId", blockPurchaserDelete, async (req, res)
         if (typeof url === "string" && url.startsWith("/uploads/")) {
             fs.unlink(path.join(uploadsDir, path.basename(url)), () => {});
         }
+
+        await recordActivity(req, {
+            action: "delete",
+            entity: "asset_media",
+            entity_id: mediaId,
+            summary: `Removed media from asset #${assetId}`,
+        });
 
         res.json({ id: mediaId });
     } catch (err) {

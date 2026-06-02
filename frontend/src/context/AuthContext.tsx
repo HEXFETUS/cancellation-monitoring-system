@@ -36,6 +36,68 @@ function apiUrl(path: string) {
     return `${API_BASE_URL}${path}`;
 }
 
+// ─── Global fetch interceptor ───────────────────────────────────────────
+// Auto-attaches the signed-in user's id to every same-origin /api/ request
+// as `x-user-id`. The backend uses this header to attribute activity-log
+// rows to the actor. Without it, admin actions like creating/editing users
+// or assets get logged with user_id=NULL and show as "Unknown user" in the
+// admin Activity Logs view. Installs once per browser session at module
+// load. Skips requests that already supply x-user-id so explicit overrides
+// (e.g. tests) still win.
+let fetchInterceptorInstalled = false;
+function installFetchInterceptor() {
+    if (fetchInterceptorInstalled || typeof window === "undefined") return;
+    fetchInterceptorInstalled = true;
+
+    const originalFetch = window.fetch.bind(window);
+
+    window.fetch = (input, init) => {
+        try {
+            const url =
+                typeof input === "string"
+                    ? input
+                    : input instanceof URL
+                        ? input.toString()
+                        : (input as Request).url;
+
+            // Only inject for backend API calls. Profile-picture uploads,
+            // asset media uploads, etc. all hit /api/* so this catches them.
+            if (!/\/api\//.test(url)) {
+                return originalFetch(input, init);
+            }
+
+            // Read auth fresh on each request so we pick up post-login state
+            // without re-installing the interceptor.
+            const stored = readStoredAuth();
+            const userId = stored?.user?.id;
+            if (!userId) {
+                return originalFetch(input, init);
+            }
+
+            // Build a Headers object that carries through whatever the caller
+            // passed in (whether init.headers or Request.headers), then add
+            // x-user-id only if it isn't already set.
+            const baseHeaders = new Headers(
+                init?.headers ??
+                    (typeof input !== "string" && !(input instanceof URL)
+                        ? (input as Request).headers
+                        : undefined)
+            );
+            if (!baseHeaders.has("x-user-id")) {
+                baseHeaders.set("x-user-id", String(userId));
+            }
+
+            return originalFetch(input, { ...init, headers: baseHeaders });
+        } catch {
+            // Belt and braces: never let the interceptor's bookkeeping break a
+            // real request. Fall through to the original fetch.
+            return originalFetch(input, init);
+        }
+    };
+}
+
+installFetchInterceptor();
+
 function readStoredAuth(): StoredAuth | null {
     const sessionStored = sessionStorage.getItem(AUTH_STORAGE_KEY);
     const localStored = localStorage.getItem(AUTH_STORAGE_KEY);

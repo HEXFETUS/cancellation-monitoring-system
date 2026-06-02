@@ -4,6 +4,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
 import pool from "../config/db.js";
+import { recordActivity } from "../utils/activity-log.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -91,7 +92,15 @@ router.post("/results", async (req, res) => {
             [draw_label.trim(), winning_number.trim(), area, draw_date || new Date().toISOString().split("T")[0], userId]
         );
 
-        res.status(201).json(result.rows[0]);
+        const created = result.rows[0];
+        await recordActivity(req, {
+            action: "create",
+            entity: "lottery_result",
+            entity_id: created.id,
+            summary: `Posted lottery result: ${created.draw_label} (${created.area})`,
+        });
+
+        res.status(201).json(created);
     } catch (err) {
         console.error("Error creating result:", err.message);
         res.status(500).json({ error: "Failed to create result" });
@@ -108,6 +117,12 @@ router.delete("/results/:id", async (req, res) => {
 
         const { id } = req.params;
         await pool.query("DELETE FROM lottery_results WHERE id = $1", [id]);
+        await recordActivity(req, {
+            action: "delete",
+            entity: "lottery_result",
+            entity_id: Number(id),
+            summary: `Deleted lottery result #${id}`,
+        });
         res.json({ message: "Result deleted successfully" });
     } catch (err) {
         console.error("Error deleting result:", err.message);
@@ -167,6 +182,12 @@ router.post("/announcements", upload.array("media", 5), async (req, res) => {
         );
 
         const row = result.rows[0];
+        await recordActivity(req, {
+            action: "create",
+            entity: "announcement",
+            entity_id: row.id,
+            summary: `Posted ${row.type}: ${row.title}`,
+        });
         res.status(201).json({
             ...row,
             media_urls: JSON.parse(row.media_urls),
@@ -187,6 +208,12 @@ router.delete("/announcements/:id", async (req, res) => {
 
         const { id } = req.params;
         await pool.query("DELETE FROM announcements WHERE id = $1", [id]);
+        await recordActivity(req, {
+            action: "delete",
+            entity: "announcement",
+            entity_id: Number(id),
+            summary: `Deleted announcement #${id}`,
+        });
         res.json({ message: "Announcement deleted successfully" });
     } catch (err) {
         console.error("Error deleting announcement:", err.message);

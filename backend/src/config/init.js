@@ -26,6 +26,7 @@ const SERIAL_TABLES = [
     "announcements",
     "messages",
     "asset_media",
+    "activity_logs",
 ];
 
 async function syncSerialSequence(client, tableName) {
@@ -704,6 +705,39 @@ async function initDatabase() {
         `);
         await client.query(
             "CREATE INDEX IF NOT EXISTS idx_asset_media_asset ON asset_media(asset_id)"
+        );
+
+        /* =========================
+           activity_logs — system-wide audit trail of user actions.
+           Populated by every CRUD endpoint that mutates state (users,
+           assets, asset codes, bulletin, posts, ...). The Settings →
+           Activity Logs page reads from this table. Schema is intentionally
+           generic so we don't have to add a column every time we add a new
+           resource: `entity` is a free-form string ('user', 'asset_code',
+           ...) and `details` is a JSON-encoded payload for any extra
+           context. Indexed by created_at so the most common query
+           (recent-first listing) is cheap.
+        ========================= */
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS activity_logs (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                action VARCHAR(50) NOT NULL,
+                entity VARCHAR(64) NOT NULL,
+                entity_id INTEGER,
+                summary VARCHAR(500),
+                details TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        await client.query(
+            "CREATE INDEX IF NOT EXISTS idx_activity_logs_created_at ON activity_logs(created_at)"
+        );
+        await client.query(
+            "CREATE INDEX IF NOT EXISTS idx_activity_logs_user ON activity_logs(user_id)"
+        );
+        await client.query(
+            "CREATE INDEX IF NOT EXISTS idx_activity_logs_entity ON activity_logs(entity)"
         );
 
         for (const tableName of SERIAL_TABLES) {

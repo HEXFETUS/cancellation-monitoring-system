@@ -1,6 +1,7 @@
 import express from "express";
 import bcrypt from "bcryptjs";
 import pool from "../config/db.js";
+import { recordActivity } from "../utils/activity-log.js";
 
 const router = express.Router();
 
@@ -56,6 +57,16 @@ router.post("/login", async (req, res) => {
         );
 
         // Return user info (excluding password)
+        await recordActivity(
+            { body: { user_id: user.id } },
+            {
+                action: "login",
+                entity: "session",
+                entity_id: user.id,
+                summary: `${user.name} logged in`,
+            }
+        );
+
         res.json({
             id: user.id,
             name: user.name,
@@ -97,6 +108,16 @@ router.post("/logout", async (req, res) => {
         if (result.rows.length === 0) {
             return res.status(404).json({ error: "Open user log not found" });
         }
+
+        await recordActivity(
+            { body: { user_id: userId } },
+            {
+                action: "logout",
+                entity: "session",
+                entity_id: Number(userId) || null,
+                summary: `User #${userId} logged out`,
+            }
+        );
 
         res.json({ message: "Logout recorded successfully" });
     } catch (err) {

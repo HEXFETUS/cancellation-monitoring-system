@@ -142,6 +142,18 @@ const SCHEMA_DDL = `
         last_read_message_id INTEGER NOT NULL DEFAULT 0,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
+
+    -- Activity logs (Settings → Activity Logs admin view).
+    CREATE TABLE activity_logs (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        action VARCHAR(50) NOT NULL,
+        entity VARCHAR(64) NOT NULL,
+        entity_id INTEGER,
+        summary VARCHAR(500),
+        details TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
 `;
 
 function init() {

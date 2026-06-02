@@ -4,6 +4,7 @@ import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
 import pool from "../config/db.js";
+import { recordActivity } from "../utils/activity-log.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -338,6 +339,14 @@ router.post("/", upload.array("attachments", 5), async (req, res) => {
             `${FEED_SELECT} WHERE m.id = $1::int`,
             [newId]
         );
+        await recordActivity(req, {
+            action: "create",
+            entity: "bulletin_message",
+            entity_id: newId,
+            summary: body
+                ? `Posted: ${body.length > 80 ? body.slice(0, 80) + "..." : body}`
+                : `Posted ${attachmentUrls.length} attachment${attachmentUrls.length === 1 ? "" : "s"}`,
+        });
         res.status(201).json(shapeRow(result.rows[0]));
     } catch (err) {
         cleanupUploaded();
@@ -390,6 +399,13 @@ router.delete("/:id", async (req, res) => {
             }
         }
 
+        await recordActivity(req, {
+            action: "delete",
+            entity: "bulletin_message",
+            entity_id: id,
+            summary: `Deleted bulletin message #${id}`,
+        });
+
         res.json({ ok: true });
     } catch (err) {
         console.error("Error deleting bulletin message:", err.message);
@@ -426,6 +442,12 @@ router.patch("/:id/pin", async (req, res) => {
             `${FEED_SELECT} WHERE m.id = $1::int`,
             [id]
         );
+        await recordActivity(req, {
+            action: pinned ? "pin" : "unpin",
+            entity: "bulletin_message",
+            entity_id: id,
+            summary: `${pinned ? "Pinned" : "Unpinned"} bulletin message #${id}`,
+        });
         res.json(shapeRow(refreshed.rows[0]));
     } catch (err) {
         console.error("Error pinning bulletin message:", err.message);
