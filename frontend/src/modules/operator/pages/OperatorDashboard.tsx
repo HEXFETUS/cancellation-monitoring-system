@@ -145,18 +145,47 @@ export default function OperatorDashboard() {
     // Combined (main + sub) stats for "Your Devices"
     const combinedStats = useMemo(() => computeStats(allRecords), [allRecords]);
 
+    // Booth / area scope used to filter cancellation data to "the devices
+    // I have". A sub-operator's `allRecords` only contains rows for its
+    // own operator_id, so this naturally narrows their cancellation view
+    // to their own booths. A main operator sees the union with its subs.
+    const myBoothIds = useMemo(
+        () => new Set(allRecords.map((r) => r.booth_id).filter((id): id is number => id != null)),
+        [allRecords]
+    );
+    const myAreas = useMemo(
+        () => new Set(
+            allRecords
+                .map((r) => (r.area || "").trim().toUpperCase())
+                .filter((a) => a.length > 0)
+        ),
+        [allRecords]
+    );
+
     // ── Cancellation stats for today ─────────────────────────────────
+    // Scoped to booths/areas the current operator owns. cancellation_record
+    // is aggregated per-area so we filter by area; cancellation_human_force
+    // is per-ticket and carries booth_id, so we filter by booth_id directly.
     const cancelStats = useMemo(() => {
-        const approved = cancelRecords.reduce((sum, r) => sum + (Number(r.approved) || 0), 0);
-        const denied = cancelRecords.reduce((sum, r) => sum + (Number(r.denied) || 0), 0);
-        const forceCancel = humanForce.filter((r) =>
+        const myCancelRecords = myAreas.size === 0
+            ? []
+            : cancelRecords.filter((r) =>
+                myAreas.has((r.area || "").trim().toUpperCase())
+            );
+        const myHumanForce = myBoothIds.size === 0
+            ? []
+            : humanForce.filter((r) => r.booth_id != null && myBoothIds.has(r.booth_id));
+
+        const approved = myCancelRecords.reduce((sum, r) => sum + (Number(r.approved) || 0), 0);
+        const denied = myCancelRecords.reduce((sum, r) => sum + (Number(r.denied) || 0), 0);
+        const forceCancel = myHumanForce.filter((r) =>
             ((r.reaseon_for_deny || "")).toUpperCase().includes("FORCE CANCEL")
         ).length;
-        const humanError = humanForce.filter((r) =>
+        const humanError = myHumanForce.filter((r) =>
             ((r.reaseon_for_deny || "")).toUpperCase().includes("HUMAN ERROR")
         ).length;
         return { approved, denied, forceCancel, humanError };
-    }, [cancelRecords, humanForce]);
+    }, [cancelRecords, humanForce, myAreas, myBoothIds]);
 
     const recent = requests.slice(0, 5);
 

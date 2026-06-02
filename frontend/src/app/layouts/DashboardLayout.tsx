@@ -10,6 +10,15 @@ import {
     Package,
     Settings,
     User,
+    Building2,
+    MapPin,
+    Eye,
+    Code,
+    ClipboardList,
+    ArrowUpRight,
+    Stethoscope,
+    Megaphone,
+    MessageSquare,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useEffect, useState } from "react";
@@ -36,6 +45,19 @@ const iconMap: Record<string, LucideIcon> = {
     "POS Repair": Wrench,
     Cancellation: FileText,
     "Asset Inventory": Package,
+    Summary: LayoutDashboard,
+    Office: Building2,
+    Payout: MapPin,
+    Drawcourt: Monitor,
+    OBS: Eye,
+    "Asset Coding": Code,
+    "Repair Request": ClipboardList,
+    "Repair Management": Wrench,
+    "Repair Log": FileText,
+    "Released Log": ArrowUpRight,
+    "Diagnosis List": Stethoscope,
+    Posts: Megaphone,
+    "Bulletin Board": MessageSquare,
     Settings: Settings,
 };
 
@@ -45,6 +67,7 @@ export default function DashboardLayout() {
     const navigate = useNavigate();
     const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
     const [sidebarUser, setSidebarUser] = useState<SidebarUser | null>(authUser);
+    const [bulletinUnread, setBulletinUnread] = useState(0);
 
     useEffect(() => {
         setSidebarUser(authUser);
@@ -73,6 +96,44 @@ export default function DashboardLayout() {
         };
     }, [authUser]);
 
+    // Poll the bulletin board unread count so the sidebar badge stays
+    // current. Cheap O(1) query on the backend; 8s cadence is enough — the
+    // badge isn't time-sensitive and the chat page itself polls faster.
+    useEffect(() => {
+        if (!authUser?.id) {
+            setBulletinUnread(0);
+            return;
+        }
+        let cancelled = false;
+
+        const fetchUnread = async () => {
+            if (cancelled) return;
+            try {
+                const res = await fetch(
+                    `${API_BASE_URL}/api/bulletin/unread-count?user_id=${authUser.id}`
+                );
+                if (!res.ok) return;
+                const data = await res.json();
+                if (!cancelled) setBulletinUnread(Number(data?.unread ?? 0));
+            } catch {
+                // Non-fatal — badge just stays at its previous value.
+            }
+        };
+
+        fetchUnread();
+        const interval = window.setInterval(fetchUnread, 8000);
+        const onVisibility = () => {
+            if (document.visibilityState === "visible") fetchUnread();
+        };
+        document.addEventListener("visibilitychange", onVisibility);
+
+        return () => {
+            cancelled = true;
+            window.clearInterval(interval);
+            document.removeEventListener("visibilitychange", onVisibility);
+        };
+    }, [authUser?.id, location.pathname]);
+
     const displayName = sidebarUser?.name?.trim() || authUser?.name?.trim() || "User";
     const displayDepartment = sidebarUser?.department?.trim() || authUser?.department?.trim();
     let sidebarDisplayName = displayDepartment
@@ -98,24 +159,39 @@ export default function DashboardLayout() {
     }
 
     // Operators get a slim sidebar with only their own POS view.
-    // Purchasers get a slim sidebar with only Assets.
+    // Purchasers get one sidebar entry per asset section (instead of
+    // a single "Assets" link that hid the sub-tabs inside).
     // CSR gets only Dashboard and POS Repair.
     // Admin see the full menu.
     const navItems = isOperator
         ? [
             { name: "Dashboard", path: "/app/dashboard" },
             { name: "My POS", path: "/app/my-pos" },
+            { name: "Bulletin Board", path: "/app/bulletin-board" },
             { name: "Settings", path: "/app/settings" },
         ]
         : isPurchaser
             ? [
-                { name: "Assets", path: "/app/asset-inventory" },
+                { name: "Summary", path: "/app/asset-inventory/summary" },
+                { name: "Office", path: "/app/asset-inventory/office" },
+                { name: "Payout", path: "/app/asset-inventory/payout" },
+                { name: "Drawcourt", path: "/app/asset-inventory/drawcourt" },
+                { name: "OBS", path: "/app/asset-inventory/obs" },
+                { name: "Asset Coding", path: "/app/asset-inventory/asset-coding" },
+                { name: "Bulletin Board", path: "/app/bulletin-board" },
                 { name: "Settings", path: "/app/settings" },
             ]
             : isCsr
                 ? [
                     { name: "Dashboard", path: "/app/dashboard" },
-                    { name: "POS Repair", path: "/app/csr-pos-repair" },
+                    { name: "Repair Request", path: "/app/csr-pos-repair/repair-request" },
+                    { name: "Repair Management", path: "/app/csr-pos-repair/repair-management" },
+                    { name: "Repair Log", path: "/app/csr-pos-repair/repair-log" },
+                    { name: "Released Log", path: "/app/csr-pos-repair/released-log" },
+                    { name: "Diagnosis List", path: "/app/csr-pos-repair/diagnosis-list" },
+                    { name: "Posts", path: "/app/csr-pos-repair/posts" },
+                    { name: "Bulletin Board", path: "/app/bulletin-board" },
+                    { name: "Settings", path: "/app/settings" },
                 ]
                 : [
                     { name: "Dashboard", path: "/app/dashboard" },
@@ -123,6 +199,7 @@ export default function DashboardLayout() {
                     { name: "POS Repair", path: "/app/pos-repair" },
                     { name: "Cancellation", path: "/app/cancellation" },
                     { name: "Assets", path: "/app/asset-inventory" },
+                    { name: "Bulletin Board", path: "/app/bulletin-board" },
                     { name: "Settings", path: "/app/settings" },
                 ];
 
@@ -207,11 +284,11 @@ export default function DashboardLayout() {
                     </button>
 
                     {/* ===== Logo Section ===== */}
-                    <div className="relative mb-8 mt-2">
+                    <div className="relative mb-5 mt-1">
                         <Link
                             to="/"
                             onClick={closeMobileSidebar}
-                            className="group relative flex items-center gap-3 px-4 py-3 rounded-2xl transition-all duration-300"
+                            className="group relative flex items-center gap-3 px-3 py-2.5 rounded-2xl transition-all duration-300"
                             style={{
                                 background: "linear-gradient(135deg, #92C7CF 0%, #AAD7D9 100%)",
                                 boxShadow: "0 4px 20px rgba(146,199,207,0.35)",
@@ -228,13 +305,13 @@ export default function DashboardLayout() {
                                 <img
                                     src="/src/assets/LogoOnly.webp"
                                     alt="Logo"
-                                    className="h-9 w-9 rounded-xl object-contain"
+                                    className="h-8 w-8 rounded-xl object-contain"
                                 />
                                 <div>
-                                    <span className="block text-white font-bold text-[15px] tracking-tight">
+                                    <span className="block text-white font-bold text-sm tracking-tight">
                                         Hexaprime
                                     </span>
-                                    <span className="block text-white/70 text-[11px] font-medium tracking-wide">
+                                    <span className="block text-white/70 text-[10px] font-medium tracking-wide">
                                         Management System
                                     </span>
                                 </div>
@@ -243,7 +320,7 @@ export default function DashboardLayout() {
                     </div>
 
                     {/* ===== Navigation ===== */}
-                    <nav className="relative flex-1 overflow-y-auto space-y-1.5">
+                    <nav className="relative flex-1 min-h-0 overflow-y-auto space-y-1">
                         {navItems.map((item) => {
                             const isActive = location.pathname === item.path;
                             const Icon = iconMap[item.name] || LayoutDashboard;
@@ -252,7 +329,7 @@ export default function DashboardLayout() {
                                     key={item.path}
                                     to={item.path}
                                     onClick={closeMobileSidebar}
-                                    className="group relative flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-300"
+                                    className="group relative flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all duration-300"
                                     style={{
                                         background: isActive
                                             ? `linear-gradient(135deg, rgba(146,199,207,0.18), rgba(170,215,217,0.08))`
@@ -268,7 +345,7 @@ export default function DashboardLayout() {
                                     {/* Active indicator bar */}
                                     {isActive && (
                                         <span
-                                            className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 rounded-r-full"
+                                            className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 rounded-r-full"
                                             style={{
                                                 background: `linear-gradient(180deg, ${teal}, ${tealLight})`,
                                                 boxShadow: `0 0 12px rgba(146,199,207,0.5)`,
@@ -278,7 +355,7 @@ export default function DashboardLayout() {
 
                                     {/* Icon container */}
                                     <div
-                                        className="flex h-9 w-9 items-center justify-center rounded-lg transition-all duration-300 group-hover:scale-110"
+                                        className="flex h-8 w-8 items-center justify-center rounded-lg transition-all duration-300 group-hover:scale-110"
                                         style={{
                                             background: isActive
                                                 ? `linear-gradient(135deg, ${teal}30, ${tealLight}20)`
@@ -286,12 +363,12 @@ export default function DashboardLayout() {
                                             color: isActive ? teal : "#6B7280",
                                         }}
                                     >
-                                        <Icon className="h-4.5 w-4.5" />
+                                        <Icon className="h-4 w-4" />
                                     </div>
 
                                     {/* Label */}
                                     <span
-                                        className="text-sm font-medium transition-colors duration-300"
+                                        className="text-[13px] font-medium transition-colors duration-300"
                                         style={{
                                             color: isActive ? "#1F2937" : "#6B7280",
                                         }}
@@ -299,8 +376,30 @@ export default function DashboardLayout() {
                                         {item.name}
                                     </span>
 
+                                    {/* Unread badge for the Bulletin Board entry */}
+                                    {item.name === "Bulletin Board" && bulletinUnread > 0 && (
+                                        <span
+                                            className="ml-auto inline-flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-[10px] font-bold text-white"
+                                            style={{
+                                                background: "linear-gradient(135deg, #EF4444, #F97316)",
+                                                boxShadow: "0 2px 6px rgba(239,68,68,0.35)",
+                                            }}
+                                        >
+                                            {bulletinUnread > 99 ? "99+" : bulletinUnread}
+                                        </span>
+                                    )}
+
                                     {/* Active dot */}
-                                    {isActive && (
+                                    {isActive && item.name !== "Bulletin Board" && (
+                                        <span
+                                            className="ml-auto w-1.5 h-1.5 rounded-full"
+                                            style={{
+                                                background: teal,
+                                                boxShadow: `0 0 8px ${teal}`,
+                                            }}
+                                        />
+                                    )}
+                                    {isActive && item.name === "Bulletin Board" && bulletinUnread === 0 && (
                                         <span
                                             className="ml-auto w-1.5 h-1.5 rounded-full"
                                             style={{
@@ -316,36 +415,36 @@ export default function DashboardLayout() {
 
                     {/* ===== Divider ===== */}
                     <div
-                        className="relative my-4 h-px rounded-full"
+                        className="relative my-2 h-px rounded-full"
                         style={{
                             background: `linear-gradient(90deg, transparent, rgba(146,199,207,0.20), transparent)`,
                         }}
                     />
 
                     {/* ===== Bottom Section ===== */}
-                    <div className="relative space-y-3">
+                    <div className="relative space-y-2">
                         {/* User info */}
                         <div
-                            className="flex items-center gap-3 rounded-xl px-4 py-3 transition-all duration-300 hover:bg-white/30"
+                            className="flex items-center gap-2.5 rounded-xl px-3 py-2 transition-all duration-300 hover:bg-white/30"
                             style={{
                                 background: "rgba(146,199,207,0.06)",
                                 border: "1px solid rgba(146,199,207,0.12)",
                             }}
                         >
                             <div
-                                className="flex h-9 w-9 items-center justify-center rounded-xl text-white text-sm font-bold shrink-0"
+                                className="flex h-8 w-8 items-center justify-center rounded-xl text-white text-sm font-bold shrink-0"
                                 style={{
                                     background: `linear-gradient(135deg, ${teal}, ${tealLight})`,
                                     boxShadow: `0 2px 12px rgba(146,199,207,0.30)`,
                                 }}
                             >
-                                <User className="h-5 w-5 text-white" />
+                                <User className="h-4 w-4 text-white" />
                             </div>
                             <div className="min-w-0 flex-1">
-                                <p className="text-sm font-semibold text-gray-800 truncate">
+                                <p className="text-[13px] font-semibold text-gray-800 truncate">
                                     {sidebarDisplayName}
                                 </p>
-                                <p className="text-[11px] text-gray-500 truncate uppercase">
+                                <p className="text-[10px] text-gray-500 truncate uppercase">
                                     {displayUserType}
                                 </p>
                             </div>
@@ -359,7 +458,7 @@ export default function DashboardLayout() {
                         {/* Logout */}
                         <button
                             onClick={handleLogout}
-                            className="group flex items-center gap-3 w-full px-4 py-2.5 rounded-xl transition-all duration-300 border border-transparent hover:border-red-200/50"
+                            className="group flex items-center gap-2.5 w-full px-3 py-2 rounded-xl transition-all duration-300 border border-transparent hover:border-red-200/50"
                             style={{
                                 color: "#9CA3AF",
                                 background: "transparent",
@@ -374,20 +473,20 @@ export default function DashboardLayout() {
                             }}
                         >
                             <div
-                                className="flex h-9 w-9 items-center justify-center rounded-lg transition-all duration-300 group-hover:scale-110"
+                                className="flex h-8 w-8 items-center justify-center rounded-lg transition-all duration-300 group-hover:scale-110"
                                 style={{
                                     background: "rgba(0,0,0,0.03)",
                                 }}
                             >
-                                <LogOut className="h-4.5 w-4.5" />
+                                <LogOut className="h-4 w-4" />
                             </div>
-                            <span className="text-sm font-medium">Sign Out</span>
+                            <span className="text-[13px] font-medium">Sign Out</span>
                         </button>
                     </div>
 
                     {/* ===== System Status Badge ===== */}
                     <div
-                        className="relative mt-3 rounded-xl px-4 py-2.5 flex items-center gap-2.5"
+                        className="relative mt-2 rounded-xl px-3 py-2 flex items-center gap-2"
                         style={{
                             background: "linear-gradient(135deg, rgba(107,191,107,0.08), rgba(146,199,207,0.06))",
                             border: "1px solid rgba(107,191,107,0.15)",

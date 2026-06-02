@@ -119,3 +119,103 @@ export async function deleteAsset(id: number, userId?: number): Promise<void> {
     const res = await fetch(apiUrl(url), { method: "DELETE" });
     if (!res.ok) throw new Error(await getErrorMessage(res, "Failed to delete asset"));
 }
+
+
+// ─── Asset Media ─────────────────────────────────────────────────
+// Photos and videos attached to a specific asset record (used by the
+// QR-scan flow on the purchaser side).
+
+export interface AssetMedia {
+    id: number;
+    assetId: number;
+    url: string;
+    mimeType: string | null;
+    caption: string | null;
+    uploadedBy: number | null;
+    uploadedByName: string | null;
+    createdAt: string;
+}
+
+interface AssetMediaWire {
+    id: number;
+    asset_id: number;
+    url: string;
+    mime_type: string | null;
+    caption: string | null;
+    uploaded_by: number | null;
+    uploaded_by_name: string | null;
+    created_at: string;
+}
+
+function mediaFromWire(w: AssetMediaWire): AssetMedia {
+    return {
+        id: w.id,
+        assetId: w.asset_id,
+        url: w.url,
+        mimeType: w.mime_type,
+        caption: w.caption,
+        uploadedBy: w.uploaded_by,
+        uploadedByName: w.uploaded_by_name,
+        createdAt: w.created_at,
+    };
+}
+
+export async function listAssetMedia(assetId: number): Promise<AssetMedia[]> {
+    const res = await fetch(apiUrl(`/api/assets/${assetId}/media`));
+    if (!res.ok) throw new Error(await getErrorMessage(res, "Failed to load media"));
+    const data: AssetMediaWire[] = await res.json();
+    return data.map(mediaFromWire);
+}
+
+export async function uploadAssetMedia(
+    assetId: number,
+    files: File[],
+    options?: { caption?: string; userId?: number }
+): Promise<AssetMedia[]> {
+    const fd = new FormData();
+    for (const f of files) fd.append("media", f);
+    if (options?.caption) fd.append("caption", options.caption);
+    if (options?.userId !== undefined) fd.append("user_id", String(options.userId));
+
+    const res = await fetch(apiUrl(`/api/assets/${assetId}/media`), {
+        method: "POST",
+        body: fd,
+    });
+    if (!res.ok) throw new Error(await getErrorMessage(res, "Failed to upload media"));
+    const data: AssetMediaWire[] = await res.json();
+    return data.map(mediaFromWire);
+}
+
+export async function deleteAssetMedia(
+    assetId: number,
+    mediaId: number
+): Promise<void> {
+    const res = await fetch(apiUrl(`/api/assets/${assetId}/media/${mediaId}`), {
+        method: "DELETE",
+    });
+    if (!res.ok) throw new Error(await getErrorMessage(res, "Failed to delete media"));
+}
+
+export async function updateAssetRemarks(
+    assetId: number,
+    remarks: string
+): Promise<AssetRow & { location: AssetLocation }> {
+    const res = await fetch(apiUrl(`/api/assets/${assetId}/remarks`), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ remarks }),
+    });
+    if (!res.ok) throw new Error(await getErrorMessage(res, "Failed to update remarks"));
+    return fromWire(await res.json());
+}
+
+/** Fetch a single asset by id (used by the QR-scan flow). */
+export async function getAssetById(
+    id: number
+): Promise<(AssetRow & { location: AssetLocation }) | null> {
+    // The list endpoint doesn't have a single-id getter, so we fetch all and
+    // pick. The collection is small enough for this UI; a dedicated GET
+    // endpoint can replace this later if needed.
+    const all = await listAllAssets();
+    return all.find((a) => a.id === id) ?? null;
+}

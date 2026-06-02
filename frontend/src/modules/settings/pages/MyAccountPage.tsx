@@ -1,9 +1,18 @@
-import { useEffect, useState } from "react";
-import { Eye, EyeOff, Pencil, RefreshCw, Save, User, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Camera, Eye, EyeOff, Pencil, RefreshCw, Save, User, X } from "lucide-react";
 import { useAuth } from "../../../context/AuthContext";
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 function apiUrl(p: string) { return `${API_BASE_URL}${p}`; }
+
+// Build a fully qualified URL for a stored profile picture path. The DB stores
+// the relative `/uploads/...` path; the static handler lives on the same
+// backend origin as the API, so we prefix with API_BASE_URL.
+function resolveAvatarUrl(p?: string | null) {
+    if (!p) return null;
+    if (/^https?:\/\//i.test(p)) return p;
+    return `${API_BASE_URL}${p}`;
+}
 
 interface Me {
     id: number;
@@ -12,6 +21,7 @@ interface Me {
     usertype: string;
     position?: string;
     department?: string;
+    profile_picture?: string | null;
     operator_id?: number | null;
     operator_name?: string | null;
     parent_operator_id?: number | null;
@@ -19,10 +29,15 @@ interface Me {
 }
 
 export default function MyAccountPage() {
-    const { user } = useAuth();
+    const { user, updateUser } = useAuth();
     const [me, setMe] = useState<Me | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
+
+    // Profile picture upload
+    const fileInputRef = useRef<HTMLInputElement | null>(null);
+    const [uploadingPic, setUploadingPic] = useState(false);
+    const [picMsg, setPicMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
 
     // Password change
     const [newPwd, setNewPwd] = useState("");
@@ -72,6 +87,13 @@ export default function MyAccountPage() {
         }
     };
 
+    // Operator, sub-operator, CSR, and purchaser users may edit their own
+    // display name. Admin's name is managed via the admin Users panel.
+    const canEditName =
+        me?.usertype === "operator" ||
+        me?.usertype === "csr" ||
+        me?.usertype === "purchaser";
+
     const startEditName = () => {
         setNameDraft(me?.name || "");
         setNameMsg(null);
@@ -107,6 +129,47 @@ export default function MyAccountPage() {
             setNameMsg({ kind: "err", text: e instanceof Error ? (e instanceof Error ? e.message : String(e)) : "Failed to save" });
         } finally {
             setSavingName(false);
+        }
+    };
+
+    const handleProfilePictureChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        // Reset input so picking the same file twice still triggers onChange.
+        if (fileInputRef.current) fileInputRef.current.value = "";
+        if (!file || !user?.id) return;
+
+        setPicMsg(null);
+
+        // Client-side guards. The backend enforces these too, but flagging
+        // them up-front avoids a needless round trip.
+        if (!/^image\/(jpe?g|png|gif|webp)$/i.test(file.type)) {
+            setPicMsg({ kind: "err", text: "Please choose a JPG, PNG, GIF, or WebP image." });
+            return;
+        }
+        if (file.size > 5 * 1024 * 1024) {
+            setPicMsg({ kind: "err", text: "Image is too large (max 5 MB)." });
+            return;
+        }
+
+        setUploadingPic(true);
+        try {
+            const fd = new FormData();
+            fd.append("profile_picture", file);
+            const res = await fetch(apiUrl(`/api/users/${user.id}/profile-picture`), {
+                method: "POST",
+                body: fd,
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || "Failed to upload picture");
+
+            const newUrl: string | null = data.profile_picture ?? null;
+            setMe((prev) => (prev ? { ...prev, profile_picture: newUrl } : prev));
+            updateUser({ profile_picture: newUrl });
+            setPicMsg({ kind: "ok", text: "Profile picture updated." });
+        } catch (err) {
+            setPicMsg({ kind: "err", text: err instanceof Error ? err.message : "Failed to upload picture" });
+        } finally {
+            setUploadingPic(false);
         }
     };
 
@@ -182,6 +245,60 @@ export default function MyAccountPage() {
                     <p className="text-sm text-ink-subtle">Loading...</p>
                 ) : me ? (
                     <>
+                        {/* Profile picture with upload control */}
+                        <div className="mb-5 flex items-center gap-4">
+                            <div className="relative">
+                                {(() => {
+                                    const avatar = resolveAvatarUrl(me.profile_picture);
+                                    return avatar ? (
+                                        <img
+                                            src={avatar}
+                                            alt={me.name}
+                                            className="h-20 w-20 rounded-full object-cover ring-2 ring-warm"
+                                        />
+                                    ) : (
+                                        <div className="flex h-20 w-20 items-center justify-center rounded-full bg-cream text-teal ring-2 ring-warm">
+                                            <User size={32} />
+                                        </div>
+                                    );
+                                })()}
+                                <button
+                                    type="button"
+                                    onClick={() => fileInputRef.current?.click()}
+                                    disabled={uploadingPic}
+                                    title="Change profile picture"
+                                    className="absolute -bottom-1 -right-1 inline-flex h-8 w-8 items-center justify-center rounded-full bg-teal text-ink shadow-md ring-2 ring-card transition hover:bg-teal-dark disabled:opacity-50"
+                                >
+                                    <Camera size={14} />
+                                </button>
+                                <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    accept="image/jpeg,image/png,image/gif,image/webp"
+                                    className="hidden"
+                                    onChange={handleProfilePictureChange}
+                                />
+                            </div>
+                            <div className="flex-1">
+                                <p className="text-sm font-medium text-ink">Profile picture</p>
+                                <p className="text-xs text-ink-muted">
+                                    JPG, PNG, GIF, or WebP. Max 5 MB.
+                                </p>
+                                {uploadingPic && (
+                                    <p className="mt-1 text-xs text-ink-subtle">Uploading...</p>
+                                )}
+                                {picMsg && !uploadingPic && (
+                                    <p
+                                        className={`mt-1 text-xs ${
+                                            picMsg.kind === "ok" ? "text-teal-dark" : "text-red-600"
+                                        }`}
+                                    >
+                                        {picMsg.text}
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+
                         {nameMsg && (
                             <div
                                 className={`mb-3 rounded-lg border px-3 py-2 text-sm ${nameMsg.kind === "ok"
@@ -198,7 +315,7 @@ export default function MyAccountPage() {
                                     Name
                                 </dt>
                                 <dd className="mt-0.5">
-                                    {me.usertype === "operator" && editingName ? (
+                                    {canEditName && editingName ? (
                                         <div className="flex items-center gap-2">
                                             <input
                                                 type="text"
@@ -230,7 +347,7 @@ export default function MyAccountPage() {
                                     ) : (
                                         <div className="flex items-center gap-2">
                                             <span className="text-sm text-ink">{me.name}</span>
-                                            {me.usertype === "operator" && (
+                                            {canEditName && (
                                                 <button
                                                     type="button"
                                                     onClick={startEditName}

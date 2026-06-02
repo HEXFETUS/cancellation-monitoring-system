@@ -2,6 +2,8 @@ import express from "express";
 import crypto from "node:crypto";
 import pool from "../config/db.js";
 import { blockRoles } from "../middleware/role-guard.js";
+import { validateQrPayload } from "../utils/qr-payload.js";
+import { recordActivity } from "../utils/activity-log.js";
 
 const router = express.Router();
 
@@ -51,10 +53,20 @@ router.get("/", async (_req, res) => {
 // GET /api/asset-codes/by-payload/:payload
 // Useful for a future "scan to look up" feature.
 router.get("/by-payload/:payload", async (req, res) => {
+    const payload = req.params.payload;
+
+    // Reject obvious garbage before hitting the DB. Returning 400 (not 404)
+    // lets the UI surface a "this isn't an asset QR" message distinct from
+    // "valid format, just not in the DB".
+    const reason = validateQrPayload(payload);
+    if (reason) {
+        return res.status(400).json({ error: reason });
+    }
+
     try {
         const result = await pool.query(
             `SELECT ${COLUMNS} FROM asset_codes WHERE qr_payload = $1 LIMIT 1`,
-            [req.params.payload]
+            [payload]
         );
         if (result.rows.length === 0) {
             return res.status(404).json({ error: "QR payload not found" });
@@ -95,6 +107,12 @@ router.post("/", async (req, res) => {
                 req.body.assetId ? Number(req.body.assetId) : null,
             ]
         );
+        await recordActivity(req, {
+            action: "create",
+            entity: "asset_code",
+            entity_id: result.rows[0].id,
+            summary: `Created asset code ${result.rows[0].item_code}`,
+        });
         res.status(201).json(result.rows[0]);
     } catch (err) {
         if (err.code === "23505") {
@@ -145,6 +163,12 @@ router.put("/:id", async (req, res) => {
         if (result.rows.length === 0) {
             return res.status(404).json({ error: "Asset code not found" });
         }
+        await recordActivity(req, {
+            action: "update",
+            entity: "asset_code",
+            entity_id: id,
+            summary: `Updated asset code ${result.rows[0].item_code}`,
+        });
         res.json(result.rows[0]);
     } catch (err) {
         if (err.code === "23505") {
@@ -201,6 +225,12 @@ router.delete("/:id", blockPurchaserDelete, async (req, res) => {
         if (result.rows.length === 0) {
             return res.status(404).json({ error: "Asset code not found" });
         }
+        await recordActivity(req, {
+            action: "delete",
+            entity: "asset_code",
+            entity_id: id,
+            summary: `Deleted asset code #${id}`,
+        });
         res.json({ id: result.rows[0].id });
     } catch (err) {
         console.error("DELETE /api/asset-codes/:id error:", err.message);

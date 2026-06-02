@@ -1,16 +1,19 @@
 import { useEffect, useState } from "react";
-import { Users, UserPlus, ClipboardList, Menu, Check, X, Building2 } from "lucide-react";
+import { Users, UserPlus, ClipboardList, Menu, Check, X, Building2, UserCircle, Activity } from "lucide-react";
 import UserAccountsPage from "./UserAccountsPage";
 import CreateUserAccountPage from "./CreateUserAccountPage";
 import UserLogsPage from "./UserLogsPage";
 import OperatorProfilesPage from "./OperatorProfilesPage";
 import MyAccountPage from "./MyAccountPage";
+import ActivityLogsPage from "./ActivityLogsPage";
 import { useAuth } from "../../../context/AuthContext";
 
 const teal = "#92C7CF";
 
 const leftTabs = [
     { id: "user-accounts", label: "USERS", icon: Users },
+    { id: "activity-logs", label: "ACTIVITY LOGS", icon: Activity },
+    { id: "my-account", label: "MY ACCOUNT", icon: UserCircle },
 ];
 
 const userSubTabs = [
@@ -23,9 +26,13 @@ const userSubTabs = [
 export default function SettingsPage() {
     const { user } = useAuth();
 
-    // Operators and purchasers get a slim, self-scoped settings view (My Account only).
-    // Admin/CSR see the full management UI below.
-    if (user?.usertype === "operator" || user?.usertype === "purchaser") {
+    // Operators, purchasers, and CSR get a slim, self-scoped settings view
+    // (My Account only). Admin sees the full management UI below.
+    if (
+        user?.usertype === "operator" ||
+        user?.usertype === "purchaser" ||
+        user?.usertype === "csr"
+    ) {
         return <MyAccountPage />;
     }
 
@@ -201,6 +208,10 @@ function AdminSettingsPage() {
                         </div>
                     </div>
                 )}
+
+                {activeTab === "activity-logs" && <ActivityLogsPage />}
+
+                {activeTab === "my-account" && <MyAccountPage />}
             </div>
         </div>
     );

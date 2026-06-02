@@ -83,10 +83,10 @@ export default function RepairLogPage({ search: searchProp, onSearchChange }: Re
                 ) : (
                     <table className="w-full text-sm">
                         <thead>
-                                    <tr
-                                        className="text-left text-xs font-semibold uppercase tracking-wider text-gray-500"
-                                        style={{ borderBottom: "1px solid rgba(146,199,207,0.15)", background: "rgba(255,253,245,0.7)" }}
-                                    >
+                            <tr
+                                className="text-left text-xs font-semibold uppercase tracking-wider text-gray-500"
+                                style={{ borderBottom: "1px solid rgba(146,199,207,0.15)", background: "rgba(255,253,245,0.7)" }}
+                            >
                                 <th className="px-5 py-4">Requested At</th>
                                 <th className="px-5 py-4">POS / Serial Number</th>
                                 <th className="px-5 py-4">Requested By</th>
