@@ -32,10 +32,7 @@ const __dirname = path.dirname(__filename);
 app.use(cors());
 app.use(express.json());
 
-// Serve uploaded files (images, videos). The multer storage in
-// src/routes/posts.routes.js writes to <repo>/backend/src/public/uploads,
-// so the static handler must point at that same directory — not at
-// <repo>/backend/public/uploads (which doesn't exist).
+// Serve uploaded files from the same directory used by the multer routes.
 app.use("/uploads", express.static(path.join(__dirname, "src", "public", "uploads")));
 
 // Routes
@@ -63,15 +60,14 @@ app.use("/api/activity-logs", activityLogRoutes);
 const PORT = process.env.PORT || 5050;
 
 // Don't auto-bootstrap (init DB + listen) when the module is imported under a
-// test runner — tests replace the DB pool with an in-memory one and drive the
+// test runner. Tests replace the DB pool with an in-memory one and drive the
 // app through supertest. Vitest sets NODE_ENV to "test" automatically.
 if (process.env.NODE_ENV !== "test") {
-    initDatabase()
-        .then(() => {
-            app.listen(PORT, () => {
-                console.log(`Server running on port ${PORT}`);
-            });
+    initDatabase().then(() => {
+        app.listen(PORT, () => {
+            console.log(`Server running on port ${PORT}`);
         });
+    });
 }
 
 export default app;

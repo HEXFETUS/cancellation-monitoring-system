@@ -30,6 +30,7 @@ import CsrDiagnosisListPage from "../../modules/csr/pages/CsrDiagnosisListPage";
 import PosDiagnosisListPage from "../../modules/pos-repair/pages/DiagnosisListPage";
 import CsrPostsTabbedPage from "../../modules/csr/pages/CsrPostsTabbedPage";
 
+
 export const router = createBrowserRouter([
     {
         path: "/",
