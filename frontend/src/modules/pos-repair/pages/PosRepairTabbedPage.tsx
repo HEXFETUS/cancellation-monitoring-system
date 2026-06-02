@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Wrench, ClipboardList, BarChart3, FileSearch, Menu, Search } from "lucide-react";
 import RepairRequestPage from "./RepairRequestPage";
 import RepairManagementPage from "./RepairManagementPage";
 import RepairLogPage from "./RepairLogPage";
 import ReleasedLogPage from "./ReleasedLogPage";
 import DiagnosisListPage from "./DiagnosisListPage";
+import { listRepairRecords } from "../services/repairRecords";
 
 const teal = "#92C7CF";
 
@@ -26,6 +27,34 @@ export default function PosRepairTabbedPage() {
     const [repairLogSearch, setRepairLogSearch] = useState("");
     const [releasedLogSearch, setReleasedLogSearch] = useState("");
     const [sidebarOpen, setSidebarOpen] = useState(true);
+    const [forCheckingCount, setForCheckingCount] = useState(0);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        const fetchForCheckingCount = async () => {
+            try {
+                const records = await listRepairRecords();
+                const count = records.filter((record) => record.status === "For Repair").length;
+                if (!cancelled) setForCheckingCount(count);
+            } catch {
+                if (!cancelled) setForCheckingCount(0);
+            }
+        };
+
+        fetchForCheckingCount();
+        const interval = window.setInterval(fetchForCheckingCount, 8000);
+        const onVisibility = () => {
+            if (document.visibilityState === "visible") fetchForCheckingCount();
+        };
+        document.addEventListener("visibilitychange", onVisibility);
+
+        return () => {
+            cancelled = true;
+            window.clearInterval(interval);
+            document.removeEventListener("visibilitychange", onVisibility);
+        };
+    }, [activeTab]);
 
     return (
         <div className="flex flex-col gap-6 lg:flex-row lg:gap-8">
@@ -101,6 +130,11 @@ export default function PosRepairTabbedPage() {
                                 >
                                     {tab.label}
                                 </span>
+                                {tab.id === "repair-management" && forCheckingCount > 0 && (
+                                    <span className="ml-auto inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white shadow-sm shadow-red-500/30">
+                                        {forCheckingCount > 99 ? "99+" : forCheckingCount}
+                                    </span>
+                                )}
                             </button>
                         );
                     })}

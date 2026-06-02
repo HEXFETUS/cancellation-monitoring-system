@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Monitor, Activity, RotateCcw, Store, BarChart3, Menu, FileText, GitBranch, ClipboardList } from "lucide-react";
 import AllPosPage from "./AllPosPage";
 import PosStatusPage from "./PosStatusPage";
@@ -7,6 +7,7 @@ import OutletsPage from "./OutletsPage";
 import ChangeDeviceLogsPage from "./ChangeDeviceLogsPage";
 import ConvertAreaLogsPage from "./ConvertAreaLogsPage";
 import PosStatusLogsPage from "./PosStatusLogsPage";
+import { listBoothChangeRequests } from "../services/boothChangeRequests";
 
 const teal = "#92C7CF";
 
@@ -30,6 +31,33 @@ export default function PosInventoryTabbedPage() {
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const [dateFrom, setDateFrom] = useState("");
     const [dateTo, setDateTo] = useState("");
+    const [pendingRequestCount, setPendingRequestCount] = useState(0);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        const fetchPendingCount = async () => {
+            try {
+                const pending = await listBoothChangeRequests({ status: "pending" });
+                if (!cancelled) setPendingRequestCount(pending.length);
+            } catch {
+                if (!cancelled) setPendingRequestCount(0);
+            }
+        };
+
+        fetchPendingCount();
+        const interval = window.setInterval(fetchPendingCount, 8000);
+        const onVisibility = () => {
+            if (document.visibilityState === "visible") fetchPendingCount();
+        };
+        document.addEventListener("visibilitychange", onVisibility);
+
+        return () => {
+            cancelled = true;
+            window.clearInterval(interval);
+            document.removeEventListener("visibilitychange", onVisibility);
+        };
+    }, [activeTab]);
 
     const dateFilters = (
         <div className="inline-flex flex-wrap items-center gap-2 rounded-lg bg-gray-50/80 px-3 py-2">
@@ -148,6 +176,11 @@ export default function PosInventoryTabbedPage() {
                                 >
                                     {tab.label}
                                 </span>
+                                {tab.id === "request-reset" && pendingRequestCount > 0 && (
+                                    <span className="ml-auto inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white shadow-sm shadow-red-500/30">
+                                        {pendingRequestCount > 99 ? "99+" : pendingRequestCount}
+                                    </span>
+                                )}
                             </button>
                         );
                     })}
