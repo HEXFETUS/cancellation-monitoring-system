@@ -30,7 +30,6 @@ export default function CsrBatchForReleaseModal({
     onProceed,
 }: CsrBatchForReleaseModalProps) {
     const eligibleRecords = useMemo(() => records.filter(isNonHexaTechnician), [records]);
-    const initialSavedBillingCodes = getSavedBillingCodes(eligibleRecords);
     const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set());
     const [billingCode, setBillingCode] = useState("");
     const [receivedBy, setReceivedBy] = useState("");

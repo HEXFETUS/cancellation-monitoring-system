@@ -531,7 +531,7 @@ function AssetEditPanel({
         setSavingRemarks(true);
         setRemarksMsg(null);
         try {
-            const updated = await updateAssetRemarks(asset.id, remarksDraft);
+            const updated = await updateAssetRemarks(Number(asset.id), remarksDraft);
             setAsset(updated);
             setRemarksDraft(updated.remarks ?? "");
             setRemarksMsg({ kind: "ok", text: "Remarks saved." });
@@ -578,7 +578,7 @@ function AssetEditPanel({
         setUploading(true);
         setUploadMsg(null);
         try {
-            const uploaded = await uploadAssetMedia(asset.id, pending, {
+            const uploaded = await uploadAssetMedia(Number(asset.id), pending, {
                 caption: caption.trim() || undefined,
                 userId: user?.id,
             });
@@ -600,7 +600,7 @@ function AssetEditPanel({
         if (!asset) return;
         if (!window.confirm("Remove this attachment?")) return;
         try {
-            await deleteAssetMedia(asset.id, m.id);
+            await deleteAssetMedia(Number(asset.id), m.id);
             setMedia((prev) => prev.filter((x) => x.id !== m.id));
         } catch (e) {
             // Purchasers are blocked from this endpoint; surface that gracefully.

@@ -7,8 +7,6 @@ import {
   Heart,
   Users,
   TrendingUp,
-  Calendar,
-  Newspaper,
   MapPin,
   Loader2,
 } from "lucide-react";

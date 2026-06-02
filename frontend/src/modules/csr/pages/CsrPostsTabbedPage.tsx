@@ -7,7 +7,6 @@ import {
   Loader2,
   Image,
   MapPin,
-  Calendar as CalendarIcon,
 } from "lucide-react";
 import { useAuth } from "../../../context/AuthContext";
 import {
