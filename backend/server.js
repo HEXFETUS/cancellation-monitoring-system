@@ -54,11 +54,10 @@ app.use("/api/posts", postsRoutes);
 app.use("/api/bulletin", bulletinRoutes);
 app.use("/api/activity-logs", activityLogRoutes);
 
-const PORT = Number(process.env.PORT || 5050);
-
-if (PORT !== 5050) {
-    throw new Error(`Invalid PORT ${PORT}. This backend must run on port 5050.`);
-}
+// Honour the platform-provided PORT in production (Render, Railway, Fly,
+// Heroku, etc. all inject one) and fall back to 5050 for local dev so the
+// existing Vite proxy (frontend/vite.config.ts) continues to work.
+const PORT = process.env.PORT || 5050;
 
 // Don't auto-bootstrap (init DB + listen) when the module is imported under a
 // test runner. Tests replace the DB pool with an in-memory one and drive the
