@@ -3,6 +3,7 @@ import { X } from "lucide-react";
 import { useAuth } from "../../../context/AuthContext";
 import type { BoothInfo, OperatorInfo, PosRecord } from "../../pos/types";
 import { createBoothChangeRequest } from "../../pos/services/boothChangeRequests";
+import ConfirmationModal from "../../pos/components/ConfirmationModal";
 
 interface Props {
     open: boolean;
@@ -14,6 +15,8 @@ interface Props {
      * the parent main, but not to operators in another family.
      */
     operators?: OperatorInfo[];
+    unavailableBoothIds?: number[];
+    hasPendingRequest?: boolean;
     onClose: () => void;
     onSubmitted: () => Promise<void>;
 }
@@ -23,6 +26,8 @@ export default function RequestBoothChangeModal({
     posRecord,
     booths,
     operators = [],
+    unavailableBoothIds = [],
+    hasPendingRequest = false,
     onClose,
     onSubmitted,
 }: Props) {
@@ -31,16 +36,24 @@ export default function RequestBoothChangeModal({
     const [reason, setReason] = useState("");
     const [error, setError] = useState("");
     const [saving, setSaving] = useState(false);
+    const [showConfirm, setShowConfirm] = useState(false);
 
     useEffect(() => {
         if (open) {
             setBoothId(null);
             setReason("");
             setError("");
+            setShowConfirm(false);
         }
     }, [open]);
 
-    if (!open || !posRecord) return null;
+    useEffect(() => {
+        if (open && hasPendingRequest) {
+            onClose();
+        }
+    }, [hasPendingRequest, onClose, open]);
+
+    if (!open || !posRecord || hasPendingRequest) return null;
 
     // Derive the device's area from its booth code or from posRecord.area
     const deviceArea = posRecord.area
@@ -62,10 +75,12 @@ export default function RequestBoothChangeModal({
         return Number(op.parent_operator_id ?? op.id);
     };
     const deviceRoot = operatorRoot(posRecord.operator_id ?? null);
+    const unavailableBoothIdSet = new Set(unavailableBoothIds.map(Number));
 
     // Filter to booths within the same operator FAMILY (main + subs) AND same area
     const availableBooths = booths.filter((b) => {
         if (b.id === posRecord.booth_id) return false;
+        if (unavailableBoothIdSet.has(Number(b.id))) return false;
         // Same operator-family check (main + all its subs share a root)
         if (deviceRoot != null && b.operator_id != null) {
             const boothRoot = operatorRoot(b.operator_id);
@@ -121,6 +136,12 @@ export default function RequestBoothChangeModal({
                 </div>
 
                 <div className="space-y-4 px-6 py-5">
+                    {hasPendingRequest && (
+                        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+                            This device already has a pending booth change request. Please wait for it to be processed.
+                        </div>
+                    )}
+
                     {error && (
                         <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
                             {error}
@@ -151,7 +172,9 @@ export default function RequestBoothChangeModal({
                             }
                             className="w-full rounded-lg border border-warm bg-card px-3 py-2 text-sm text-ink focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal"
                         >
-                            <option value="">Pick a booth</option>
+                            <option value="" disabled hidden>
+                                Pick a booth
+                            </option>
                             {availableBooths.map((b) => (
                                 <option key={b.id} value={b.id}>
                                     {b.booth_code} {b.location ? `· ${b.location}` : ""}
@@ -190,14 +213,47 @@ export default function RequestBoothChangeModal({
                     </button>
                     <button
                         type="button"
-                        onClick={submit}
-                        disabled={saving || !boothId}
+                        onClick={() => setShowConfirm(true)}
+                        disabled={saving || !boothId || hasPendingRequest}
                         className="rounded-lg bg-teal px-4 py-2 text-sm font-semibold text-ink transition hover:bg-teal-dark disabled:opacity-50"
                     >
                         {saving ? "Submitting..." : "Submit Request"}
                     </button>
                 </div>
             </div>
+
+            {/* Confirmation Modal */}
+            <ConfirmationModal
+                open={showConfirm}
+                title="Confirm Booth Change Request"
+                message="Are you sure you want to submit this booth change request?"
+                confirmLabel="Submit Request"
+                isLoading={saving}
+                loadingLabel="Submitting..."
+                onCancel={() => setShowConfirm(false)}
+                onConfirm={submit}
+            >
+                <div className="flex items-center justify-between px-4 py-2.5">
+                    <span className="text-xs font-medium text-ink-muted uppercase tracking-wider">Device</span>
+                    <span className="text-sm font-semibold text-ink">{posRecord.device_no}</span>
+                </div>
+                <div className="flex items-center justify-between px-4 py-2.5">
+                    <span className="text-xs font-medium text-ink-muted uppercase tracking-wider">From</span>
+                    <span className="text-sm font-semibold text-ink">{posRecord.booth_code || "—"}</span>
+                </div>
+                <div className="flex items-center justify-between px-4 py-2.5">
+                    <span className="text-xs font-medium text-ink-muted uppercase tracking-wider">To</span>
+                    <span className="text-sm font-semibold text-teal">
+                        {booths.find((b) => b.id === boothId)?.booth_code || "—"}
+                    </span>
+                </div>
+                {reason.trim() && (
+                    <div className="flex items-center justify-between px-4 py-2.5">
+                        <span className="text-xs font-medium text-ink-muted uppercase tracking-wider">Reason</span>
+                        <span className="text-sm font-medium text-ink text-right max-w-[200px] truncate">{reason.trim()}</span>
+                    </div>
+                )}
+            </ConfirmationModal>
         </div>
     );
 }

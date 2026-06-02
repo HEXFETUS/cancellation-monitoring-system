@@ -188,6 +188,14 @@ export default function OperatorDashboard() {
     }, [cancelRecords, humanForce, myAreas, myBoothIds]);
 
     const recent = requests.slice(0, 5);
+    const unavailableBoothIds = useMemo(
+        () =>
+            requests
+                .filter((r) => (r.status || "").toLowerCase() === "pending")
+                .map((r) => Number(r.requested_booth_id))
+                .filter((id) => Number.isFinite(id)),
+        [requests]
+    );
 
     return (
         <div className="space-y-7">
@@ -339,6 +347,7 @@ export default function OperatorDashboard() {
                 posRecord={requesting}
                 booths={booths}
                 operators={operators}
+                unavailableBoothIds={unavailableBoothIds}
                 onClose={() => setRequesting(null)}
                 onSubmitted={async () => {
                     setRequesting(null);

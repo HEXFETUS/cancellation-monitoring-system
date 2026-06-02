@@ -1,10 +1,20 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { Search, Plus, List, Edit, RefreshCw, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, X, AlertTriangle, Check } from "lucide-react";
+import { Search, Plus, List, Edit, RefreshCw, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, X, Check } from "lucide-react";
 import { useAuth } from "../../../context/AuthContext";
 import type { BoothInfo, OperatorInfo } from "../types";
 import { createBoothInfo, createOperator, fetchBoothInfo, fetchOperators, updateBoothInfo } from "../services";
+import { ConfirmationModal, EditModal } from "../components";
 
 const ROWS_PER_PAGE = 20;
+
+function SummaryRow({ label, value, valueColor }: { label: string; value: string; valueColor?: string }) {
+    return (
+        <div className="flex items-center justify-between px-4 py-2.5">
+            <span className="text-xs font-medium text-ink-muted uppercase tracking-wider">{label}</span>
+            <span className={`text-sm font-semibold ${valueColor || "text-ink"}`}>{value}</span>
+        </div>
+    );
+}
 
 export default function OutletsPage() {
     const { user } = useAuth();
@@ -103,6 +113,12 @@ export default function OutletsPage() {
         coordinate: "",
         location: "",
     });
+    const [initialEditForm, setInitialEditForm] = useState({
+        operator: "",
+        booth_code: "",
+        coordinate: "",
+        location: "",
+    });
     const [showEditOperatorDropdown, setShowEditOperatorDropdown] = useState(false);
     const [isEditSaving, setIsEditSaving] = useState(false);
     const [editFormError, setEditFormError] = useState<string | null>(null);
@@ -110,6 +126,13 @@ export default function OutletsPage() {
     const editOperatorDropdownRef = useRef<HTMLDivElement>(null);
 
     const handleEdit = (record: BoothInfo) => {
+        const initial = {
+            operator: record.operator || "",
+            booth_code: record.booth_code || "",
+            coordinate: record.coordinate || "",
+            location: record.booth_location || "",
+        };
+        setInitialEditForm(initial);
         setEditForm({
             id: record.id,
             operator: record.operator || "",
@@ -526,10 +549,11 @@ export default function OutletsPage() {
                                     <td className="px-4 py-3 text-center">
                                         <button
                                             onClick={() => handleEdit(record)}
-                                            className="inline-flex items-center gap-1.5 rounded-lg border border-warm bg-white px-3 py-1.5 text-xs font-medium text-ink hover:bg-surface transition-colors shadow-sm"
+                                            className="rounded-lg p-1.5 transition-colors hover:bg-amber-50"
+                                            title="Edit"
+                                            style={{ color: "#F59E0B" }}
                                         >
-                                            <Edit size={14} />
-                                            Edit
+                                            <Edit className="h-4 w-4" />
                                         </button>
                                     </td>
                                 </tr>
@@ -606,302 +630,209 @@ export default function OutletsPage() {
                 </div>
             )}
 
-            {/* ── CONFIRMATION MODAL ── */}
-            {isConfirmModalOpen && (
-                <div className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-black/50 backdrop-blur-sm pt-24 px-4">
-                    <div className="w-full max-w-md animate-in fade-in zoom-in-95 duration-200 rounded-2xl bg-white shadow-2xl border border-warm overflow-hidden">
-                        {/* Header accent bar */}
-                        <div className="h-2 bg-gradient-to-r from-amber-400 to-orange-500" />
-                        
-                        <div className="p-6">
-                            <div className="flex flex-col items-center gap-4 text-center">
-                                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 ring-4 ring-amber-50">
-                                    <AlertTriangle className="h-7 w-7 text-amber-600" />
-                                </div>
-                                <div>
-                                    <h3 className="text-lg font-bold text-ink">Confirm Save</h3>
-                                    <p className="text-sm text-ink-muted mt-1">
-                                        Are you sure you want to save this booth?
-                                    </p>
-                                </div>
-                                
-                                {/* Summary card */}
-                                <div className="w-full divide-y divide-warm/60 rounded-xl bg-gradient-to-br from-cream to-amber-50/50 border border-warm/70 overflow-hidden">
-                                    <div className="flex items-center justify-between px-4 py-2.5">
-                                        <span className="text-xs font-medium text-ink-muted uppercase tracking-wider">Operator</span>
-                                        <span className="text-sm font-semibold text-ink">{addForm.operator}</span>
-                                    </div>
-                                    <div className="flex items-center justify-between px-4 py-2.5">
-                                        <span className="text-xs font-medium text-ink-muted uppercase tracking-wider">Booth Code</span>
-                                        <span className="text-sm font-semibold text-teal">{addForm.booth_code}</span>
-                                    </div>
-                                    <div className="flex items-center justify-between px-4 py-2.5">
-                                        <span className="text-xs font-medium text-ink-muted uppercase tracking-wider">Coordinate</span>
-                                        <span className="text-sm font-medium text-ink">{addForm.coordinate || "—"}</span>
-                                    </div>
-                                    <div className="flex items-center justify-between px-4 py-2.5">
-                                        <span className="text-xs font-medium text-ink-muted uppercase tracking-wider">Location</span>
-                                        <span className="text-sm font-medium text-ink">{addForm.location || "—"}</span>
-                                    </div>
-                                </div>
-                            </div>
+            {/* ── CONFIRM SAVE BOOTH MODAL ── */}
+            <ConfirmationModal
+                open={isConfirmModalOpen}
+                title="Confirm Save"
+                message="Are you sure you want to save this booth?"
+                onConfirm={handleSave}
+                onCancel={closeConfirmModal}
+                isLoading={isSaving}
+                loadingLabel="Saving..."
+            >
+                <SummaryRow label="Operator" value={addForm.operator} />
+                <SummaryRow label="Booth Code" value={addForm.booth_code} valueColor="text-teal" />
+                <SummaryRow label="Coordinate" value={addForm.coordinate || "—"} />
+                <SummaryRow label="Location" value={addForm.location || "—"} />
+            </ConfirmationModal>
 
-                            <div className="flex gap-3 mt-6">
-                                <button
-                                    onClick={closeConfirmModal}
-                                    className="flex-1 rounded-xl border-2 border-gray-200 py-3 text-sm font-semibold text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-all active:scale-[0.98]"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    onClick={handleSave}
-                                    disabled={isSaving}
-                                    className="flex-1 rounded-xl bg-gradient-to-r from-teal to-teal-dark py-3 text-sm font-semibold text-white shadow-lg shadow-teal/25 hover:shadow-xl hover:shadow-teal/30 hover:from-teal-dark hover:to-teal transition-all active:scale-[0.98]"
-                                >
-                                    {isSaving ? "Saving..." : "Confirm"}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
+            {/* ── CONFIRM SAVE OPERATOR MODAL ── */}
+            <ConfirmationModal
+                open={isConfirmOperatorModalOpen}
+                title="Confirm Save"
+                message="Are you sure you want to save this operator?"
+                onConfirm={handleSaveOperator}
+                onCancel={closeConfirmOperatorModal}
+                isLoading={isSavingOperator}
+                loadingLabel="Saving..."
+            >
+                <SummaryRow label="Operator Name" value={addOperatorForm.operator} />
+            </ConfirmationModal>
+
+            {/* ── CONFIRM UPDATE BOOTH MODAL ── */}
+            <ConfirmationModal
+                open={isEditConfirmModalOpen}
+                title="Confirm Update"
+                message="Are you sure you want to update this booth?"
+                onConfirm={handleEditSave}
+                onCancel={closeEditConfirmModal}
+                isLoading={isEditSaving}
+                loadingLabel="Saving..."
+            >
+                <SummaryRow label="Operator" value={editForm.operator} />
+                <SummaryRow label="Booth Code" value={editForm.booth_code} valueColor="text-teal" />
+                <SummaryRow label="Coordinate" value={editForm.coordinate || "—"} />
+                <SummaryRow label="Location" value={editForm.location || "—"} />
+            </ConfirmationModal>
 
             {/* ── ADD BOOTH MODAL ── */}
-            {isAddModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 backdrop-blur-sm pt-16 px-4">
-                    <div className="relative w-full max-w-lg animate-in fade-in zoom-in-95 duration-200 rounded-2xl bg-white shadow-2xl border border-warm overflow-hidden">
-                        {/* Header accent bar */}
-                        <div className="h-2 bg-gradient-to-r from-teal to-teal-dark" />
-
-                        <div className="p-6">
-                            {/* Header */}
-                            <div className="flex items-center justify-between mb-6">
-                                <div>
-                                    <h2 className="text-lg font-bold text-ink">Add Booth</h2>
-                                    <p className="text-sm text-ink-muted mt-0.5">Fill in the booth details below</p>
+            <EditModal
+                open={isAddModalOpen}
+                title="Add Booth"
+                subtitle="Fill in the booth details below"
+                onClose={closeAddModal}
+                accentColor="teal"
+            >
+                <div className="flex flex-col gap-4">
+                    {formError && (
+                        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">
+                            {formError}
+                        </div>
+                    )}
+                    <div>
+                        <label className="block text-sm font-semibold text-ink mb-1.5">
+                            Operator <span className="text-rose-500">*</span>
+                        </label>
+                        <div className="relative" ref={operatorDropdownRef}>
+                            <input
+                                type="text"
+                                name="operator"
+                                value={addForm.operator}
+                                onChange={handleAddFormChange}
+                                onFocus={() => setShowOperatorDropdown(true)}
+                                placeholder="Enter operator name"
+                                className="w-full rounded-xl border border-warm bg-card px-4 py-3 text-sm text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20 transition-all shadow-sm"
+                            />
+                            {showOperatorDropdown && filteredOperators.length > 0 && (
+                                <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-48 overflow-y-auto rounded-xl border border-warm bg-white shadow-xl">
+                                    {filteredOperators.map((operator) => (
+                                        <button
+                                            key={operator.id}
+                                            type="button"
+                                            onClick={() => handleOperatorSelect(operator)}
+                                            className="block w-full px-4 py-2.5 text-left text-sm text-ink transition hover:bg-cream focus:bg-cream focus:outline-none"
+                                        >
+                                            {operator.operator}
+                                        </button>
+                                    ))}
                                 </div>
-                                <button onClick={closeAddModal} className="rounded-lg p-1.5 hover:bg-gray-100 transition-colors">
-                                    <X className="h-5 w-5 text-gray-400" />
-                                </button>
-                            </div>
-
-                            {/* Form fields */}
-                            <div className="flex flex-col gap-4">
-                                {formError && (
-                                    <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">
-                                        {formError}
-                                    </div>
-                                )}
-                                <div>
-                                    <label className="block text-sm font-semibold text-ink mb-1.5">
-                                        Operator <span className="text-rose-500">*</span>
-                                    </label>
-                                    <div className="relative" ref={operatorDropdownRef}>
-                                        <input
-                                            type="text"
-                                            name="operator"
-                                            value={addForm.operator}
-                                            onChange={handleAddFormChange}
-                                            onFocus={() => setShowOperatorDropdown(true)}
-                                            placeholder="Enter operator name"
-                                            className="w-full rounded-xl border border-warm bg-card px-4 py-3 text-sm text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20 transition-all shadow-sm"
-                                        />
-                                        {showOperatorDropdown && filteredOperators.length > 0 && (
-                                            <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-48 overflow-y-auto rounded-xl border border-warm bg-white shadow-xl">
-                                                {filteredOperators.map((operator) => (
-                                                    <button
-                                                        key={operator.id}
-                                                        type="button"
-                                                        onClick={() => handleOperatorSelect(operator)}
-                                                        className="block w-full px-4 py-2.5 text-left text-sm text-ink transition hover:bg-cream focus:bg-cream focus:outline-none"
-                                                    >
-                                                        {operator.operator}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        )}
-                                        {showOperatorDropdown && filteredOperators.length === 0 && addForm.operator.trim() && (
-                                            <div className="absolute left-0 right-0 top-full z-20 mt-1 rounded-xl border border-warm bg-white px-4 py-2.5 text-sm text-ink-muted shadow-xl">
-                                                No matching operators
-                                            </div>
-                                        )}
-                                    </div>
+                            )}
+                            {showOperatorDropdown && filteredOperators.length === 0 && addForm.operator.trim() && (
+                                <div className="absolute left-0 right-0 top-full z-20 mt-1 rounded-xl border border-warm bg-white px-4 py-2.5 text-sm text-ink-muted shadow-xl">
+                                    No matching operators
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-semibold text-ink mb-1.5">
-                                        Booth Code <span className="text-rose-500">*</span>
-                                    </label>
-                                    <div className="relative">
-                                        <input
-                                            type="text"
-                                            name="booth_code"
-                                            value={addForm.booth_code}
-                                            onChange={handleAddFormChange}
-                                            placeholder="Enter booth code"
-                                            className="w-full rounded-xl border border-warm bg-card px-4 py-3 text-sm text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20 transition-all shadow-sm"
-                                        />
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-semibold text-ink mb-1.5">Coordinate</label>
-                                    <div className="relative">
-                                        <input
-                                            type="text"
-                                            name="coordinate"
-                                            value={addForm.coordinate}
-                                            onChange={handleAddFormChange}
-                                            placeholder="Enter coordinate"
-                                            className="w-full rounded-xl border border-warm bg-card px-4 py-3 text-sm text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20 transition-all shadow-sm"
-                                        />
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-semibold text-ink mb-1.5">Location</label>
-                                    <div className="relative">
-                                        <input
-                                            type="text"
-                                            name="location"
-                                            value={addForm.location}
-                                            onChange={handleAddFormChange}
-                                            placeholder="Enter location"
-                                            className="w-full rounded-xl border border-warm bg-card px-4 py-3 text-sm text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20 transition-all shadow-sm"
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Action buttons */}
-                            <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-warm/60">
-                                <button
-                                    onClick={closeAddModal}
-                                    className="rounded-xl border-2 border-gray-200 px-6 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-all active:scale-[0.98]"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    onClick={openConfirmModal}
-                                    disabled={!addForm.booth_code.trim() || !addForm.operator.trim() || isSaving}
-                                    className="rounded-xl bg-gradient-to-r from-teal to-teal-dark px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-teal/25 hover:shadow-xl hover:shadow-teal/30 hover:from-teal-dark hover:to-teal transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none disabled:active:scale-100"
-                                >
-                                    Save
-                                </button>
-                            </div>
+                            )}
+                        </div>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-semibold text-ink mb-1.5">
+                            Booth Code <span className="text-rose-500">*</span>
+                        </label>
+                        <div className="relative">
+                            <input
+                                type="text"
+                                name="booth_code"
+                                value={addForm.booth_code}
+                                onChange={handleAddFormChange}
+                                placeholder="Enter booth code"
+                                className="w-full rounded-xl border border-warm bg-card px-4 py-3 text-sm text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20 transition-all shadow-sm"
+                            />
+                        </div>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-semibold text-ink mb-1.5">Coordinate</label>
+                        <div className="relative">
+                            <input
+                                type="text"
+                                name="coordinate"
+                                value={addForm.coordinate}
+                                onChange={handleAddFormChange}
+                                placeholder="Enter coordinate"
+                                className="w-full rounded-xl border border-warm bg-card px-4 py-3 text-sm text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20 transition-all shadow-sm"
+                            />
+                        </div>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-semibold text-ink mb-1.5">Location</label>
+                        <div className="relative">
+                            <input
+                                type="text"
+                                name="location"
+                                value={addForm.location}
+                                onChange={handleAddFormChange}
+                                placeholder="Enter location"
+                                className="w-full rounded-xl border border-warm bg-card px-4 py-3 text-sm text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20 transition-all shadow-sm"
+                            />
                         </div>
                     </div>
                 </div>
-            )}
 
-            {/* ── CONFIRM OPERATOR MODAL ── */}
-            {isConfirmOperatorModalOpen && (
-                <div className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-black/50 backdrop-blur-sm pt-24 px-4">
-                    <div className="w-full max-w-md animate-in fade-in zoom-in-95 duration-200 rounded-2xl bg-white shadow-2xl border border-warm overflow-hidden">
-                        {/* Header accent bar */}
-                        <div className="h-2 bg-gradient-to-r from-amber-400 to-orange-500" />
-                        
-                        <div className="p-6">
-                            <div className="flex flex-col items-center gap-4 text-center">
-                                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 ring-4 ring-amber-50">
-                                    <AlertTriangle className="h-7 w-7 text-amber-600" />
-                                </div>
-                                <div>
-                                    <h3 className="text-lg font-bold text-ink">Confirm Save</h3>
-                                    <p className="text-sm text-ink-muted mt-1">
-                                        Are you sure you want to save this operator?
-                                    </p>
-                                </div>
-                                
-                                {/* Summary card */}
-                                <div className="w-full divide-y divide-warm/60 rounded-xl bg-gradient-to-br from-cream to-amber-50/50 border border-warm/70 overflow-hidden">
-                                    <div className="flex items-center justify-between px-4 py-2.5">
-                                        <span className="text-xs font-medium text-ink-muted uppercase tracking-wider">Operator Name</span>
-                                        <span className="text-sm font-semibold text-ink">{addOperatorForm.operator}</span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="flex gap-3 mt-6">
-                                <button
-                                    onClick={closeConfirmOperatorModal}
-                                    className="flex-1 rounded-xl border-2 border-gray-200 py-3 text-sm font-semibold text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-all active:scale-[0.98]"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    onClick={handleSaveOperator}
-                                    disabled={isSavingOperator}
-                                    className="flex-1 rounded-xl bg-gradient-to-r from-teal to-teal-dark py-3 text-sm font-semibold text-white shadow-lg shadow-teal/25 hover:shadow-xl hover:shadow-teal/30 hover:from-teal-dark hover:to-teal transition-all active:scale-[0.98]"
-                                >
-                                    {isSavingOperator ? "Saving..." : "Confirm"}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
+                {/* Action buttons */}
+                <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-warm/60">
+                    <button
+                        onClick={closeAddModal}
+                        className="rounded-xl border-2 border-gray-200 px-6 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-all active:scale-[0.98]"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onClick={openConfirmModal}
+                        disabled={!addForm.booth_code.trim() || !addForm.operator.trim() || isSaving}
+                        className="rounded-xl bg-gradient-to-r from-teal to-teal-dark px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-teal/25 hover:shadow-xl hover:shadow-teal/30 hover:from-teal-dark hover:to-teal transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none disabled:active:scale-100"
+                    >
+                        Save
+                    </button>
                 </div>
-            )}
+            </EditModal>
 
             {/* ── ADD OPERATOR MODAL ── */}
-            {isAddOperatorModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 backdrop-blur-sm pt-16 px-4">
-                    <div className="relative w-full max-w-lg animate-in fade-in zoom-in-95 duration-200 rounded-2xl bg-white shadow-2xl border border-warm overflow-hidden">
-                        {/* Header accent bar */}
-                        <div className="h-2 bg-gradient-to-r from-teal to-teal-dark" />
-
-                        <div className="p-6">
-                            {/* Header */}
-                            <div className="flex items-center justify-between mb-6">
-                                <div>
-                                    <h2 className="text-lg font-bold text-ink">Add Operator</h2>
-                                    <p className="text-sm text-ink-muted mt-0.5">Enter the operator name below</p>
-                                </div>
-                                <button onClick={closeAddOperatorModal} className="rounded-lg p-1.5 hover:bg-gray-100 transition-colors">
-                                    <X className="h-5 w-5 text-gray-400" />
-                                </button>
-                            </div>
-
-                            {/* Form fields */}
-                            <div className="flex flex-col gap-4">
-                                {formErrorOperator && (
-                                    <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">
-                                        {formErrorOperator}
-                                    </div>
-                                )}
-                                <div>
-                                    <label className="block text-sm font-semibold text-ink mb-1.5">
-                                        Operator Name <span className="text-rose-500">*</span>
-                                    </label>
-                                    <div className="relative">
-                                        <input
-                                            type="text"
-                                            name="operator"
-                                            value={addOperatorForm.operator}
-                                            onChange={handleAddOperatorFormChange}
-                                            placeholder="Enter operator name"
-                                            className="w-full rounded-xl border border-warm bg-card px-4 py-3 text-sm text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20 transition-all shadow-sm"
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Action buttons */}
-                            <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-warm/60">
-                                <button
-                                    onClick={closeAddOperatorModal}
-                                    className="rounded-xl border-2 border-gray-200 px-6 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-all active:scale-[0.98]"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    onClick={openConfirmOperatorModal}
-                                    disabled={!addOperatorForm.operator.trim() || isSavingOperator}
-                                    className="rounded-xl bg-gradient-to-r from-teal to-teal-dark px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-teal/25 hover:shadow-xl hover:shadow-teal/30 hover:from-teal-dark hover:to-teal transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none disabled:active:scale-100"
-                                >
-                                    Save
-                                </button>
-                            </div>
+            <EditModal
+                open={isAddOperatorModalOpen}
+                title="Add Operator"
+                subtitle="Enter the operator name below"
+                onClose={closeAddOperatorModal}
+                accentColor="teal"
+            >
+                <div className="flex flex-col gap-4">
+                    {formErrorOperator && (
+                        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">
+                            {formErrorOperator}
+                        </div>
+                    )}
+                    <div>
+                        <label className="block text-sm font-semibold text-ink mb-1.5">
+                            Operator Name <span className="text-rose-500">*</span>
+                        </label>
+                        <div className="relative">
+                            <input
+                                type="text"
+                                name="operator"
+                                value={addOperatorForm.operator}
+                                onChange={handleAddOperatorFormChange}
+                                placeholder="Enter operator name"
+                                className="w-full rounded-xl border border-warm bg-card px-4 py-3 text-sm text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20 transition-all shadow-sm"
+                            />
                         </div>
                     </div>
                 </div>
-            )}
+
+                {/* Action buttons */}
+                <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-warm/60">
+                    <button
+                        onClick={closeAddOperatorModal}
+                        className="rounded-xl border-2 border-gray-200 px-6 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-all active:scale-[0.98]"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onClick={openConfirmOperatorModal}
+                        disabled={!addOperatorForm.operator.trim() || isSavingOperator}
+                        className="rounded-xl bg-gradient-to-r from-teal to-teal-dark px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-teal/25 hover:shadow-xl hover:shadow-teal/30 hover:from-teal-dark hover:to-teal transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none disabled:active:scale-100"
+                    >
+                        Save
+                    </button>
+                </div>
+            </EditModal>
 
             {/* ── OPERATOR LIST MODAL ── */}
             {isOperatorListModalOpen && (
@@ -1000,190 +931,120 @@ export default function OutletsPage() {
                 </div>
             )}
 
-            {/* ── EDIT CONFIRMATION MODAL ── */}
-            {isEditConfirmModalOpen && (
-                <div className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-black/50 backdrop-blur-sm pt-24 px-4">
-                    <div className="w-full max-w-md animate-in fade-in zoom-in-95 duration-200 rounded-2xl bg-white shadow-2xl border border-warm overflow-hidden">
-                        {/* Header accent bar */}
-                        <div className="h-2 bg-gradient-to-r from-amber-400 to-orange-500" />
-                        
-                        <div className="p-6">
-                            <div className="flex flex-col items-center gap-4 text-center">
-                                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 ring-4 ring-amber-50">
-                                    <AlertTriangle className="h-7 w-7 text-amber-600" />
-                                </div>
-                                <div>
-                                    <h3 className="text-lg font-bold text-ink">Confirm Update</h3>
-                                    <p className="text-sm text-ink-muted mt-1">
-                                        Are you sure you want to update this booth?
-                                    </p>
-                                </div>
-                                
-                                {/* Summary card */}
-                                <div className="w-full divide-y divide-warm/60 rounded-xl bg-gradient-to-br from-cream to-amber-50/50 border border-warm/70 overflow-hidden">
-                                    <div className="flex items-center justify-between px-4 py-2.5">
-                                        <span className="text-xs font-medium text-ink-muted uppercase tracking-wider">Operator</span>
-                                        <span className="text-sm font-semibold text-ink">{editForm.operator}</span>
-                                    </div>
-                                    <div className="flex items-center justify-between px-4 py-2.5">
-                                        <span className="text-xs font-medium text-ink-muted uppercase tracking-wider">Booth Code</span>
-                                        <span className="text-sm font-semibold text-teal">{editForm.booth_code}</span>
-                                    </div>
-                                    <div className="flex items-center justify-between px-4 py-2.5">
-                                        <span className="text-xs font-medium text-ink-muted uppercase tracking-wider">Coordinate</span>
-                                        <span className="text-sm font-medium text-ink">{editForm.coordinate || "—"}</span>
-                                    </div>
-                                    <div className="flex items-center justify-between px-4 py-2.5">
-                                        <span className="text-xs font-medium text-ink-muted uppercase tracking-wider">Location</span>
-                                        <span className="text-sm font-medium text-ink">{editForm.location || "—"}</span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="flex gap-3 mt-6">
-                                <button
-                                    onClick={closeEditConfirmModal}
-                                    className="flex-1 rounded-xl border-2 border-gray-200 py-3 text-sm font-semibold text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-all active:scale-[0.98]"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    onClick={handleEditSave}
-                                    disabled={isEditSaving}
-                                    className="flex-1 rounded-xl bg-gradient-to-r from-teal to-teal-dark py-3 text-sm font-semibold text-white shadow-lg shadow-teal/25 hover:shadow-xl hover:shadow-teal/30 hover:from-teal-dark hover:to-teal transition-all active:scale-[0.98]"
-                                >
-                                    {isEditSaving ? "Saving..." : "Confirm"}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
             {/* ── EDIT BOOTH MODAL ── */}
-            {isEditModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 backdrop-blur-sm pt-16 px-4">
-                    <div className="relative w-full max-w-lg animate-in fade-in zoom-in-95 duration-200 rounded-2xl bg-white shadow-2xl border border-warm overflow-hidden">
-                        {/* Header accent bar */}
-                        <div className="h-2 bg-gradient-to-r from-blue-500 to-indigo-600" />
-
-                        <div className="p-6">
-                            {/* Header */}
-                            <div className="flex items-center justify-between mb-6">
-                                <div>
-                                    <h2 className="text-lg font-bold text-ink">Edit Booth</h2>
-                                    <p className="text-sm text-ink-muted mt-0.5">Update the booth details below</p>
+            <EditModal
+                open={isEditModalOpen}
+                title="Edit Booth"
+                subtitle="Update the booth details below"
+                onClose={closeEditModal}
+                accentColor="blue"
+            >
+                <div className="flex flex-col gap-4">
+                    {editFormError && (
+                        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">
+                            {editFormError}
+                        </div>
+                    )}
+                    <div>
+                        <label className="block text-sm font-semibold text-ink mb-1.5">
+                            Operator <span className="text-rose-500">*</span>
+                        </label>
+                        <div className="relative" ref={editOperatorDropdownRef}>
+                            <input
+                                type="text"
+                                name="operator"
+                                value={editForm.operator}
+                                onChange={handleEditFormChange}
+                                onFocus={() => setShowEditOperatorDropdown(true)}
+                                placeholder="Enter operator name"
+                                className="w-full rounded-xl border border-warm bg-card px-4 py-3 text-sm text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20 transition-all shadow-sm"
+                            />
+                            {showEditOperatorDropdown && filteredEditOperators.length > 0 && (
+                                <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-48 overflow-y-auto rounded-xl border border-warm bg-white shadow-xl">
+                                    {filteredEditOperators.map((operator) => (
+                                        <button
+                                            key={operator.id}
+                                            type="button"
+                                            onClick={() => handleEditOperatorSelect(operator)}
+                                            className="block w-full px-4 py-2.5 text-left text-sm text-ink transition hover:bg-cream focus:bg-cream focus:outline-none"
+                                        >
+                                            {operator.operator}
+                                        </button>
+                                    ))}
                                 </div>
-                                <button onClick={closeEditModal} className="rounded-lg p-1.5 hover:bg-gray-100 transition-colors">
-                                    <X className="h-5 w-5 text-gray-400" />
-                                </button>
-                            </div>
-
-                            {/* Form fields */}
-                            <div className="flex flex-col gap-4">
-                                {editFormError && (
-                                    <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">
-                                        {editFormError}
-                                    </div>
-                                )}
-                                <div>
-                                    <label className="block text-sm font-semibold text-ink mb-1.5">
-                                        Operator <span className="text-rose-500">*</span>
-                                    </label>
-                                    <div className="relative" ref={editOperatorDropdownRef}>
-                                        <input
-                                            type="text"
-                                            name="operator"
-                                            value={editForm.operator}
-                                            onChange={handleEditFormChange}
-                                            onFocus={() => setShowEditOperatorDropdown(true)}
-                                            placeholder="Enter operator name"
-                                            className="w-full rounded-xl border border-warm bg-card px-4 py-3 text-sm text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20 transition-all shadow-sm"
-                                        />
-                                        {showEditOperatorDropdown && filteredEditOperators.length > 0 && (
-                                            <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-48 overflow-y-auto rounded-xl border border-warm bg-white shadow-xl">
-                                                {filteredEditOperators.map((operator) => (
-                                                    <button
-                                                        key={operator.id}
-                                                        type="button"
-                                                        onClick={() => handleEditOperatorSelect(operator)}
-                                                        className="block w-full px-4 py-2.5 text-left text-sm text-ink transition hover:bg-cream focus:bg-cream focus:outline-none"
-                                                    >
-                                                        {operator.operator}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        )}
-                                        {showEditOperatorDropdown && filteredEditOperators.length === 0 && editForm.operator.trim() && (
-                                            <div className="absolute left-0 right-0 top-full z-20 mt-1 rounded-xl border border-warm bg-white px-4 py-2.5 text-sm text-ink-muted shadow-xl">
-                                                No matching operators
-                                            </div>
-                                        )}
-                                    </div>
+                            )}
+                            {showEditOperatorDropdown && filteredEditOperators.length === 0 && editForm.operator.trim() && (
+                                <div className="absolute left-0 right-0 top-full z-20 mt-1 rounded-xl border border-warm bg-white px-4 py-2.5 text-sm text-ink-muted shadow-xl">
+                                    No matching operators
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-semibold text-ink mb-1.5">
-                                        Booth Code <span className="text-rose-500">*</span>
-                                    </label>
-                                    <div className="relative">
-                                        <input
-                                            type="text"
-                                            name="booth_code"
-                                            value={editForm.booth_code}
-                                            onChange={handleEditFormChange}
-                                            placeholder="Enter booth code"
-                                            className="w-full rounded-xl border border-warm bg-card px-4 py-3 text-sm text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20 transition-all shadow-sm"
-                                        />
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-semibold text-ink mb-1.5">Coordinate</label>
-                                    <div className="relative">
-                                        <input
-                                            type="text"
-                                            name="coordinate"
-                                            value={editForm.coordinate}
-                                            onChange={handleEditFormChange}
-                                            placeholder="Enter coordinate"
-                                            className="w-full rounded-xl border border-warm bg-card px-4 py-3 text-sm text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20 transition-all shadow-sm"
-                                        />
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-semibold text-ink mb-1.5">Location</label>
-                                    <div className="relative">
-                                        <input
-                                            type="text"
-                                            name="location"
-                                            value={editForm.location}
-                                            onChange={handleEditFormChange}
-                                            placeholder="Enter location"
-                                            className="w-full rounded-xl border border-warm bg-card px-4 py-3 text-sm text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20 transition-all shadow-sm"
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Action buttons */}
-                            <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-warm/60">
-                                <button
-                                    onClick={closeEditModal}
-                                    className="rounded-xl border-2 border-gray-200 px-6 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-all active:scale-[0.98]"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    onClick={openEditConfirmModal}
-                                    disabled={!editForm.booth_code.trim() || !editForm.operator.trim() || isEditSaving}
-                                    className="rounded-xl bg-gradient-to-r from-teal to-teal-dark px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-teal/25 hover:shadow-xl hover:shadow-teal/30 hover:from-teal-dark hover:to-teal transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none disabled:active:scale-100"
-                                >
-                                    Save
-                                </button>
-                            </div>
+                            )}
+                        </div>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-semibold text-ink mb-1.5">
+                            Booth Code <span className="text-rose-500">*</span>
+                        </label>
+                        <div className="relative">
+                            <input
+                                type="text"
+                                name="booth_code"
+                                value={editForm.booth_code}
+                                onChange={handleEditFormChange}
+                                placeholder="Enter booth code"
+                                className="w-full rounded-xl border border-warm bg-card px-4 py-3 text-sm text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20 transition-all shadow-sm"
+                            />
+                        </div>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-semibold text-ink mb-1.5">Coordinate</label>
+                        <div className="relative">
+                            <input
+                                type="text"
+                                name="coordinate"
+                                value={editForm.coordinate}
+                                onChange={handleEditFormChange}
+                                placeholder="Enter coordinate"
+                                className="w-full rounded-xl border border-warm bg-card px-4 py-3 text-sm text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20 transition-all shadow-sm"
+                            />
+                        </div>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-semibold text-ink mb-1.5">Location</label>
+                        <div className="relative">
+                            <input
+                                type="text"
+                                name="location"
+                                value={editForm.location}
+                                onChange={handleEditFormChange}
+                                placeholder="Enter location"
+                                className="w-full rounded-xl border border-warm bg-card px-4 py-3 text-sm text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20 transition-all shadow-sm"
+                            />
                         </div>
                     </div>
                 </div>
-            )}
+
+                {/* Action buttons */}
+                <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-warm/60">
+                    <button
+                        onClick={closeEditModal}
+                        className="rounded-xl border-2 border-gray-200 px-6 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-all active:scale-[0.98]"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onClick={openEditConfirmModal}
+                        disabled={!editForm.booth_code.trim() || !editForm.operator.trim() || isEditSaving || (
+                            editForm.operator === initialEditForm.operator &&
+                            editForm.booth_code === initialEditForm.booth_code &&
+                            editForm.coordinate === initialEditForm.coordinate &&
+                            editForm.location === initialEditForm.location
+                        )}
+                        className="rounded-xl bg-gradient-to-r from-teal to-teal-dark px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-teal/25 hover:shadow-xl hover:shadow-teal/30 hover:from-teal-dark hover:to-teal transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none disabled:active:scale-100"
+                    >
+                        Save
+                    </button>
+                </div>
+            </EditModal>
         </div>
     );
 }
