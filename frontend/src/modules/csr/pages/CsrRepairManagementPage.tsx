@@ -14,6 +14,7 @@ import {
     AlertCircle,
     CheckCircle,
     ListChecks,
+    Printer,
     CreditCard,
     Minus,
     Plus,
@@ -71,8 +72,7 @@ function filterRecordsByTab(records: RepairRecord[], tabId: string): RepairRecor
             (r) =>
                 r.status === status &&
                 r.forwarded === false &&
-                r.released === false &&
-                r.re_repair === false
+                r.released === false
         );
     }
 
@@ -204,6 +204,7 @@ export default function CsrRepairManagementPage() {
     } | null>(null);
     const [showBatchForRepair, setShowBatchForRepair] = useState(false);
     const [showBatchForRelease, setShowBatchForRelease] = useState(false);
+    const [showRepairTransmittal, setShowRepairTransmittal] = useState(false);
     const [expandedReleasedIds, setExpandedReleasedIds] = useState<Set<number>>(new Set());
     const [batchProcessing, setBatchProcessing] = useState(false);
     const [toast, setToast] = useState<{ show: boolean; message: string; type: "error" | "success" }>({ show: false, message: "", type: "error" });
@@ -362,6 +363,21 @@ export default function CsrRepairManagementPage() {
                         Process Batch
                     </button>
                 )}
+                {activeStatusTab === "for-repair" && (
+                    <button
+                        type="button"
+                        onClick={() => setShowRepairTransmittal(true)}
+                        disabled={filteredRecords.length === 0}
+                        className="mb-2 inline-flex shrink-0 items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+                        style={{
+                            background: "linear-gradient(to right, #2563EB, #3B82F6)",
+                            boxShadow: "0 4px 16px rgba(37,99,235,0.25)",
+                        }}
+                    >
+                        <Printer className="h-4 w-4" />
+                        Print Repair Transmittal
+                    </button>
+                )}
                 {activeStatusTab === "for-release" && (
                     <button
                         type="button"
@@ -404,67 +420,67 @@ export default function CsrRepairManagementPage() {
                             <div className="px-4 py-10 text-center text-gray-400">No records found in this category.</div>
                         ) : (
                             <>
-                            {pagedGroups.map((group) => {
-                                const firstRecord = group.records[0];
-                                const isExpanded = expandedReleasedIds.has(firstRecord.id);
-                                return (
-                                    <div key={group.billingCode} className="overflow-hidden rounded-xl border border-warm bg-card shadow-sm">
-                                        <button
-                                            type="button"
-                                            onClick={() => toggleReleasedGroup(firstRecord.id)}
-                                            className="flex w-full flex-wrap items-center gap-x-8 gap-y-2 bg-card px-5 py-3 text-left text-sm font-bold text-ink transition-colors hover:bg-surface"
-                                        >
-                                            <span className="inline-flex items-center gap-2">
-                                                <CreditCard className="h-4 w-4 text-[#3B82A0]" />
-                                                Billing Code: {firstRecord.billing_code || "-"}
-                                            </span>
-                                            <span className="inline-flex items-center rounded-full bg-[#92C7CF]/20 px-2 py-0.5 text-xs font-bold text-[#1F2937]">
-                                                {group.records.length} POS
-                                            </span>
-                                            {isExpanded ? (
-                                                <Minus className="ml-auto h-5 w-5 text-[#3B82A0]" />
-                                            ) : (
-                                                <Plus className="ml-auto h-5 w-5 text-[#3B82A0]" />
-                                            )}
-                                        </button>
-                                        {isExpanded && (
-                                            <div className="overflow-x-auto border-t border-warm">
-                                                <table className="w-full text-sm">
-                                                    <thead>
-                                                        <tr className="border-b border-warm bg-cream text-left text-xs font-bold uppercase text-ink-muted">
-                                                            <th className="whitespace-nowrap px-4 py-3">Date Released</th>
-                                                            <th className="whitespace-nowrap px-4 py-3">POS No</th>
-                                                            <th className="whitespace-nowrap px-4 py-3">Serial No</th>
-                                                            <th className="whitespace-nowrap px-4 py-3">Area</th>
-                                                            <th className="whitespace-nowrap px-4 py-3">Operator</th>
-                                                            <th className="whitespace-nowrap px-4 py-3">Diagnosis</th>
-                                                            <th className="whitespace-nowrap px-4 py-3">Repaired By</th>
-                                                            <th className="whitespace-nowrap px-4 py-3">Remarks</th>
-                                                            <th className="whitespace-nowrap px-4 py-3">Received By</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        {group.records.map((record) => (
-                                                            <tr key={record.id} className="text-ink transition hover:bg-cream/50">
-                                                                <td className="px-4 py-3.5">{formatDateNumeric(record.date)}</td>
-                                                                <td className="px-4 py-3.5 font-medium">{record.device_no || "-"}</td>
-                                                                <td className="px-4 py-3.5">{record.serial_number || "-"}</td>
-                                                                <td className="px-4 py-3.5">{record.area || "-"}</td>
-                                                                <td className="px-4 py-3.5">{record.operator_name || "-"}</td>
-                                                                <td className="px-4 py-3.5">{record.diagnosis_name || "-"}</td>
-                                                                <td className="px-4 py-3.5">{record.repaired_by || "-"}</td>
-                                                                <td className="px-4 py-3.5">{record.remarks || "-"}</td>
-                                                                <td className="px-4 py-3.5">{record.received_by || "-"}</td>
+                                {pagedGroups.map((group) => {
+                                    const firstRecord = group.records[0];
+                                    const isExpanded = expandedReleasedIds.has(firstRecord.id);
+                                    return (
+                                        <div key={group.billingCode} className="overflow-hidden rounded-xl border border-warm bg-card shadow-sm">
+                                            <button
+                                                type="button"
+                                                onClick={() => toggleReleasedGroup(firstRecord.id)}
+                                                className="flex w-full flex-wrap items-center gap-x-8 gap-y-2 bg-card px-5 py-3 text-left text-sm font-bold text-ink transition-colors hover:bg-surface"
+                                            >
+                                                <span className="inline-flex items-center gap-2">
+                                                    <CreditCard className="h-4 w-4 text-[#3B82A0]" />
+                                                    Billing Code: {firstRecord.billing_code || "-"}
+                                                </span>
+                                                <span className="inline-flex items-center rounded-full bg-[#92C7CF]/20 px-2 py-0.5 text-xs font-bold text-[#1F2937]">
+                                                    {group.records.length} POS
+                                                </span>
+                                                {isExpanded ? (
+                                                    <Minus className="ml-auto h-5 w-5 text-[#3B82A0]" />
+                                                ) : (
+                                                    <Plus className="ml-auto h-5 w-5 text-[#3B82A0]" />
+                                                )}
+                                            </button>
+                                            {isExpanded && (
+                                                <div className="overflow-x-auto border-t border-warm">
+                                                    <table className="w-full text-sm">
+                                                        <thead>
+                                                            <tr className="border-b border-warm bg-cream text-left text-xs font-bold uppercase text-ink-muted">
+                                                                <th className="whitespace-nowrap px-4 py-3">Date Released</th>
+                                                                <th className="whitespace-nowrap px-4 py-3">POS No</th>
+                                                                <th className="whitespace-nowrap px-4 py-3">Serial No</th>
+                                                                <th className="whitespace-nowrap px-4 py-3">Area</th>
+                                                                <th className="whitespace-nowrap px-4 py-3">Operator</th>
+                                                                <th className="whitespace-nowrap px-4 py-3">Diagnosis</th>
+                                                                <th className="whitespace-nowrap px-4 py-3">Repaired By</th>
+                                                                <th className="whitespace-nowrap px-4 py-3">Remarks</th>
+                                                                <th className="whitespace-nowrap px-4 py-3">Received By</th>
                                                             </tr>
-                                                        ))}
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                        )}
-                                    </div>
-                                );
-                            })}
-                            <CsrPagination currentPage={page} totalPages={groupTotalPages} totalItems={filteredRecords.length} onPageChange={setPage} />
+                                                        </thead>
+                                                        <tbody>
+                                                            {group.records.map((record) => (
+                                                                <tr key={record.id} className="text-ink transition hover:bg-cream/50">
+                                                                    <td className="px-4 py-3.5">{formatDateNumeric(record.date)}</td>
+                                                                    <td className="px-4 py-3.5 font-medium">{record.device_no || "-"}</td>
+                                                                    <td className="px-4 py-3.5">{record.serial_number || "-"}</td>
+                                                                    <td className="px-4 py-3.5">{record.area || "-"}</td>
+                                                                    <td className="px-4 py-3.5">{record.operator_name || "-"}</td>
+                                                                    <td className="px-4 py-3.5">{record.diagnosis_name || "-"}</td>
+                                                                    <td className="px-4 py-3.5">{record.repaired_by || "-"}</td>
+                                                                    <td className="px-4 py-3.5">{record.remarks || "-"}</td>
+                                                                    <td className="px-4 py-3.5">{record.received_by || "-"}</td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                                <CsrPagination currentPage={page} totalPages={groupTotalPages} totalItems={filteredRecords.length} onPageChange={setPage} />
                             </>
                         )}
                     </div>
@@ -585,6 +601,15 @@ export default function CsrRepairManagementPage() {
                     loading={batchProcessing}
                     onCancel={() => setShowBatchForRelease(false)}
                     onProceed={handleBatchForRelease}
+                />
+            )}
+            {showRepairTransmittal && (
+                <TransmittalModal
+                    records={filteredRecords}
+                    userId={user?.id ?? null}
+                    issuedBy={user?.name ?? user?.email ?? ""}
+                    onClose={() => setShowRepairTransmittal(false)}
+                    showToast={showToast}
                 />
             )}
         </div>

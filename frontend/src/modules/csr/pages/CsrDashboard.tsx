@@ -208,8 +208,7 @@ function filterRecordsByDashboardStatus(records: RepairRecord[], statusId: strin
             (record) =>
                 record.status === target &&
                 record.forwarded === false &&
-                record.released === false &&
-                record.re_repair === false
+                record.released === false
         );
     }
 
@@ -348,7 +347,7 @@ export default function CsrDashboard() {
             .then((data) => {
                 if (!ignored) setCurrentUser({ ...user, ...data });
             })
-            .catch(() => {});
+            .catch(() => { });
 
         fetch(`${API_BASE_URL}/api/users/${user.id}/latest-login`)
             .then((res) => {

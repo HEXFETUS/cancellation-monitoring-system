@@ -173,7 +173,7 @@ export async function proceedRepairRecord(id: number, diagnosisId?: number): Pro
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-            status: "Pending",
+            status: "For Repair",
             forwarded: true,
             ...(diagnosisId ? { diagnosis_id: diagnosisId } : {}),
         }),
