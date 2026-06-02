@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { listReleasedLogs } from "../services/releasedLogs";
 import type { ReleasedLog } from "../services/releasedLogs";
 
-const teal = "#92C7CF";
 const tealLink = "#2A7A8C";
 
 function formatDate(value: string | null | undefined): string {
@@ -21,10 +20,9 @@ interface ReleasedLogPageProps {
     onSearchChange?: (value: string) => void;
 }
 
-export default function ReleasedLogPage({ search: searchProp, onSearchChange }: ReleasedLogPageProps = {}) {
-    const [internalSearch, setInternalSearch] = useState("");
+export default function ReleasedLogPage({ search: searchProp }: ReleasedLogPageProps = {}) {
+    const [internalSearch] = useState("");
     const search = searchProp ?? internalSearch;
-    const setSearch = onSearchChange ?? setInternalSearch;
 
     const [logs, setLogs] = useState<ReleasedLog[]>([]);
     const [loading, setLoading] = useState(true);

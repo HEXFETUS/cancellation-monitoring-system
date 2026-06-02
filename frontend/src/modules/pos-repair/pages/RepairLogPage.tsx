@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { listDiagnosisLogs } from "../services/diagnosisLogs";
 import type { DiagnosisLog } from "../services/diagnosisLogs";
 
-const teal = "#92C7CF";
 const tealLink = "#2A7A8C";
 
 function formatDate(value: string | null | undefined): string {
@@ -35,10 +34,9 @@ interface RepairLogPageProps {
     onSearchChange?: (value: string) => void;
 }
 
-export default function RepairLogPage({ search: searchProp, onSearchChange }: RepairLogPageProps = {}) {
-    const [internalSearch, setInternalSearch] = useState("");
+export default function RepairLogPage({ search: searchProp }: RepairLogPageProps = {}) {
+    const [internalSearch] = useState("");
     const search = searchProp ?? internalSearch;
-    const setSearch = onSearchChange ?? setInternalSearch;
 
     const [logs, setLogs] = useState<DiagnosisLog[]>([]);
     const [loading, setLoading] = useState(true);

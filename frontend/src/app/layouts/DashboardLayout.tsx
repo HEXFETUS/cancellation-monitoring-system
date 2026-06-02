@@ -89,7 +89,7 @@ export default function DashboardLayout() {
                     setSidebarUser({ ...authUser, ...data });
                 }
             })
-            .catch(() => {});
+            .catch(() => { });
 
         return () => {
             ignored = true;
@@ -184,11 +184,7 @@ export default function DashboardLayout() {
             : isCsr
                 ? [
                     { name: "Dashboard", path: "/app/dashboard" },
-                    { name: "Repair Request", path: "/app/csr-pos-repair/repair-request" },
-                    { name: "Repair Management", path: "/app/csr-pos-repair/repair-management" },
-                    { name: "Repair Log", path: "/app/csr-pos-repair/repair-log" },
-                    { name: "Released Log", path: "/app/csr-pos-repair/released-log" },
-                    { name: "Diagnosis List", path: "/app/csr-pos-repair/diagnosis-list" },
+                    { name: "POS Repair", path: "/app/csr-pos-repair" },
                     { name: "Posts", path: "/app/csr-pos-repair/posts" },
                     { name: "Bulletin Board", path: "/app/bulletin-board" },
                     { name: "Settings", path: "/app/settings" },
@@ -322,7 +318,9 @@ export default function DashboardLayout() {
                     {/* ===== Navigation ===== */}
                     <nav className="relative flex-1 min-h-0 overflow-y-auto space-y-1">
                         {navItems.map((item) => {
-                            const isActive = location.pathname === item.path;
+                            const isActive =
+                                location.pathname === item.path ||
+                                location.pathname.startsWith(`${item.path}/`);
                             const Icon = iconMap[item.name] || LayoutDashboard;
                             return (
                                 <Link

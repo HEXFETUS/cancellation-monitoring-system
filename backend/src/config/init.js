@@ -595,8 +595,6 @@ async function initDatabase() {
         await client.query(
             "CREATE INDEX IF NOT EXISTS idx_released_logs_user ON released_logs(user_id)"
         );
-<<<<<<< HEAD
-=======
 
         /* =========================
            lottery_results — CSR-published draw results for the landing page
@@ -741,7 +739,6 @@ async function initDatabase() {
         await client.query(
             "CREATE INDEX IF NOT EXISTS idx_activity_logs_entity ON activity_logs(entity)"
         );
->>>>>>> 1df0b94ec8dd19bf4cd730e1cd26281fcdc65af5
 
         for (const tableName of SERIAL_TABLES) {
             await syncSerialSequence(client, tableName);

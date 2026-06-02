@@ -18,12 +18,9 @@ import diagnosisListRoutes from "./src/routes/diagnosis-list.routes.js";
 import repairRecordRoutes from "./src/routes/repair-record.routes.js";
 import diagnosisLogRoutes from "./src/routes/diagnosis-log.routes.js";
 import releasedLogRoutes from "./src/routes/released-log.routes.js";
-<<<<<<< HEAD
-=======
 import postsRoutes from "./src/routes/posts.routes.js";
 import bulletinRoutes from "./src/routes/bulletin.routes.js";
 import activityLogRoutes from "./src/routes/activity-log.routes.js";
->>>>>>> 1df0b94ec8dd19bf4cd730e1cd26281fcdc65af5
 import initDatabase from "./src/config/init.js";
 
 dotenv.config();
@@ -35,15 +32,9 @@ const __dirname = path.dirname(__filename);
 app.use(cors());
 app.use(express.json());
 
-<<<<<<< HEAD
-=======
-// Serve uploaded files (images, videos). The multer storage in
-// src/routes/posts.routes.js writes to <repo>/backend/src/public/uploads,
-// so the static handler must point at that same directory — not at
-// <repo>/backend/public/uploads (which doesn't exist).
+// Serve uploaded files from the same directory used by the multer routes.
 app.use("/uploads", express.static(path.join(__dirname, "src", "public", "uploads")));
 
->>>>>>> 1df0b94ec8dd19bf4cd730e1cd26281fcdc65af5
 // Routes
 app.use("/api/health", healthRoutes);
 app.use("/api/users", userRoutes);
@@ -59,12 +50,9 @@ app.use("/api/diagnosis-list", diagnosisListRoutes);
 app.use("/api/repair-records", repairRecordRoutes);
 app.use("/api/diagnosis-logs", diagnosisLogRoutes);
 app.use("/api/released-logs", releasedLogRoutes);
-<<<<<<< HEAD
-=======
 app.use("/api/posts", postsRoutes);
 app.use("/api/bulletin", bulletinRoutes);
 app.use("/api/activity-logs", activityLogRoutes);
->>>>>>> 1df0b94ec8dd19bf4cd730e1cd26281fcdc65af5
 
 const PORT = Number(process.env.PORT || 5050);
 
@@ -73,15 +61,14 @@ if (PORT !== 5050) {
 }
 
 // Don't auto-bootstrap (init DB + listen) when the module is imported under a
-// test runner — tests replace the DB pool with an in-memory one and drive the
+// test runner. Tests replace the DB pool with an in-memory one and drive the
 // app through supertest. Vitest sets NODE_ENV to "test" automatically.
 if (process.env.NODE_ENV !== "test") {
-    initDatabase()
-        .then(() => {
-            app.listen(PORT, () => {
-                console.log(`Server running on port ${PORT}`);
-            });
+    initDatabase().then(() => {
+        app.listen(PORT, () => {
+            console.log(`Server running on port ${PORT}`);
         });
+    });
 }
 
 export default app;

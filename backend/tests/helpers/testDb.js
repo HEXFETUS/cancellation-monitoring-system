@@ -118,8 +118,6 @@ const SCHEMA_DDL = `
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
-<<<<<<< HEAD
-=======
 
     -- Bulletin Board chat (group chat). Mirrors the production columns added
     -- by init.js so any test that touches /api/bulletin or imports the
@@ -156,7 +154,6 @@ const SCHEMA_DDL = `
         details TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
->>>>>>> 1df0b94ec8dd19bf4cd730e1cd26281fcdc65af5
 `;
 
 function init() {

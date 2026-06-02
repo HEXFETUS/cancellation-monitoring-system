@@ -22,9 +22,6 @@ import SettingsPage from "../../modules/settings/pages/SettingsPage";
 import BulletinBoardPage from "../../modules/bulletin/pages/BulletinBoardPage";
 import MyPosPage from "../../modules/operator/pages/MyPosPage";
 import CsrTabbedPage from "../../modules/csr/pages/CsrTabbedPage";
-<<<<<<< HEAD
-import PosDiagnosisListPage from "../../modules/pos-repair/pages/DiagnosisListPage";
-=======
 import CsrRepairRequestPage from "../../modules/csr/pages/CsrRepairRequestPage";
 import CsrRepairManagementPage from "../../modules/csr/pages/CsrRepairManagementPage";
 import CsrRepairLogPage from "../../modules/csr/pages/CsrRepairLogPage";
@@ -32,7 +29,7 @@ import CsrReleasedLogPage from "../../modules/csr/pages/CsrReleasedLogPage";
 import CsrDiagnosisListPage from "../../modules/csr/pages/CsrDiagnosisListPage";
 import PosDiagnosisListPage from "../../modules/pos-repair/pages/DiagnosisListPage";
 import CsrPostsTabbedPage from "../../modules/csr/pages/CsrPostsTabbedPage";
->>>>>>> 1df0b94ec8dd19bf4cd730e1cd26281fcdc65af5
+
 
 export const router = createBrowserRouter([
     {
