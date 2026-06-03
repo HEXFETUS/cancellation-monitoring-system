@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { ArrowRightLeft, ChevronLeft, ChevronRight, History, Monitor, RefreshCw, Search } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ArrowRightLeft, ChevronLeft, ChevronRight, History } from "lucide-react";
 import { useAuth } from "../../../context/AuthContext";
 import { fetchPosRecords, fetchBoothInfo, fetchOperators } from "../../pos/services";
 import type { OperatorInfo, PosRecord, BoothInfo } from "../../pos/types";
@@ -21,9 +21,13 @@ interface Me {
     parent_operator_id: number | null;
 }
 
-export default function MyPosPage() {
+interface MyPosPageProps {
+    searchQuery?: string;
+    refreshKey?: number;
+}
+
+export default function MyPosPage({ searchQuery: externalSearch = "", refreshKey = 0 }: MyPosPageProps = {}) {
     const { user } = useAuth();
-    const [me, setMe] = useState<Me | null>(null);
     const [allOperators, setAllOperators] = useState<OperatorInfo[]>([]);
     const [records, setRecords] = useState<PosRecord[]>([]);
     const [booths, setBooths] = useState<BoothInfo[]>([]);
@@ -32,19 +36,12 @@ export default function MyPosPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [filterOperatorId, setFilterOperatorId] = useState<number | "all">("all");
-    const [searchQuery, setSearchQuery] = useState("");
+    const searchQuery = externalSearch;
     const [page, setPage] = useState(1);
 
     const [requesting, setRequesting] = useState<PosRecord | null>(null);
 
-    const handleRefresh = async () => {
-        setFilterOperatorId("all");
-        setSearchQuery("");
-        setPage(1);
-        await refresh();
-    };
-
-    const refresh = async () => {
+    const refreshData = useCallback(async () => {
         if (!user?.id) return;
         try {
             setLoading(true);
@@ -58,8 +55,6 @@ export default function MyPosPage() {
                     parent_operator_id: meData.parent_operator_id ?? null,
                 }
                 : null;
-            setMe(meSafe);
-
             const filterParams: Parameters<typeof fetchPosRecords>[0] = {
                 user_id: String(user.id),
             };
@@ -89,27 +84,32 @@ export default function MyPosPage() {
         } finally {
             setLoading(false);
         }
-    };
-
-    useEffect(() => {
-        refresh();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user?.id, filterOperatorId]);
 
-    const myOperator = useMemo(() => {
-        const myOpId = me?.operator_id != null ? Number(me.operator_id) : null;
-        if (myOpId != null) return allOperators.find((o) => Number(o.id) === myOpId) ?? null;
-        const myUserId = user?.id != null ? Number(user.id) : null;
-        if (myUserId != null) return allOperators.find((o) => o.user_id != null && Number(o.user_id) === myUserId) ?? null;
-        return null;
-    }, [me, allOperators, user?.id]);
+    const handleRefresh = useCallback(async () => {
+        setFilterOperatorId("all");
+        setPage(1);
+        await refreshData();
+    }, [refreshData]);
 
-    const isMainOperator = myOperator !== null && myOperator.parent_operator_id == null;
-    const myDirectSubs = useMemo(() => {
-        if (!isMainOperator || !myOperator) return [] as OperatorInfo[];
-        const myId = Number(myOperator.id);
-        return allOperators.filter((o) => o.parent_operator_id != null && Number(o.parent_operator_id) === myId);
-    }, [isMainOperator, myOperator, allOperators]);
+    useEffect(() => {
+        refreshData();
+    }, [refreshData]);
+
+    // Re-fetch when refreshKey changes from parent
+    useEffect(() => {
+        if (refreshKey > 0) {
+            setFilterOperatorId("all");
+            setPage(1);
+            refreshData();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [refreshKey]);
+
+    // Reset page when search query changes
+    useEffect(() => {
+        setPage(1);
+    }, [searchQuery]);
 
     const pendingByPosId = useMemo(() => {
         const map = new Map<number, BoothChangeRequest>();
@@ -179,94 +179,8 @@ export default function MyPosPage() {
         return pages;
     }, [totalPages, safePage]);
 
-    const inputStyle = {
-        background: "rgba(255,255,255,0.58)",
-        border: "1px solid rgba(146,199,207,0.28)",
-        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.55)",
-        backdropFilter: "blur(8px)",
-    };
-
     return (
         <div className="w-full max-w-full space-y-5">
-            {/* Header */}
-            <div className="relative rounded-2xl p-5 border border-white/50 backdrop-blur-xl bg-white/30 shadow-lg overflow-hidden">
-                <div
-                    className="absolute -top-10 -right-10 w-40 h-40 rounded-full opacity-15 blur-3xl pointer-events-none"
-                    style={{ background: teal }}
-                />
-                <div className="relative flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                        <div
-                            className="flex h-11 w-11 items-center justify-center rounded-xl shadow-md transition-transform duration-300 hover:scale-110"
-                            style={{
-                                background: `linear-gradient(135deg, ${teal}20, ${tealLight}20)`,
-                                color: teal,
-                            }}
-                        >
-                            <Monitor className="h-5 w-5" />
-                        </div>
-                        <div>
-                            <h1 className="text-lg font-bold text-gray-800">POS Devices</h1>
-                            <p className="text-sm text-gray-600">Devices assigned to you. Request a booth change for any of them below.</p>
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        {/* Search */}
-                        <div className="relative">
-                            <Search
-                                size={14}
-                                className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"
-                            />
-                            <input
-                                type="text"
-                                value={searchQuery}
-                                onChange={(e) => {
-                                    setSearchQuery(e.target.value);
-                                    setPage(1);
-                                }}
-                                placeholder="Search device no. or SN…"
-                                className="h-10 w-44 rounded-xl pl-8 pr-3 text-sm text-gray-800 outline-none transition-all duration-200 focus:ring-2 focus:ring-[#92C7CF]/35 focus:border-[#92C7CF]/60 placeholder:text-gray-400"
-                                style={inputStyle}
-                            />
-                        </div>
-                        {/* Sub-operator filter */}
-                        {isMainOperator && myDirectSubs.length > 0 && (
-                            <select
-                                value={filterOperatorId === "all" ? "all" : String(filterOperatorId)}
-                                onChange={(e) => {
-                                    const v = e.target.value;
-                                    setFilterOperatorId(v === "all" ? "all" : Number(v));
-                                    setSearchQuery("");
-                                    setPage(1);
-                                }}
-                                className="h-10 rounded-xl px-3 text-sm text-gray-800 outline-none transition-all duration-200 focus:ring-2 focus:ring-[#92C7CF]/35 focus:border-[#92C7CF]/60"
-                                style={inputStyle}
-                            >
-                                <option value="all">All devices</option>
-                                {myDirectSubs.map((s) => (
-                                    <option key={s.id} value={String(s.id)}>
-                                        {s.operator}
-                                    </option>
-                                ))}
-                            </select>
-                        )}
-                        <button
-                            onClick={handleRefresh}
-                            disabled={loading}
-                            className="group inline-flex h-10 items-center justify-center gap-1.5 rounded-xl px-3.5 text-sm font-medium text-gray-600 transition-all duration-200 hover:bg-white/50 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
-                            style={{
-                                border: "1px solid rgba(146,199,207,0.20)",
-                                background: "rgba(255,255,255,0.25)",
-                                boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
-                            }}
-                        >
-                            <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-                            Refresh
-                        </button>
-                    </div>
-                </div>
-            </div>
-
             {error && (
                 <div className="relative rounded-xl border border-red-200/60 bg-red-50/95 backdrop-blur-xl px-4 py-3 text-sm font-medium text-red-700 shadow-lg flex items-center gap-2">
                     <span>{error}</span>
@@ -396,11 +310,11 @@ export default function MyPosPage() {
                 <div className="border-b border-white/40 px-5 py-3">
                     <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-800">
                         <History size={16} />
-                        My Booth Change Requests
+                        Booth Change Requests
                     </h2>
                 </div>
                 <div className="p-5">
-                    <BoothChangeRequestHistory requests={requests} onChanged={refresh} userId={user?.id ?? null} />
+                    <BoothChangeRequestHistory requests={requests} onChanged={refreshData} userId={user?.id ?? null} />
                 </div>
             </div>
 
@@ -414,7 +328,7 @@ export default function MyPosPage() {
                 onClose={() => setRequesting(null)}
                 onSubmitted={async () => {
                     setRequesting(null);
-                    await refresh();
+                    await refreshData();
                 }}
             />
         </div>

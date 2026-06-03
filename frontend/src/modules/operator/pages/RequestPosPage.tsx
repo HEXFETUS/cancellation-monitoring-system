@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { History, RefreshCw, Search, Send, X, XCircle, Monitor } from "lucide-react";
+import { History, Search, Send, X, XCircle } from "lucide-react";
 import { useAuth } from "../../../context/AuthContext";
 import { fetchOperators, fetchPosRecords } from "../../pos/services";
 import type { OperatorInfo, PosRecord } from "../../pos/types";
@@ -72,10 +72,10 @@ export default function RequestPosPage() {
             setMe(
                 meData
                     ? {
-                          id: meData.id,
-                          operator_id: meData.operator_id ?? null,
-                          parent_operator_id: meData.parent_operator_id ?? null,
-                      }
+                        id: meData.id,
+                        operator_id: meData.operator_id ?? null,
+                        parent_operator_id: meData.parent_operator_id ?? null,
+                    }
                     : null
             );
 
@@ -221,51 +221,6 @@ export default function RequestPosPage() {
 
     return (
         <div className="w-full max-w-full space-y-5">
-            {/* Header */}
-            <div className="relative rounded-2xl p-5 border border-white/50 backdrop-blur-xl bg-white/30 shadow-lg overflow-hidden">
-                <div
-                    className="absolute -top-10 -right-10 w-40 h-40 rounded-full opacity-15 blur-3xl pointer-events-none"
-                    style={{ background: teal }}
-                />
-                <div className="relative flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                        <div
-                            className="flex h-11 w-11 items-center justify-center rounded-xl shadow-md"
-                            style={{
-                                background: `linear-gradient(135deg, ${teal}20, ${tealLight}20)`,
-                                color: teal,
-                            }}
-                        >
-                            <Monitor className="h-5 w-5" />
-                        </div>
-                        <div>
-                            <h1 className="text-lg font-bold text-gray-800">
-                                Request POS
-                            </h1>
-                            <p className="text-sm text-gray-600">
-                                Request a POS device to be re-assigned under you. An admin must approve before the change takes effect.
-                            </p>
-                        </div>
-                    </div>
-                    <button
-                        onClick={refresh}
-                        disabled={loading}
-                        className="group inline-flex h-10 items-center justify-center gap-1.5 rounded-xl px-3.5 text-sm font-medium text-gray-600 transition-all duration-200 hover:bg-white/50 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
-                        style={{
-                            border: "1px solid rgba(146,199,207,0.20)",
-                            background: "rgba(255,255,255,0.25)",
-                            boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
-                        }}
-                    >
-                        <RefreshCw
-                            size={14}
-                            className={loading ? "animate-spin" : ""}
-                        />
-                        Refresh
-                    </button>
-                </div>
-            </div>
-
             {error && (
                 <div className="relative rounded-xl border border-red-200/60 bg-red-50/95 backdrop-blur-xl px-4 py-3 text-sm font-medium text-red-700 shadow-lg flex items-center gap-2">
                     <span>{error}</span>
@@ -275,7 +230,7 @@ export default function RequestPosPage() {
             {/* Form 1: type POS + operator detection */}
             <div className="relative rounded-2xl border border-white/50 backdrop-blur-xl bg-white/25 shadow-lg p-5">
                 <h2 className="text-sm font-semibold text-gray-800 mb-3">
-                    Request a POS device
+                    Request to add a POS device under your operator account. An admin must approve before the change takes effect.
                 </h2>
                 <div className="flex flex-col sm:flex-row gap-2">
                     <input
@@ -392,7 +347,7 @@ export default function RequestPosPage() {
                 <div className="flex items-center justify-between gap-3 border-b border-white/40 px-5 py-3">
                     <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-800">
                         <History size={16} />
-                        My Request POS History
+                        Request POS History
                     </h2>
                     <div className="relative">
                         <Search
@@ -474,15 +429,14 @@ export default function RequestPosPage() {
                                         </td>
                                         <td className="whitespace-nowrap px-4 py-3">
                                             <span
-                                                className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide ${
-                                                    r.status === "pending"
-                                                        ? "bg-amber-100 text-amber-700"
-                                                        : r.status === "approved"
-                                                            ? "bg-green-100 text-green-700"
-                                                            : r.status === "rejected"
-                                                                ? "bg-red-100 text-red-700"
-                                                                : "bg-gray-100 text-gray-600"
-                                                }`}
+                                                className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide ${r.status === "pending"
+                                                    ? "bg-amber-100 text-amber-700"
+                                                    : r.status === "approved"
+                                                        ? "bg-green-100 text-green-700"
+                                                        : r.status === "rejected"
+                                                            ? "bg-red-100 text-red-700"
+                                                            : "bg-gray-100 text-gray-600"
+                                                    }`}
                                             >
                                                 {r.status}
                                             </span>
