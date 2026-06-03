@@ -19,6 +19,7 @@ import {
     Stethoscope,
     Megaphone,
     MessageSquare,
+    Send,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useEffect, useState } from "react";
@@ -59,6 +60,7 @@ const iconMap: Record<string, LucideIcon> = {
     "Diagnosis List": Stethoscope,
     Posts: Megaphone,
     "Bulletin Board": MessageSquare,
+    "Request POS": Send,
     Settings: Settings,
 };
 

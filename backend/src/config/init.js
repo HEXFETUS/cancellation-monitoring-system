@@ -17,6 +17,7 @@ const SERIAL_TABLES = [
     "payout_stations",
     "office_departments",
     "booth_change_requests",
+    "operator_change_requests",
     "diagnosis_list",
     "repair_records",
     "diagnosis_logs",
@@ -497,6 +498,36 @@ async function initDatabase() {
         );
         await client.query(
             "CREATE INDEX IF NOT EXISTS idx_bcr_user ON booth_change_requests(requested_by_user_id)"
+        );
+
+        /* =========================
+           operator_change_requests — operators ask admins to re-assign
+           a POS device's operator_id to themselves (e.g. when a device
+           needs to move between operators). When approved, the device's
+           operator_id is updated; the rest of the device stays put.
+        ========================= */
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS operator_change_requests (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                pos_record_id INTEGER NOT NULL REFERENCES pos_records(id) ON DELETE CASCADE,
+                status VARCHAR(20) NOT NULL DEFAULT 'pending'
+                    CHECK (status IN ('pending', 'approved', 'rejected', 'cancelled')),
+                reason TEXT,
+                decided_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                decided_at TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        await client.query(
+            "CREATE INDEX IF NOT EXISTS idx_ocr_status ON operator_change_requests(status)"
+        );
+        await client.query(
+            "CREATE INDEX IF NOT EXISTS idx_ocr_user ON operator_change_requests(user_id)"
+        );
+        await client.query(
+            "CREATE INDEX IF NOT EXISTS idx_ocr_pos ON operator_change_requests(pos_record_id)"
         );
 
         /* =========================

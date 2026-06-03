@@ -8,6 +8,21 @@ const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 const teal = "#92C7CF";
 const tealLight = "#AAD7D9";
 
+/**
+ * Derive the area from a booth code prefix. Mirrors the logic used in the
+ * backend (see booth-change-request.routes.js):
+ *   - MOE-/MOW- → MISOR
+ *   - CDO-      → CDO
+ *   - any other → Unassigned
+ */
+function deriveArea(boothCode: string | null | undefined): string {
+    const code = String(boothCode || "").trim().toUpperCase();
+    if (!code) return "Unassigned";
+    if (code.startsWith("MOE-") || code.startsWith("MOW-")) return "MISOR";
+    if (code.startsWith("CDO-")) return "CDO";
+    return "Unassigned";
+}
+
 interface Me {
     id: number;
     operator_id: number | null;
@@ -107,7 +122,8 @@ export default function MyOutletsPage() {
                 (b.booth_code || "").toLowerCase().includes(q) ||
                 (b.booth_location || "").toLowerCase().includes(q) ||
                 (b.coordinate || "").toLowerCase().includes(q) ||
-                (b.operator || "").toLowerCase().includes(q)
+                (b.operator || "").toLowerCase().includes(q) ||
+                deriveArea(b.booth_code).toLowerCase().includes(q)
         );
     }, [myBooths, searchQuery]);
 
@@ -188,6 +204,7 @@ export default function MyOutletsPage() {
                             <tr className="border-b border-white/40 bg-gradient-to-r from-[#92C7CF]/10 to-[#AAD7D9]/10">
                                 <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Operator</th>
                                 <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Booth Code</th>
+                                <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Area</th>
                                 <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Coordinate</th>
                                 <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Location</th>
                             </tr>
@@ -195,19 +212,21 @@ export default function MyOutletsPage() {
                         <tbody>
                             {loading ? (
                                 <tr>
-                                    <td colSpan={4} className="px-4 py-10 text-center text-gray-500">Loading...</td>
+                                    <td colSpan={5} className="px-4 py-10 text-center text-gray-500">Loading...</td>
                                 </tr>
                             ) : filteredBooths.length === 0 ? (
                                 <tr>
-                                    <td colSpan={4} className="px-4 py-10 text-center text-gray-500">No outlets assigned to you.</td>
+                                    <td colSpan={5} className="px-4 py-10 text-center text-gray-500">No outlets assigned to you.</td>
                                 </tr>
                             ) : (
                                 filteredBooths.map((booth) => {
                                     const opName = booth.operator || operatorNameMap.get(Number(booth.operator_id)) || "—";
+                                    const area = deriveArea(booth.booth_code);
                                     return (
                                         <tr key={booth.id} className="border-b border-white/30 transition hover:bg-[#92C7CF]/8">
                                             <td className="whitespace-nowrap px-4 py-3 font-medium text-gray-800">{opName}</td>
                                             <td className="whitespace-nowrap px-4 py-3 font-mono text-sm font-medium" style={{ color: teal }}>{booth.booth_code}</td>
+                                            <td className="whitespace-nowrap px-4 py-3 text-gray-700">{area}</td>
                                             <td className="whitespace-nowrap px-4 py-3 text-gray-500">{booth.coordinate || "—"}</td>
                                             <td className="whitespace-nowrap px-4 py-3 text-gray-700">{booth.booth_location || "—"}</td>
                                         </tr>
