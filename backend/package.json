@@ -4,6 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "build": "node --check server.js",
     "dev": "nodemon server.js",
     "test": "vitest --run",
     "test:backend": "vitest --run",
@@ -12,13 +13,7 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "devEngines": {
-    "packageManager": {
-      "name": "pnpm",
-      "version": "11.2.2",
-      "onFail": "download"
-    }
-  },
+  "packageManager": "pnpm@11.2.2",
   "type": "module",
   "dependencies": {
     "bcryptjs": "^3.0.3",
