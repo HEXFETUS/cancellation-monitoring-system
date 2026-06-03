@@ -23,6 +23,8 @@ const LOCATION_CODE: Record<AssetLocation, string> = {
     payout: "PAY",
     drawcourt: "DRW",
     obs: "OBS",
+    staffhouse: "STH",
+    vehicle: "VEH",
 };
 
 /**
