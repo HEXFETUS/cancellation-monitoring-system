@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Wrench, ClipboardList, FileText, ArrowUpRight, Stethoscope } from "lucide-react";
+
+import { Wrench, ClipboardList, FileText, ArrowUpRight, Menu, Stethoscope } from "lucide-react";
 import CsrRepairRequestPage from "./CsrRepairRequestPage";
 import CsrRepairManagementPage from "./CsrRepairManagementPage";
 import CsrRepairLogPage from "./CsrRepairLogPage";

@@ -6,6 +6,7 @@ import { fileURLToPath } from "url";
 import pool from "../config/db.js";
 import { blockRoles } from "../middleware/role-guard.js";
 import { recordActivity } from "../utils/activity-log.js";
+import { syncAssetInventoryFromGoogleSheets } from "../services/googleSheets.service.js";
 
 const router = express.Router();
 
@@ -223,6 +224,38 @@ router.post("/", async (req, res) => {
     } catch (err) {
         console.error("POST /api/assets error:", err.message);
         res.status(500).json({ error: "Failed to create asset" });
+    }
+});
+
+// POST /api/assets/sync-google-sheets
+// One-way sync: pull from Google Sheets into the database. Write-back is
+// disabled while the sheet's column shape and the system enum are still
+// being aligned (Apps Script also returns WRITEBACK_DISABLED on POST).
+router.post("/sync-google-sheets", async (req, res) => {
+    try {
+        const fromGoogleSheets = await syncAssetInventoryFromGoogleSheets();
+
+        await recordActivity(req, {
+            action: "sync",
+            entity: "asset_inventory_google_sheets",
+            summary: "Pulled asset inventory from Google Sheets into the database",
+        });
+
+        // Frontend already reads `from_google_sheets.tabs` for its banner —
+        // keep the same envelope so we don't need to ship a UI change.
+        res.json({
+            spreadsheet_id: fromGoogleSheets.spreadsheet_id,
+            mode: "read-only",
+            rule: "Google Sheet rows are imported into the database. Write-back is disabled while shapes are aligned.",
+            from_google_sheets: fromGoogleSheets,
+            to_google_sheets: null,
+            write_configured: false,
+        });
+    } catch (err) {
+        console.error("POST /api/assets/sync-google-sheets error:", err.message);
+        res.status(500).json({
+            error: err.message || "Failed to sync asset inventory from Google Sheets",
+        });
     }
 });
 
