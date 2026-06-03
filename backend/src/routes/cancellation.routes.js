@@ -114,17 +114,45 @@ function extractRows(payload) {
 }
 
 async function fetchJson(url) {
-    const response = await fetch(url);
-    if (!response.ok) {
-        throw new Error(`Google Sheet request failed with HTTP ${response.status}`);
+    let response;
+    try {
+        response = await fetch(url);
+    } catch (err) {
+        throw new Error(
+            `Could not reach Google Sheet endpoint (${url.host || "GAS"}): ${err.message || err}`
+        );
     }
 
     const text = await response.text();
+
+    if (!response.ok) {
+        const preview = text.slice(0, 200).replace(/\s+/g, " ").trim();
+        throw new Error(
+            `Google Sheet request failed with HTTP ${response.status}${
+                preview ? `: ${preview}` : ""
+            }`
+        );
+    }
+
+    // The GAS endpoint returns HTML (Google sign-in / "Drive: Page not
+    // found") when the deployment is broken or unshared. Surface that
+    // explicitly so the UI doesn't show a useless JSON-parse error.
+    const trimmed = text.trim();
+    if (
+        /^<!doctype html/i.test(trimmed) ||
+        /^<html/i.test(trimmed) ||
+        /<title>/i.test(trimmed)
+    ) {
+        throw new Error(
+            "Google Apps Script returned an HTML page instead of JSON. Check that the deployment URL in CANCELLATION_SHEET_URL (or the hardcoded fallback) is published with 'Anyone with the link' access."
+        );
+    }
+
     try {
         return JSON.parse(text);
     } catch {
         throw new Error(
-            `Google Sheet endpoint did not return JSON rows. It returned: "${text.slice(0, 80)}"`
+            `Google Sheet endpoint did not return JSON rows. It returned: "${text.slice(0, 200)}"`
         );
     }
 }
@@ -743,7 +771,18 @@ router.post("/sync", async (req, res) => {
         });
     } catch (err) {
         await client.query("ROLLBACK").catch(() => { });
-        res.status(500).json({ error: err.message });
+        // Always log so production has a trail. Surface the actual cause to
+        // the UI so the user sees more than the generic "Request failed".
+        console.error("POST /api/cancellation/sync error:", err);
+        const message =
+            err && typeof err.message === "string" && err.message
+                ? err.message
+                : "Failed to sync cancellation summary from Google Sheets";
+        // Treat upstream Google Apps Script failures as a 502 so monitoring
+        // tools can distinguish them from genuine server bugs.
+        const isUpstream =
+            /Google Sheet|Google Apps Script|HTTP \d{3}|did not return JSON/i.test(message);
+        res.status(isUpstream ? 502 : 500).json({ error: message });
     } finally {
         client.release();
     }
@@ -831,7 +870,14 @@ router.post("/sync-date", async (req, res) => {
         });
     } catch (err) {
         await client.query("ROLLBACK").catch(() => { });
-        res.status(500).json({ error: err.message });
+        console.error("POST /api/cancellation/sync-date error:", err);
+        const message =
+            err && typeof err.message === "string" && err.message
+                ? err.message
+                : "Failed to sync cancellation summary for the requested date";
+        const isUpstream =
+            /Google Sheet|Google Apps Script|HTTP \d{3}|did not return JSON/i.test(message);
+        res.status(isUpstream ? 502 : 500).json({ error: message });
     } finally {
         client.release();
     }
