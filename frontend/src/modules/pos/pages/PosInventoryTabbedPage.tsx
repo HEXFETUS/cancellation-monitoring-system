@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Monitor, Activity, RotateCcw, Store, BarChart3, Menu, FileText, GitBranch, ClipboardList } from "lucide-react";
+import { Monitor, Activity, RotateCcw, Store, BarChart3, FileText, GitBranch, ClipboardList } from "lucide-react";
 import AllPosPage from "./AllPosPage";
 import PosStatusPage from "./PosStatusPage";
 import RequestResetPage from "./RequestResetPage";
@@ -28,7 +28,6 @@ const reportSubTabs = [
 export default function PosInventoryTabbedPage() {
     const [activeTab, setActiveTab] = useState("all-pos");
     const [activeReportSubTab, setActiveReportSubTab] = useState("change-device-logs");
-    const [sidebarOpen, setSidebarOpen] = useState(true);
     const [dateFrom, setDateFrom] = useState("");
     const [dateTo, setDateTo] = useState("");
     const [pendingRequestCount, setPendingRequestCount] = useState(0);
@@ -102,82 +101,44 @@ export default function PosInventoryTabbedPage() {
 
     return (
         <div className="flex flex-col gap-6 lg:flex-row lg:gap-8">
-            {/* Left sidebar tabs — collapsible */}
-            <div
-                className={`transition-all duration-300 ${
-                    sidebarOpen
-                        ? "lg:w-60 lg:shrink-0"
-                        : "lg:w-20 lg:shrink-0"
-                }`}
-            >
+            {/* Left sidebar tabs — icons only */}
+            <div className="lg:w-16 lg:shrink-0">
                 <div className="flex gap-2 overflow-x-auto pb-2 lg:flex-col lg:space-y-3 lg:overflow-visible lg:pb-0">
-                    {/* Collapse toggle button — icon only */}
-                    <button
-                        onClick={() => setSidebarOpen((v) => !v)}
-                        className="hidden lg:flex shrink-0 items-center gap-2 rounded-2xl px-4 py-2.5 text-left text-sm font-medium transition-all duration-200 lg:w-full lg:gap-3 lg:px-4 lg:py-3 text-slate-600 hover:bg-white/40 hover:text-slate-800"
-                        title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
-                    >
-                        <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
-                            style={{
-                                background: "rgba(146,199,207,0.12)",
-                                color: teal,
-                            }}
-                        >
-                            <Menu className="h-5 w-5" />
-                        </span>
-                    </button>
                     {leftTabs.map((tab) => {
                         const Icon = tab.icon;
                         const isActive = activeTab === tab.id;
-                        const isCollapsed = !sidebarOpen;
                         return (
                             <button
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id)}
-                                className="flex shrink-0 items-center gap-2 rounded-2xl px-4 py-2.5 text-left text-xs font-sm transition-all duration-200 lg:w-full lg:gap-3 lg:px-3 lg:py-2"
+                                title={tab.label}
+                                aria-label={tab.label}
+                                className="relative flex shrink-0 items-center justify-center rounded-xl transition-all duration-200"
                                 style={{
                                     background: isActive
-                                        ? "rgba(146,199,207,0.15)"
-                                        : "transparent",
-                                    border: isActive
-                                        ? "1px solid rgba(146,199,207,0.25)"
-                                        : "1px solid transparent",
-                                    color: isActive ? "#1F2937" : "#6B7280",
+                                        ? "rgba(146,199,207,0.20)"
+                                        : "rgba(0,0,0,0.03)",
+                                    color: isActive ? teal : "#6B7280",
                                     boxShadow: isActive
-                                        ? "0 2px 8px rgba(146,199,207,0.10)"
+                                        ? "0 2px 8px rgba(146,199,207,0.15)"
                                         : "none",
                                 }}
                                 onMouseEnter={(e) => {
                                     if (!isActive) {
-                                        e.currentTarget.style.background = "rgba(146,199,207,0.06)";
+                                        e.currentTarget.style.background = "rgba(146,199,207,0.10)";
                                     }
                                 }}
                                 onMouseLeave={(e) => {
                                     if (!isActive) {
-                                        e.currentTarget.style.background = "transparent";
+                                        e.currentTarget.style.background = "rgba(0,0,0,0.03)";
                                     }
                                 }}
                             >
-                                <span
-                                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-all duration-300"
-                                    style={{
-                                        background: isActive
-                                            ? "rgba(146,199,207,0.20)"
-                                            : "rgba(0,0,0,0.03)",
-                                        color: isActive ? teal : "#9CA3AF",
-                                    }}
-                                >
-                                    <Icon className="h-5 w-5" />
-                                </span>
-                                <span
-                                    className={`whitespace-nowrap lg:whitespace-normal transition-all duration-200 ${
-                                        isCollapsed ? "hidden" : "inline"
-                                    }`}
-                                >
-                                    {tab.label}
+                                <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl">
+                                    <Icon className="h-4 w-4" />
                                 </span>
                                 {tab.id === "request-reset" && pendingRequestCount > 0 && (
-                                    <span className="ml-auto inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white shadow-sm shadow-red-500/30">
+                                    <span className="absolute -top-1 -right-1 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white shadow-sm shadow-red-500/30">
                                         {pendingRequestCount > 99 ? "99+" : pendingRequestCount}
                                     </span>
                                 )}
