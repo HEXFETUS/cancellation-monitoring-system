@@ -345,45 +345,59 @@ router.post("/update-ticket-reason", async (req, res) => {
             return res.status(400).json({ error: 'reaseon_for_deny must be "FORCE CANCEL" or "HUMAN ERROR"' });
         }
 
-        // 1. Find ticket in Google Sheet to determine the area (CDO or MISOR)
+        // 1. Find ticket in Google Sheet to determine the area (CDO or MISOR).
+        // Sheet failures used to short-circuit the whole request with a 400,
+        // which made the page error every time the GAS endpoint hiccupped.
+        // Now we degrade gracefully: if the lookup fails, we still save to
+        // the DB with a best-guess area and surface the failure as a warning.
         let ticketInfo;
+        let ticketLookupError = null;
         try {
             ticketInfo = await findTicketInSheet(ticket_number);
         } catch (sheetErr) {
-            return res.status(400).json({ error: sheetErr.message });
+            console.error(
+                `update-ticket-reason: sheet lookup failed for ${ticket_number}:`,
+                sheetErr.message
+            );
+            ticketLookupError = sheetErr.message || "Unknown sheet lookup error";
+            ticketInfo = { area: "Unassigned", boothCode: "" };
         }
 
         // 2. Update the reason in the Google Sheet using GAS UPDATE_REASON
         //    This only modifies the REASON FOR DENIED TICKET column in the matched row
-        //    It does NOT add a new transaction row
-        let sheetError = null;
+        //    It does NOT add a new transaction row.
+        //    Skip the sheet write entirely if the lookup already failed —
+        //    we wouldn't know which tab to target.
+        let sheetError = ticketLookupError;
         let sheetSkipped = false;
-        try {
-            const sheetUrl = new URL(GOOGLE_SHEET_URL);
-            const sheetResponse = await fetch(sheetUrl.toString(), {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    type: "UPDATE_REASON",
-                    area: ticketInfo.area,
-                    ticket: ticket_number,
-                    reason_denied_ticket: reaseon_for_deny,
-                }),
-            });
+        if (!ticketLookupError) {
+            try {
+                const sheetUrl = new URL(GOOGLE_SHEET_URL);
+                const sheetResponse = await fetch(sheetUrl.toString(), {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        type: "UPDATE_REASON",
+                        area: ticketInfo.area,
+                        ticket: ticket_number,
+                        reason_denied_ticket: reaseon_for_deny,
+                    }),
+                });
 
-            const sheetResultText = await sheetResponse.text();
-            console.log(`GAS UPDATE_REASON response for ticket ${ticket_number} in ${ticketInfo.area}: ${sheetResultText}`);
+                const sheetResultText = await sheetResponse.text();
+                console.log(`GAS UPDATE_REASON response for ticket ${ticket_number} in ${ticketInfo.area}: ${sheetResultText}`);
 
-            if (sheetResultText.includes("Error") || sheetResultText.includes("❌")) {
-                sheetError = sheetResultText.replace(/[❌⚠️✅]/g, "").trim();
-            } else if (sheetResultText.includes("⏭️")) {
-                // Skipped because reason already set or status is APPROVED
-                sheetSkipped = true;
-                sheetError = sheetResultText.replace(/[❌⚠️✅⏭️]/g, "").trim();
+                if (sheetResultText.includes("Error") || sheetResultText.includes("❌")) {
+                    sheetError = sheetResultText.replace(/[❌⚠️✅]/g, "").trim();
+                } else if (sheetResultText.includes("⏭️")) {
+                    // Skipped because reason already set or status is APPROVED
+                    sheetSkipped = true;
+                    sheetError = sheetResultText.replace(/[❌⚠️✅⏭️]/g, "").trim();
+                }
+            } catch (sheetWriteErr) {
+                console.error(`Failed to update reason in sheet for ticket ${ticket_number}: ${sheetWriteErr.message}`);
+                sheetError = `Failed to update sheet: ${sheetWriteErr.message}`;
             }
-        } catch (sheetWriteErr) {
-            console.error(`Failed to update reason in sheet for ticket ${ticket_number}: ${sheetWriteErr.message}`);
-            sheetError = `Failed to update sheet: ${sheetWriteErr.message}`;
         }
 
         // 3. Format date in Manila timezone
@@ -405,6 +419,15 @@ router.post("/update-ticket-reason", async (req, res) => {
                 area: ticketInfo.area,
                 message: `Ticket "${ticket_number}" found in ${ticketInfo.area}. Reason recorded in database, but sheet update was skipped.`,
                 sheet_warning: sheetError || null,
+            });
+        }
+
+        if (ticketLookupError) {
+            return res.status(201).json({
+                id: result.rows[0].id,
+                area: ticketInfo.area,
+                message: `Reason saved to the database. Sheet lookup did not return a result, so the spreadsheet was not updated.`,
+                sheet_warning: ticketLookupError,
             });
         }
 
