@@ -107,6 +107,25 @@ export async function createBoothInfo(data: {
     return handleResponse<BoothInfo>(response);
 }
 
+export async function updateBoothInfo(
+    id: number,
+    data: {
+        booth_code: string;
+        coordinate?: string;
+        location?: string;
+        operator: string;
+        operator_id?: number | null;
+        changed_by?: string;
+    }
+): Promise<BoothInfo> {
+    const response = await fetch(`${API_BASE}/booth-info/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+    });
+    return handleResponse<BoothInfo>(response);
+}
+
 export async function createPosRecord(data: Partial<Omit<PosRecord, "id" | "created_at" | "updated_at">>): Promise<PosRecord> {
     const response = await fetch(API_BASE, {
         method: "POST",

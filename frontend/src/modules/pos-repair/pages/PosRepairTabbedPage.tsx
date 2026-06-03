@@ -1,10 +1,11 @@
-import { useState } from "react";
-import { Wrench, ClipboardList, BarChart3, FileSearch, Menu, Search } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Wrench, ClipboardList, BarChart3, FileSearch, Search } from "lucide-react";
 import RepairRequestPage from "./RepairRequestPage";
 import RepairManagementPage from "./RepairManagementPage";
 import RepairLogPage from "./RepairLogPage";
 import ReleasedLogPage from "./ReleasedLogPage";
 import DiagnosisListPage from "./DiagnosisListPage";
+import { listRepairRecords } from "../services/repairRecords";
 
 const teal = "#92C7CF";
 
@@ -25,82 +26,78 @@ export default function PosRepairTabbedPage() {
     const [activeSubTab, setActiveSubTab] = useState("repair-logs");
     const [repairLogSearch, setRepairLogSearch] = useState("");
     const [releasedLogSearch, setReleasedLogSearch] = useState("");
-    const [sidebarOpen, setSidebarOpen] = useState(true);
+    const [forCheckingCount, setForCheckingCount] = useState(0);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        const fetchForCheckingCount = async () => {
+            try {
+                const records = await listRepairRecords();
+                const count = records.filter((record) => record.status === "For Repair").length;
+                if (!cancelled) setForCheckingCount(count);
+            } catch {
+                if (!cancelled) setForCheckingCount(0);
+            }
+        };
+
+        fetchForCheckingCount();
+        const interval = window.setInterval(fetchForCheckingCount, 8000);
+        const onVisibility = () => {
+            if (document.visibilityState === "visible") fetchForCheckingCount();
+        };
+        document.addEventListener("visibilitychange", onVisibility);
+
+        return () => {
+            cancelled = true;
+            window.clearInterval(interval);
+            document.removeEventListener("visibilitychange", onVisibility);
+        };
+    }, [activeTab]);
 
     return (
         <div className="flex flex-col gap-6 lg:flex-row lg:gap-8">
-            {/* Left sidebar tabs — collapsible */}
-            <div
-                className={`transition-all duration-300 ${sidebarOpen
-                        ? "lg:w-60 lg:shrink-0"
-                        : "lg:w-20 lg:shrink-0"
-                    }`}
-            >
+            {/* Left sidebar tabs — icons only */}
+            <div className="lg:w-16 lg:shrink-0">
                 <div className="flex gap-2 overflow-x-auto pb-2 lg:flex-col lg:space-y-3 lg:overflow-visible lg:pb-0">
-                    {/* Collapse toggle button — icon only */}
-                    <button
-                        onClick={() => setSidebarOpen((v) => !v)}
-                        className="hidden lg:flex shrink-0 items-center gap-2 rounded-2xl px-4 py-2.5 text-left text-xs font-sm transition-all duration-200 lg:w-full lg:gap-3 lg:px-3 lg:py-2 text-slate-600 hover:bg-white/40 hover:text-slate-800"
-                        title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
-                    >
-                        <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
-                            style={{
-                                background: "rgba(146,199,207,0.12)",
-                                color: teal,
-                            }}
-                        >
-                            <Menu className="h-5 w-5" />
-                        </span>
-                    </button>
                     {leftTabs.map((tab) => {
                         const Icon = tab.icon;
                         const isActive = activeTab === tab.id;
-                        const isCollapsed = !sidebarOpen;
                         return (
                             <button
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id)}
-                                className="flex shrink-0 items-center gap-2 rounded-2xl px-4 py-2.5 text-left text-xs font-sm transition-all duration-200 lg:w-full lg:gap-3 lg:px-3 lg:py-2"
+                                title={tab.label}
+                                aria-label={tab.label}
+                                className="relative flex shrink-0 items-center justify-center rounded-xl transition-all duration-200"
                                 style={{
                                     background: isActive
-                                        ? "rgba(146,199,207,0.15)"
-                                        : "transparent",
-                                    border: isActive
-                                        ? "1px solid rgba(146,199,207,0.25)"
-                                        : "1px solid transparent",
-                                    color: isActive ? "#1F2937" : "#6B7280",
+                                        ? "rgba(146,199,207,0.20)"
+                                        : "rgba(0,0,0,0.03)",
+                                    color: isActive ? teal : "#6B7280",
                                     boxShadow: isActive
-                                        ? "0 2px 8px rgba(146,199,207,0.10)"
+                                        ? "0 2px 8px rgba(146,199,207,0.15)"
                                         : "none",
                                 }}
                                 onMouseEnter={(e) => {
                                     if (!isActive) {
-                                        e.currentTarget.style.background = "rgba(146,199,207,0.06)";
+                                        e.currentTarget.style.background = "rgba(146,199,207,0.10)";
                                     }
                                 }}
                                 onMouseLeave={(e) => {
                                     if (!isActive) {
-                                        e.currentTarget.style.background = "transparent";
+                                        e.currentTarget.style.background = "rgba(0,0,0,0.03)";
                                     }
                                 }}
                             >
-                                <span
-                                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-all duration-300"
-                                    style={{
-                                        background: isActive
-                                            ? "rgba(146,199,207,0.20)"
-                                            : "rgba(0,0,0,0.03)",
-                                        color: isActive ? teal : "#9CA3AF",
-                                    }}
-                                >
-                                    <Icon className="h-5 w-5" />
+                                <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl">
+                                    <Icon className="h-4 w-4" />
                                 </span>
-                                <span
-                                    className={`whitespace-nowrap lg:whitespace-normal transition-all duration-200 ${isCollapsed ? "hidden" : "inline"
-                                        }`}
-                                >
-                                    {tab.label}
-                                </span>
+                                {tab.id === "repair-management" && forCheckingCount > 0 && (
+                                    <span className="absolute -top-1 -right-1 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white shadow-sm shadow-red-500/30">
+                                        {forCheckingCount > 99 ? "99+" : forCheckingCount}
+                                    </span>
+                                )}
                             </button>
                         );
                     })}
