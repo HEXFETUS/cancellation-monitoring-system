@@ -2,7 +2,13 @@ import type { AssetRow } from "../components/AssetTable";
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 
-export type AssetLocation = "office" | "payout" | "drawcourt" | "obs";
+export type AssetLocation =
+    | "office"
+    | "payout"
+    | "drawcourt"
+    | "obs"
+    | "staffhouse"
+    | "vehicle";
 
 /**
  * Wire-format used by the backend (snake_case + ISO dates).
@@ -90,6 +96,37 @@ export async function listAllAssets(): Promise<Array<AssetRow & { location: Asse
     if (!res.ok) throw new Error(await getErrorMessage(res, "Failed to load assets"));
     const data: AssetWire[] = await res.json();
     return data.map(fromWire);
+}
+
+export interface GoogleSheetsSyncSummary {
+    spreadsheet_id: string;
+    mode: "two-way";
+    rule: string;
+    write_configured: boolean;
+    from_google_sheets: {
+        spreadsheet_id: string;
+        tabs: Record<
+            string,
+            {
+                scanned: number;
+                inserted: number;
+                updated: number;
+                skipped: number;
+            }
+        >;
+    };
+    to_google_sheets: unknown | null;
+}
+
+export async function syncAssetInventoryFromGoogleSheets(): Promise<GoogleSheetsSyncSummary> {
+    const res = await fetch(apiUrl("/api/assets/sync-google-sheets"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+    });
+    if (!res.ok) {
+        throw new Error(await getErrorMessage(res, "Failed to sync Google Sheets"));
+    }
+    return res.json();
 }
 
 export async function createAsset(input: AssetInput): Promise<AssetRow> {

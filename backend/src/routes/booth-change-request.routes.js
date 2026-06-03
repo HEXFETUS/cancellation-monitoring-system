@@ -256,17 +256,29 @@ router.post("/:id/approve", async (req, res) => {
         }
         const newBooth = boothResult.rows[0];
 
-        // Validate operator boundary: if device has an operator and new booth's
-        // operator differs, refuse — admin would need to reassign first.
-        if (
-            pos.operator_id &&
-            newBooth.operator_id &&
-            pos.operator_id !== newBooth.operator_id
-        ) {
-            await client.query("ROLLBACK");
-            return res.status(400).json({
-                error: "Cannot approve: requested booth belongs to a different operator",
-            });
+        // Validate operator boundary using the same family rule as the
+        // create endpoint: a sub-operator can ride within its main, and a
+        // main can manage across its subs. Strict equality used to be
+        // enforced here and broke admin approvals as soon as the device's
+        // operator was a sub of the booth's operator (or vice-versa).
+        if (pos.operator_id && newBooth.operator_id) {
+            const familyResult = await client.query(
+                `SELECT id, COALESCE(parent_operator_id, id) AS root_id
+                 FROM operator_list
+                 WHERE id = $1::int OR id = $2::int`,
+                [pos.operator_id, newBooth.operator_id]
+            );
+            const map = new Map(
+                familyResult.rows.map((row) => [Number(row.id), Number(row.root_id)])
+            );
+            const posRoot = map.get(Number(pos.operator_id));
+            const boothRoot = map.get(Number(newBooth.operator_id));
+            if (posRoot != null && boothRoot != null && posRoot !== boothRoot) {
+                await client.query("ROLLBACK");
+                return res.status(400).json({
+                    error: "Cannot approve: requested booth belongs to a different operator",
+                });
+            }
         }
 
         const operatorToSet = newBooth.operator_id || pos.operator_id;
