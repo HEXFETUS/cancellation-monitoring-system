@@ -86,12 +86,6 @@ export default function MyPosPage({ searchQuery: externalSearch = "", refreshKey
         }
     }, [user?.id, filterOperatorId]);
 
-    const handleRefresh = useCallback(async () => {
-        setFilterOperatorId("all");
-        setPage(1);
-        await refreshData();
-    }, [refreshData]);
-
     useEffect(() => {
         refreshData();
     }, [refreshData]);
