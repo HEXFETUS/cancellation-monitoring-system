@@ -21,6 +21,7 @@ import AssetCodingPage from "../../modules/asset-inventory/pages/AssetCodingPage
 import SettingsPage from "../../modules/settings/pages/SettingsPage";
 import BulletinBoardPage from "../../modules/bulletin/pages/BulletinBoardPage";
 import MyPosPage from "../../modules/operator/pages/MyPosPage";
+import MyOutletsPage from "../../modules/operator/pages/MyOutletsPage";
 import CsrTabbedPage from "../../modules/csr/pages/CsrTabbedPage";
 import CsrRepairRequestPage from "../../modules/csr/pages/CsrRepairRequestPage";
 import CsrRepairManagementPage from "../../modules/csr/pages/CsrRepairManagementPage";
@@ -53,6 +54,14 @@ export const router = createBrowserRouter([
                 element: (
                     <RoleGuard allow={["operator"]}>
                         <MyPosPage />
+                    </RoleGuard>
+                ),
+            },
+            {
+                path: "my-outlets",
+                element: (
+                    <RoleGuard allow={["operator"]}>
+                        <MyOutletsPage />
                     </RoleGuard>
                 ),
             },

@@ -40,6 +40,7 @@ import type { LucideIcon } from "lucide-react";
 const iconMap: Record<string, LucideIcon> = {
     Dashboard: LayoutDashboard,
     "My POS": Monitor,
+    "My Outlets": Building2,
     "POS Inventory": Monitor,
     "POS": Monitor,
     "POS Repair": Wrench,
@@ -68,6 +69,8 @@ export default function DashboardLayout() {
     const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
     const [sidebarUser, setSidebarUser] = useState<SidebarUser | null>(authUser);
     const [bulletinUnread, setBulletinUnread] = useState(0);
+    const [pendingBoothRequests, setPendingBoothRequests] = useState(0);
+    const [forCheckingRepairCount, setForCheckingRepairCount] = useState(0);
 
     useEffect(() => {
         setSidebarUser(authUser);
@@ -134,6 +137,81 @@ export default function DashboardLayout() {
         };
     }, [authUser?.id, location.pathname]);
 
+    useEffect(() => {
+        if (!authUser?.id) {
+            setPendingBoothRequests(0);
+            return;
+        }
+        let cancelled = false;
+
+        const fetchPendingBoothRequests = async () => {
+            if (cancelled) return;
+            try {
+                const res = await fetch(`${API_BASE_URL}/api/booth-change-requests?status=pending`);
+                if (!res.ok) return;
+                const data = await res.json();
+                if (!cancelled) {
+                    setPendingBoothRequests(Array.isArray(data) ? data.length : 0);
+                }
+            } catch {
+                // Non-fatal — badge just stays at its previous value.
+            }
+        };
+
+        fetchPendingBoothRequests();
+        const interval = window.setInterval(fetchPendingBoothRequests, 8000);
+        const onVisibility = () => {
+            if (document.visibilityState === "visible") fetchPendingBoothRequests();
+        };
+        document.addEventListener("visibilitychange", onVisibility);
+
+        return () => {
+            cancelled = true;
+            window.clearInterval(interval);
+            document.removeEventListener("visibilitychange", onVisibility);
+        };
+    }, [authUser?.id, location.pathname]);
+
+    useEffect(() => {
+        if (!authUser?.id) {
+            setForCheckingRepairCount(0);
+            return;
+        }
+        let cancelled = false;
+
+        const fetchForCheckingRepairCount = async () => {
+            if (cancelled) return;
+            try {
+                const res = await fetch(`${API_BASE_URL}/api/repair-records`);
+                if (!res.ok) return;
+                const payload = await res.json();
+                const records = Array.isArray(payload) ? payload : payload?.data ?? payload?.rows ?? [];
+                if (!cancelled) {
+                    setForCheckingRepairCount(
+                        Array.isArray(records)
+                            ? records.filter((record) => record?.status === "For Repair").length
+                            : 0
+                    );
+                }
+            } catch {
+                // Non-fatal — badge just stays at its previous value.
+            }
+        };
+
+        fetchForCheckingRepairCount();
+        const interval = window.setInterval(fetchForCheckingRepairCount, 8000);
+        const onVisibility = () => {
+            if (document.visibilityState === "visible") fetchForCheckingRepairCount();
+        };
+        document.addEventListener("visibilitychange", onVisibility);
+
+        return () => {
+            cancelled = true;
+            window.clearInterval(interval);
+            document.removeEventListener("visibilitychange", onVisibility);
+        };
+    }, [authUser?.id, location.pathname]);
+
     const displayName = sidebarUser?.name?.trim() || authUser?.name?.trim() || "User";
     const displayDepartment = sidebarUser?.department?.trim() || authUser?.department?.trim();
     let sidebarDisplayName = displayDepartment
@@ -167,6 +245,7 @@ export default function DashboardLayout() {
         ? [
             { name: "Dashboard", path: "/app/dashboard" },
             { name: "My POS", path: "/app/my-pos" },
+            { name: "My Outlets", path: "/app/my-outlets" },
             { name: "Bulletin Board", path: "/app/bulletin-board" },
             { name: "Settings", path: "/app/settings" },
         ]
@@ -387,8 +466,31 @@ export default function DashboardLayout() {
                                         </span>
                                     )}
 
+                                    {item.name === "POS" && pendingBoothRequests > 0 && (
+                                        <span
+                                            className="ml-auto h-2 w-2 rounded-full"
+                                            style={{
+                                                background: "#EF4444",
+                                                boxShadow: "0 0 8px rgba(239,68,68,0.85)",
+                                            }}
+                                        />
+                                    )}
+
+                                    {item.name === "POS Repair" && forCheckingRepairCount > 0 && (
+                                        <span
+                                            className="ml-auto h-2 w-2 rounded-full"
+                                            style={{
+                                                background: "#EF4444",
+                                                boxShadow: "0 0 8px rgba(239,68,68,0.85)",
+                                            }}
+                                        />
+                                    )}
+
                                     {/* Active dot */}
-                                    {isActive && item.name !== "Bulletin Board" && (
+                                    {isActive &&
+                                        item.name !== "Bulletin Board" &&
+                                        !(item.name === "POS" && pendingBoothRequests > 0) &&
+                                        !(item.name === "POS Repair" && forCheckingRepairCount > 0) && (
                                         <span
                                             className="ml-auto w-1.5 h-1.5 rounded-full"
                                             style={{

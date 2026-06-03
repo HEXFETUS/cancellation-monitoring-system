@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowRightLeft, ChevronLeft, ChevronRight, History, RefreshCw, Search } from "lucide-react";
+import { ArrowRightLeft, ChevronLeft, ChevronRight, History, Monitor, RefreshCw, Search } from "lucide-react";
 import { useAuth } from "../../../context/AuthContext";
 import { fetchPosRecords, fetchBoothInfo, fetchOperators } from "../../pos/services";
 import type { OperatorInfo, PosRecord, BoothInfo } from "../../pos/types";
@@ -7,10 +7,13 @@ import {
     listBoothChangeRequests,
     type BoothChangeRequest,
 } from "../../pos/services/boothChangeRequests";
+import BoothChangeRequestHistory from "../components/BoothChangeRequestHistory";
 import RequestBoothChangeModal from "../components/RequestBoothChangeModal";
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 const PAGE_SIZE = 10;
+const teal = "#92C7CF";
+const tealLight = "#AAD7D9";
 
 interface Me {
     id: number;
@@ -25,6 +28,7 @@ export default function MyPosPage() {
     const [records, setRecords] = useState<PosRecord[]>([]);
     const [booths, setBooths] = useState<BoothInfo[]>([]);
     const [requests, setRequests] = useState<BoothChangeRequest[]>([]);
+    const [pendingRequests, setPendingRequests] = useState<BoothChangeRequest[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [filterOperatorId, setFilterOperatorId] = useState<number | "all">("all");
@@ -34,7 +38,6 @@ export default function MyPosPage() {
     const [requesting, setRequesting] = useState<PosRecord | null>(null);
 
     const handleRefresh = async () => {
-        // Reset all filters back to defaults
         setFilterOperatorId("all");
         setSearchQuery("");
         setPage(1);
@@ -57,7 +60,6 @@ export default function MyPosPage() {
                 : null;
             setMe(meSafe);
 
-            // Build filter params: when a main operator narrows to a sub, send as_operator_id
             const filterParams: Parameters<typeof fetchPosRecords>[0] = {
                 user_id: String(user.id),
             };
@@ -70,16 +72,17 @@ export default function MyPosPage() {
                 filterParams.as_operator_id = String(filterOperatorId);
             }
 
-            const [posData, boothData, reqData, ops] = await Promise.all([
+            const [posData, boothData, reqData, pendingReqData, ops] = await Promise.all([
                 fetchPosRecords(filterParams),
                 fetchBoothInfo(),
                 listBoothChangeRequests({ userId: user.id }),
-                // Operators list — used to build the sub-operator filter dropdown
+                listBoothChangeRequests({ status: "pending" }),
                 fetchOperators().catch(() => [] as OperatorInfo[]),
             ]);
             setRecords(posData);
             setBooths(boothData);
             setRequests(reqData);
+            setPendingRequests(pendingReqData);
             setAllOperators(ops);
         } catch (err) {
             setError(err instanceof Error ? (err instanceof Error ? err.message : String(err)) : "Failed to load");
@@ -93,9 +96,6 @@ export default function MyPosPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user?.id, filterOperatorId]);
 
-    // Resolve the logged-in user's operator profile from either the /api/users/me endpoint
-    // or from the operators list (matched by user_id).
-    // Uses Number() coercion because the APIs return ids as different types (string vs number).
     const myOperator = useMemo(() => {
         const myOpId = me?.operator_id != null ? Number(me.operator_id) : null;
         if (myOpId != null) return allOperators.find((o) => Number(o.id) === myOpId) ?? null;
@@ -105,22 +105,47 @@ export default function MyPosPage() {
     }, [me, allOperators, user?.id]);
 
     const isMainOperator = myOperator !== null && myOperator.parent_operator_id == null;
-    // Automatically detect sub-operators that belong to this main operator
     const myDirectSubs = useMemo(() => {
         if (!isMainOperator || !myOperator) return [] as OperatorInfo[];
         const myId = Number(myOperator.id);
         return allOperators.filter((o) => o.parent_operator_id != null && Number(o.parent_operator_id) === myId);
     }, [isMainOperator, myOperator, allOperators]);
 
-    const pendingByPos = useMemo(() => {
+    const pendingByPosId = useMemo(() => {
         const map = new Map<number, BoothChangeRequest>();
-        for (const r of requests) {
-            if (r.status === "pending") map.set(r.pos_record_id, r);
+        for (const r of pendingRequests) {
+            if ((r.status || "").toLowerCase() === "pending") {
+                map.set(Number(r.pos_record_id), r);
+            }
         }
         return map;
-    }, [requests]);
+    }, [pendingRequests]);
 
-    // Search filter — searches device_no and serial_number across all records
+    const pendingByDeviceNo = useMemo(() => {
+        const map = new Map<string, BoothChangeRequest>();
+        for (const r of pendingRequests) {
+            if ((r.status || "").toLowerCase() === "pending" && r.device_no) {
+                map.set(String(r.device_no).trim(), r);
+            }
+        }
+        return map;
+    }, [pendingRequests]);
+
+    const getPendingRequest = (rec: PosRecord | null) => {
+        if (!rec) return undefined;
+        const deviceNo = String(rec.device_no || "").trim();
+        return (
+            pendingByPosId.get(Number(rec.id)) ||
+            (deviceNo ? pendingByPosId.get(Number(deviceNo)) : undefined) ||
+            (deviceNo ? pendingByDeviceNo.get(deviceNo) : undefined)
+        );
+    };
+
+    const unavailableBoothIds = useMemo(
+        () => pendingRequests.map((r) => Number(r.requested_booth_id)).filter((id) => Number.isFinite(id)),
+        [pendingRequests]
+    );
+
     const searchedRecords = useMemo(() => {
         const q = searchQuery.trim().toLowerCase();
         if (!q) return records;
@@ -131,7 +156,6 @@ export default function MyPosPage() {
         );
     }, [records, searchQuery]);
 
-    // Pagination
     const totalPages = Math.max(1, Math.ceil(searchedRecords.length / PAGE_SIZE));
     const safePage = Math.min(page, totalPages);
     const paginatedRecords = useMemo(
@@ -155,147 +179,200 @@ export default function MyPosPage() {
         return pages;
     }, [totalPages, safePage]);
 
+    const inputStyle = {
+        background: "rgba(255,255,255,0.58)",
+        border: "1px solid rgba(146,199,207,0.28)",
+        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.55)",
+        backdropFilter: "blur(8px)",
+    };
+
     return (
-        <div>
-            <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold text-ink">My POS Devices</h1>
-                    <p className="mt-1 text-sm text-ink-muted">
-                        Devices assigned to you. Request a booth change for any of them below.
-                    </p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                    {/* Search by device no. / serial number */}
-                    <div className="relative">
-                        <Search
-                            size={14}
-                            className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-muted"
-                        />
-                        <input
-                            type="text"
-                            value={searchQuery}
-                            onChange={(e) => {
-                                setSearchQuery(e.target.value);
-                                setPage(1);
+        <div className="w-full max-w-full space-y-5">
+            {/* Header */}
+            <div className="relative rounded-2xl p-5 border border-white/50 backdrop-blur-xl bg-white/30 shadow-lg overflow-hidden">
+                <div
+                    className="absolute -top-10 -right-10 w-40 h-40 rounded-full opacity-15 blur-3xl pointer-events-none"
+                    style={{ background: teal }}
+                />
+                <div className="relative flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                        <div
+                            className="flex h-11 w-11 items-center justify-center rounded-xl shadow-md transition-transform duration-300 hover:scale-110"
+                            style={{
+                                background: `linear-gradient(135deg, ${teal}20, ${tealLight}20)`,
+                                color: teal,
                             }}
-                            placeholder="Search device no. or SN…"
-                            className="w-44 rounded-lg border border-warm bg-card pl-8 pr-3 py-2 text-sm text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal"
-                        />
-                    </div>
-                    {/* Sub-operator filter — automatically populated for main operators */}
-                    {isMainOperator && myDirectSubs.length > 0 && (
-                        <select
-                            value={filterOperatorId === "all" ? "all" : String(filterOperatorId)}
-                            onChange={(e) => {
-                                const v = e.target.value;
-                                setFilterOperatorId(v === "all" ? "all" : Number(v));
-                                setSearchQuery("");
-                                setPage(1);
-                            }}
-                            className="rounded-lg border border-warm bg-card px-3 py-2 text-sm text-ink focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal"
                         >
-                            <option value="all">All devices</option>
-                            {myDirectSubs.map((s) => (
-                                <option key={s.id} value={String(s.id)}>
-                                    {s.operator}
-                                </option>
-                            ))}
-                        </select>
-                    )}
-                    <button
-                        onClick={handleRefresh}
-                        disabled={loading}
-                        className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-warm bg-card px-4 py-2 text-sm font-medium text-ink transition hover:bg-warm/40 disabled:opacity-50"
-                    >
-                        <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
-                        Refresh
-                    </button>
+                            <Monitor className="h-5 w-5" />
+                        </div>
+                        <div>
+                            <h1 className="text-lg font-bold text-gray-800">POS Devices</h1>
+                            <p className="text-sm text-gray-600">Devices assigned to you. Request a booth change for any of them below.</p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        {/* Search */}
+                        <div className="relative">
+                            <Search
+                                size={14}
+                                className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"
+                            />
+                            <input
+                                type="text"
+                                value={searchQuery}
+                                onChange={(e) => {
+                                    setSearchQuery(e.target.value);
+                                    setPage(1);
+                                }}
+                                placeholder="Search device no. or SN…"
+                                className="h-10 w-44 rounded-xl pl-8 pr-3 text-sm text-gray-800 outline-none transition-all duration-200 focus:ring-2 focus:ring-[#92C7CF]/35 focus:border-[#92C7CF]/60 placeholder:text-gray-400"
+                                style={inputStyle}
+                            />
+                        </div>
+                        {/* Sub-operator filter */}
+                        {isMainOperator && myDirectSubs.length > 0 && (
+                            <select
+                                value={filterOperatorId === "all" ? "all" : String(filterOperatorId)}
+                                onChange={(e) => {
+                                    const v = e.target.value;
+                                    setFilterOperatorId(v === "all" ? "all" : Number(v));
+                                    setSearchQuery("");
+                                    setPage(1);
+                                }}
+                                className="h-10 rounded-xl px-3 text-sm text-gray-800 outline-none transition-all duration-200 focus:ring-2 focus:ring-[#92C7CF]/35 focus:border-[#92C7CF]/60"
+                                style={inputStyle}
+                            >
+                                <option value="all">All devices</option>
+                                {myDirectSubs.map((s) => (
+                                    <option key={s.id} value={String(s.id)}>
+                                        {s.operator}
+                                    </option>
+                                ))}
+                            </select>
+                        )}
+                        <button
+                            onClick={handleRefresh}
+                            disabled={loading}
+                            className="group inline-flex h-10 items-center justify-center gap-1.5 rounded-xl px-3.5 text-sm font-medium text-gray-600 transition-all duration-200 hover:bg-white/50 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
+                            style={{
+                                border: "1px solid rgba(146,199,207,0.20)",
+                                background: "rgba(255,255,255,0.25)",
+                                boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
+                            }}
+                        >
+                            <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+                            Refresh
+                        </button>
+                    </div>
                 </div>
             </div>
 
             {error && (
-                <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
-                    {error}
+                <div className="relative rounded-xl border border-red-200/60 bg-red-50/95 backdrop-blur-xl px-4 py-3 text-sm font-medium text-red-700 shadow-lg flex items-center gap-2">
+                    <span>{error}</span>
                 </div>
             )}
 
-            <div className="overflow-x-auto rounded-xl border border-warm bg-card shadow-sm">
-                <table className="w-full text-left text-sm">
-                    <thead>
-                        <tr className="border-b border-warm bg-cream">
-                            <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-ink-muted">Device No.</th>
-                            <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-ink-muted">Serial</th>
-                            <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-ink-muted">Booth</th>
-                            <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-ink-muted">Operator</th>
-                            <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-ink-muted">Status</th>
-                            <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-ink-muted text-right">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {loading ? (
-                            <tr><td colSpan={6} className="px-4 py-10 text-center text-ink-subtle">Loading...</td></tr>
-                        ) : searchedRecords.length === 0 ? (
-                            <tr><td colSpan={6} className="px-4 py-10 text-center text-ink-subtle">No devices match your search.</td></tr>
-                        ) : records.length === 0 ? (
-                            <tr><td colSpan={6} className="px-4 py-10 text-center text-ink-subtle">No POS devices assigned to you yet.</td></tr>
-                        ) : (
-                            paginatedRecords.map((rec) => {
-                                const pending = pendingByPos.get(rec.id);
-                                return (
-                                    <tr key={rec.id} className="border-b border-warm/60 transition hover:bg-cream">
-                                        <td className="whitespace-nowrap px-4 py-3 font-medium text-ink">{rec.device_no}</td>
-                                        <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-ink-muted">{rec.serial_number}</td>
-                                        <td className="whitespace-nowrap px-4 py-3 text-ink">{rec.booth_code || "—"}</td>
-                                        <td className="whitespace-nowrap px-4 py-3 text-ink-muted">{rec.operator || "—"}</td>
-                                        <td className="whitespace-nowrap px-4 py-3 text-ink-muted">{rec.status}</td>
-                                        <td className="whitespace-nowrap px-4 py-3 text-right">
-                                            {pending ? (
-                                                <span className="inline-flex items-center gap-1 rounded-full bg-peach/40 px-2.5 py-0.5 text-xs font-semibold text-ink">
-                                                    Pending: → {pending.requested_booth_code}
+            {/* Table Card */}
+            <div className="relative rounded-2xl border border-white/50 backdrop-blur-xl bg-white/25 shadow-lg overflow-hidden">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm">
+                        <thead>
+                            <tr className="border-b border-white/40 bg-gradient-to-r from-[#92C7CF]/10 to-[#AAD7D9]/10">
+                                <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Device No.</th>
+                                <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Serial</th>
+                                <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Area</th>
+                                <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Booth</th>
+                                <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Operator</th>
+                                <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Status</th>
+                                <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {loading ? (
+                                <tr><td colSpan={7} className="px-4 py-10 text-center text-gray-500">Loading...</td></tr>
+                            ) : searchedRecords.length === 0 ? (
+                                <tr><td colSpan={7} className="px-4 py-10 text-center text-gray-500">No devices match your search.</td></tr>
+                            ) : records.length === 0 ? (
+                                <tr><td colSpan={7} className="px-4 py-10 text-center text-gray-500">No POS devices assigned to you yet.</td></tr>
+                            ) : (
+                                paginatedRecords.map((rec) => {
+                                    const pending = getPendingRequest(rec);
+                                    return (
+                                        <tr key={rec.id} className="border-b border-white/30 transition hover:bg-[#92C7CF]/8">
+                                            <td className="whitespace-nowrap px-4 py-3 font-medium text-gray-800">{rec.device_no}</td>
+                                            <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-gray-500">{rec.serial_number}</td>
+                                            <td className="whitespace-nowrap px-4 py-3 text-gray-700">{rec.area || "—"}</td>
+                                            <td className="whitespace-nowrap px-4 py-3 text-gray-700">{rec.booth_code || "—"}</td>
+                                            <td className="whitespace-nowrap px-4 py-3 text-gray-500">{rec.operator || "—"}</td>
+                                            <td className="whitespace-nowrap px-4 py-3">
+                                                <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${rec.status === "Active"
+                                                    ? "bg-green-100 text-green-700"
+                                                    : "bg-gray-100 text-gray-600"
+                                                    }`}>
+                                                    {rec.status || "—"}
                                                 </span>
-                                            ) : (
+                                            </td>
+                                            <td className="whitespace-nowrap px-4 py-3 text-right">
                                                 <button
-                                                    onClick={() => setRequesting(rec)}
-                                                    className="inline-flex items-center gap-1 rounded-lg bg-teal px-2.5 py-1 text-xs font-medium text-ink transition hover:bg-teal-dark"
+                                                    onClick={() => {
+                                                        if (!pending) setRequesting(rec);
+                                                    }}
+                                                    disabled={!!pending}
+                                                    title={pending ? "This device has a pending booth change request." : undefined}
+                                                    className="group inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium text-gray-700 transition-all duration-200 hover:scale-[1.03] active:scale-[0.97] disabled:cursor-not-allowed disabled:hover:scale-100 disabled:active:scale-100"
+                                                    style={{
+                                                        background: pending
+                                                            ? "rgba(242,215,181,0.60)"
+                                                            : `linear-gradient(135deg, ${teal}30, ${tealLight}20)`,
+                                                        border: pending
+                                                            ? "1px solid rgba(242,215,181,0.80)"
+                                                            : "1px solid rgba(146,199,207,0.30)",
+                                                        opacity: pending ? 0.75 : 1,
+                                                    }}
                                                 >
-                                                    <ArrowRightLeft size={14} />
-                                                    Request Booth Change
+                                                    <ArrowRightLeft size={13} />
+                                                    {pending ? `Pending: ${pending.requested_booth_code || `#${pending.requested_booth_id}`}` : "Request Booth Change"}
                                                 </button>
-                                            )}
-                                        </td>
-                                    </tr>
-                                );
-                            })
-                        )}
-                    </tbody>
-                </table>
+                                            </td>
+                                        </tr>
+                                    );
+                                })
+                            )}
+                        </tbody>
+                    </table>
+                </div>
 
-                {/* Pagination footer — only when data exists and not loading */}
+                {/* Pagination */}
                 {!loading && searchedRecords.length > 0 && (
-                    <div className="flex items-center justify-between border-t border-warm/60 px-4 py-3">
-                        <p className="text-xs text-ink-subtle">
+                    <div className="flex items-center justify-between border-t border-white/40 px-4 py-3">
+                        <p className="text-xs text-gray-500">
                             Showing {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, searchedRecords.length)} of {searchedRecords.length}
                         </p>
                         <div className="flex items-center gap-1">
                             <button
                                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                                 disabled={safePage <= 1}
-                                className="inline-flex items-center justify-center rounded-md p-1.5 text-ink-subtle transition hover:bg-warm/40 disabled:opacity-30 disabled:pointer-events-none"
+                                className="inline-flex items-center justify-center rounded-md p-1.5 text-gray-500 transition hover:bg-white/40 disabled:opacity-30 disabled:pointer-events-none"
                                 aria-label="Previous page"
                             >
                                 <ChevronLeft size={16} />
                             </button>
                             {pageNumbers.map((p, i) =>
                                 p === "..." ? (
-                                    <span key={`ellipsis-${i}`} className="px-1.5 text-xs text-ink-subtle">…</span>
+                                    <span key={`ellipsis-${i}`} className="px-1.5 text-xs text-gray-400">…</span>
                                 ) : (
                                     <button
                                         key={p}
                                         onClick={() => setPage(p)}
                                         className={`inline-flex h-7 w-7 items-center justify-center rounded-md text-xs font-medium transition ${p === safePage
-                                            ? "bg-teal text-ink"
-                                            : "text-ink-subtle hover:bg-warm/40"
+                                            ? "text-white"
+                                            : "text-gray-500 hover:bg-white/40"
                                             }`}
+                                        style={p === safePage ? {
+                                            background: `linear-gradient(135deg, ${teal}, ${tealLight})`,
+                                            boxShadow: `0 2px 8px rgba(146,199,207,0.30)`,
+                                        } : {}}
                                     >
                                         {p}
                                     </button>
@@ -304,7 +381,7 @@ export default function MyPosPage() {
                             <button
                                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                                 disabled={safePage >= totalPages}
-                                className="inline-flex items-center justify-center rounded-md p-1.5 text-ink-subtle transition hover:bg-warm/40 disabled:opacity-30 disabled:pointer-events-none"
+                                className="inline-flex items-center justify-center rounded-md p-1.5 text-gray-500 transition hover:bg-white/40 disabled:opacity-30 disabled:pointer-events-none"
                                 aria-label="Next page"
                             >
                                 <ChevronRight size={16} />
@@ -314,13 +391,17 @@ export default function MyPosPage() {
                 )}
             </div>
 
-            {/* Request history */}
-            <div className="mt-8">
-                <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-ink">
-                    <History size={16} />
-                    My Booth Change Requests
-                </h2>
-                <RequestHistoryList requests={requests} onChanged={refresh} userId={user?.id ?? null} />
+            {/* Request History */}
+            <div className="relative rounded-2xl border border-white/50 backdrop-blur-xl bg-white/25 shadow-lg overflow-hidden">
+                <div className="border-b border-white/40 px-5 py-3">
+                    <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-800">
+                        <History size={16} />
+                        My Booth Change Requests
+                    </h2>
+                </div>
+                <div className="p-5">
+                    <BoothChangeRequestHistory requests={requests} onChanged={refresh} userId={user?.id ?? null} />
+                </div>
             </div>
 
             <RequestBoothChangeModal
@@ -328,6 +409,8 @@ export default function MyPosPage() {
                 posRecord={requesting}
                 booths={booths}
                 operators={allOperators}
+                unavailableBoothIds={unavailableBoothIds}
+                hasPendingRequest={!!getPendingRequest(requesting)}
                 onClose={() => setRequesting(null)}
                 onSubmitted={async () => {
                     setRequesting(null);
@@ -335,67 +418,5 @@ export default function MyPosPage() {
                 }}
             />
         </div>
-    );
-}
-
-function RequestHistoryList({
-    requests,
-    onChanged,
-    userId,
-}: {
-    requests: BoothChangeRequest[];
-    onChanged: () => Promise<void>;
-    userId: number | null;
-}) {
-    if (requests.length === 0) {
-        return (
-            <p className="rounded-lg border border-dashed border-warm bg-cream/50 px-3 py-4 text-center text-sm text-ink-subtle">
-                You haven't submitted any requests yet.
-            </p>
-        );
-    }
-    return (
-        <div className="overflow-x-auto rounded-xl border border-warm bg-card shadow-sm">
-            <table className="w-full text-left text-sm">
-                <thead>
-                    <tr className="border-b border-warm bg-cream">
-                        <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-ink-muted">Device</th>
-                        <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-ink-muted">From</th>
-                        <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-ink-muted">To</th>
-                        <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-ink-muted">Reason</th>
-                        <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-ink-muted">Status</th>
-                        <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-ink-muted">Submitted</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {requests.map((r) => (
-                        <tr key={r.id} className="border-b border-warm/60">
-                            <td className="whitespace-nowrap px-4 py-3 font-medium text-ink">{r.device_no || `POS #${r.pos_record_id}`}</td>
-                            <td className="whitespace-nowrap px-4 py-3 text-ink-muted">{r.current_booth_code || "—"}</td>
-                            <td className="whitespace-nowrap px-4 py-3 text-ink">{r.requested_booth_code || `#${r.requested_booth_id}`}</td>
-                            <td className="px-4 py-3 text-ink-muted">{r.reason || "—"}</td>
-                            <td className="whitespace-nowrap px-4 py-3"><StatusPill status={r.status} /></td>
-                            <td className="whitespace-nowrap px-4 py-3 text-xs text-ink-subtle">{new Date(r.created_at).toLocaleString()}</td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
-            {/* userId is captured for future "cancel" UI on this same screen if you want it later */}
-            <input type="hidden" value={userId ?? ""} onChange={() => onChanged()} />
-        </div>
-    );
-}
-
-function StatusPill({ status }: { status: BoothChangeRequest["status"] }) {
-    const colorMap: Record<BoothChangeRequest["status"], string> = {
-        pending: "bg-peach/40 text-ink",
-        approved: "bg-teal-light/60 text-ink",
-        rejected: "bg-rose/40 text-ink",
-        cancelled: "bg-warm text-ink-muted",
-    };
-    return (
-        <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide ${colorMap[status]}`}>
-            {status}
-        </span>
     );
 }
