@@ -518,6 +518,30 @@ async function initDatabase() {
             );
         `);
         await client.query(
+            "ALTER TABLE booth_change_requests ADD COLUMN IF NOT EXISTS pos_record_id INTEGER REFERENCES pos_records(id) ON DELETE CASCADE"
+        );
+        await client.query(
+            "ALTER TABLE booth_change_requests ADD COLUMN IF NOT EXISTS requested_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL"
+        );
+        await client.query(
+            "ALTER TABLE booth_change_requests ADD COLUMN IF NOT EXISTS requested_booth_id INTEGER REFERENCES booth_info(id) ON DELETE RESTRICT"
+        );
+        await client.query("ALTER TABLE booth_change_requests ADD COLUMN IF NOT EXISTS reason TEXT");
+        await client.query(
+            "ALTER TABLE booth_change_requests ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'pending'"
+        );
+        await client.query(
+            "ALTER TABLE booth_change_requests ADD COLUMN IF NOT EXISTS admin_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL"
+        );
+        await client.query("ALTER TABLE booth_change_requests ADD COLUMN IF NOT EXISTS admin_notes TEXT");
+        await client.query("ALTER TABLE booth_change_requests ADD COLUMN IF NOT EXISTS decided_at TIMESTAMP");
+        await client.query(
+            "ALTER TABLE booth_change_requests ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        );
+        await client.query(
+            "ALTER TABLE booth_change_requests ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        );
+        await client.query(
             "CREATE INDEX IF NOT EXISTS idx_bcr_status ON booth_change_requests(status)"
         );
         await client.query(
@@ -544,6 +568,26 @@ async function initDatabase() {
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         `);
+        await client.query(
+            "ALTER TABLE operator_change_requests ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE CASCADE"
+        );
+        await client.query(
+            "ALTER TABLE operator_change_requests ADD COLUMN IF NOT EXISTS pos_record_id INTEGER REFERENCES pos_records(id) ON DELETE CASCADE"
+        );
+        await client.query(
+            "ALTER TABLE operator_change_requests ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'pending'"
+        );
+        await client.query("ALTER TABLE operator_change_requests ADD COLUMN IF NOT EXISTS reason TEXT");
+        await client.query(
+            "ALTER TABLE operator_change_requests ADD COLUMN IF NOT EXISTS decided_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL"
+        );
+        await client.query("ALTER TABLE operator_change_requests ADD COLUMN IF NOT EXISTS decided_at TIMESTAMP");
+        await client.query(
+            "ALTER TABLE operator_change_requests ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        );
+        await client.query(
+            "ALTER TABLE operator_change_requests ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        );
         await client.query(
             "CREATE INDEX IF NOT EXISTS idx_ocr_status ON operator_change_requests(status)"
         );
@@ -580,6 +624,31 @@ async function initDatabase() {
         /* =========================
            diagnosis_logs — final diagnosis audit trail for POS repair
         ========================= */
+        await client.query("ALTER TABLE repair_records ADD COLUMN IF NOT EXISTS date DATE");
+        await client.query(
+            "ALTER TABLE repair_records ADD COLUMN IF NOT EXISTS pos_record_id INTEGER REFERENCES pos_records(id) ON DELETE SET NULL"
+        );
+        await client.query("ALTER TABLE repair_records ADD COLUMN IF NOT EXISTS ntc BOOLEAN DEFAULT false");
+        await client.query(
+            "ALTER TABLE repair_records ADD COLUMN IF NOT EXISTS operator_id INTEGER REFERENCES operator_list(id) ON DELETE SET NULL"
+        );
+        await client.query(
+            "ALTER TABLE repair_records ADD COLUMN IF NOT EXISTS diagnosis_id INTEGER REFERENCES diagnosis_list(id) ON DELETE SET NULL"
+        );
+        await client.query("ALTER TABLE repair_records ADD COLUMN IF NOT EXISTS delivered_by VARCHAR(255)");
+        await client.query("ALTER TABLE repair_records ADD COLUMN IF NOT EXISTS with_charger BOOLEAN DEFAULT false");
+        await client.query("ALTER TABLE repair_records ADD COLUMN IF NOT EXISTS with_box BOOLEAN DEFAULT false");
+        await client.query("ALTER TABLE repair_records ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'Pending'");
+        await client.query("ALTER TABLE repair_records ADD COLUMN IF NOT EXISTS forwarded BOOLEAN DEFAULT false");
+        await client.query("ALTER TABLE repair_records ADD COLUMN IF NOT EXISTS released BOOLEAN DEFAULT false");
+        await client.query("ALTER TABLE repair_records ADD COLUMN IF NOT EXISTS re_repair BOOLEAN DEFAULT false");
+        await client.query(
+            "ALTER TABLE repair_records ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        );
+        await client.query(
+            "ALTER TABLE repair_records ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        );
+
         await client.query(`
             CREATE TABLE IF NOT EXISTS diagnosis_logs (
                 id SERIAL PRIMARY KEY,

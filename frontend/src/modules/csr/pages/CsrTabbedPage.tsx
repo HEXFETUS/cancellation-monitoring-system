@@ -23,8 +23,6 @@ export default function CsrTabbedPage() {
         <div className="flex flex-col gap-6 lg:flex-row lg:gap-8">
             {/* Left sidebar tabs — icons only */}
             <div className="lg:w-16 lg:shrink-0">
-            {/* Left sidebar tabs — icons only */}
-            <div className="lg:w-16 lg:shrink-0">
                 <div className="flex gap-2 overflow-x-auto pb-2 lg:flex-col lg:space-y-3 lg:overflow-visible lg:pb-0">
                     {leftTabs.map((tab) => {
                         const Icon = tab.icon;
@@ -35,41 +33,28 @@ export default function CsrTabbedPage() {
                                 onClick={() => setActiveTab(tab.id)}
                                 title={tab.label}
                                 aria-label={tab.label}
-                                className="flex shrink-0 items-center justify-center rounded-xl transition-all duration-200"
-                                title={tab.label}
-                                aria-label={tab.label}
-                                className="flex shrink-0 items-center justify-center rounded-xl transition-all duration-200"
+                                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-all duration-200"
                                 style={{
                                     background: isActive
                                         ? "rgba(146,199,207,0.20)"
                                         : "rgba(0,0,0,0.03)",
                                     color: isActive ? teal : "#6B7280",
-                                        ? "rgba(146,199,207,0.20)"
-                                        : "rgba(0,0,0,0.03)",
-                                    color: isActive ? teal : "#6B7280",
                                     boxShadow: isActive
-                                        ? "0 2px 8px rgba(146,199,207,0.15)"
                                         ? "0 2px 8px rgba(146,199,207,0.15)"
                                         : "none",
                                 }}
                                 onMouseEnter={(e) => {
                                     if (!isActive) {
                                         e.currentTarget.style.background = "rgba(146,199,207,0.10)";
-                                        e.currentTarget.style.background = "rgba(146,199,207,0.10)";
                                     }
                                 }}
                                 onMouseLeave={(e) => {
                                     if (!isActive) {
                                         e.currentTarget.style.background = "rgba(0,0,0,0.03)";
-                                        e.currentTarget.style.background = "rgba(0,0,0,0.03)";
                                     }
                                 }}
                             >
-                                <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl">
-                                    <Icon className="h-4 w-4" />
-                                <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl">
-                                    <Icon className="h-4 w-4" />
-                                </span>
+                                <Icon className="h-4 w-4" />
                             </button>
                         );
                     })}
@@ -87,4 +72,3 @@ export default function CsrTabbedPage() {
         </div>
     );
 }
-
