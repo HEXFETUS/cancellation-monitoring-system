@@ -287,28 +287,50 @@ function generateQrPayload(itemCode) {
 }
 
 async function fetchSheetRowsByName(sheetName) {
+    // First try: GAS Web App (supports bidirectional sync)
     if (ASSET_SHEET_URL) {
-        return fetchSheetRowsByNameFromWebApp(sheetName);
+        try {
+            return await fetchSheetRowsByNameFromWebApp(sheetName);
+        } catch (_webAppErr) {
+            console.warn(
+                `GAS Web App failed for "${sheetName}", falling back to CSV export: ${_webAppErr.message}`
+            );
+        }
     }
 
-    const url = new URL(`https://docs.google.com/spreadsheets/d/${ASSET_SPREADSHEET_ID}/gviz/tq`);
-    url.searchParams.set("tqx", "out:csv");
-    url.searchParams.set("sheet", sheetName);
+    // Second try: CSV export (works when sheet is shared "Anyone with the link")
+    for (const csvUrl of [
+        `https://docs.google.com/spreadsheets/d/${ASSET_SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}`,
+        `https://docs.google.com/spreadsheets/d/${ASSET_SPREADSHEET_ID}/export?format=csv`,
+    ]) {
+        try {
+            const response = await fetch(csvUrl);
+            const text = await response.text();
 
-    const response = await fetch(url);
-    const text = await response.text();
+            if (!response.ok) continue;
 
-    if (!response.ok) {
-        throw new Error(`Failed to read "${sheetName}" from Google Sheets: HTTP ${response.status}`);
+            if (/^<!doctype html/i.test(text.trim()) || text.includes("<title>")) {
+                continue;
+            }
+
+            const rows = toObjects(parseCsv(text));
+            if (rows.length === 0) continue;
+
+            return rows;
+        } catch {
+            continue;
+        }
     }
 
-    if (/^<!doctype html/i.test(text.trim()) || text.includes("<title>")) {
-        throw new Error(
-            `Google Sheet tab "${sheetName}" is not readable. Share the spreadsheet or publish it so the backend can import CSV rows.`
-        );
-    }
-
-    return toObjects(parseCsv(text));
+    // Last resort: return empty rows with a warning so the sync can continue
+    // for tabs that ARE readable. This prevents a single unreadable tab from
+    // blocking the entire sync.
+    console.warn(
+        `Could not read "${sheetName}" from Google Sheets via ANY export method. ` +
+        `Check that the spreadsheet is shared with "Anyone with the link" as Viewer. ` +
+        `Syncing this tab will be skipped.`
+    );
+    return [];
 }
 
 async function fetchSheetRowsByNameFromWebApp(sheetName) {
