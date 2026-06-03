@@ -2,7 +2,13 @@ import type { AssetRow } from "../components/AssetTable";
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 
-export type AssetLocation = "office" | "payout" | "drawcourt" | "obs";
+export type AssetLocation =
+    | "office"
+    | "payout"
+    | "drawcourt"
+    | "obs"
+    | "staffhouse"
+    | "vehicle";
 
 /**
  * Wire-format used by the backend (snake_case + ISO dates).

@@ -315,13 +315,13 @@ async function initDatabase() {
         /* =========================
            assets — Asset Inventory
            One row per physical asset record. The "location" column
-           groups by section (office/payout/drawcourt/obs) so the same
-           table can power all four pages.
+           groups by section (office/payout/drawcourt/obs/staffhouse/vehicle)
+           so the same table can power all the section pages.
         ========================= */
         await client.query(`
             CREATE TABLE IF NOT EXISTS assets (
                 id SERIAL PRIMARY KEY,
-                location VARCHAR(50) NOT NULL CHECK (location IN ('office', 'payout', 'drawcourt', 'obs')),
+                location VARCHAR(50) NOT NULL CHECK (location IN ('office', 'payout', 'drawcourt', 'obs', 'staffhouse', 'vehicle')),
                 item_description VARCHAR(255) NOT NULL,
                 type VARCHAR(100),
                 serial_number VARCHAR(255),
@@ -344,6 +344,30 @@ async function initDatabase() {
         await client.query(
             "CREATE INDEX IF NOT EXISTS idx_assets_location ON assets(location)"
         );
+
+        // Migrate existing assets.location CHECK constraint to add the new
+        // canonical values 'staffhouse' and 'vehicle'. Drops whatever check
+        // constraint Postgres auto-named for the column and re-adds the
+        // wider list. Idempotent — safe to run on fresh and existing DBs.
+        await client.query(`
+            DO $$
+            DECLARE constraint_name TEXT;
+            BEGIN
+                SELECT con.conname INTO constraint_name
+                FROM pg_constraint con
+                JOIN pg_class tbl ON tbl.oid = con.conrelid
+                WHERE tbl.relname = 'assets'
+                  AND con.contype = 'c'
+                  AND pg_get_constraintdef(con.oid) ILIKE '%location%';
+
+                IF constraint_name IS NOT NULL THEN
+                    EXECUTE format('ALTER TABLE assets DROP CONSTRAINT %I', constraint_name);
+                END IF;
+
+                ALTER TABLE assets ADD CONSTRAINT assets_location_check
+                    CHECK (location IN ('office', 'payout', 'drawcourt', 'obs', 'staffhouse', 'vehicle'));
+            END $$;
+        `);
 
         /* =========================
            asset_codes — the master "Asset Coding" registry.

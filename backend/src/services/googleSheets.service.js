@@ -12,7 +12,14 @@ export const ASSET_SPREADSHEET_URL =
     process.env.ASSET_INVENTORY_SPREADSHEET_URL ||
     `https://docs.google.com/spreadsheets/d/${ASSET_SPREADSHEET_ID}/edit`;
 
-export const ASSET_LOCATIONS = new Set(["office", "payout", "drawcourt", "obs"]);
+export const ASSET_LOCATIONS = new Set([
+    "office",
+    "payout",
+    "drawcourt",
+    "obs",
+    "staffhouse",
+    "vehicle",
+]);
 
 export const ASSET_SHEET_NAMES = {
     assets: "Inventory - Asset",
@@ -243,12 +250,34 @@ function parseDateOrNull(value) {
 function parseLocation(value) {
     const normalized = String(value || "").trim().toLowerCase();
     if (!normalized) return null;
+
+    // Direct enum hit first (cheap path).
     if (ASSET_LOCATIONS.has(normalized)) return normalized;
-    if (normalized.includes("office")) return "office";
-    if (normalized.includes("payout")) return "payout";
-    if (normalized.includes("draw")) return "drawcourt";
+
+    // Fuzzy matching for the verbose strings that show up in the spreadsheet
+    // (e.g. "MAIN OFFICE", "OBS OFFICE", "PCSO PAYOUT STATION"). Order
+    // matters here: more specific tokens before generic ones, so "obs office"
+    // resolves to "obs" rather than the catch-all "office" branch.
     if (normalized.includes("obs")) return "obs";
+    if (normalized.includes("draw")) return "drawcourt";
+    if (normalized.includes("payout") || normalized.includes("pcso")) return "payout";
+    if (normalized.includes("staff")) return "staffhouse";
+    if (normalized.includes("vehicle") || normalized.includes("car")) return "vehicle";
+    if (normalized.includes("office")) return "office";
     return null;
+}
+
+// Asset Coding rows in the Google Sheet are bare descriptions — there's no
+// Item Code column. We mint one server-side that's stable per (description, id)
+// pair so re-runs don't churn through duplicates. Format keeps a short prefix
+// and zero-padded counter for readability on stickers.
+function buildSyntheticItemCode(prefix, sequence) {
+    const safePrefix = String(prefix || "ITEM")
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, "")
+        .slice(0, 4) || "ITEM";
+    const numeric = String(sequence).padStart(4, "0");
+    return `${safePrefix}-${numeric}`;
 }
 
 function generateQrPayload(itemCode) {
@@ -569,7 +598,15 @@ function sheetAssetToDbRow(row) {
     const location = parseLocation(pick(row, ["Location", "Area", "Section"]));
     const itemDescription = pick(row, ["Item Description", "Description", "Item", "Asset"]);
     const quantity = Math.max(1, parseInteger(pick(row, ["Quantity", "Qty"]), 1));
-    const purchasePrice = parseNumber(pick(row, ["Purchase Price", "Price", "Cost"]), 0);
+    const purchasePrice = parseNumber(
+        pick(row, [
+            "Purchase Price",
+            "Purchase Price Per Item",
+            "Price",
+            "Cost",
+        ]),
+        0
+    );
     const discount = parseNumber(pick(row, ["Discount"]), 0);
     const assetValue =
         pick(row, ["Asset Value", "Value"]) === ""
@@ -577,17 +614,27 @@ function sheetAssetToDbRow(row) {
             : parseNumber(pick(row, ["Asset Value", "Value"]), 0);
 
     return {
-        id: parseId(pick(row, ["ID", "Asset ID"])),
+        id: parseId(pick(row, ["ID", "Asset ID", "Purchase No", "No"])),
         location,
         item_description: itemDescription,
         type: pick(row, ["Type", "Category"]) || null,
-        serial_number: pick(row, ["Serial Number", "Serial No", "Serial"]) || null,
+        serial_number:
+            pick(row, ["Serial Number", "Serial No", "Serial No.", "Serial"]) || null,
         department: pick(row, ["Department"]) || null,
         space: pick(row, ["Space", "Sub Location", "Sub-Location", "Room"]) || null,
-        date_purchase: parseDateOrNull(pick(row, ["Date Purchased", "Date Purchase", "Purchase Date"])),
+        date_purchase: parseDateOrNull(
+            pick(row, [
+                "Date Purchased",
+                "Date Purchase",
+                "Date Of Purchase",
+                "Purchase Date",
+            ])
+        ),
         vendor: pick(row, ["Vendor", "Supplier"]) || null,
         purchase_price: purchasePrice,
-        warranty_date: parseDateOrNull(pick(row, ["Warranty Date", "Warranty"])),
+        warranty_date: parseDateOrNull(
+            pick(row, ["Warranty Date", "Warranty Expiry Date", "Warranty"])
+        ),
         quantity,
         discount,
         asset_value: assetValue,
@@ -604,15 +651,20 @@ function sheetAssetCodeToDbRow(row) {
     const description = pick(row, ["Description", "Item Description", "Item"]);
 
     return {
-        id: parseId(pick(row, ["ID", "Asset Code ID"])),
+        id: parseId(pick(row, ["Asset Code ID"])),
         item_code: itemCode,
         description,
         type: pick(row, ["Type", "Category"]) || null,
         department: pick(row, ["Department"]) || null,
         care_of: pick(row, ["Care Of", "Careof", "Custodian"]) || null,
         space: pick(row, ["Space", "Sub Location", "Sub-Location", "Room"]) || null,
-        qr_payload: pick(row, ["QR Payload", "QR", "QR Code"]) || generateQrPayload(itemCode),
-        asset_id: parseId(pick(row, ["Linked Asset ID", "Asset ID"])),
+        qr_payload: pick(row, ["QR Payload", "QR", "QR Code"]) || null,
+        // Linked-to-asset id is read from the sheet's "ASSET ID" or
+        // "Linked Asset ID" cell. Decoupled from the asset code's own primary
+        // key (which we read separately as "Asset Code ID") so a row that
+        // only carries an ASSET ID doesn't collide with the auto-generated
+        // item_code logic in the upsert.
+        asset_id: parseId(pick(row, ["Linked Asset ID", "Asset ID", "ID"])),
     };
 }
 
@@ -748,11 +800,56 @@ async function upsertAssetFromSheet(client, row) {
     return { inserted: true };
 }
 
+async function nextAvailableItemCode(client) {
+    // Hand out fresh "ITEM-NNNN" identifiers for sheet rows that don't
+    // include an Item Code column. Picks the next number after whatever's
+    // already in the table, so reruns don't fight over the same code. For an
+    // empty table this returns "ITEM-0001".
+    const result = await client.query(
+        `
+        SELECT COALESCE(
+            MAX(NULLIF(regexp_replace(item_code, '[^0-9]', '', 'g'), ''))::int,
+            0
+        ) + 1 AS next
+        FROM asset_codes
+        WHERE item_code ~ '^ITEM-[0-9]+$'
+        `
+    );
+    return buildSyntheticItemCode("ITEM", result.rows[0]?.next || 1);
+}
+
 async function upsertAssetCodeFromSheet(client, row) {
     const assetCode = sheetAssetCodeToDbRow(row);
 
-    if (!assetCode.item_code || !assetCode.description) {
-        return { skipped: true, reason: "Missing item code or description" };
+    if (!assetCode.description) {
+        return { skipped: true, reason: "Missing description" };
+    }
+
+    // Sheet doesn't carry an Item Code column today, so we either reuse an
+    // existing row that matches description+department (idempotent re-runs)
+    // or mint a fresh "ITEM-NNNN" code. Same path covers both cases.
+    if (!assetCode.item_code) {
+        const existing = await client.query(
+            `
+            SELECT item_code
+            FROM asset_codes
+            WHERE LOWER(description) = LOWER($1)
+              AND COALESCE(LOWER(department), '') = COALESCE(LOWER($2), '')
+            ORDER BY id ASC
+            LIMIT 1
+            `,
+            [assetCode.description, assetCode.department]
+        );
+
+        if (existing.rows[0]?.item_code) {
+            assetCode.item_code = existing.rows[0].item_code;
+        } else {
+            assetCode.item_code = await nextAvailableItemCode(client);
+        }
+    }
+
+    if (!assetCode.qr_payload) {
+        assetCode.qr_payload = generateQrPayload(assetCode.item_code);
     }
 
     const result = await client.query(

@@ -48,8 +48,8 @@ const SECTIONS: SectionDef[] = [
         children: ["CDO", "WEST", "EAST"],
     },
     { name: "OBS", icon: Camera, location: "obs" },
-    { name: "Staffhouse", icon: Home, location: null },
-    { name: "Vehicle", icon: Car, location: null },
+    { name: "Staffhouse", icon: Home, location: "staffhouse" },
+    { name: "Vehicle", icon: Car, location: "vehicle" },
 ];
 
 const PHP = new Intl.NumberFormat("en-PH", {
@@ -161,11 +161,10 @@ export default function SummaryPage() {
             );
 
             await loadAssets();
-            const writeBackMessage = summary.write_configured
-                ? " Database was written back to Google Sheets."
-                : " Database updated, but Google Sheets write-back needs ASSET_INVENTORY_SHEET_URL.";
+            // Sync is read-only for now; backend always returns
+            // write_configured=false. The banner just summarises the import.
             setSyncMessage(
-                `Synced ${tabTotals.scanned} sheet rows into the database: ${tabTotals.inserted} new, ${tabTotals.updated} updated, ${tabTotals.skipped} skipped.${writeBackMessage}`
+                `Synced ${tabTotals.scanned} sheet rows into the database: ${tabTotals.inserted} new, ${tabTotals.updated} updated, ${tabTotals.skipped} skipped. Write-back is disabled.`
             );
         } catch (err) {
             setError(err instanceof Error ? err.message : "Could not sync Google Sheets");
