@@ -194,6 +194,13 @@ async function initDatabase() {
         // created_at already exists as default, but we add it as an alias for changed_at if missing
         await client.query("ALTER TABLE booth_change_logs ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
         await client.query("ALTER TABLE booth_change_logs ALTER COLUMN pos_record_id DROP NOT NULL");
+        // old_booth_code / new_booth_code must be NULL-able: a freshly activated
+        // device has no old booth, and a device being kicked off its booth
+        // (auto-displaced during an approval) has no new booth. Some legacy
+        // databases created these columns as NOT NULL — relax the constraint
+        // here so the approval flow can write audit rows for the displaced case.
+        await client.query("ALTER TABLE booth_change_logs ALTER COLUMN old_booth_code DROP NOT NULL");
+        await client.query("ALTER TABLE booth_change_logs ALTER COLUMN new_booth_code DROP NOT NULL");
 
         const boothChangeLogColumns = await getTableColumns(client, "booth_change_logs");
 

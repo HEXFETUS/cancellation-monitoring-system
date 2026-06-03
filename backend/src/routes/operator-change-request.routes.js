@@ -152,8 +152,8 @@ router.post("/", async (req, res) => {
 
         const insertRes = await pool.query(
             `INSERT INTO operator_change_requests
-                (user_id, pos_record_id, reason)
-             VALUES ($1, $2, $3)
+                (user_id, pos_record_id, status, reason)
+             VALUES ($1, $2, 'pending', $3)
              RETURNING id`,
             [
                 Number(user_id),

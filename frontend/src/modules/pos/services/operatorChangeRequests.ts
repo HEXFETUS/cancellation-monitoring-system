@@ -60,12 +60,20 @@ export async function listOperatorChangeRequests(params: {
 export async function createOperatorChangeRequest(input: {
     user_id: number;
     pos_record_id: number;
+    status?: OperatorRequestStatus;
     reason?: string;
 }): Promise<OperatorChangeRequest> {
+    // New requests are always created with status "pending" so the admin
+    // queue can pick them up. The backend also defaults to "pending" if
+    // we omit it, but sending it explicitly keeps the contract clear.
+    const payload = {
+        status: "pending" as OperatorRequestStatus,
+        ...input,
+    };
     const res = await fetch(apiUrl("/api/operator-change-requests"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(input),
+        body: JSON.stringify(payload),
     });
     if (!res.ok) throw new Error(await getErrorMessage(res, "Failed to submit request"));
     return await res.json();

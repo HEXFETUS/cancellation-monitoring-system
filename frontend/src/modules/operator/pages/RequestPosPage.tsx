@@ -10,6 +10,7 @@ import {
     type OperatorChangeRequest,
 } from "../../pos/services/operatorChangeRequests";
 import Toast from "../../pos/components/Toast";
+import ConfirmationModal from "../../pos/components/ConfirmationModal";
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 const teal = "#92C7CF";
@@ -37,6 +38,7 @@ export default function RequestPosPage() {
     const [matchedOperator, setMatchedOperator] = useState<OperatorInfo | null>(null);
     const [matchError, setMatchError] = useState("");
     const [submitting, setSubmitting] = useState(false);
+    const [showConfirm, setShowConfirm] = useState(false);
 
     // Toast state
     const [toastOpen, setToastOpen] = useState(false);
@@ -145,6 +147,7 @@ export default function RequestPosPage() {
                 user_id: user.id,
                 pos_record_id: matchedRecord.id,
             });
+            setShowConfirm(false);
             setToastType("success");
             setToastMessage(
                 "Request submitted. The admin will review your request shortly."
@@ -156,6 +159,7 @@ export default function RequestPosPage() {
             setMatchError("");
             await refresh();
         } catch (e) {
+            setShowConfirm(false);
             setToastType("error");
             setToastMessage(
                 e instanceof Error ? e.message : "Failed to submit request"
@@ -350,7 +354,7 @@ export default function RequestPosPage() {
                         ) : (
                             <div className="mt-3 flex items-center gap-2">
                                 <button
-                                    onClick={handleSubmit}
+                                    onClick={() => setShowConfirm(true)}
                                     disabled={submitting}
                                     className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl px-4 text-sm font-semibold text-white transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
                                     style={{
@@ -519,6 +523,47 @@ export default function RequestPosPage() {
                 type={toastType}
                 onClose={() => setToastOpen(false)}
             />
+
+            <ConfirmationModal
+                open={showConfirm && !!matchedRecord}
+                title="Confirm POS Request"
+                message="Are you sure you want to request this POS device to be re-assigned under you? An admin will need to approve it before the change takes effect."
+                confirmLabel="Submit Request"
+                cancelLabel="Cancel"
+                isLoading={submitting}
+                loadingLabel="Submitting..."
+                onCancel={() => {
+                    if (submitting) return;
+                    setShowConfirm(false);
+                }}
+                onConfirm={handleSubmit}
+            >
+                {matchedRecord && (
+                    <>
+                        <div className="flex items-center justify-between px-4 py-2.5">
+                            <span className="text-xs font-medium text-ink-muted uppercase tracking-wider">Device</span>
+                            <span className="text-sm font-semibold text-ink">
+                                {matchedRecord.device_no}
+                                <span className="ml-1 text-xs font-mono font-normal text-ink-muted">
+                                    (SN: {matchedRecord.serial_number || matchedRecord.serial_no || "—"})
+                                </span>
+                            </span>
+                        </div>
+                        <div className="flex items-center justify-between px-4 py-2.5">
+                            <span className="text-xs font-medium text-ink-muted uppercase tracking-wider">From</span>
+                            <span className="text-sm font-semibold text-ink">
+                                {matchedOperator?.operator || "Unassigned"}
+                            </span>
+                        </div>
+                        <div className="flex items-center justify-between px-4 py-2.5">
+                            <span className="text-xs font-medium text-ink-muted uppercase tracking-wider">To</span>
+                            <span className="text-sm font-semibold" style={{ color: teal }}>
+                                {myOperator?.operator || "—"}
+                            </span>
+                        </div>
+                    </>
+                )}
+            </ConfirmationModal>
         </div>
     );
 }
