@@ -1,39 +1,62 @@
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { useAuth } from "../../../context/AuthContext";
-import type { BoothInfo, PosRecord } from "../../pos/types";
+import type { BoothInfo, OperatorInfo, PosRecord } from "../../pos/types";
 import { createBoothChangeRequest } from "../../pos/services/boothChangeRequests";
+import ConfirmationModal from "../../pos/components/ConfirmationModal";
+import Dropdown from "./Dropdown";
 
 interface Props {
     open: boolean;
     posRecord: PosRecord | null;
     booths: BoothInfo[];
+    /**
+     * Full operator list. Used to compute the operator-family root so a
+     * sub-operator can request changes to booths owned by sibling subs or
+     * the parent main, but not to operators in another family.
+     */
+    operators?: OperatorInfo[];
+    unavailableBoothIds?: number[];
+    hasPendingRequest?: boolean;
     onClose: () => void;
     onSubmitted: () => Promise<void>;
+    onError?: (message: string) => void;
 }
 
 export default function RequestBoothChangeModal({
     open,
     posRecord,
     booths,
+    operators = [],
+    unavailableBoothIds = [],
+    hasPendingRequest = false,
     onClose,
     onSubmitted,
+    onError,
 }: Props) {
     const { user } = useAuth();
     const [boothId, setBoothId] = useState<number | null>(null);
     const [reason, setReason] = useState("");
     const [error, setError] = useState("");
     const [saving, setSaving] = useState(false);
+    const [showConfirm, setShowConfirm] = useState(false);
 
     useEffect(() => {
         if (open) {
             setBoothId(null);
             setReason("");
             setError("");
+            setShowConfirm(false);
         }
     }, [open]);
 
-    if (!open || !posRecord) return null;
+    useEffect(() => {
+        if (open && hasPendingRequest) {
+            onClose();
+        }
+    }, [hasPendingRequest, onClose, open]);
+
+    if (!open || !posRecord || hasPendingRequest) return null;
 
     // Derive the device's area from its booth code or from posRecord.area
     const deviceArea = posRecord.area
@@ -46,11 +69,26 @@ export default function RequestBoothChangeModal({
                     : null
             : null;
 
-    // Filter to booths within the same operator AND same area
+    // Build a map of operator_id -> root operator_id (parent or self).
+    // Subs belong to the same family as their parent and siblings.
+    const operatorRoot = (id: number | null | undefined): number | null => {
+        if (id == null) return null;
+        const op = operators.find((o) => Number(o.id) === Number(id));
+        if (!op) return Number(id);
+        return Number(op.parent_operator_id ?? op.id);
+    };
+    const deviceRoot = operatorRoot(posRecord.operator_id ?? null);
+    const unavailableBoothIdSet = new Set(unavailableBoothIds.map(Number));
+
+    // Filter to booths within the same operator FAMILY (main + subs) AND same area
     const availableBooths = booths.filter((b) => {
         if (b.id === posRecord.booth_id) return false;
-        // Same operator check
-        if (posRecord.operator_id && b.operator_id && Number(b.operator_id) !== Number(posRecord.operator_id)) return false;
+        if (unavailableBoothIdSet.has(Number(b.id))) return false;
+        // Same operator-family check (main + all its subs share a root)
+        if (deviceRoot != null && b.operator_id != null) {
+            const boothRoot = operatorRoot(b.operator_id);
+            if (boothRoot != null && boothRoot !== deviceRoot) return false;
+        }
         // Same area check — derive area from booth code if we know the device's area
         if (deviceArea) {
             const boothCode = (b.booth_code || "").trim().toUpperCase();
@@ -80,7 +118,9 @@ export default function RequestBoothChangeModal({
             });
             await onSubmitted();
         } catch (e) {
-            setError(e instanceof Error ? (e instanceof Error ? e.message : String(e)) : "Failed to submit");
+            const message = e instanceof Error ? e.message : "Failed to submit";
+            setError(message);
+            onError?.(message);
         } finally {
             setSaving(false);
         }
@@ -101,6 +141,12 @@ export default function RequestBoothChangeModal({
                 </div>
 
                 <div className="space-y-4 px-6 py-5">
+                    {hasPendingRequest && (
+                        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+                            This device already has a pending booth change request. Please wait for it to be processed.
+                        </div>
+                    )}
+
                     {error && (
                         <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
                             {error}
@@ -124,25 +170,16 @@ export default function RequestBoothChangeModal({
                         <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-muted">
                             Move to Booth *
                         </span>
-                        <select
-                            value={boothId ?? ""}
-                            onChange={(e) =>
-                                setBoothId(e.target.value === "" ? null : Number(e.target.value))
-                            }
-                            className="w-full rounded-lg border border-warm bg-card px-3 py-2 text-sm text-ink focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal"
-                        >
-                            <option value="">Pick a booth</option>
-                            {availableBooths.map((b) => (
-                                <option key={b.id} value={b.id}>
-                                    {b.booth_code} {b.location ? `· ${b.location}` : ""}
-                                </option>
-                            ))}
-                        </select>
-                        {availableBooths.length === 0 && (
-                            <p className="mt-1 text-xs text-ink-subtle">
-                                No alternate booths are available for your operator.
-                            </p>
-                        )}
+                        <Dropdown
+                            value={boothId}
+                            placeholder="Pick a booth"
+                            emptyMessage="No alternate booths are available within your operator family."
+                            onChange={(v) => setBoothId(v)}
+                            options={availableBooths.map((b) => ({
+                                value: b.id,
+                                label: `${b.booth_code}${b.location ? ` · ${b.location}` : ""}`,
+                            }))}
+                        />
                     </label>
 
                     <label className="block">
@@ -170,14 +207,47 @@ export default function RequestBoothChangeModal({
                     </button>
                     <button
                         type="button"
-                        onClick={submit}
-                        disabled={saving || !boothId}
+                        onClick={() => setShowConfirm(true)}
+                        disabled={saving || !boothId || hasPendingRequest}
                         className="rounded-lg bg-teal px-4 py-2 text-sm font-semibold text-ink transition hover:bg-teal-dark disabled:opacity-50"
                     >
                         {saving ? "Submitting..." : "Submit Request"}
                     </button>
                 </div>
             </div>
+
+            {/* Confirmation Modal */}
+            <ConfirmationModal
+                open={showConfirm}
+                title="Confirm Booth Change Request"
+                message="Are you sure you want to submit this booth change request?"
+                confirmLabel="Submit Request"
+                isLoading={saving}
+                loadingLabel="Submitting..."
+                onCancel={() => setShowConfirm(false)}
+                onConfirm={submit}
+            >
+                <div className="flex items-center justify-between px-4 py-2.5">
+                    <span className="text-xs font-medium text-ink-muted uppercase tracking-wider">Device</span>
+                    <span className="text-sm font-semibold text-ink">{posRecord.device_no}</span>
+                </div>
+                <div className="flex items-center justify-between px-4 py-2.5">
+                    <span className="text-xs font-medium text-ink-muted uppercase tracking-wider">From</span>
+                    <span className="text-sm font-semibold text-ink">{posRecord.booth_code || "—"}</span>
+                </div>
+                <div className="flex items-center justify-between px-4 py-2.5">
+                    <span className="text-xs font-medium text-ink-muted uppercase tracking-wider">To</span>
+                    <span className="text-sm font-semibold text-teal">
+                        {booths.find((b) => b.id === boothId)?.booth_code || "—"}
+                    </span>
+                </div>
+                {reason.trim() && (
+                    <div className="flex items-center justify-between px-4 py-2.5">
+                        <span className="text-xs font-medium text-ink-muted uppercase tracking-wider">Reason</span>
+                        <span className="text-sm font-medium text-ink text-right max-w-[200px] truncate">{reason.trim()}</span>
+                    </div>
+                )}
+            </ConfirmationModal>
         </div>
     );
 }

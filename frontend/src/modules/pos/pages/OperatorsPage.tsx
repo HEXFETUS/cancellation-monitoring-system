@@ -113,13 +113,13 @@ export default function OperatorsPage() {
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div className="flex items-center gap-3 ml-auto">
                     <div className="relative w-full sm:w-auto">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle h-4 w-4" />
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle dark:text-gray-500 h-4 w-4" />
                         <input
                             type="text"
                             placeholder="Search operators..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full sm:w-72 rounded-lg border border-warm bg-card py-2 pl-9 pr-3 text-sm text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-1 focus:ring-teal transition-all shadow-sm"
+                            className="w-full sm:w-72 rounded-lg border border-warm dark:border-gray-700 bg-card dark:bg-gray-800/70 py-2 pl-9 pr-3 text-sm text-ink dark:text-gray-100 placeholder:text-ink-subtle dark:placeholder:text-gray-400 focus:border-teal dark:focus:border-teal focus:outline-none focus:ring-1 focus:ring-teal dark:focus:ring-teal/50 transition-all shadow-sm"
                         />
                     </div>
 
@@ -176,10 +176,11 @@ export default function OperatorsPage() {
                                     <td className="px-4 py-3 text-center">
                                         <button
                                             onClick={() => handleView(record)}
-                                            className="inline-flex items-center gap-1.5 rounded-lg border border-warm bg-white px-3 py-1.5 text-xs font-medium text-ink hover:bg-surface transition-colors shadow-sm"
+                                            className="rounded-lg p-1.5 transition-colors hover:bg-blue-50"
+                                            title="View"
+                                            style={{ color: "#2563EB" }}
                                         >
-                                            <Eye size={14} />
-                                            View
+                                            <Eye className="h-4 w-4" />
                                         </button>
                                     </td>
                                 </tr>
@@ -207,7 +208,7 @@ export default function OperatorsPage() {
                         </button>
                         {/* Previous */}
                         <button
-                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                             disabled={currentPage === 1}
                             className="inline-flex items-center gap-1 rounded-lg border border-warm bg-white px-2.5 py-1.5 text-xs font-medium text-ink hover:bg-surface transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
                         >
@@ -222,11 +223,10 @@ export default function OperatorsPage() {
                                 <button
                                     key={page}
                                     onClick={() => setCurrentPage(page)}
-                                    className={`min-w-[32px] rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors shadow-sm ${
-                                        page === currentPage
-                                            ? 'bg-teal text-white'
-                                            : 'border border-warm bg-white text-ink hover:bg-surface'
-                                    }`}
+                                    className={`min-w-[32px] rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors shadow-sm ${page === currentPage
+                                        ? 'bg-teal text-white'
+                                        : 'border border-warm bg-white text-ink hover:bg-surface'
+                                        }`}
                                 >
                                     {page}
                                 </button>
@@ -237,7 +237,7 @@ export default function OperatorsPage() {
                         </div>
                         {/* Next */}
                         <button
-                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                             disabled={currentPage === totalPages}
                             className="inline-flex items-center gap-1 rounded-lg border border-warm bg-white px-2.5 py-1.5 text-xs font-medium text-ink hover:bg-surface transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
                         >

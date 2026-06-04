@@ -1,6 +1,10 @@
 import type { BoothInfo, PosRecord, BoothChangeLog, PosConvertHistory, StatusLog, OperatorInfo } from "../types";
 
-const API_BASE = "/api/pos";
+// Honour VITE_API_URL so the deployed frontend can reach a backend on a
+// different origin (e.g. Render). Empty string locally means relative URLs,
+// which Vite's dev server proxies to 127.0.0.1:5050 transparently.
+const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
+const API_BASE = `${API_BASE_URL}/api/pos`;
 
 async function handleResponse<T>(response: Response): Promise<T> {
     if (!response.ok) {
@@ -101,6 +105,25 @@ export async function createBoothInfo(data: {
 }): Promise<BoothInfo> {
     const response = await fetch(`${API_BASE}/booth-info`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+    });
+    return handleResponse<BoothInfo>(response);
+}
+
+export async function updateBoothInfo(
+    id: number,
+    data: {
+        booth_code: string;
+        coordinate?: string;
+        location?: string;
+        operator: string;
+        operator_id?: number | null;
+        changed_by?: string;
+    }
+): Promise<BoothInfo> {
+    const response = await fetch(`${API_BASE}/booth-info/${id}`, {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
     });

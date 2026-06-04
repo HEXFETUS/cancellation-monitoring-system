@@ -19,6 +19,7 @@ const SCHEMA_DDL = `
         password VARCHAR(255),
         position VARCHAR(255) DEFAULT '',
         department VARCHAR(255) DEFAULT '',
+        profile_picture VARCHAR(500),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -52,6 +53,106 @@ const SCHEMA_DDL = `
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         sticker BOOLEAN DEFAULT false
+    );
+
+    -- repair_records and diagnosis_logs are created by init.js in production
+    -- (see backend/src/config/init.js). The GET /api/pos query LEFT JOINs
+    -- them via a nested LATERAL to surface the latest diagnosis status.
+    -- Tests don't seed rows here, so the LATERAL yields NULL and tests
+    -- continue to assert against the operator/POS shape only.
+    CREATE TABLE diagnosis_list (
+        id SERIAL PRIMARY KEY,
+        diagnosis VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE repair_records (
+        id SERIAL PRIMARY KEY,
+        date DATE NOT NULL,
+        pos_record_id INTEGER REFERENCES pos_records(id) ON DELETE SET NULL,
+        ntc BOOLEAN DEFAULT false,
+        operator_id INTEGER REFERENCES operator_list(id) ON DELETE SET NULL,
+        diagnosis_id INTEGER REFERENCES diagnosis_list(id) ON DELETE SET NULL,
+        delivered_by VARCHAR(255),
+        with_charger BOOLEAN DEFAULT false,
+        with_box BOOLEAN DEFAULT false,
+        status VARCHAR(50) DEFAULT 'Pending',
+        forwarded BOOLEAN DEFAULT false,
+        released BOOLEAN DEFAULT false,
+        re_repair BOOLEAN DEFAULT false,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE diagnosis_logs (
+        id SERIAL PRIMARY KEY,
+        repair_record_id INTEGER NOT NULL REFERENCES repair_records(id) ON DELETE CASCADE,
+        requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        requested_by VARCHAR(255),
+        pos_diagnosis VARCHAR(255),
+        repaired_by VARCHAR(255),
+        remarks TEXT,
+        status VARCHAR(50),
+        forwarded_at TIMESTAMP,
+        returned_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE billing_transmittals (
+        id SERIAL PRIMARY KEY,
+        billing_code VARCHAR(100) NOT NULL,
+        diagnosis_log_id INTEGER REFERENCES diagnosis_logs(id) ON DELETE SET NULL,
+        received_by VARCHAR(255),
+        user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        repair_record_id INTEGER REFERENCES repair_records(id) ON DELETE CASCADE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE released_logs (
+        id SERIAL PRIMARY KEY,
+        billing_transmittal_id INTEGER REFERENCES billing_transmittals(id) ON DELETE SET NULL,
+        repair_record_id INTEGER REFERENCES repair_records(id) ON DELETE CASCADE,
+        user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Bulletin Board chat (group chat). Mirrors the production columns added
+    -- by init.js so any test that touches /api/bulletin or imports the
+    -- bulletin route doesn't trip over a missing column.
+    CREATE TABLE messages (
+        id SERIAL PRIMARY KEY,
+        sender_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        message TEXT NOT NULL,
+        attachment_url TEXT,
+        attachment_urls TEXT DEFAULT '[]',
+        reply TEXT,
+        replied_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        replied_at TIMESTAMP,
+        is_read BOOLEAN DEFAULT false,
+        is_pinned BOOLEAN DEFAULT false,
+        reply_to_id INTEGER REFERENCES messages(id) ON DELETE SET NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE bulletin_read_markers (
+        user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+        last_read_message_id INTEGER NOT NULL DEFAULT 0,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Activity logs (Settings → Activity Logs admin view).
+    CREATE TABLE activity_logs (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        action VARCHAR(50) NOT NULL,
+        entity VARCHAR(64) NOT NULL,
+        entity_id INTEGER,
+        summary VARCHAR(500),
+        details TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 `;
 

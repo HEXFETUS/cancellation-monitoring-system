@@ -17,9 +17,17 @@ const SERIAL_TABLES = [
     "payout_stations",
     "office_departments",
     "booth_change_requests",
+    "operator_change_requests",
+    "diagnosis_list",
     "repair_records",
     "diagnosis_logs",
     "billing_transmittals",
+    "released_logs",
+    "lottery_results",
+    "announcements",
+    "messages",
+    "asset_media",
+    "activity_logs",
 ];
 
 async function syncSerialSequence(client, tableName) {
@@ -71,6 +79,11 @@ async function initDatabase() {
         // Add position and department columns if they don't exist
         await client.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS position VARCHAR(255) DEFAULT ''");
         await client.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS department VARCHAR(255) DEFAULT ''");
+
+        // Profile picture URL (relative path served from /uploads). NULL means
+        // the UI falls back to the default avatar. Stored as a path string so
+        // we keep the existing static-file machinery used by posts/announcements.
+        await client.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_picture VARCHAR(500)");
 
         // Migrate the usertype CHECK constraint to include 'purchaser'.
         // We drop the old (auto-named) constraint if present and re-add with
@@ -181,6 +194,13 @@ async function initDatabase() {
         // created_at already exists as default, but we add it as an alias for changed_at if missing
         await client.query("ALTER TABLE booth_change_logs ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
         await client.query("ALTER TABLE booth_change_logs ALTER COLUMN pos_record_id DROP NOT NULL");
+        // old_booth_code / new_booth_code must be NULL-able: a freshly activated
+        // device has no old booth, and a device being kicked off its booth
+        // (auto-displaced during an approval) has no new booth. Some legacy
+        // databases created these columns as NOT NULL — relax the constraint
+        // here so the approval flow can write audit rows for the displaced case.
+        await client.query("ALTER TABLE booth_change_logs ALTER COLUMN old_booth_code DROP NOT NULL");
+        await client.query("ALTER TABLE booth_change_logs ALTER COLUMN new_booth_code DROP NOT NULL");
 
         const boothChangeLogColumns = await getTableColumns(client, "booth_change_logs");
 
@@ -303,13 +323,13 @@ async function initDatabase() {
         /* =========================
            assets — Asset Inventory
            One row per physical asset record. The "location" column
-           groups by section (office/payout/drawcourt/obs) so the same
-           table can power all four pages.
+           groups by section (office/payout/drawcourt/obs/staffhouse/vehicle)
+           so the same table can power all the section pages.
         ========================= */
         await client.query(`
             CREATE TABLE IF NOT EXISTS assets (
                 id SERIAL PRIMARY KEY,
-                location VARCHAR(50) NOT NULL CHECK (location IN ('office', 'payout', 'drawcourt', 'obs')),
+                location VARCHAR(50) NOT NULL CHECK (location IN ('office', 'payout', 'drawcourt', 'obs', 'staffhouse', 'vehicle')),
                 item_description VARCHAR(255) NOT NULL,
                 type VARCHAR(100),
                 serial_number VARCHAR(255),
@@ -332,6 +352,30 @@ async function initDatabase() {
         await client.query(
             "CREATE INDEX IF NOT EXISTS idx_assets_location ON assets(location)"
         );
+
+        // Migrate existing assets.location CHECK constraint to add the new
+        // canonical values 'staffhouse' and 'vehicle'. Drops whatever check
+        // constraint Postgres auto-named for the column and re-adds the
+        // wider list. Idempotent — safe to run on fresh and existing DBs.
+        await client.query(`
+            DO $$
+            DECLARE constraint_name TEXT;
+            BEGIN
+                SELECT con.conname INTO constraint_name
+                FROM pg_constraint con
+                JOIN pg_class tbl ON tbl.oid = con.conrelid
+                WHERE tbl.relname = 'assets'
+                  AND con.contype = 'c'
+                  AND pg_get_constraintdef(con.oid) ILIKE '%location%';
+
+                IF constraint_name IS NOT NULL THEN
+                    EXECUTE format('ALTER TABLE assets DROP CONSTRAINT %I', constraint_name);
+                END IF;
+
+                ALTER TABLE assets ADD CONSTRAINT assets_location_check
+                    CHECK (location IN ('office', 'payout', 'drawcourt', 'obs', 'staffhouse', 'vehicle'));
+            END $$;
+        `);
 
         /* =========================
            asset_codes — the master "Asset Coding" registry.
@@ -434,7 +478,6 @@ async function initDatabase() {
         await client.query(`
             CREATE TABLE IF NOT EXISTS diagnosis_list (
                 id SERIAL PRIMARY KEY,
-                diagnosis_code VARCHAR(100) UNIQUE NOT NULL,
                 name VARCHAR(255) NOT NULL,
                 description TEXT,
                 active BOOLEAN DEFAULT true,
@@ -447,15 +490,15 @@ async function initDatabase() {
         const diagnosisCount = await client.query("SELECT COUNT(*)::int AS n FROM diagnosis_list");
         if (diagnosisCount.rows[0].n === 0) {
             await client.query(`
-                INSERT INTO diagnosis_list (diagnosis_code, name) VALUES
-                    ('screen-damage', 'Screen Damage'),
-                    ('battery-issue', 'Battery Issue'),
-                    ('printer-malfunction', 'Printer Malfunction'),
-                    ('card-reader-error', 'Card Reader Error'),
-                    ('power-supply', 'Power Supply Issue'),
-                    ('software-error', 'Software Error'),
-                    ('keyboard-issue', 'Keyboard Issue'),
-                    ('other', 'Other');
+                INSERT INTO diagnosis_list (name) VALUES
+                    ('Screen Damage'),
+                    ('Battery Issue'),
+                    ('Printer Malfunction'),
+                    ('Card Reader Error'),
+                    ('Power Supply Issue'),
+                    ('Software Error'),
+                    ('Keyboard Issue'),
+                    ('Other');
             `);
         }
 
@@ -482,10 +525,84 @@ async function initDatabase() {
             );
         `);
         await client.query(
+            "ALTER TABLE booth_change_requests ADD COLUMN IF NOT EXISTS pos_record_id INTEGER REFERENCES pos_records(id) ON DELETE CASCADE"
+        );
+        await client.query(
+            "ALTER TABLE booth_change_requests ADD COLUMN IF NOT EXISTS requested_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL"
+        );
+        await client.query(
+            "ALTER TABLE booth_change_requests ADD COLUMN IF NOT EXISTS requested_booth_id INTEGER REFERENCES booth_info(id) ON DELETE RESTRICT"
+        );
+        await client.query("ALTER TABLE booth_change_requests ADD COLUMN IF NOT EXISTS reason TEXT");
+        await client.query(
+            "ALTER TABLE booth_change_requests ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'pending'"
+        );
+        await client.query(
+            "ALTER TABLE booth_change_requests ADD COLUMN IF NOT EXISTS admin_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL"
+        );
+        await client.query("ALTER TABLE booth_change_requests ADD COLUMN IF NOT EXISTS admin_notes TEXT");
+        await client.query("ALTER TABLE booth_change_requests ADD COLUMN IF NOT EXISTS decided_at TIMESTAMP");
+        await client.query(
+            "ALTER TABLE booth_change_requests ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        );
+        await client.query(
+            "ALTER TABLE booth_change_requests ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        );
+        await client.query(
             "CREATE INDEX IF NOT EXISTS idx_bcr_status ON booth_change_requests(status)"
         );
         await client.query(
             "CREATE INDEX IF NOT EXISTS idx_bcr_user ON booth_change_requests(requested_by_user_id)"
+        );
+
+        /* =========================
+           operator_change_requests — operators ask admins to re-assign
+           a POS device's operator_id to themselves (e.g. when a device
+           needs to move between operators). When approved, the device's
+           operator_id is updated; the rest of the device stays put.
+        ========================= */
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS operator_change_requests (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                pos_record_id INTEGER NOT NULL REFERENCES pos_records(id) ON DELETE CASCADE,
+                status VARCHAR(20) NOT NULL DEFAULT 'pending'
+                    CHECK (status IN ('pending', 'approved', 'rejected', 'cancelled')),
+                reason TEXT,
+                decided_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                decided_at TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        await client.query(
+            "ALTER TABLE operator_change_requests ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE CASCADE"
+        );
+        await client.query(
+            "ALTER TABLE operator_change_requests ADD COLUMN IF NOT EXISTS pos_record_id INTEGER REFERENCES pos_records(id) ON DELETE CASCADE"
+        );
+        await client.query(
+            "ALTER TABLE operator_change_requests ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'pending'"
+        );
+        await client.query("ALTER TABLE operator_change_requests ADD COLUMN IF NOT EXISTS reason TEXT");
+        await client.query(
+            "ALTER TABLE operator_change_requests ADD COLUMN IF NOT EXISTS decided_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL"
+        );
+        await client.query("ALTER TABLE operator_change_requests ADD COLUMN IF NOT EXISTS decided_at TIMESTAMP");
+        await client.query(
+            "ALTER TABLE operator_change_requests ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        );
+        await client.query(
+            "ALTER TABLE operator_change_requests ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        );
+        await client.query(
+            "CREATE INDEX IF NOT EXISTS idx_ocr_status ON operator_change_requests(status)"
+        );
+        await client.query(
+            "CREATE INDEX IF NOT EXISTS idx_ocr_user ON operator_change_requests(user_id)"
+        );
+        await client.query(
+            "CREATE INDEX IF NOT EXISTS idx_ocr_pos ON operator_change_requests(pos_record_id)"
         );
 
         /* =========================
@@ -514,6 +631,31 @@ async function initDatabase() {
         /* =========================
            diagnosis_logs — final diagnosis audit trail for POS repair
         ========================= */
+        await client.query("ALTER TABLE repair_records ADD COLUMN IF NOT EXISTS date DATE");
+        await client.query(
+            "ALTER TABLE repair_records ADD COLUMN IF NOT EXISTS pos_record_id INTEGER REFERENCES pos_records(id) ON DELETE SET NULL"
+        );
+        await client.query("ALTER TABLE repair_records ADD COLUMN IF NOT EXISTS ntc BOOLEAN DEFAULT false");
+        await client.query(
+            "ALTER TABLE repair_records ADD COLUMN IF NOT EXISTS operator_id INTEGER REFERENCES operator_list(id) ON DELETE SET NULL"
+        );
+        await client.query(
+            "ALTER TABLE repair_records ADD COLUMN IF NOT EXISTS diagnosis_id INTEGER REFERENCES diagnosis_list(id) ON DELETE SET NULL"
+        );
+        await client.query("ALTER TABLE repair_records ADD COLUMN IF NOT EXISTS delivered_by VARCHAR(255)");
+        await client.query("ALTER TABLE repair_records ADD COLUMN IF NOT EXISTS with_charger BOOLEAN DEFAULT false");
+        await client.query("ALTER TABLE repair_records ADD COLUMN IF NOT EXISTS with_box BOOLEAN DEFAULT false");
+        await client.query("ALTER TABLE repair_records ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'Pending'");
+        await client.query("ALTER TABLE repair_records ADD COLUMN IF NOT EXISTS forwarded BOOLEAN DEFAULT false");
+        await client.query("ALTER TABLE repair_records ADD COLUMN IF NOT EXISTS released BOOLEAN DEFAULT false");
+        await client.query("ALTER TABLE repair_records ADD COLUMN IF NOT EXISTS re_repair BOOLEAN DEFAULT false");
+        await client.query(
+            "ALTER TABLE repair_records ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        );
+        await client.query(
+            "ALTER TABLE repair_records ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        );
+
         await client.query(`
             CREATE TABLE IF NOT EXISTS diagnosis_logs (
                 id SERIAL PRIMARY KEY,
@@ -553,7 +695,180 @@ async function initDatabase() {
             "ALTER TABLE billing_transmittals ADD COLUMN IF NOT EXISTS repair_record_id INTEGER REFERENCES repair_records(id) ON DELETE CASCADE"
         );
         await client.query(
+            "ALTER TABLE billing_transmittals DROP CONSTRAINT IF EXISTS billing_transmittals_billing_code_key"
+        );
+        await client.query(
+            "DROP INDEX IF EXISTS billing_transmittals_billing_code_key"
+        );
+        await client.query(
             "CREATE INDEX IF NOT EXISTS idx_billing_transmittals_repair_record ON billing_transmittals(repair_record_id)"
+        );
+
+        /* =========================
+           released_logs — final release log for repaired POS
+        ========================= */
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS released_logs (
+                id SERIAL PRIMARY KEY,
+                billing_transmittal_id INTEGER REFERENCES billing_transmittals(id) ON DELETE SET NULL,
+                repair_record_id INTEGER REFERENCES repair_records(id) ON DELETE CASCADE,
+                user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        await client.query(
+            "ALTER TABLE released_logs ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE SET NULL"
+        );
+        await client.query(
+            "CREATE INDEX IF NOT EXISTS idx_released_logs_repair_record ON released_logs(repair_record_id)"
+        );
+        await client.query(
+            "CREATE INDEX IF NOT EXISTS idx_released_logs_user ON released_logs(user_id)"
+        );
+
+        /* =========================
+           lottery_results — CSR-published draw results for the landing page
+        ========================= */
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS lottery_results (
+                id SERIAL PRIMARY KEY,
+                draw_label VARCHAR(255) NOT NULL,
+                winning_number VARCHAR(50) NOT NULL,
+                area VARCHAR(50) NOT NULL CHECK (area IN ('National', 'Local CDO', 'Local MISOR')),
+                draw_date DATE NOT NULL DEFAULT CURRENT_DATE,
+                created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        /* =========================
+           announcements — CSR-published events & news for the landing page
+        ========================= */
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS announcements (
+                id SERIAL PRIMARY KEY,
+                title VARCHAR(255) NOT NULL,
+                caption TEXT,
+                type VARCHAR(20) NOT NULL CHECK (type IN ('event', 'news')),
+                media_urls TEXT DEFAULT '[]',
+                location VARCHAR(255),
+                created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        /* =========================
+           messages — Bulletin Board group chat
+           Originally designed as a user-to-admin DM table; repurposed as the
+           backing store for the shared Bulletin Board chat room. Legacy
+           columns (attachment_url singular, reply/replied_by/replied_at,
+           is_read) are kept intact for backward compatibility but the
+           bulletin routes use the newer columns added below.
+        ========================= */
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS messages (
+                id SERIAL PRIMARY KEY,
+                sender_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                message TEXT NOT NULL,
+                attachment_url TEXT,
+                reply TEXT,
+                replied_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                replied_at TIMESTAMP,
+                is_read BOOLEAN DEFAULT false,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        // Bulletin Board extensions: multiple attachments (JSON array of
+        // /uploads/* paths), pin flag for admin moderation, and a self-
+        // reference for in-thread quote replies. ON DELETE SET NULL on the
+        // reply target so deleting the original doesn't cascade-delete every
+        // reply that quoted it; the UI shows "Original message deleted".
+        await client.query(
+            "ALTER TABLE messages ADD COLUMN IF NOT EXISTS attachment_urls TEXT DEFAULT '[]'"
+        );
+        await client.query(
+            "ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_pinned BOOLEAN DEFAULT false"
+        );
+        await client.query(
+            "ALTER TABLE messages ADD COLUMN IF NOT EXISTS reply_to_id INTEGER REFERENCES messages(id) ON DELETE SET NULL"
+        );
+        await client.query(
+            "CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at)"
+        );
+        await client.query(
+            "CREATE INDEX IF NOT EXISTS idx_messages_reply_to ON messages(reply_to_id)"
+        );
+
+        /* =========================
+           bulletin_read_markers — per-user "last read" pointer for the
+           Bulletin Board feed. Storing the highest seen message id (rather
+           than counts) makes unread computation O(1) and survives message
+           deletions cleanly.
+        ========================= */
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS bulletin_read_markers (
+                user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+                last_read_message_id INTEGER NOT NULL DEFAULT 0,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        /* =========================
+           asset_media — photos and videos attached to an asset record.
+           Populated from the QR-scan flow (purchaser scans a sticker, sees
+           the asset details, attaches a picture/video and updates remarks).
+           Files live under <backend>/src/public/uploads and are referenced
+           by relative URL so the existing /uploads static handler serves
+           them.
+        ========================= */
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS asset_media (
+                id SERIAL PRIMARY KEY,
+                asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+                url TEXT NOT NULL,
+                mime_type VARCHAR(100),
+                uploaded_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                caption TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        await client.query(
+            "CREATE INDEX IF NOT EXISTS idx_asset_media_asset ON asset_media(asset_id)"
+        );
+
+        /* =========================
+           activity_logs — system-wide audit trail of user actions.
+           Populated by every CRUD endpoint that mutates state (users,
+           assets, asset codes, bulletin, posts, ...). The Settings →
+           Activity Logs page reads from this table. Schema is intentionally
+           generic so we don't have to add a column every time we add a new
+           resource: `entity` is a free-form string ('user', 'asset_code',
+           ...) and `details` is a JSON-encoded payload for any extra
+           context. Indexed by created_at so the most common query
+           (recent-first listing) is cheap.
+        ========================= */
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS activity_logs (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                action VARCHAR(50) NOT NULL,
+                entity VARCHAR(64) NOT NULL,
+                entity_id INTEGER,
+                summary VARCHAR(500),
+                details TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        await client.query(
+            "CREATE INDEX IF NOT EXISTS idx_activity_logs_created_at ON activity_logs(created_at)"
+        );
+        await client.query(
+            "CREATE INDEX IF NOT EXISTS idx_activity_logs_user ON activity_logs(user_id)"
+        );
+        await client.query(
+            "CREATE INDEX IF NOT EXISTS idx_activity_logs_entity ON activity_logs(entity)"
         );
 
         for (const tableName of SERIAL_TABLES) {

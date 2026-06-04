@@ -46,6 +46,37 @@ body {
   @apply bg-surface text-ink antialiased;
 }
 
+/* ===== Dark Mode Overrides ===== */
+.dark {
+  --color-surface: #111827;
+  --color-surface-alt: #1F2937;
+  --color-card: rgba(31, 41, 55, 0.80);
+  --color-border-soft: rgba(75, 85, 99, 0.40);
+  --color-ink: #E5E7EB;
+  --color-ink-muted: #9CA3AF;
+  --color-ink-subtle: #6B7280;
+  --color-cream: #1F2937;
+  --color-warm: rgba(75, 85, 99, 0.50);
+}
+
+.dark body {
+  background-color: #111827 !important;
+  color: #E5E7EB !important;
+}
+
+/* Dark mode for modals and overlays */
+.dark [class*="bg-card"],
+.dark [class*="bg-surface"] {
+  background-color: rgba(31, 41, 55, 0.90) !important;
+  border-color: rgba(75, 85, 99, 0.40) !important;
+}
+
+/* Dark mode for toast / notification bars */
+.dark [class*="border-warm"],
+.dark [class*="border-surface-alt"] {
+  border-color: rgba(75, 85, 99, 0.40) !important;
+}
+
 table {
   font-size: 12px;
   line-height: 1.35;

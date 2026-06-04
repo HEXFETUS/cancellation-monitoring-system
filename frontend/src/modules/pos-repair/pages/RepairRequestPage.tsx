@@ -1,18 +1,25 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ClipboardList, Save, RotateCcw, AlertCircle, CheckCircle, X } from "lucide-react";
+import { ClipboardList, Save, RotateCcw } from "lucide-react";
 import { listDiagnoses, type DiagnosisItem } from "../services/diagnosisList";
 import { searchPosRecords, type PosRecord } from "../services/posRecords";
-import { createRepairRecord } from "../services/repairRecords";
-import RepairConfirmationModal from "../components/RepairConfirmationModal";
+import { checkRepairRequestEligibility, createRepairRecord } from "../services/repairRecords";
+import { ConfirmationModal, Toast } from "../../../shared/components";
 
 const teal = "#92C7CF";
 const tealLight = "#AAD7D9";
 
 export default function RepairRequestPage() {
+    const [darkMode, setDarkMode] = useState(() => {
+        return localStorage.getItem("theme") === "dark";
+    });
+
     const [diagnoses, setDiagnoses] = useState<DiagnosisItem[]>([]);
     const [diagnosesLoading, setDiagnosesLoading] = useState(true);
 
     const [posRecordId, setPosRecordId] = useState<number | null>(null);
+    const [selectedPosStatus, setSelectedPosStatus] = useState("");
+    const [posEligibilityError, setPosEligibilityError] = useState("");
+    const [checkingPosEligibility, setCheckingPosEligibility] = useState(false);
     const [diagnosisId, setDiagnosisId] = useState<number | null>(null);
     const [saving, setSaving] = useState(false);
     const [showSaveConfirm, setShowSaveConfirm] = useState(false);
@@ -25,28 +32,30 @@ export default function RepairRequestPage() {
         operator: "",
         diagnosis: "",
         accessories: { ntc: false, withCharger: false, withBox: false },
-        deliveredBy: "",
     });
 
     // Toast state
-    const [toast, setToast] = useState<{ show: boolean; message: string; type: "error" | "success" }>({
-        show: false,
-        message: "",
-        type: "error",
-    });
+    const [toastOpen, setToastOpen] = useState(false);
+    const [toastMessage, setToastMessage] = useState("");
+    const [toastType, setToastType] = useState<"error" | "success">("error");
 
     const showToast = (message: string, type: "error" | "success" = "error") => {
-        setToast({ show: true, message, type });
-        setTimeout(() => setToast({ show: false, message: "", type: "error" }), 4000);
+        setToastMessage(message);
+        setToastType(type);
+        setToastOpen(true);
     };
 
     const hideToast = () => {
-        setToast({ show: false, message: "", type: "error" });
+        setToastOpen(false);
     };
 
     // Validation: check if required fields are filled
     const isFormValid =
-        formData.operator.trim() !== "" && formData.diagnosis.trim() !== "" && formData.deliveredBy.trim() !== "";
+        posRecordId !== null &&
+        formData.operator.trim() !== "" &&
+        formData.diagnosis.trim() !== "" &&
+        !posEligibilityError &&
+        !checkingPosEligibility;
 
     // Autocomplete state
     const [searchResults, setSearchResults] = useState<PosRecord[]>([]);
@@ -92,10 +101,14 @@ export default function RepairRequestPage() {
 
     const handleFieldChange = (field: "serialNumber" | "posNumber", value: string) => {
         handleChange(field, value);
+        setPosRecordId(null);
+        setSelectedPosStatus("");
+        setPosEligibilityError("");
+        setCheckingPosEligibility(false);
         handleSearch(value, field);
     };
 
-    const handleSelectRecord = (record: PosRecord) => {
+    const handleSelectRecord = async (record: PosRecord) => {
         setFormData((prev) => ({
             ...prev,
             serialNumber: record.serial_number || "",
@@ -104,8 +117,33 @@ export default function RepairRequestPage() {
             operator: record.operator || "",
         }));
         setPosRecordId(record.id);
+        setSelectedPosStatus(record.status || "");
+        setPosEligibilityError("");
         setSearchResults([]);
         setActiveDropdown(null);
+
+        if (record.status?.trim().toLowerCase() === "not released") {
+            const message = "The POS is already being repaired";
+            setPosEligibilityError(message);
+            showToast(message);
+            return;
+        }
+
+        setCheckingPosEligibility(true);
+        try {
+            const result = await checkRepairRequestEligibility(record.id);
+            if (!result.eligible) {
+                const message = result.error || "The POS is already being repaired";
+                setPosEligibilityError(message);
+                showToast(message);
+            }
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : "Failed to check POS repair eligibility";
+            setPosEligibilityError(message);
+            showToast(message);
+        } finally {
+            setCheckingPosEligibility(false);
+        }
     };
 
     // Close dropdown on outside click
@@ -127,9 +165,42 @@ export default function RepairRequestPage() {
         };
     }, []);
 
+    // Listen for dark mode changes
+    useEffect(() => {
+        const handleThemeChange = () => {
+            setDarkMode(localStorage.getItem("theme") === "dark");
+        };
+
+        const observer = new MutationObserver(() => {
+            setDarkMode(document.documentElement.classList.contains("dark"));
+        });
+
+        observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+        window.addEventListener("storage", handleThemeChange);
+        return () => {
+            observer.disconnect();
+            window.removeEventListener("storage", handleThemeChange);
+        };
+    }, []);
+
     const validateForm = () => {
         if (!posRecordId) {
             showToast("Please select a POS record by searching in Serial Number or POS Number.");
+            return false;
+        }
+
+        if (selectedPosStatus.trim().toLowerCase() === "not released") {
+            showToast("The POS is already being repaired");
+            return false;
+        }
+
+        if (posEligibilityError) {
+            showToast(posEligibilityError);
+            return false;
+        }
+
+        if (checkingPosEligibility) {
+            showToast("Please wait while checking POS repair eligibility.");
             return false;
         }
 
@@ -137,7 +208,6 @@ export default function RepairRequestPage() {
             const missingFields = [];
             if (!formData.operator.trim()) missingFields.push("Operator");
             if (!formData.diagnosis.trim()) missingFields.push("Diagnosis");
-            if (!formData.deliveredBy.trim()) missingFields.push("Delivered By");
             showToast(`Please fill in the following fields: ${missingFields.join(", ")}`);
             return false;
         }
@@ -165,9 +235,10 @@ export default function RepairRequestPage() {
                 ntc: formData.accessories.ntc,
                 operator_name: formData.operator,
                 diagnosis_id: diagnosisId,
-                delivered_by: formData.deliveredBy,
+                delivered_by: "",
                 with_charger: formData.accessories.withCharger,
                 with_box: formData.accessories.withBox,
+                status: "For Repair",
             });
             const message = response.isUpdate
                 ? "Repair record updated successfully!"
@@ -182,9 +253,10 @@ export default function RepairRequestPage() {
                 operator: "",
                 diagnosis: "",
                 accessories: { ntc: false, withCharger: false, withBox: false },
-                deliveredBy: "",
             });
             setPosRecordId(null);
+            setSelectedPosStatus("");
+            setPosEligibilityError("");
             setDiagnosisId(null);
         } catch (err: unknown) {
             const message = err instanceof Error ? err.message : "Failed to save repair record";
@@ -212,34 +284,51 @@ export default function RepairRequestPage() {
             operator: "",
             diagnosis: "",
             accessories: { ntc: false, withCharger: false, withBox: false },
-            deliveredBy: "",
         });
         setPosRecordId(null);
+        setSelectedPosStatus("");
+        setPosEligibilityError("");
+        setCheckingPosEligibility(false);
         setDiagnosisId(null);
         setSearchResults([]);
         setActiveDropdown(null);
     };
 
-    const inputStyle = {
+    const inputStyle = darkMode ? {
+        background: "rgba(31,41,55,0.70)",
+        border: "1px solid rgba(75,85,99,0.50)",
+        boxShadow: "inset 0 1px 0 rgba(0,0,0,0.20)",
+        backdropFilter: "blur(8px)",
+        color: "#E5E7EB",
+    } : {
         background: "rgba(255,255,255,0.58)",
         border: "1px solid rgba(146,199,207,0.28)",
         boxShadow: "inset 0 1px 0 rgba(255,255,255,0.55)",
         backdropFilter: "blur(8px)",
     };
 
-    const readOnlyInputStyle = {
+    const readOnlyInputStyle = darkMode ? {
+        ...inputStyle,
+        background: "rgba(55,65,81,0.60)",
+        color: "#D1D5DB",
+        cursor: "default" as const,
+    } : {
         ...inputStyle,
         background: "rgba(243,244,246,0.62)",
         color: "#4B5563",
         cursor: "default" as const,
     };
 
-    const labelClass = "block text-[11px] font-semibold uppercase tracking-wider text-gray-600 mb-1.5";
-    const inputClass =
-        "h-10 w-full rounded-xl px-3.5 text-sm text-gray-800 outline-none transition-all duration-200 focus:ring-2 focus:ring-[#92C7CF]/35 focus:border-[#92C7CF]/60 placeholder:text-gray-400 disabled:cursor-not-allowed disabled:opacity-70 hover:border-[#92C7CF]/45 hover:shadow-md";
+    const labelClass = darkMode
+        ? "block text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-1.5"
+        : "block text-[11px] font-semibold uppercase tracking-wider text-gray-600 mb-1.5";
+    const inputClass = darkMode
+        ? "h-10 w-full rounded-xl px-3.5 text-sm text-gray-100 outline-none transition-all duration-200 focus:ring-2 focus:ring-[#92C7CF]/50 focus:border-[#92C7CF]/60 placeholder:text-gray-400 disabled:cursor-not-allowed disabled:opacity-70 hover:border-[#92C7CF]/45 hover:shadow-md dark:placeholder:text-gray-500"
+        : "h-10 w-full rounded-xl px-3.5 text-sm text-gray-800 outline-none transition-all duration-200 focus:ring-2 focus:ring-[#92C7CF]/35 focus:border-[#92C7CF]/60 placeholder:text-gray-400 disabled:cursor-not-allowed disabled:opacity-70 hover:border-[#92C7CF]/45 hover:shadow-md";
 
-    const dropdownItemClass =
-        "px-4 py-3 text-sm text-gray-800 hover:bg-[#92C7CF]/15 cursor-pointer transition-colors duration-100 flex justify-between items-center gap-4";
+    const dropdownItemClass = darkMode
+        ? "px-4 py-3 text-sm text-gray-100 hover:bg-[#92C7CF]/25 cursor-pointer transition-colors duration-100 flex justify-between items-center gap-4"
+        : "px-4 py-3 text-sm text-gray-800 hover:bg-[#92C7CF]/15 cursor-pointer transition-colors duration-100 flex justify-between items-center gap-4";
 
     const renderDropdown = () => {
         if (!activeDropdown) return null;
@@ -248,23 +337,26 @@ export default function RepairRequestPage() {
         return (
             <div
                 ref={dropdownRef}
-                className="absolute z-50 mt-2 w-full rounded-xl border border-white/60 bg-white/95 backdrop-blur-xl shadow-xl overflow-hidden max-h-64 overflow-y-auto"
+                className={darkMode
+                    ? "absolute z-50 mt-2 w-full rounded-xl border border-gray-700 bg-gray-800/95 backdrop-blur-xl shadow-xl overflow-hidden max-h-64 overflow-y-auto"
+                    : "absolute z-50 mt-2 w-full rounded-xl border border-white/60 bg-white/95 backdrop-blur-xl shadow-xl overflow-hidden max-h-64 overflow-y-auto"
+                }
             >
                 {searching ? (
-                    <div className="px-4 py-3 text-sm text-gray-500 text-center">Searching…</div>
+                    <div className={`px-4 py-3 text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'} text-center`}>Searching…</div>
                 ) : searchResults.length === 0 ? (
-                    <div className="px-4 py-3 text-sm text-gray-500 text-center">
+                    <div className={`px-4 py-3 text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'} text-center`}>
                         No available POS records found. All records may already have active repair requests.
                     </div>
                 ) : (
                     <>
-                        <div className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-gray-400 bg-[#F8FAFA]">
+                        <div className={`px-4 py-2 text-xs font-semibold uppercase tracking-wider ${darkMode ? 'text-gray-500 bg-gray-700/50' : 'text-gray-400 bg-[#F8FAFA]'}`}>
                             {searchResults.length} result{searchResults.length !== 1 ? "s" : ""}
                         </div>
                         {searchResults.map((record) => (
                             <div
                                 key={record.id}
-                                className={`${dropdownItemClass} border-b border-gray-100/50 last:border-b-0`}
+                                className={`${dropdownItemClass} ${darkMode ? 'border-gray-700/50' : 'border-gray-100/50'} last:border-b-0`}
                                 onClick={() => handleSelectRecord(record)}
                             >
                                 <div className="flex flex-col">
@@ -273,7 +365,7 @@ export default function RepairRequestPage() {
                                             ? record.serial_number
                                             : record.device_no}
                                     </span>
-                                    <span className="text-xs text-gray-500 mt-1">
+                                    <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'} mt-1`}>
                                         {activeDropdown === "serialNumber"
                                             ? `POS: ${record.device_no || "—"}`
                                             : `SN: ${record.serial_number || "—"}`}
@@ -283,8 +375,8 @@ export default function RepairRequestPage() {
                                 </div>
                                 <span
                                     className={`text-xs px-2 py-0.5 rounded-full ${record.status === "Active"
-                                        ? "bg-green-100 text-green-700"
-                                        : "bg-gray-100 text-gray-600"
+                                        ? darkMode ? "bg-green-900/40 text-green-400" : "bg-green-100 text-green-700"
+                                        : darkMode ? "bg-gray-700/60 text-gray-300" : "bg-gray-100 text-gray-600"
                                         }`}
                                 >
                                     {record.status}
@@ -335,30 +427,7 @@ export default function RepairRequestPage() {
                 </div>
             </div>
 
-            {/* Toast Notification */}
-            {toast.show && (
-                <div
-                    className={`relative rounded-xl px-4 py-3 shadow-lg backdrop-blur-xl transition-all duration-300 flex items-center gap-3 ${toast.type === "error"
-                        ? "bg-red-50/95 border border-red-200/60"
-                        : "bg-green-50/95 border border-green-200/60"
-                        }`}
-                >
-                    {toast.type === "error" ? (
-                        <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0" />
-                    ) : (
-                        <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" />
-                    )}
-                    <p className={`text-sm font-medium ${toast.type === "error" ? "text-red-700" : "text-green-700"}`}>
-                        {toast.message}
-                    </p>
-                    <button
-                        onClick={hideToast}
-                        className="ml-auto p-1 rounded-lg hover:bg-black/5 transition-colors"
-                    >
-                        <X className="h-4 w-4 text-gray-500" />
-                    </button>
-                </div>
-            )}
+            <Toast open={toastOpen} message={toastMessage} type={toastType} onClose={hideToast} />
 
             {/* Form Card */}
             <div className="relative rounded-2xl border border-white/50 backdrop-blur-xl bg-white/25 shadow-lg overflow-hidden">
@@ -512,21 +581,6 @@ export default function RepairRequestPage() {
                         </div>
                     </div>
 
-                    {/* Row 5: Delivered By */}
-                    <div>
-                        <label className={labelClass}>
-                            Delivered By <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                            type="text"
-                            value={formData.deliveredBy}
-                            onChange={(e) => handleChange("deliveredBy", e.target.value)}
-                            className={inputClass}
-                            style={inputStyle}
-                            placeholder="Delivered by"
-                        />
-                    </div>
-
                     {/* Actions */}
                     <div className="flex flex-col-reverse gap-2 border-t border-white/40 pt-4 sm:flex-row sm:items-center sm:justify-end">
                         <button
@@ -558,12 +612,12 @@ export default function RepairRequestPage() {
                 </div>
             </div>
 
-            <RepairConfirmationModal
+            <ConfirmationModal
                 open={showSaveConfirm}
                 title="Save repair record?"
                 message={`This will create a repair record for POS ${formData.posNumber || "selected POS"}.`}
                 confirmLabel="Save Record"
-                loading={saving}
+                isLoading={saving}
                 onCancel={() => setShowSaveConfirm(false)}
                 onConfirm={handleConfirmSave}
             />

@@ -37,6 +37,25 @@ function nullable(value) {
     return s ? s : null;
 }
 
+// Returns the current time in Asia/Manila formatted as a PostgreSQL
+// TIMESTAMP string ("YYYY-MM-DD HH:MM:SS"). Used when creating new rows so
+// the displayed "Submitted" timestamp matches the local time the operator
+// is in, regardless of the database session timezone.
+function manilaTimestamp(date = new Date()) {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Manila",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false,
+    }).formatToParts(date);
+    const get = (type) => parts.find((p) => p.type === type)?.value || "00";
+    return `${get("year")}-${get("month")}-${get("day")} ${get("hour")}:${get("minute")}:${get("second")}`;
+}
+
 /**
  * GET /api/booth-change-requests
  * Query params:
@@ -125,13 +144,33 @@ router.post("/", async (req, res) => {
         }
         const targetBooth = boothResult.rows[0];
 
-        // Enforce same-operator rule
-        if (pos.operator_id && targetBooth.operator_id && Number(pos.operator_id) !== Number(targetBooth.operator_id)) {
-            return res.status(400).json({
-                error:
-                    "Device and target booth belong to different operators. " +
-                    "You can only request a booth change within your operator boundary.",
-            });
+        // Enforce same-operator-family rule.
+        //
+        // A "family" is the main operator plus all its subs. We compute the
+        // root for both the device's operator and the target booth's
+        // operator, then require them to match. This lets a sub-operator
+        // request a change to any booth in the same main, and lets a main
+        // request changes across its subs — but never across two unrelated
+        // mains.
+        if (pos.operator_id && targetBooth.operator_id) {
+            const familyResult = await pool.query(
+                `SELECT id, COALESCE(parent_operator_id, id) AS root_id
+                 FROM operator_list
+                 WHERE id = $1::int OR id = $2::int`,
+                [pos.operator_id, targetBooth.operator_id]
+            );
+            const map = new Map(
+                familyResult.rows.map((row) => [Number(row.id), Number(row.root_id)])
+            );
+            const posRoot = map.get(Number(pos.operator_id));
+            const boothRoot = map.get(Number(targetBooth.operator_id));
+            if (posRoot != null && boothRoot != null && posRoot !== boothRoot) {
+                return res.status(400).json({
+                    error:
+                        "Device and target booth belong to different operators. " +
+                        "You can only request a booth change within your operator family (main + sub-operators).",
+                });
+            }
         }
 
         // Enforce same-area rule when the device has an area
@@ -153,11 +192,19 @@ router.post("/", async (req, res) => {
             }
         }
 
+// Store created_at and updated_at in Asia/Manila local time so the
+// "Submitted" timestamp shown in the Booth Change Requests table matches
+// the time the operator actually submitted the request. The DB column is
+// TIMESTAMP (no timezone), so the value is stored verbatim; pg then reads
+// it back as UTC, and the frontend (which already runs in Asia/Manila)
+// displays the same wall-clock value.
+const nowManila = manilaTimestamp();
+
         const result = await pool.query(
             `
             INSERT INTO booth_change_requests
-                (pos_record_id, requested_booth_id, requested_by_user_id, reason)
-            VALUES ($1, $2, $3, $4)
+                (pos_record_id, requested_booth_id, requested_by_user_id, reason, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $5)
             RETURNING id
             `,
             [
@@ -165,6 +212,7 @@ router.post("/", async (req, res) => {
                 Number(requested_booth_id),
                 requested_by_user_id ? Number(requested_by_user_id) : null,
                 nullable(reason),
+                nowManila,
             ]
         );
 
@@ -236,17 +284,29 @@ router.post("/:id/approve", async (req, res) => {
         }
         const newBooth = boothResult.rows[0];
 
-        // Validate operator boundary: if device has an operator and new booth's
-        // operator differs, refuse — admin would need to reassign first.
-        if (
-            pos.operator_id &&
-            newBooth.operator_id &&
-            pos.operator_id !== newBooth.operator_id
-        ) {
-            await client.query("ROLLBACK");
-            return res.status(400).json({
-                error: "Cannot approve: requested booth belongs to a different operator",
-            });
+        // Validate operator boundary using the same family rule as the
+        // create endpoint: a sub-operator can ride within its main, and a
+        // main can manage across its subs. Strict equality used to be
+        // enforced here and broke admin approvals as soon as the device's
+        // operator was a sub of the booth's operator (or vice-versa).
+        if (pos.operator_id && newBooth.operator_id) {
+            const familyResult = await client.query(
+                `SELECT id, COALESCE(parent_operator_id, id) AS root_id
+                 FROM operator_list
+                 WHERE id = $1::int OR id = $2::int`,
+                [pos.operator_id, newBooth.operator_id]
+            );
+            const map = new Map(
+                familyResult.rows.map((row) => [Number(row.id), Number(row.root_id)])
+            );
+            const posRoot = map.get(Number(pos.operator_id));
+            const boothRoot = map.get(Number(newBooth.operator_id));
+            if (posRoot != null && boothRoot != null && posRoot !== boothRoot) {
+                await client.query("ROLLBACK");
+                return res.status(400).json({
+                    error: "Cannot approve: requested booth belongs to a different operator",
+                });
+            }
         }
 
         const operatorToSet = newBooth.operator_id || pos.operator_id;

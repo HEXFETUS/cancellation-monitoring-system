@@ -1,31 +1,70 @@
 import express from "express";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
+import { fileURLToPath } from "url";
 import pool from "../config/db.js";
 import { blockRoles } from "../middleware/role-guard.js";
+import { recordActivity } from "../utils/activity-log.js";
+import { syncAssetInventoryFromGoogleSheets } from "../services/googleSheets.service.js";
 
 const router = express.Router();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Reuse the shared uploads directory served by /uploads.
+const uploadsDir = path.join(__dirname, "..", "public", "uploads");
+if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+// Asset media uploader — same accepted types and size limits as the
+// announcements/posts uploader so users get a consistent experience.
+const mediaStorage = multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, uploadsDir),
+    filename: (_req, file, cb) => {
+        const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+        const ext = path.extname(file.originalname);
+        cb(null, `asset-${uniqueSuffix}${ext}`);
+    },
+});
+
+const mediaUpload = multer({
+    storage: mediaStorage,
+    limits: { fileSize: 25 * 1024 * 1024, files: 10 }, // generous: 25 MB per file
+    fileFilter: (_req, file, cb) => {
+        const allowedExt = /\.(jpe?g|png|mp4)$/i;
+        const allowedMime = /^(image\/(jpe?g|png)|video\/mp4)$/i;
+        if (allowedExt.test(file.originalname) && allowedMime.test(file.mimetype)) {
+            return cb(null, true);
+        }
+        cb(new Error("ATTACHMENT_TYPE_REJECTED"));
+    },
+});
 
 const blockPurchaserDelete = blockRoles(["purchaser"], {
     errorMessage: "Purchasers can't delete assets",
 });
 
-const VALID_LOCATIONS = new Set(["office", "payout", "drawcourt", "obs"]);
+const VALID_LOCATIONS = new Set(["office", "payout", "drawcourt", "obs", "staffhouse", "vehicle"]);
 
 const ASSET_COLUMNS = `
     id,
     location,
     item_description,
     type,
-    serial_number,
+    serial_no AS serial_number,
     department,
     space,
     date_purchase,
     vendor,
-    purchase_price,
+    purchase_price_per_item AS purchase_price,
     warranty_date,
     quantity,
     discount,
     asset_value,
-    total_value,
+    asset_total AS total_value,
     color,
     remarks,
     payout_station_id,
@@ -120,10 +159,10 @@ router.get("/", async (req, res) => {
 
         const result = location
             ? await pool.query(
-                `SELECT ${ASSET_COLUMNS} FROM assets WHERE location = $1 ORDER BY id DESC`,
+                    `SELECT ${ASSET_COLUMNS} FROM asset_inv WHERE location = $1 ORDER BY id DESC`,
                 [location]
             )
-            : await pool.query(`SELECT ${ASSET_COLUMNS} FROM assets ORDER BY id DESC`);
+                : await pool.query(`SELECT ${ASSET_COLUMNS} FROM asset_inv ORDER BY id DESC`);
 
         res.json(result.rows);
     } catch (err) {
@@ -142,10 +181,10 @@ router.post("/", async (req, res) => {
     try {
         const result = await pool.query(
             `
-            INSERT INTO assets (
-                location, item_description, type, serial_number, department, space,
-                date_purchase, vendor, purchase_price, warranty_date, quantity,
-                discount, asset_value, total_value, color, remarks, payout_station_id,
+            INSERT INTO asset_inv (
+                location, item_description, type, serial_no, department, space,
+                date_purchase, vendor, purchase_price_per_item, warranty_date, quantity,
+                discount, asset_value, asset_total, color, remarks, payout_station_id,
                 office_department_id
             ) VALUES (
                 $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
@@ -174,10 +213,49 @@ router.post("/", async (req, res) => {
             ]
         );
 
-        res.status(201).json(result.rows[0]);
+        const created = result.rows[0];
+        await recordActivity(req, {
+            action: "create",
+            entity: "asset",
+            entity_id: created.id,
+            summary: `Created asset "${created.item_description}" (${created.location})`,
+        });
+        res.status(201).json(created);
     } catch (err) {
         console.error("POST /api/assets error:", err.message);
         res.status(500).json({ error: "Failed to create asset" });
+    }
+});
+
+// POST /api/assets/sync-google-sheets
+// One-way sync: pull from Google Sheets into the database. Write-back is
+// disabled while the sheet's column shape and the system enum are still
+// being aligned (Apps Script also returns WRITEBACK_DISABLED on POST).
+router.post("/sync-google-sheets", async (req, res) => {
+    try {
+        const fromGoogleSheets = await syncAssetInventoryFromGoogleSheets();
+
+        await recordActivity(req, {
+            action: "sync",
+            entity: "asset_inventory_google_sheets",
+            summary: "Pulled asset inventory from Google Sheets into the database",
+        });
+
+        // Frontend already reads `from_google_sheets.tabs` for its banner —
+        // keep the same envelope so we don't need to ship a UI change.
+        res.json({
+            spreadsheet_id: fromGoogleSheets.spreadsheet_id,
+            mode: "read-only",
+            rule: "Google Sheet rows are imported into the database. Write-back is disabled while shapes are aligned.",
+            from_google_sheets: fromGoogleSheets,
+            to_google_sheets: null,
+            write_configured: false,
+        });
+    } catch (err) {
+        console.error("POST /api/assets/sync-google-sheets error:", err.message);
+        res.status(500).json({
+            error: err.message || "Failed to sync asset inventory from Google Sheets",
+        });
     }
 });
 
@@ -194,21 +272,21 @@ router.put("/:id", async (req, res) => {
     try {
         const result = await pool.query(
             `
-            UPDATE assets
+            UPDATE asset_inv
             SET location = $1,
                 item_description = $2,
                 type = $3,
-                serial_number = $4,
+                serial_no = $4,
                 department = $5,
                 space = $6,
                 date_purchase = $7,
                 vendor = $8,
-                purchase_price = $9,
+                purchase_price_per_item = $9,
                 warranty_date = $10,
                 quantity = $11,
                 discount = $12,
                 asset_value = $13,
-                total_value = $14,
+                asset_total = $14,
                 color = $15,
                 remarks = $16,
                 payout_station_id = $17,
@@ -244,7 +322,14 @@ router.put("/:id", async (req, res) => {
             return res.status(404).json({ error: "Asset not found" });
         }
 
-        res.json(result.rows[0]);
+        const updated = result.rows[0];
+        await recordActivity(req, {
+            action: "update",
+            entity: "asset",
+            entity_id: updated.id,
+            summary: `Updated asset "${updated.item_description}"`,
+        });
+        res.json(updated);
     } catch (err) {
         console.error("PUT /api/assets/:id error:", err.message);
         res.status(500).json({ error: "Failed to update asset" });
@@ -257,14 +342,187 @@ router.delete("/:id", blockPurchaserDelete, async (req, res) => {
     if (!Number.isFinite(id)) return res.status(400).json({ error: "Invalid id" });
 
     try {
-        const result = await pool.query("DELETE FROM assets WHERE id = $1 RETURNING id", [id]);
+        const result = await pool.query("DELETE FROM asset_inv WHERE id = $1 RETURNING id", [id]);
         if (result.rows.length === 0) {
             return res.status(404).json({ error: "Asset not found" });
         }
+        await recordActivity(req, {
+            action: "delete",
+            entity: "asset",
+            entity_id: id,
+            summary: `Deleted asset #${id}`,
+        });
         res.json({ id: result.rows[0].id });
     } catch (err) {
         console.error("DELETE /api/assets/:id error:", err.message);
         res.status(500).json({ error: "Failed to delete asset" });
+    }
+});
+
+// PATCH /api/assets/:id/remarks — update just the remarks field. Used by
+// the QR-scan flow on the purchaser side so they don't need to re-send the
+// full asset payload via the existing PUT endpoint.
+router.patch("/:id/remarks", async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) return res.status(400).json({ error: "Invalid id" });
+
+    const trimmed =
+        req.body?.remarks === null || req.body?.remarks === undefined
+            ? null
+            : String(req.body.remarks).trim() || null;
+
+    try {
+        const result = await pool.query(
+            `UPDATE asset_inv
+             SET remarks = $1,
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = $2::int
+             RETURNING ${ASSET_COLUMNS}`,
+            [trimmed, id]
+        );
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: "Asset not found" });
+        }
+        await recordActivity(req, {
+            action: "update",
+            entity: "asset_remarks",
+            entity_id: id,
+            summary: `Updated remarks on asset #${id}`,
+        });
+        res.json(result.rows[0]);
+    } catch (err) {
+        console.error("PATCH /api/assets/:id/remarks error:", err.message);
+        res.status(500).json({ error: "Failed to update remarks" });
+    }
+});
+
+// GET /api/assets/:id/media — list media attached to a specific asset,
+// newest first. Joined with users so the UI can show who uploaded each one.
+router.get("/:id/media", async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) return res.status(400).json({ error: "Invalid id" });
+
+    try {
+        const result = await pool.query(
+            `SELECT m.id, m.asset_id, m.url, m.mime_type, m.caption, m.created_at,
+                    m.uploaded_by,
+                    u.name AS uploaded_by_name
+             FROM asset_media m
+             LEFT JOIN users u ON u.id = m.uploaded_by
+             WHERE m.asset_id = $1::int
+             ORDER BY m.created_at DESC, m.id DESC`,
+            [id]
+        );
+        res.json(result.rows);
+    } catch (err) {
+        console.error("GET /api/assets/:id/media error:", err.message);
+        res.status(500).json({ error: "Failed to fetch asset media" });
+    }
+});
+
+// POST /api/assets/:id/media — upload one or more media files for an asset.
+// Accepts the multipart field name `media` (multiple). Optional `caption`
+// applies to every file in the batch. `user_id` body field captures who
+// did the upload so the gallery can show "uploaded by X".
+router.post("/:id/media", mediaUpload.array("media", 10), async (req, res) => {
+    const cleanupUploaded = () => {
+        for (const f of req.files ?? []) {
+            fs.unlink(path.join(uploadsDir, f.filename), () => {});
+        }
+    };
+
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+        cleanupUploaded();
+        return res.status(400).json({ error: "Invalid id" });
+    }
+
+    const files = req.files ?? [];
+    if (files.length === 0) {
+        return res.status(400).json({ error: "At least one file is required" });
+    }
+
+    try {
+        const exists = await pool.query("SELECT id FROM asset_inv WHERE id = $1::int", [id]);
+        if (exists.rows.length === 0) {
+            cleanupUploaded();
+            return res.status(404).json({ error: "Asset not found" });
+        }
+
+        const caption = nullable(req.body?.caption);
+        const userIdRaw = req.body?.user_id;
+        const userId = userIdRaw ? Number(userIdRaw) : null;
+
+        const inserted = [];
+        for (const f of files) {
+            const url = `/uploads/${f.filename}`;
+            const result = await pool.query(
+                `INSERT INTO asset_media (asset_id, url, mime_type, uploaded_by, caption)
+                 VALUES ($1::int, $2, $3, $4, $5)
+                 RETURNING id, asset_id, url, mime_type, caption, created_at, uploaded_by`,
+                [id, url, f.mimetype || null, Number.isFinite(userId) ? userId : null, caption]
+            );
+            inserted.push(result.rows[0]);
+        }
+
+        await recordActivity(req, {
+            action: "upload",
+            entity: "asset_media",
+            entity_id: id,
+            summary: `Uploaded ${inserted.length} media file${inserted.length === 1 ? "" : "s"} to asset #${id}`,
+        });
+
+        res.status(201).json(inserted);
+    } catch (err) {
+        cleanupUploaded();
+        if (err && err.message === "ATTACHMENT_TYPE_REJECTED") {
+            return res.status(400).json({ error: "ATTACHMENT_TYPE_REJECTED" });
+        }
+        if (err && err.code === "LIMIT_FILE_SIZE") {
+            return res.status(413).json({ error: "ATTACHMENT_TOO_LARGE" });
+        }
+        console.error("POST /api/assets/:id/media error:", err.message);
+        res.status(500).json({ error: "Failed to upload media" });
+    }
+});
+
+// DELETE /api/assets/:assetId/media/:mediaId — remove a single media row.
+// Best-effort cleans up the file on disk too. Same role gating as
+// asset deletion so purchasers can't wipe records they didn't create.
+router.delete("/:assetId/media/:mediaId", blockPurchaserDelete, async (req, res) => {
+    const assetId = Number(req.params.assetId);
+    const mediaId = Number(req.params.mediaId);
+    if (!Number.isFinite(assetId) || !Number.isFinite(mediaId)) {
+        return res.status(400).json({ error: "Invalid id" });
+    }
+
+    try {
+        const lookup = await pool.query(
+            "SELECT id, url FROM asset_media WHERE id = $1::int AND asset_id = $2::int",
+            [mediaId, assetId]
+        );
+        if (lookup.rows.length === 0) {
+            return res.status(404).json({ error: "Media not found" });
+        }
+
+        await pool.query("DELETE FROM asset_media WHERE id = $1::int", [mediaId]);
+
+        const url = lookup.rows[0].url;
+        if (typeof url === "string" && url.startsWith("/uploads/")) {
+            fs.unlink(path.join(uploadsDir, path.basename(url)), () => {});
+        }
+
+        await recordActivity(req, {
+            action: "delete",
+            entity: "asset_media",
+            entity_id: mediaId,
+            summary: `Removed media from asset #${assetId}`,
+        });
+
+        res.json({ id: mediaId });
+    } catch (err) {
+        console.error("DELETE asset media error:", err.message);
+        res.status(500).json({ error: "Failed to delete media" });
     }
 });
 

@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-    CheckCircle,
     ChevronDown,
     ChevronLeft,
     ChevronRight,
@@ -9,11 +8,12 @@ import {
     Filter,
     RefreshCw,
     Search,
-    X,
 } from "lucide-react";
 import type { PosRecord } from "../types";
 import { fetchPosRecords, updatePosRecord } from "../services";
 import { useAuth } from "../../../context/AuthContext";
+import { ConfirmationModal } from "../components";
+import { Toast } from "../../../shared/components";
 
 type FilterField = "all" | "device_no" | "serial_no" | "booth_code";
 
@@ -62,156 +62,6 @@ function getStatusTextColor(status: string): string {
     return getStatusColor(status || "").text;
 }
 
-function ConfirmModal({
-    open,
-    record,
-    nextStatus,
-    onConfirm,
-    onCancel,
-}: {
-    open: boolean;
-    record: PosRecord | null;
-    nextStatus: string;
-    onConfirm: () => void;
-    onCancel: () => void;
-}) {
-    if (!open || !record) return null;
-
-    return (
-        <div className="fixed inset-0 z-100 flex items-start justify-center bg-black/50 backdrop-blur-sm pt-20">
-            <div className="w-full max-w-md animate-in fade-in zoom-in-95 duration-200 rounded-2xl border border-warm bg-white p-0 shadow-2xl">
-                {/* Header with accent bar */}
-                <div className="relative flex items-center gap-3 rounded-t-2xl bg-gradient-to-r from-teal/10 to-teal/5 px-6 pb-4 pt-5">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-teal/10">
-                        <svg
-                            className="h-5 w-5 text-teal"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            strokeWidth={2}
-                            stroke="currentColor"
-                        >
-                            <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182"
-                            />
-                        </svg>
-                    </div>
-                    <div>
-                        <h3 className="text-lg font-semibold text-ink">Change Status</h3>
-                        <p className="text-xs text-ink-muted">Confirm device status update</p>
-                    </div>
-                    <button
-                        type="button"
-                        onClick={onCancel}
-                        className="ml-auto flex h-7 w-7 items-center justify-center rounded-full text-ink-subtle transition hover:bg-white/70 hover:text-ink"
-                    >
-                        <X className="h-4 w-4" />
-                    </button>
-                </div>
-
-                {/* Body */}
-                <div className="px-6 py-5">
-                    <div className="rounded-xl border border-warm bg-cream/30 p-4">
-                        <p className="text-sm leading-relaxed text-ink-muted">
-                            Change status of device{" "}
-                            <span className="font-semibold text-ink">{record.device_no}</span>
-                        </p>
-                        <div className="mt-3 flex items-center gap-3">
-                            {/* Current Status */}
-                            <div className="flex flex-1 flex-col items-center gap-1.5 rounded-lg border border-warm bg-white px-3 py-2.5">
-                                <span className="text-[10px] font-medium uppercase tracking-wider text-ink-subtle">
-                                    Current
-                                </span>
-                                <span
-                                    className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium ${getStatusClasses(record.status)}`}
-                                >
-                                    <span
-                                        className={`inline-block h-1.5 w-1.5 rounded-full ${getStatusDotColor(normalize(record.status) || "-")}`}
-                                    />
-                                    {normalize(record.status) || "-"}
-                                </span>
-                            </div>
-
-                            {/* Arrow */}
-                            <div className="shrink-0">
-                                <svg
-                                    className="h-5 w-5 text-ink-subtle"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    strokeWidth={2}
-                                    stroke="currentColor"
-                                >
-                                    <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"
-                                    />
-                                </svg>
-                            </div>
-
-                            {/* New Status */}
-                            <div className="flex flex-1 flex-col items-center gap-1.5 rounded-lg border border-warm bg-white px-3 py-2.5">
-                                <span className="text-[10px] font-medium uppercase tracking-wider text-ink-subtle">
-                                    New
-                                </span>
-                                <span
-                                    className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium ${getStatusClasses(nextStatus)}`}
-                                >
-                                    <span
-                                        className={`inline-block h-1.5 w-1.5 rounded-full ${getStatusColor(nextStatus).dot}`}
-                                    />
-                                    {nextStatus}
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Footer */}
-                <div className="flex items-center justify-end gap-3 border-t border-warm bg-cream/50 px-6 py-4 rounded-b-2xl">
-                    <button
-                        type="button"
-                        onClick={onCancel}
-                        className="rounded-lg border border-warm bg-white px-4 py-2 text-sm font-medium text-ink shadow-sm transition hover:bg-cream hover:border-ink-subtle"
-                    >
-                        Cancel
-                    </button>
-                    <button
-                        type="button"
-                        onClick={onConfirm}
-                        className="rounded-lg bg-teal px-5 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-teal-dark focus:outline-none focus:ring-2 focus:ring-teal/40"
-                    >
-                        Confirm Change
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
-}
-
-function SuccessToast({
-    message,
-    onClose,
-}: {
-    message: string;
-    onClose: () => void;
-}) {
-    useEffect(() => {
-        const timer = setTimeout(onClose, 3000);
-        return () => clearTimeout(timer);
-    }, [onClose]);
-
-    return (
-        <div className="flex items-center gap-3 rounded-lg border border-teal/30 bg-teal-light/30 px-4 py-3 shadow-sm">
-            <CheckCircle className="h-5 w-5 text-teal" />
-            <span className="text-sm font-medium text-teal-dark">{message}</span>
-            <button type="button" onClick={onClose} className="ml-auto text-teal-dark/60 hover:text-teal-dark">
-                <X className="h-4 w-4" />
-            </button>
-        </div>
-    );
-}
 
 export default function PosStatusPage() {
     const { user } = useAuth();
@@ -411,33 +261,55 @@ export default function PosStatusPage() {
 
     return (
         <div className="flex flex-col gap-6">
-            <ConfirmModal
+            <ConfirmationModal
                 open={pendingChange !== null}
-                record={pendingChange?.record ?? null}
-                nextStatus={pendingChange?.nextStatus ?? ""}
+                title="Change Status"
+                message={`Change status of device ${pendingChange?.record?.device_no || ""}`}
+                confirmLabel="Confirm Change"
                 onConfirm={handleConfirmChange}
                 onCancel={() => setPendingChange(null)}
-            />
+            >
+                {pendingChange && (
+                    <div className="flex items-center gap-3">
+                        <div className="flex flex-1 flex-col items-center gap-1.5 rounded-lg border border-warm bg-white px-3 py-2.5">
+                            <span className="text-[10px] font-medium uppercase tracking-wider text-ink-subtle">Current</span>
+                            <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium ${getStatusClasses(pendingChange.record.status)}`}>
+                                <span className={`inline-block h-1.5 w-1.5 rounded-full ${getStatusDotColor(normalize(pendingChange.record.status) || "-")}`} />
+                                {normalize(pendingChange.record.status) || "-"}
+                            </span>
+                        </div>
+                        <div className="shrink-0 text-ink-subtle">
+                            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+                            </svg>
+                        </div>
+                        <div className="flex flex-1 flex-col items-center gap-1.5 rounded-lg border border-warm bg-white px-3 py-2.5">
+                            <span className="text-[10px] font-medium uppercase tracking-wider text-ink-subtle">New</span>
+                            <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium ${getStatusClasses(pendingChange.nextStatus)}`}>
+                                <span className={`inline-block h-1.5 w-1.5 rounded-full ${getStatusColor(pendingChange.nextStatus).dot}`} />
+                                {pendingChange.nextStatus}
+                            </span>
+                        </div>
+                    </div>
+                )}
+            </ConfirmationModal>
 
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-end">
                 {successMessage && (
                     <div className="mr-auto w-full lg:w-auto lg:min-w-80">
-                        <SuccessToast
-                            message={successMessage}
-                            onClose={() => setSuccessMessage(null)}
-                        />
+                        <Toast open={true} message={successMessage} type="success" onClose={() => setSuccessMessage(null)} />
                     </div>
                 )}
 
                 <div className="flex items-center gap-2">
                     <div className="relative w-full sm:w-72">
-                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-subtle" />
+                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-subtle dark:text-gray-500" />
                         <input
                             type="text"
                             value={searchQuery}
                             onChange={(event) => setSearchQuery(event.target.value)}
                             placeholder="Search status records..."
-                            className="w-full rounded-lg border border-warm bg-card py-2 pl-9 pr-3 text-sm text-ink shadow-sm transition placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-1 focus:ring-teal"
+                            className="w-full rounded-lg border border-warm dark:border-gray-700 bg-card dark:bg-gray-800/70 py-2 pl-9 pr-3 text-sm text-ink dark:text-gray-100 shadow-sm transition placeholder:text-ink-subtle dark:placeholder:text-gray-400 focus:border-teal dark:focus:border-teal focus:outline-none focus:ring-1 focus:ring-teal dark:focus:ring-teal/50"
                         />
                     </div>
 
@@ -494,9 +366,8 @@ export default function PosStatusPage() {
                                                         setStatusFilter("all");
                                                         setChangeStatusOpen(null);
                                                     }}
-                                                    className={`flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium transition hover:bg-cream ${
-                                                        statusFilter === "all" ? "bg-cream" : ""
-                                                    } text-ink-muted`}
+                                                    className={`flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium transition hover:bg-cream ${statusFilter === "all" ? "bg-cream" : ""
+                                                        } text-ink-muted`}
                                                 >
                                                     All
                                                 </button>
@@ -510,11 +381,10 @@ export default function PosStatusPage() {
                                                                 setStatusFilter(opt);
                                                                 setChangeStatusOpen(null);
                                                             }}
-                                                            className={`flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium transition hover:bg-cream ${
-                                                                statusFilter === opt
-                                                                    ? "bg-cream"
-                                                                    : ""
-                                                            } ${getStatusTextColor(opt)}`}
+                                                            className={`flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium transition hover:bg-cream ${statusFilter === opt
+                                                                ? "bg-cream"
+                                                                : ""
+                                                                } ${getStatusTextColor(opt)}`}
                                                         >
                                                             <span
                                                                 className={`inline-block h-2 w-2 rounded-full ${dotColor}`}
@@ -615,11 +485,10 @@ export default function PosStatusPage() {
                                                                             nextStatus: opt,
                                                                         });
                                                                     }}
-                                                                    className={`flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium transition hover:bg-cream ${
-                                                                        currentStatus === opt
-                                                                            ? "bg-cream"
-                                                                            : ""
-                                                                    } ${getStatusTextColor(opt)}`}
+                                                                    className={`flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium transition hover:bg-cream ${currentStatus === opt
+                                                                        ? "bg-cream"
+                                                                        : ""
+                                                                        } ${getStatusTextColor(opt)}`}
                                                                 >
                                                                     <span
                                                                         className={`inline-block h-2 w-2 rounded-full ${dotColor}`}
@@ -700,11 +569,10 @@ export default function PosStatusPage() {
                                     key={page}
                                     type="button"
                                     onClick={() => setCurrentPage(page)}
-                                    className={`min-w-8 rounded-lg px-2.5 py-1.5 text-xs font-medium shadow-sm transition ${
-                                        page === currentPage
-                                            ? "bg-teal text-white"
-                                            : "border border-warm bg-white text-ink hover:bg-surface"
-                                    }`}
+                                    className={`min-w-8 rounded-lg px-2.5 py-1.5 text-xs font-medium shadow-sm transition ${page === currentPage
+                                        ? "bg-teal text-white"
+                                        : "border border-warm bg-white text-ink hover:bg-surface"
+                                        }`}
                                 >
                                     {page}
                                 </button>

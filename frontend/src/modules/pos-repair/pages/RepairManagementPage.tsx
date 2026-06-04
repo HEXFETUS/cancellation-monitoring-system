@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
     Wrench,
     ClipboardList,
@@ -8,21 +8,23 @@ import {
     Edit,
     Trash2,
     RefreshCw,
-    X,
-    Save,
-    AlertCircle,
-    CheckCircle,
     RotateCcw,
-    CalendarDays,
     CreditCard,
-    UserRound,
     Minus,
+    Plus,
+    ListChecks,
+    Printer,
 } from "lucide-react";
 import { useAuth } from "../../../context/AuthContext";
-import { listRepairRecords, updateRepairRecord, clearRepairRecord, proceedRepairRecord, releaseRepairRecord, moveRepairRecordToForReleased } from "../services/repairRecords";
+import { listRepairRecords, updateRepairRecord, clearRepairRecord, proceedRepairRecord, moveRepairRecordToForRelease, moveRepairRecordToUndergoingRepair, receiveRepairRecord } from "../services/repairRecords";
 import type { RepairRecord } from "../services/repairRecords";
 import { listDiagnoses, type DiagnosisItem } from "../services/diagnosisList";
 import RepairConfirmationModal from "../components/RepairConfirmationModal";
+import TransmittalModal from "../components/TransmittalModal";
+import { EditModal, FinalDiagnosisModal, ReceivedModal, TechnicianModal } from "../components/RepairManagementModals";
+import { BatchCheckedPosModal, BatchForRepairModal, BatchReceivedPosModal } from "../components/BatchProcessingModals";
+import CsrBatchForReleaseModal from "../../csr/components/CsrBatchForReleaseModal";
+import { Toast } from "../../../shared/components";
 
 const teal = "#92C7CF";
 
@@ -38,7 +40,7 @@ const tabStatusMap: Record<string, string> = {
     "for-checking": "For Repair",
     "for-repair": "Pending",
     "undergoing-repair": "Undergoing Repair",
-    "for-release": "For Released",
+    "for-release": "For Release",
     "released": "Released",
 };
 
@@ -47,6 +49,20 @@ const noActionTabs: string[] = [];
 function filterRecordsByTab(records: RepairRecord[], tabId: string): RepairRecord[] {
     const status = tabStatusMap[tabId];
     if (!status) return [];
+    if (tabId === "released") {
+        const now = new Date();
+        const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+        return records.filter((r) => {
+            if (r.status !== status) return false;
+            if (!r.date) return false;
+            const d = new Date(r.date);
+            const logStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+            return logStr === todayStr;
+        });
+    }
+    if (tabId === "for-checking" || tabId === "for-release") {
+        return records.filter((r) => r.status === status);
+    }
     return records.filter((r) => r.forwarded === true && r.status === status);
 }
 
@@ -68,157 +84,26 @@ function formatDateNumeric(dateStr: string): string {
     } catch { return dateStr; }
 }
 
-interface EditModalProps {
-    record: RepairRecord;
-    diagnoses: DiagnosisItem[];
-    onClose: () => void;
-    onSave: (updatedRecord: RepairRecord) => void;
-    showToast: (message: string, type: "error" | "success") => void;
-}
-
-function EditModal({ record, diagnoses, onClose, onSave, showToast }: EditModalProps) {
-    const [diagnosisId, setDiagnosisId] = useState<number | null>(record.diagnosis_id);
-    const [ntc, setNtc] = useState<boolean>(record.ntc);
-    const [withCharger, setWithCharger] = useState<boolean>(record.with_charger);
-    const [withBox, setWithBox] = useState<boolean>(record.with_box);
-    const [deliveredBy, setDeliveredBy] = useState<string>(record.delivered_by || "");
-    const [saving, setSaving] = useState(false);
-    const [showSaveConfirm, setShowSaveConfirm] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-
-    const handleSave = () => setShowSaveConfirm(true);
-
-    const handleConfirmSave = async () => {
-        try {
-            setSaving(true); setError(null);
-            const updated = await updateRepairRecord(record.id, { diagnosis_id: diagnosisId, ntc, with_charger: withCharger, with_box: withBox, delivered_by: deliveredBy || null });
-            onSave(updated); showToast("Repair record updated successfully!", "success");
-        } catch (err) {
-            const message = err instanceof Error ? err.message : "Failed to save changes";
-            setError(message); showToast(message, "error");
-        } finally { setSaving(false); }
-    };
-
-    return (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 backdrop-blur-sm pt-16 px-4">
-            <div className="relative w-full max-w-md animate-in fade-in zoom-in-95 duration-200 rounded-2xl bg-white shadow-2xl border border-warm overflow-hidden">
-                <div className="h-2 bg-gradient-to-r from-teal to-teal-dark" />
-                <div className="p-6">
-                    <div className="flex items-center justify-between mb-6">
-                        <div><h2 className="text-lg font-bold text-ink">Edit Repair Record</h2><p className="text-sm text-ink-muted mt-0.5">POS #: {record.device_no || record.id}</p></div>
-                        <button onClick={onClose} className="rounded-lg p-1.5 hover:bg-gray-100 transition-colors"><X className="h-5 w-5 text-gray-400" /></button>
-                    </div>
-                    <div className="space-y-4">
-                        <div><label className="block text-sm font-semibold text-ink mb-1.5">Diagnosis <span className="text-rose-500">*</span></label>
-                            <select value={diagnosisId ?? ""} onChange={(e) => setDiagnosisId(e.target.value ? Number(e.target.value) : null)} className="w-full rounded-xl border border-warm bg-card px-4 py-3 text-sm text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20 transition-all shadow-sm">
-                                <option value="">Select diagnosis...</option>{diagnoses.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-                            </select>
-                        </div>
-                        <div><label className="block text-sm font-semibold text-ink mb-1.5">NTC</label>
-                            <div className="flex gap-4">
-                                <label className="flex items-center gap-2 cursor-pointer"><input type="radio" name="ntc" checked={ntc === true} onChange={() => setNtc(true)} className="h-4 w-4 text-teal-600 focus:ring-teal-500" /><span className="text-sm text-gray-700">Yes</span></label>
-                                <label className="flex items-center gap-2 cursor-pointer"><input type="radio" name="ntc" checked={ntc === false} onChange={() => setNtc(false)} className="h-4 w-4 text-teal-600 focus:ring-teal-500" /><span className="text-sm text-gray-700">No</span></label>
-                            </div>
-                        </div>
-                        <div><label className="block text-sm font-semibold text-ink mb-1.5">With Charger</label>
-                            <div className="flex gap-4">
-                                <label className="flex items-center gap-2 cursor-pointer"><input type="radio" name="withCharger" checked={withCharger === true} onChange={() => setWithCharger(true)} className="h-4 w-4 text-teal-600 focus:ring-teal-500" /><span className="text-sm text-gray-700">Yes</span></label>
-                                <label className="flex items-center gap-2 cursor-pointer"><input type="radio" name="withCharger" checked={withCharger === false} onChange={() => setWithCharger(false)} className="h-4 w-4 text-teal-600 focus:ring-teal-500" /><span className="text-sm text-gray-700">No</span></label>
-                            </div>
-                        </div>
-                        <div><label className="block text-sm font-semibold text-ink mb-1.5">With Box</label>
-                            <div className="flex gap-4">
-                                <label className="flex items-center gap-2 cursor-pointer"><input type="radio" name="withBox" checked={withBox === true} onChange={() => setWithBox(true)} className="h-4 w-4 text-teal-600 focus:ring-teal-500" /><span className="text-sm text-gray-700">Yes</span></label>
-                                <label className="flex items-center gap-2 cursor-pointer"><input type="radio" name="withBox" checked={withBox === false} onChange={() => setWithBox(false)} className="h-4 w-4 text-teal-600 focus:ring-teal-500" /><span className="text-sm text-gray-700">No</span></label>
-                            </div>
-                        </div>
-                        <div><label className="block text-sm font-semibold text-ink mb-1.5">Delivered By <span className="text-rose-500">*</span></label>
-                            <input type="text" value={deliveredBy} onChange={(e) => setDeliveredBy(e.target.value)} placeholder="Enter name of deliverer..." className="w-full rounded-xl border border-warm bg-card px-4 py-3 text-sm text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20 transition-all shadow-sm" />
-                        </div>
-                        {error && <p className="text-sm text-rose-500 flex items-center gap-1"><AlertTriangle size={14} />{error}</p>}
-                    </div>
-                    <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-warm/60">
-                        <button onClick={onClose} className="rounded-xl border-2 border-gray-200 px-6 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-all active:scale-[0.98]">Cancel</button>
-                        <button onClick={handleSave} disabled={saving} className="rounded-xl bg-gradient-to-r from-teal to-teal-dark px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-teal/25 hover:shadow-xl hover:shadow-teal/30 hover:from-teal-dark hover:to-teal transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none disabled:active:scale-100">
-                            {saving ? <span className="inline-flex items-center gap-2"><div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />Saving...</span> : <span className="inline-flex items-center gap-2"><Save className="h-4 w-4" />Save Changes</span>}
-                        </button>
-                    </div>
-                </div>
-            </div>
-            <RepairConfirmationModal open={showSaveConfirm} title="Save changes?" message={`This will update POS #${record.device_no || record.id}.`} confirmLabel="Save Changes" loading={saving} onCancel={() => setShowSaveConfirm(false)} onConfirm={handleConfirmSave} />
-        </div>
-    );
-}
-
-interface ForReleasedModalProps {
-    record: RepairRecord;
-    diagnoses: DiagnosisItem[];
-    loading: boolean;
-    title?: string;
-    proceedLabel?: string;
-    onCancel: () => void;
-    onProceed: (diagnosisId: number) => void;
-}
-
-function ForReleasedModal({ record, diagnoses, loading, title = "Final Diagnosis", proceedLabel = "Proceed", onCancel, onProceed }: ForReleasedModalProps) {
-    const [diagnosisId, setDiagnosisId] = useState<number | null>(record.diagnosis_id);
-    const selectedDiagnosis = diagnoses.find((d) => d.id === record.diagnosis_id);
-    const orderedDiagnoses = selectedDiagnosis
-        ? [selectedDiagnosis, ...diagnoses.filter((d) => d.id !== selectedDiagnosis.id)]
-        : diagnoses;
-
-    const handleProceed = () => {
-        if (!diagnosisId) return;
-        onProceed(diagnosisId);
-    };
-
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 backdrop-blur-sm">
-            <div className="w-full max-w-md overflow-hidden rounded-2xl border border-warm bg-white shadow-2xl">
-                <div className="h-2 bg-gradient-to-r from-teal to-teal-dark" />
-                <div className="p-6">
-                    <div className="mb-5 flex items-start justify-between gap-4">
-                        <div>
-                            <h2 className="text-lg font-bold text-ink">{title}</h2>
-                            <p className="mt-0.5 text-sm text-ink-muted">POS #: {record.device_no || record.id}</p>
-                        </div>
-                        <button onClick={onCancel} disabled={loading} className="rounded-lg p-1.5 transition-colors hover:bg-gray-100 disabled:opacity-50">
-                            <X className="h-5 w-5 text-gray-400" />
-                        </button>
-                    </div>
-
-                    <label className="mb-1.5 block text-sm font-semibold text-ink">
-                        Diagnosis <span className="text-rose-500">*</span>
-                    </label>
-                    <select
-                        value={diagnosisId ?? ""}
-                        onChange={(e) => setDiagnosisId(e.target.value ? Number(e.target.value) : null)}
-                        disabled={loading}
-                        className="w-full rounded-xl border border-warm bg-card px-4 py-3 text-sm text-ink focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20 disabled:cursor-not-allowed disabled:opacity-70"
-                    >
-                        <option value="">Select diagnosis...</option>
-                        {orderedDiagnoses.map((d) => (
-                            <option key={d.id} value={d.id}>{d.name}</option>
-                        ))}
-                    </select>
-
-                    <div className="mt-6 flex justify-end gap-3 border-t border-warm/60 pt-4">
-                        <button onClick={onCancel} disabled={loading} className="rounded-xl border-2 border-gray-200 px-6 py-2.5 text-sm font-semibold text-gray-600 transition-all hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50">
-                            Cancel
-                        </button>
-                        <button onClick={handleProceed} disabled={loading || !diagnosisId} className="rounded-xl bg-gradient-to-r from-teal to-teal-dark px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-teal/25 transition-all hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-50">
-                            {loading ? "Proceeding..." : proceedLabel}
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-}
-
 export default function RepairManagementPage() {
     const { user } = useAuth();
     const [activeStatusTab, setActiveStatusTab] = useState("for-checking");
+    const [darkMode, setDarkMode] = useState(() => {
+        return document.documentElement.classList.contains("dark") || localStorage.getItem("theme") === "dark";
+    });
+
+    useEffect(() => {
+        const syncTheme = () => {
+            setDarkMode(document.documentElement.classList.contains("dark"));
+        };
+        const observer = new MutationObserver(syncTheme);
+        observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+        window.addEventListener("storage", syncTheme);
+        syncTheme();
+        return () => {
+            observer.disconnect();
+            window.removeEventListener("storage", syncTheme);
+        };
+    }, []);
     const [records, setRecords] = useState<RepairRecord[]>([]);
     const [filteredRecords, setFilteredRecords] = useState<RepairRecord[]>([]);
     const [loading, setLoading] = useState(true);
@@ -229,17 +114,34 @@ export default function RepairManagementPage() {
     const [deleting, setDeleting] = useState(false);
     const [proceeding, setProceeding] = useState(false);
     const [recordToForRepair, setRecordToForRepair] = useState<RepairRecord | null>(null);
+    const [recordToTechnician, setRecordToTechnician] = useState<RepairRecord | null>(null);
+    const [savingTechnician, setSavingTechnician] = useState(false);
     const [recordToForReleased, setRecordToForReleased] = useState<RepairRecord | null>(null);
     const [forwardingRelease, setForwardingRelease] = useState(false);
+    const [recordToReset, setRecordToReset] = useState<RepairRecord | null>(null);
+    const [resetting, setResetting] = useState(false);
+    const [recordToReceive, setRecordToReceive] = useState<RepairRecord | null>(null);
+    const [receiving, setReceiving] = useState(false);
     const [recordToRelease, setRecordToRelease] = useState<RepairRecord | null>(null);
-    const [releasing, setReleasing] = useState(false);
-    const [toast, setToast] = useState<{ show: boolean; message: string; type: "error" | "success" }>({ show: false, message: "", type: "error" });
+    const [batchReleasePreview, setBatchReleasePreview] = useState<{
+        records: RepairRecord[];
+        billingCode: string;
+        receivedBy: string;
+    } | null>(null);
+    const [showTransmittal, setShowTransmittal] = useState(false);
+    const [expandedReleasedIds, setExpandedReleasedIds] = useState<Set<number>>(new Set());
+    const [batchModal, setBatchModal] = useState<"for-repair" | "checked" | "received" | "release" | null>(null);
+    const [batchProcessing, setBatchProcessing] = useState(false);
+    const [toastOpen, setToastOpen] = useState(false);
+    const [toastMessage, setToastMessage] = useState("");
+    const [toastType, setToastType] = useState<"error" | "success">("error");
 
     const showToast = (message: string, type: "error" | "success" = "error") => {
-        setToast({ show: true, message, type });
-        setTimeout(() => setToast({ show: false, message: "", type: "error" }), 4000);
+        setToastMessage(message);
+        setToastType(type);
+        setToastOpen(true);
     };
-    const hideToast = () => setToast({ show: false, message: "", type: "error" });
+    const hideToast = () => setToastOpen(false);
 
     const showActions = !noActionTabs.includes(activeStatusTab);
     const isForChecking = activeStatusTab === "for-checking";
@@ -281,7 +183,7 @@ export default function RepairManagementPage() {
         if (!recordToForReleased) return;
         setForwardingRelease(true);
         try {
-            const updated = await moveRepairRecordToForReleased(recordToForReleased.id, {
+            const updated = await moveRepairRecordToForRelease(recordToForReleased.id, {
                 diagnosis_id: diagnosisId,
                 requested_by: user?.name ?? user?.email ?? null,
             });
@@ -296,13 +198,74 @@ export default function RepairManagementPage() {
         }
     };
 
+    const handleResetToForRepair = async () => {
+        if (!recordToReset) return;
+        setResetting(true);
+        try {
+            const updated = await updateRepairRecord(recordToReset.id, { status: "For Repair", forwarded: true });
+            setRecords((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+            setRecordToReset(null);
+            showToast("Repair record reset to For Repair successfully!", "success");
+        } catch (err) {
+            console.error("Failed to reset repair record:", err);
+            showToast(err instanceof Error ? err.message : "Failed to reset repair record", "error");
+        } finally {
+            setResetting(false);
+        }
+    };
+
+    const handleTechnicianProceed = async (technician: string) => {
+        if (!recordToTechnician) return;
+        setSavingTechnician(true);
+        try {
+            const updated = await moveRepairRecordToUndergoingRepair(recordToTechnician.id, {
+                repaired_by: technician,
+                requested_by: user?.name ?? user?.email ?? null,
+            });
+            setRecords((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+            setRecordToTechnician(null);
+            showToast("Repair record moved to Undergoing Repair successfully!", "success");
+        } catch (err) {
+            console.error("Failed to assign technician:", err);
+            showToast(err instanceof Error ? err.message : "Failed to assign technician", "error");
+        } finally {
+            setSavingTechnician(false);
+        }
+    };
+
+    const handleReceiveProceed = async ({
+        billingCode,
+        remarks,
+        unrepairableRetired,
+    }: {
+        billingCode: string;
+        remarks: string;
+        unrepairableRetired: boolean;
+    }) => {
+        if (!recordToReceive) return;
+        setReceiving(true);
+        try {
+            const updated = await receiveRepairRecord(recordToReceive.id, {
+                billing_code: billingCode,
+                remarks,
+                received_by: user?.name ?? user?.email ?? null,
+                user_id: user?.id ?? null,
+                unrepairable_retired: unrepairableRetired,
+            });
+            setRecords((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+            setRecordToReceive(null);
+            showToast("Repair record received successfully!", "success");
+        } catch (err) {
+            console.error("Failed to receive repair record:", err);
+            showToast(err instanceof Error ? err.message : "Failed to receive repair record", "error");
+        } finally {
+            setReceiving(false);
+        }
+    };
+
     const handleRelease = (record: RepairRecord) => setRecordToRelease(record);
-    const handleConfirmRelease = async () => {
-        if (!recordToRelease) return;
-        setReleasing(true);
-        try { const updated = await releaseRepairRecord(recordToRelease.id); setRecords((prev) => prev.map((r) => (r.id === updated.id ? updated : r))); setRecordToRelease(null); showToast("Repair record released successfully!", "success"); }
-        catch (err) { console.error("Failed to release repair record:", err); showToast(err instanceof Error ? err.message : "Failed to release repair record", "error"); }
-        finally { setReleasing(false); }
+    const handleTransmittalReleased = (updated: RepairRecord) => {
+        setRecords((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
     };
 
     const handleDelete = (record: RepairRecord) => setRecordToDelete(record);
@@ -314,36 +277,148 @@ export default function RepairManagementPage() {
         finally { setDeleting(false); }
     };
 
+    const handleBatchForRepair = async (items: Array<{ record: RepairRecord; diagnosisId: number }>) => {
+        setBatchProcessing(true);
+        try {
+            const updatedRecords = await Promise.all(items.map((item) => proceedRepairRecord(item.record.id, item.diagnosisId)));
+            setRecords((prev) => prev.map((record) => updatedRecords.find((updated) => updated.id === record.id) ?? record));
+            setBatchModal(null);
+            showToast("Selected POS records moved to For Repair successfully!", "success");
+        } catch (err) {
+            showToast(err instanceof Error ? err.message : "Failed to process selected POS records", "error");
+        } finally {
+            setBatchProcessing(false);
+        }
+    };
+
+    const handleBatchChecked = async (technician: string, selectedRecords: RepairRecord[]) => {
+        setBatchProcessing(true);
+        try {
+            const updatedRecords = await Promise.all(selectedRecords.map((record) => moveRepairRecordToUndergoingRepair(record.id, {
+                repaired_by: technician,
+                requested_by: user?.name ?? user?.email ?? null,
+            })));
+            setRecords((prev) => prev.map((record) => updatedRecords.find((updated) => updated.id === record.id) ?? record));
+            setBatchModal(null);
+            showToast("Selected POS records moved to Undergoing Repair successfully!", "success");
+        } catch (err) {
+            showToast(err instanceof Error ? err.message : "Failed to process selected POS records", "error");
+        } finally {
+            setBatchProcessing(false);
+        }
+    };
+
+    const handleBatchReceived = async ({ billingCode, items }: { billingCode: string; items: Array<{ record: RepairRecord; remarks: string; unrepairableRetired: boolean }> }) => {
+        setBatchProcessing(true);
+        try {
+            const updatedRecords = await Promise.all(items.map((item) => receiveRepairRecord(item.record.id, {
+                billing_code: billingCode,
+                remarks: item.remarks,
+                received_by: user?.name ?? user?.email ?? null,
+                user_id: user?.id ?? null,
+                unrepairable_retired: item.unrepairableRetired,
+            })));
+            setRecords((prev) => prev.map((record) => updatedRecords.find((updated) => updated.id === record.id) ?? record));
+            setBatchModal(null);
+            showToast("Selected POS records received successfully!", "success");
+        } catch (err) {
+            showToast(err instanceof Error ? err.message : "Failed to receive selected POS records", "error");
+        } finally {
+            setBatchProcessing(false);
+        }
+    };
+
+    const handleBatchRelease = ({
+        billingCode,
+        receivedBy,
+        records: selectedRecords,
+    }: {
+        billingCode: string;
+        receivedBy: string;
+        records: RepairRecord[];
+    }) => {
+        setBatchModal(null);
+        setBatchReleasePreview({ records: selectedRecords, billingCode, receivedBy });
+    };
+
+    const toggleReleasedGroup = (id: number) => {
+        setExpandedReleasedIds((prev) => {
+            const next = new Set(prev);
+            if (next.has(id)) {
+                next.delete(id);
+            } else {
+                next.add(id);
+            }
+            return next;
+        });
+    };
+
+    const releasedGroups = useMemo(() => {
+        const groups = new Map<string, RepairRecord[]>();
+
+        filteredRecords.forEach((record) => {
+            const key = record.billing_code || `no-billing-${record.id}`;
+            groups.set(key, [...(groups.get(key) ?? []), record]);
+        });
+
+        return Array.from(groups.entries()).map(([billingCode, items]) => {
+            const latestRecord = items.reduce((latest, item) => (new Date(item.date).getTime() > new Date(latest.date).getTime() ? item : latest), items[0]);
+            return {
+                billingCode,
+                records: items,
+                latestRecord,
+            };
+        });
+    }, [filteredRecords]);
+
     const colCount = isForChecking || isForRepair ? 7 : isUndergoingRepair ? 8 : isForRelease ? 9 : 7 + (showAccessories ? 3 : 0) + (showActions ? 1 : 0) + (showRepairedBy ? 1 : 0) + (showRemarks ? 1 : 0) + (showBillingInfo ? 2 : 0);
 
     return (
         <div className="space-y-6">
-            <div className="flex gap-2 overflow-x-auto flex-wrap" style={{ borderBottom: "1px solid rgba(146,199,207,0.25)" }}>
-                {statusTabs.map((tab) => {
-                    const Icon = tab.icon;
-                    const isActive = activeStatusTab === tab.id;
-                    const count = filterRecordsByTab(records, tab.id).length;
-                    return (
-                        <button key={tab.id} onClick={() => setActiveStatusTab(tab.id)}
-                            className="flex shrink-0 items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all duration-200 rounded-t-xl cursor-pointer"
-                            style={{ background: isActive ? "rgba(146,199,207,0.15)" : "transparent", border: isActive ? "1px solid rgba(146,199,207,0.25)" : "1px solid transparent", borderBottom: isActive ? "1px solid white" : "1px solid transparent", color: isActive ? "#1F2937" : "#6B7280" }}
-                            onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = "rgba(146,199,207,0.06)"; }}
-                            onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
+            <div className="flex items-center justify-between gap-3 overflow-x-auto flex-wrap" style={{ borderBottom: "1px solid rgba(146,199,207,0.25)" }}>
+                <div className="flex flex-wrap gap-2">
+                    {statusTabs.map((tab) => {
+                        const Icon = tab.icon;
+                        const isActive = activeStatusTab === tab.id;
+                        const count = filterRecordsByTab(records, tab.id).length;
+                        return (
+                            <button key={tab.id} onClick={() => setActiveStatusTab(tab.id)}
+                                className="flex shrink-0 items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all duration-200 rounded-t-xl cursor-pointer"
+                                style={{ background: isActive ? "rgba(146,199,207,0.15)" : "transparent", border: isActive ? "1px solid rgba(146,199,207,0.25)" : "1px solid transparent", borderBottom: isActive ? "1px solid white" : "1px solid transparent", color: isActive ? (darkMode ? "#FFFFFF" : "#1F2937") : "#6B7280" }}
+                                onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = "rgba(146,199,207,0.06)"; }}
+                                onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
+                            >
+                                <Icon size={16} />{tab.label}
+                                {count > 0 && <span className="inline-flex items-center justify-center rounded-full px-1.5 py-0.5 text-xs font-semibold" style={{ background: "rgba(146,199,207,0.3)", color: "#1F2937" }}>{count}</span>}
+                            </button>
+                        );
+                    })}
+                </div>
+                {(activeStatusTab === "for-checking" || activeStatusTab === "for-repair" || activeStatusTab === "undergoing-repair" || activeStatusTab === "for-release") && (
+                    <div className="mb-2 ml-auto flex items-center gap-2">
+                        {activeStatusTab === "undergoing-repair" && (
+                            <button
+                                onClick={() => setShowTransmittal(true)}
+                                disabled={filteredRecords.length === 0}
+                                className="inline-flex h-10 items-center gap-2 rounded-xl border border-warm bg-white px-4 text-sm font-semibold text-ink shadow-sm transition hover:bg-surface disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
+                            >
+                                <Printer className="h-4 w-4" />
+                                Transmittal
+                            </button>
+                        )}
+                        <button
+                            onClick={() => setBatchModal(activeStatusTab === "for-checking" ? "for-repair" : activeStatusTab === "for-repair" ? "checked" : activeStatusTab === "undergoing-repair" ? "received" : "release")}
+                            disabled={filteredRecords.length === 0 || batchProcessing}
+                            className="inline-flex h-10 items-center gap-2 rounded-xl bg-teal px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-dark disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
                         >
-                            <Icon size={16} />{tab.label}
-                            {count > 0 && <span className="inline-flex items-center justify-center rounded-full px-1.5 py-0.5 text-xs font-semibold" style={{ background: "rgba(146,199,207,0.3)", color: "#1F2937" }}>{count}</span>}
+                            <ListChecks className="h-4 w-4" />
+                            Process Batch
                         </button>
-                    );
-                })}
+                    </div>
+                )}
             </div>
 
-            {toast.show && (
-                <div className={`relative rounded-xl px-4 py-3 shadow-lg backdrop-blur-xl transition-all duration-300 flex items-center gap-3 ${toast.type === "error" ? "bg-red-50/95 border border-red-200/60" : "bg-green-50/95 border border-green-200/60"}`}>
-                    {toast.type === "error" ? <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0" /> : <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" />}
-                    <p className={`text-sm font-medium ${toast.type === "error" ? "text-red-700" : "text-green-700"}`}>{toast.message}</p>
-                    <button onClick={hideToast} className="ml-auto p-1 rounded-lg hover:bg-black/5 transition-colors"><X className="h-4 w-4 text-gray-500" /></button>
-                </div>
-            )}
+            <Toast open={toastOpen} message={toastMessage} type={toastType} onClose={hideToast} />
 
             <div className="relative rounded-3xl border border-white/40 backdrop-blur-xl bg-white/20 shadow-lg overflow-hidden">
                 {loading ? (
@@ -361,58 +436,73 @@ export default function RepairManagementPage() {
                         {filteredRecords.length === 0 ? (
                             <div className="px-4 py-10 text-center text-gray-400">No records found in this category.</div>
                         ) : (
-                            filteredRecords.map((record) => (
-                                <div key={record.id} className="overflow-hidden rounded-sm border border-slate-100 bg-white/70 shadow-sm">
-                                    <div className="flex flex-wrap items-center gap-x-8 gap-y-2 bg-slate-50 px-5 py-3 text-sm font-bold text-slate-700">
-                                        <span className="inline-flex items-center gap-2">
-                                            <CalendarDays className="h-4 w-4 text-indigo-500" />
-                                            Date Released: {formatDateNumeric(record.date)}
-                                        </span>
-                                        <span className="inline-flex items-center gap-2">
-                                            <CreditCard className="h-4 w-4 text-sky-500" />
-                                            Billing Code: {record.billing_code || "-"}
-                                        </span>
-                                        <span className="inline-flex items-center gap-2">
-                                            <UserRound className="h-4 w-4 text-violet-600" />
-                                            Received By: {record.received_by || "-"}
-                                        </span>
-                                        <Minus className="ml-auto h-5 w-5 text-violet-500" />
+                            releasedGroups.map((group) => {
+                                const firstRecord = group.records[0];
+                                const isExpanded = expandedReleasedIds.has(firstRecord.id);
+                                return (
+                                    <div key={group.billingCode} className="overflow-hidden rounded-xl border border-warm bg-card shadow-sm">
+                                        <button
+                                            type="button"
+                                            onClick={() => toggleReleasedGroup(firstRecord.id)}
+                                            className="flex w-full flex-wrap items-center gap-x-8 gap-y-2 bg-card px-5 py-3 text-left text-sm font-bold text-ink transition-colors hover:bg-surface"
+                                        >
+                                            <span className="inline-flex items-center gap-2">
+                                                <CreditCard className="h-4 w-4 text-[#3B82A0]" />
+                                                Billing Code: {firstRecord.billing_code || "-"}
+                                            </span>
+                                            <span className="inline-flex items-center rounded-full bg-[#92C7CF]/20 px-2 py-0.5 text-xs font-bold text-[#1F2937]">
+                                                {group.records.length} POS
+                                            </span>
+                                            {isExpanded ? (
+                                                <Minus className="ml-auto h-5 w-5 text-[#3B82A0]" />
+                                            ) : (
+                                                <Plus className="ml-auto h-5 w-5 text-[#3B82A0]" />
+                                            )}
+                                        </button>
+                                        {isExpanded && (
+                                            <div className="overflow-x-auto border-t border-warm">
+                                                <table className="w-full text-sm">
+                                                    <thead>
+                                                        <tr className="border-b border-warm bg-cream text-left text-xs font-bold uppercase text-ink-muted">
+                                                            <th className="whitespace-nowrap px-4 py-3">Date Released</th>
+                                                            <th className="whitespace-nowrap px-4 py-3">POS No</th>
+                                                            <th className="whitespace-nowrap px-4 py-3">Serial No</th>
+                                                            <th className="whitespace-nowrap px-4 py-3">Area</th>
+                                                            <th className="whitespace-nowrap px-4 py-3">Operator</th>
+                                                            <th className="whitespace-nowrap px-4 py-3">Diagnosis</th>
+                                                            <th className="whitespace-nowrap px-4 py-3">Repaired By</th>
+                                                            <th className="whitespace-nowrap px-4 py-3">Remarks</th>
+                                                            <th className="whitespace-nowrap px-4 py-3">Received By</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {group.records.map((record) => (
+                                                            <tr key={record.id} className="text-ink transition hover:bg-cream/50">
+                                                                <td className="px-4 py-3.5">{formatDateNumeric(record.date)}</td>
+                                                                <td className="px-4 py-3.5 font-medium">{record.device_no || "-"}</td>
+                                                                <td className="px-4 py-3.5">{record.serial_number || "-"}</td>
+                                                                <td className="px-4 py-3.5">{record.area || "-"}</td>
+                                                                <td className="px-4 py-3.5">{record.operator_name || "-"}</td>
+                                                                <td className="px-4 py-3.5">{record.diagnosis_name || "-"}</td>
+                                                                <td className="px-4 py-3.5">{record.repaired_by || "-"}</td>
+                                                                <td className="px-4 py-3.5">{record.remarks || "-"}</td>
+                                                                <td className="px-4 py-3.5">{record.received_by || "-"}</td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        )}
                                     </div>
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full text-sm">
-                                            <thead>
-                                                <tr className="bg-white text-left text-xs font-bold uppercase text-black">
-                                                    <th className="px-4 py-3">POS No</th>
-                                                    <th className="px-4 py-3">Serial No</th>
-                                                    <th className="px-4 py-3">Area</th>
-                                                    <th className="px-4 py-3">Operator</th>
-                                                    <th className="px-4 py-3">Diagnosis</th>
-                                                    <th className="px-4 py-3">Repaired By</th>
-                                                    <th className="px-4 py-3">Remarks</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                <tr className="bg-rose-50/80 text-gray-800">
-                                                    <td className="px-4 py-3.5 font-medium">{record.device_no || "-"}</td>
-                                                    <td className="px-4 py-3.5">{record.serial_number || "-"}</td>
-                                                    <td className="px-4 py-3.5">{record.area || "-"}</td>
-                                                    <td className="px-4 py-3.5">{record.operator_name || "-"}</td>
-                                                    <td className="px-4 py-3.5">{record.diagnosis_name || "-"}</td>
-                                                    <td className="px-4 py-3.5">{record.repaired_by || "-"}</td>
-                                                    <td className="px-4 py-3.5">{record.remarks || "-"}</td>
-                                                </tr>
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            ))
+                                );
+                            })
                         )}
                     </div>
                 ) : (
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                             <thead>
-                                <tr className="text-left text-xs font-semibold uppercase tracking-wider text-gray-500" style={{ borderBottom: "1px solid rgba(146,199,207,0.15)" }}>
+                                <tr className="border-b border-warm bg-cream text-left text-xs font-semibold uppercase tracking-wider text-ink-muted">
                                     {showBillingInfo && <th className="px-4 py-4">Billing Code</th>}
                                     <th className="px-4 py-4">{isForChecking ? "Date Requested" : isForRepair ? "Date Checked" : isUndergoingRepair ? "Date Forwarded" : isForRelease ? "Date Received" : "Date"}</th>
                                     <th className="px-4 py-4">POS No</th>
@@ -457,7 +547,7 @@ export default function RepairManagementPage() {
                                                     <div className="flex items-center justify-center gap-1">
                                                         {activeStatusTab === "for-checking" && (
                                                             <>
-                                                                <button onClick={() => handleForReleased(record)} className="rounded-lg p-1.5 transition-colors hover:bg-blue-50" title="For Released" style={{ color: "#2563EB" }}><ArrowUpRight className="h-4 w-4" /></button>
+                                                                <button onClick={() => handleForReleased(record)} className="rounded-lg p-1.5 transition-colors hover:bg-blue-50" title="For Release" style={{ color: "#2563EB" }}><ArrowUpRight className="h-4 w-4" /></button>
                                                                 <button onClick={() => handleProceed(record)} className="rounded-lg p-1.5 transition-colors hover:bg-green-50" title="For Repair" style={{ color: "#16A34A" }}><Wrench className="h-4 w-4" /></button>
                                                             </>
                                                         )}
@@ -465,12 +555,12 @@ export default function RepairManagementPage() {
                                                             <button onClick={() => handleRelease(record)} className="rounded-lg p-1.5 transition-colors hover:bg-blue-50" title="Release" style={{ color: "#2563EB" }}><ArrowUpRight className="h-4 w-4" /></button>
                                                         )}
                                                         {activeStatusTab === "undergoing-repair" && (
-                                                            <button onClick={() => handleForReleased(record)} className="rounded-lg p-1.5 transition-colors hover:bg-green-50" title="Received" style={{ color: "#16A34A" }}><CheckCircle2 className="h-4 w-4" /></button>
+                                                            <button onClick={() => setRecordToReceive(record)} className="rounded-lg p-1.5 transition-colors hover:bg-green-50" title="Received" style={{ color: "#16A34A" }}><CheckCircle2 className="h-4 w-4" /></button>
                                                         )}
                                                         {activeStatusTab === "for-repair" && (
                                                             <>
-                                                                <button onClick={() => handleDelete(record)} className="rounded-lg p-1.5 transition-colors hover:bg-red-50" title="Reset" style={{ color: "#EF4444" }}><RotateCcw className="h-4 w-4" /></button>
-                                                                <button onClick={() => handleForReleased(record)} className="rounded-lg p-1.5 transition-colors hover:bg-green-50" title="Proceed" style={{ color: "#16A34A" }}><CheckCircle2 className="h-4 w-4" /></button>
+                                                                <button onClick={() => setRecordToReset(record)} className="rounded-lg p-1.5 transition-colors hover:bg-red-50" title="Reset" style={{ color: "#EF4444" }}><RotateCcw className="h-4 w-4" /></button>
+                                                                <button onClick={() => setRecordToTechnician(record)} className="rounded-lg p-1.5 transition-colors hover:bg-green-50" title="Proceed" style={{ color: "#16A34A" }}><CheckCircle2 className="h-4 w-4" /></button>
                                                             </>
                                                         )}
                                                         {!isForChecking && !isForRepair && !isUndergoingRepair && !isForRelease && <button onClick={() => handleEdit(record)} className="rounded-lg p-1.5 transition-colors hover:bg-amber-50" title="Edit" style={{ color: "#F59E0B" }}><Edit className="h-4 w-4" /></button>}
@@ -489,7 +579,7 @@ export default function RepairManagementPage() {
 
             {editingRecord && <EditModal record={editingRecord} diagnoses={diagnoses} onClose={handleEditClose} onSave={handleEditSave} showToast={showToast} />}
             {recordToForRepair && (
-                <ForReleasedModal
+                <FinalDiagnosisModal
                     record={recordToForRepair}
                     diagnoses={diagnoses}
                     loading={proceeding}
@@ -500,7 +590,7 @@ export default function RepairManagementPage() {
                 />
             )}
             {recordToForReleased && (
-                <ForReleasedModal
+                <FinalDiagnosisModal
                     record={recordToForReleased}
                     diagnoses={diagnoses}
                     loading={forwardingRelease}
@@ -508,8 +598,85 @@ export default function RepairManagementPage() {
                     onProceed={handleConfirmForReleased}
                 />
             )}
+            {recordToTechnician && (
+                <TechnicianModal
+                    record={recordToTechnician}
+                    loading={savingTechnician}
+                    onCancel={() => setRecordToTechnician(null)}
+                    onProceed={handleTechnicianProceed}
+                />
+            )}
+            {recordToReceive && (
+                <ReceivedModal
+                    record={recordToReceive}
+                    loading={receiving}
+                    onCancel={() => setRecordToReceive(null)}
+                    onProceed={handleReceiveProceed}
+                />
+            )}
+            {recordToRelease && (
+                <TransmittalModal
+                    mode="release"
+                    record={recordToRelease}
+                    userId={user?.id ?? null}
+                    issuedBy={user?.name ?? user?.email ?? ""}
+                    onReleased={handleTransmittalReleased}
+                    showToast={showToast}
+                    onClose={() => setRecordToRelease(null)}
+                />
+            )}
+            {batchReleasePreview && (
+                <TransmittalModal
+                    mode="release"
+                    records={batchReleasePreview.records}
+                    userId={user?.id ?? null}
+                    issuedBy={user?.name ?? user?.email ?? ""}
+                    initialBillingCode={batchReleasePreview.billingCode}
+                    initialReceivedBy={batchReleasePreview.receivedBy}
+                    initialPreview
+                    onReleased={handleTransmittalReleased}
+                    showToast={showToast}
+                    onClose={() => setBatchReleasePreview(null)}
+                />
+            )}
+            {showTransmittal && (
+                <TransmittalModal
+                    records={filterRecordsByTab(records, "undergoing-repair")}
+                    onClose={() => setShowTransmittal(false)}
+                />
+            )}
+            {batchModal === "for-repair" && (
+                <BatchForRepairModal
+                    records={filterRecordsByTab(records, "for-checking")}
+                    diagnoses={diagnoses}
+                    onCancel={() => setBatchModal(null)}
+                    onProceed={handleBatchForRepair}
+                />
+            )}
+            {batchModal === "checked" && (
+                <BatchCheckedPosModal
+                    records={filterRecordsByTab(records, "for-repair")}
+                    onCancel={() => setBatchModal(null)}
+                    onProceed={handleBatchChecked}
+                />
+            )}
+            {batchModal === "received" && (
+                <BatchReceivedPosModal
+                    records={filterRecordsByTab(records, "undergoing-repair")}
+                    onCancel={() => setBatchModal(null)}
+                    onProceed={handleBatchReceived}
+                />
+            )}
+            {batchModal === "release" && (
+                <CsrBatchForReleaseModal
+                    records={filterRecordsByTab(records, "for-release")}
+                    loading={batchProcessing}
+                    onCancel={() => setBatchModal(null)}
+                    onProceed={handleBatchRelease}
+                />
+            )}
 
-            <RepairConfirmationModal open={recordToRelease !== null} title="Release repair record?" message={recordToRelease ? `This will mark POS #${recordToRelease.device_no || recordToRelease.id} as "Released".` : undefined} confirmLabel="Release" loading={releasing} onCancel={() => setRecordToRelease(null)} onConfirm={handleConfirmRelease} />
+            <RepairConfirmationModal open={recordToReset !== null} title="Reset repair record?" message={recordToReset ? `This will move POS #${recordToReset.device_no || recordToReset.id} back to For Repair status.` : undefined} confirmLabel="Reset" loading={resetting} onCancel={() => setRecordToReset(null)} onConfirm={handleResetToForRepair} />
             <RepairConfirmationModal open={recordToDelete !== null} title="Delete repair record?" message="Are you sure you want to delete this repair record? This action cannot be undone." confirmLabel="Delete Record" loading={deleting} variant="delete" onCancel={() => setRecordToDelete(null)} onConfirm={handleConfirmDelete} />
         </div>
     );
