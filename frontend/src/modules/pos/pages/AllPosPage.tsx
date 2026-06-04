@@ -46,7 +46,7 @@ export default function AllPosPage() {
     const filteredBooths = useMemo(() => {
         if (!boothSearch.trim()) return boothList;
         const query = boothSearch.toLowerCase();
-        return boothList.filter(b => 
+        return boothList.filter(b =>
             b.booth_code?.toLowerCase().includes(query) ||
             b.booth_location?.toLowerCase().includes(query)
         );
@@ -393,14 +393,14 @@ export default function AllPosPage() {
                     <div className="flex items-center gap-2">
 
                         <div className="relative">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle h-4 w-4" />
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle dark:text-gray-500 h-4 w-4" />
 
                             <input
                                 type="text"
                                 placeholder="Search POS records..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-60 rounded-lg border border-warm bg-card py-2 pl-9 pr-3 text-sm text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-1 focus:ring-teal transition-all shadow-sm"
+                                className="w-60 rounded-lg border border-warm dark:border-gray-700 bg-card dark:bg-gray-800/70 py-2 pl-9 pr-3 text-sm text-ink dark:text-gray-100 placeholder:text-ink-subtle dark:placeholder:text-gray-400 focus:border-teal dark:focus:border-teal focus:outline-none focus:ring-1 focus:ring-teal dark:focus:ring-teal/50 transition-all shadow-sm"
                             />
                         </div>
 
@@ -465,9 +465,8 @@ export default function AllPosPage() {
                                     if (formErrors.device_no) setFormErrors(prev => ({ ...prev, device_no: undefined }));
                                 }}
                                 placeholder="Enter device number"
-                                className={`w-full rounded-xl border bg-card px-4 py-3 text-sm text-ink placeholder:text-ink-subtle focus:outline-none focus:ring-2 transition-all shadow-sm ${
-                                    formErrors.device_no ? 'border-rose-400 focus:border-rose-400 focus:ring-rose/20' : 'border-warm focus:border-teal focus:ring-teal/20'
-                                }`}
+                                className={`w-full rounded-xl border bg-card px-4 py-3 text-sm text-ink placeholder:text-ink-subtle focus:outline-none focus:ring-2 transition-all shadow-sm ${formErrors.device_no ? 'border-rose-400 focus:border-rose-400 focus:ring-rose/20' : 'border-warm focus:border-teal focus:ring-teal/20'
+                                    }`}
                             />
                         </div>
                         {formErrors.device_no && (
@@ -490,9 +489,8 @@ export default function AllPosPage() {
                                     if (formErrors.serial_no) setFormErrors(prev => ({ ...prev, serial_no: undefined }));
                                 }}
                                 placeholder="Enter serial number"
-                                className={`w-full rounded-xl border bg-card px-4 py-3 text-sm text-ink placeholder:text-ink-subtle focus:outline-none focus:ring-2 transition-all shadow-sm ${
-                                    formErrors.serial_no ? 'border-rose-400 focus:border-rose-400 focus:ring-rose/20' : 'border-warm focus:border-teal focus:ring-teal/20'
-                                }`}
+                                className={`w-full rounded-xl border bg-card px-4 py-3 text-sm text-ink placeholder:text-ink-subtle focus:outline-none focus:ring-2 transition-all shadow-sm ${formErrors.serial_no ? 'border-rose-400 focus:border-rose-400 focus:ring-rose/20' : 'border-warm focus:border-teal focus:ring-teal/20'
+                                    }`}
                             />
                         </div>
                         {formErrors.serial_no && (
@@ -513,9 +511,8 @@ export default function AllPosPage() {
                                     setNewPos({ ...newPos, area: e.target.value });
                                     if (formErrors.area) setFormErrors(prev => ({ ...prev, area: undefined }));
                                 }}
-                                className={`w-full rounded-xl border bg-card px-4 py-3 text-sm text-ink placeholder:text-ink-subtle focus:outline-none focus:ring-2 transition-all shadow-sm appearance-none cursor-pointer ${
-                                    formErrors.area ? 'border-rose-400 focus:border-rose-400 focus:ring-rose/20' : 'border-warm focus:border-teal focus:ring-teal/20'
-                                }`}
+                                className={`w-full rounded-xl border bg-card px-4 py-3 text-sm text-ink placeholder:text-ink-subtle focus:outline-none focus:ring-2 transition-all shadow-sm appearance-none cursor-pointer ${formErrors.area ? 'border-rose-400 focus:border-rose-400 focus:ring-rose/20' : 'border-warm focus:border-teal focus:ring-teal/20'
+                                    }`}
                             >
                                 <option value="" disabled hidden>-- Select an area --</option>
                                 <option value="CDO">CDO</option>
@@ -609,9 +606,9 @@ export default function AllPosPage() {
                                             const displayStatus = getDisplayStatus(record);
                                             return (
                                                 <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border
-                                                    ${displayStatus === 'Active' ? 'bg-teal-light/20 text-teal-dark border-teal/20' : 
-                                                      displayStatus === 'Inactive' ? 'bg-warm text-ink-muted border-ink-subtle/20' : 
-                                                      'bg-peach/20 text-peach-dark border-peach/20'}`}
+                                                    ${displayStatus === 'Active' ? 'bg-teal-light/20 text-teal-dark border-teal/20' :
+                                                        displayStatus === 'Inactive' ? 'bg-warm text-ink-muted border-ink-subtle/20' :
+                                                            'bg-peach/20 text-peach-dark border-peach/20'}`}
                                                 >
                                                     {displayStatus}
                                                 </span>
@@ -654,7 +651,7 @@ export default function AllPosPage() {
                     </tbody>
                 </table>
             </div>
-            
+
             {/* Pagination */}
             {!loading && filteredRecords.length > 0 && (
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
@@ -673,7 +670,7 @@ export default function AllPosPage() {
                         </button>
                         {/* Previous */}
                         <button
-                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                             disabled={currentPage === 1}
                             className="inline-flex items-center gap-1 rounded-lg border border-warm bg-white px-2.5 py-1.5 text-xs font-medium text-ink hover:bg-surface transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
                         >
@@ -688,11 +685,10 @@ export default function AllPosPage() {
                                 <button
                                     key={page}
                                     onClick={() => setCurrentPage(page)}
-                                    className={`min-w-8 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors shadow-sm ${
-                                        page === currentPage
-                                            ? 'bg-teal text-white'
-                                            : 'border border-warm bg-white text-ink hover:bg-surface'
-                                    }`}
+                                    className={`min-w-8 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors shadow-sm ${page === currentPage
+                                        ? 'bg-teal text-white'
+                                        : 'border border-warm bg-white text-ink hover:bg-surface'
+                                        }`}
                                 >
                                     {page}
                                 </button>
@@ -703,7 +699,7 @@ export default function AllPosPage() {
                         </div>
                         {/* Next */}
                         <button
-                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                             disabled={currentPage === totalPages}
                             className="inline-flex items-center gap-1 rounded-lg border border-warm bg-white px-2.5 py-1.5 text-xs font-medium text-ink hover:bg-surface transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
                         >
@@ -767,9 +763,8 @@ export default function AllPosPage() {
                                         setNewArea(e.target.value);
                                         setConvertAreaError(null);
                                     }}
-                                    className={`w-full rounded-xl border bg-card px-4 py-3 text-sm text-ink placeholder:text-ink-subtle focus:outline-none focus:ring-2 transition-all shadow-sm appearance-none cursor-pointer ${
-                                        convertAreaError ? 'border-rose-400 focus:border-rose-400 focus:ring-rose/20' : 'border-warm focus:border-teal focus:ring-teal/20'
-                                    }`}
+                                    className={`w-full rounded-xl border bg-card px-4 py-3 text-sm text-ink placeholder:text-ink-subtle focus:outline-none focus:ring-2 transition-all shadow-sm appearance-none cursor-pointer ${convertAreaError ? 'border-rose-400 focus:border-rose-400 focus:ring-rose/20' : 'border-warm focus:border-teal focus:ring-teal/20'
+                                        }`}
                                 >
                                     <option value="" disabled hidden>-- Select an area --</option>
                                     {["CDO", "MISOR"]

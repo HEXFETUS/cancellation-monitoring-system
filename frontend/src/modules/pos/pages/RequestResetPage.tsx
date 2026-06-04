@@ -8,7 +8,8 @@ import {
     type BoothChangeRequest,
     type RequestStatus,
 } from "../services/boothChangeRequests";
-import { ConfirmationModal, EditModal, type ToastType } from "../components";
+import { ConfirmationModal, EditModal } from "../components";
+import { Toast, type ToastType } from "../../../shared/components";
 
 export default function RequestResetPage() {
     const { user } = useAuth();
@@ -16,6 +17,23 @@ export default function RequestResetPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [filter, setFilter] = useState<RequestStatus | "all">("pending");
+    const [darkMode, setDarkMode] = useState(() => {
+        return document.documentElement.classList.contains("dark") || localStorage.getItem("theme") === "dark";
+    });
+
+    useEffect(() => {
+        const syncTheme = () => {
+            setDarkMode(document.documentElement.classList.contains("dark"));
+        };
+        const observer = new MutationObserver(syncTheme);
+        observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+        window.addEventListener("storage", syncTheme);
+        syncTheme();
+        return () => {
+            observer.disconnect();
+            window.removeEventListener("storage", syncTheme);
+        };
+    }, []);
     const [busyId, setBusyId] = useState<number | null>(null);
 
     // Toast state
@@ -185,7 +203,11 @@ export default function RequestResetPage() {
                                     borderBottom: isActive
                                         ? "1px solid white"
                                         : "1px solid transparent",
-                                    color: isActive ? "#1F2937" : "#6B7280",
+                                    color: isActive
+                                        ? darkMode
+                                            ? "#FFFFFF"
+                                            : "#1F2937"
+                                        : "#6B7280",
                                 }}
                                 onMouseEnter={(e) => {
                                     if (!isActive) {
@@ -224,35 +246,7 @@ export default function RequestResetPage() {
                 </div>
             )}
 
-            {/* Inline toast above the table */}
-            {toastOpen && (
-                <div
-                    className={`mb-4 flex items-start gap-3 rounded-xl border px-4 py-3 shadow-lg transition-all duration-300 ${
-                        toastType === "success"
-                            ? "border-green-200 bg-green-50"
-                            : toastType === "warning"
-                                ? "border-amber-200 bg-amber-50"
-                                : toastType === "info"
-                                    ? "border-blue-200 bg-blue-50"
-                                    : "border-red-200 bg-red-50"
-                    }`}
-                >
-                    <span className="mt-0.5 shrink-0">
-                        {toastType === "success" ? (
-                            <CheckCircle2 className="h-5 w-5 text-green-600" />
-                        ) : (
-                            <XCircle className="h-5 w-5 text-red-600" />
-                        )}
-                    </span>
-                    <p className="text-sm font-medium text-ink flex-1">{toastMessage}</p>
-                    <button
-                        onClick={() => setToastOpen(false)}
-                        className="shrink-0 rounded-full p-0.5 text-ink-muted hover:bg-black/5 hover:text-ink transition-colors"
-                    >
-                        <XCircle size={16} />
-                    </button>
-                </div>
-            )}
+            <Toast open={toastOpen} message={toastMessage} type={toastType} onClose={() => setToastOpen(false)} />
 
             <div className="space-y-3">
                 {loading ? (

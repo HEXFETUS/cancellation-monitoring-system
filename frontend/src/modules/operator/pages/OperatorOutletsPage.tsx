@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Pagination, Toast } from "../../../shared/components";
 import {
     History,
     Plus,
@@ -17,8 +18,9 @@ import {
     listBoothOperatorChangeRequests,
     type BoothOperatorChangeRequest,
 } from "../../pos/services/boothOperatorChangeRequests";
-import Toast from "../../pos/components/Toast";
 import ConfirmationModal from "../../pos/components/ConfirmationModal";
+
+const OUTLETS_PER_PAGE = 10;
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 const teal = "#92C7CF";
@@ -45,8 +47,11 @@ interface Me {
     parent_operator_id: number | null;
 }
 
-export default function MyOutletsPage() {
+export default function OperatorOutletsPage() {
     const { user } = useAuth();
+    const [darkMode, setDarkMode] = useState(() => {
+        return localStorage.getItem("theme") === "dark";
+    });
     const [me, setMe] = useState<Me | null>(null);
     const [booths, setBooths] = useState<BoothInfo[]>([]);
     const [operators, setOperators] = useState<OperatorInfo[]>([]);
@@ -54,6 +59,7 @@ export default function MyOutletsPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [searchQuery, setSearchQuery] = useState("");
+    const [outletPage, setOutletPage] = useState(1);
 
     // Add Outlet modal state
     const [showAddModal, setShowAddModal] = useState(false);
@@ -64,10 +70,35 @@ export default function MyOutletsPage() {
     const [submitting, setSubmitting] = useState(false);
     const [showConfirm, setShowConfirm] = useState(false);
 
-    // Toast state
+    // Toast state (inline in toolbar)
     const [toastOpen, setToastOpen] = useState(false);
     const [toastMessage, setToastMessage] = useState("");
     const [toastType, setToastType] = useState<"success" | "error" | "info" | "warning">("success");
+
+    // Floating toast state (top-center) for status change notifications
+    const [floatingToastOpen, setFloatingToastOpen] = useState(false);
+    const [floatingToastMessage, setFloatingToastMessage] = useState("");
+    const [floatingToastType, setFloatingToastType] = useState<"success" | "error" | "info" | "warning">("success");
+
+    // Track previous request statuses to detect approved/rejected changes
+    const prevRequestStatusMap = useRef<Map<number, string>>(new Map());
+    const isInitialLoad = useRef(true);
+
+    // Observe dark mode changes on <html>
+    useEffect(() => {
+        const handleThemeChange = () => {
+            setDarkMode(localStorage.getItem("theme") === "dark");
+        };
+        const observer = new MutationObserver(() => {
+            setDarkMode(document.documentElement.classList.contains("dark"));
+        });
+        observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+        window.addEventListener("storage", handleThemeChange);
+        return () => {
+            observer.disconnect();
+            window.removeEventListener("storage", handleThemeChange);
+        };
+    }, []);
 
     const myOperator = useMemo(() => {
         const myOpId = me?.operator_id != null ? Number(me.operator_id) : null;
@@ -82,6 +113,9 @@ export default function MyOutletsPage() {
         try {
             setLoading(true);
             setError("");
+
+            // Capture previous statuses before fetching new data
+            const prevStatuses = new Map(prevRequestStatusMap.current);
 
             const meRes = await fetch(`${API_BASE_URL}/api/users/me?id=${user.id}`);
             const meData = meRes.ok ? await meRes.json() : null;
@@ -104,12 +138,40 @@ export default function MyOutletsPage() {
             setBooths(boothData);
             setOperators(ops);
             setRequests(reqs);
+
+            // Detect status changes from approved/rejected perspective
+            if (!isInitialLoad.current) {
+                for (const req of reqs) {
+                    const prevStatus = prevStatuses.get(req.id);
+                    const currentStatus = (req.status || "").toLowerCase();
+                    if (prevStatus === "pending" && (currentStatus === "approved" || currentStatus === "rejected")) {
+                        const boothInfo = req.booth_code || `Booth #${req.booth_info_id}`;
+                        if (currentStatus === "approved") {
+                            setFloatingToastType("success");
+                            setFloatingToastMessage(`Outlet request for ${boothInfo} has been approved.`);
+                            setFloatingToastOpen(true);
+                        } else {
+                            setFloatingToastType("error");
+                            setFloatingToastMessage(`Outlet request for ${boothInfo} has been rejected.`);
+                            setFloatingToastOpen(true);
+                        }
+                    }
+                }
+            }
+
+            // Update the status map for next comparison
+            const newStatusMap = new Map<number, string>();
+            for (const req of reqs) {
+                newStatusMap.set(req.id, (req.status || "").toLowerCase());
+            }
+            prevRequestStatusMap.current = newStatusMap;
+            isInitialLoad.current = false;
         } catch (err) {
             setError(err instanceof Error ? err.message : String(err));
         } finally {
             setLoading(false);
         }
-    }, [user?.id]);
+    }, [user]);
 
     useEffect(() => {
         loadData();
@@ -162,6 +224,12 @@ export default function MyOutletsPage() {
         );
     }, [myBooths, searchQuery]);
 
+    const totalOutletPages = Math.ceil(filteredBooths.length / OUTLETS_PER_PAGE);
+    const paginatedBooths = useMemo(() => {
+        const start = (outletPage - 1) * OUTLETS_PER_PAGE;
+        return filteredBooths.slice(start, start + OUTLETS_PER_PAGE);
+    }, [filteredBooths, outletPage]);
+
     // ---- Add Outlet modal logic ----
     const openAddModal = useCallback(() => {
         setTypedQuery("");
@@ -171,6 +239,11 @@ export default function MyOutletsPage() {
         setShowConfirm(false);
         setShowAddModal(true);
     }, []);
+
+    const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setSearchQuery(e.target.value);
+        setOutletPage(1);
+    };
 
     const closeAddModal = () => {
         if (submitting) return;
@@ -268,10 +341,33 @@ export default function MyOutletsPage() {
     };
 
     const inputStyle = {
-        background: "rgba(255,255,255,0.58)",
-        border: "1px solid rgba(146,199,207,0.28)",
-        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.55)",
+        background: darkMode ? "rgba(31,41,55,0.80)" : "rgba(255,255,255,0.78)",
+        border: darkMode ? "1px solid rgba(75,85,99,0.55)" : "1px solid rgba(146,199,207,0.30)",
+        color: darkMode ? "#F3F4F6" : "#1F2937",
+        boxShadow: darkMode ? "none" : "inset 0 1px 0 rgba(255,255,255,0.55)",
         backdropFilter: "blur(8px)",
+    };
+
+    const getStatusBadgeStyle = (status: string): React.CSSProperties => {
+        const normalized = status.toLowerCase();
+        if (normalized === "pending") {
+            return darkMode
+                ? { backgroundColor: "rgba(146,64,14,0.60)", color: "#FDE68A" }
+                : { backgroundColor: "#FEF3C7", color: "#B45309" };
+        }
+        if (normalized === "approved") {
+            return darkMode
+                ? { backgroundColor: "rgba(22,101,52,0.60)", color: "#BBF7D0" }
+                : { backgroundColor: "#DCFCE7", color: "#15803D" };
+        }
+        if (normalized === "rejected") {
+            return darkMode
+                ? { backgroundColor: "rgba(153,27,27,0.60)", color: "#FECACA" }
+                : { backgroundColor: "#FEE2E2", color: "#B91C1C" };
+        }
+        return darkMode
+            ? { backgroundColor: "rgba(55,65,81,0.80)", color: "#D1D5DB" }
+            : { backgroundColor: "#F3F4F6", color: "#4B5563" };
     };
 
     return (
@@ -282,34 +378,45 @@ export default function MyOutletsPage() {
                 </div>
             )}
 
+            {/* Floating toast (top-center) for status change notifications */}
+            <Toast open={floatingToastOpen} message={floatingToastMessage} type={floatingToastType} onClose={() => setFloatingToastOpen(false)} position="top-center" />
+
             {/* Toolbar */}
-            <div className="flex items-center justify-end gap-2">
-                <div className="relative">
-                    <Search size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                    <input
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="Search booth code..."
-                        className="h-9 w-52 rounded-lg border border-gray-200 bg-white py-1.5 pl-8 pr-3 text-sm text-gray-800 placeholder:text-gray-400 shadow-sm focus:border-[#92C7CF] focus:outline-none focus:ring-1 focus:ring-[#92C7CF] transition"
-                    />
+            <div className="flex items-center justify-between gap-2">
+                {/* Toast */}
+                <div className="flex items-center">
+                    <Toast open={toastOpen} message={toastMessage} type={toastType} onClose={() => setToastOpen(false)} position="top-left" />
                 </div>
-                <button
-                    type="button"
-                    onClick={openAddModal}
-                    className="inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold text-white shadow-sm transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-[#92C7CF]/50"
-                    style={{ background: "linear-gradient(135deg, #92C7CF, #AAD7D9)" }}
-                >
-                    <Plus size={15} />
-                    Add Outlet
-                </button>
-                <button
-                    type="button"
-                    onClick={() => loadData()}
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 shadow-sm transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#92C7CF]/50"
-                    aria-label="Refresh"
-                >
-                    <RefreshCw size={16} />
-                </button>
+
+                <div className="flex items-center gap-2">
+                    <div className="relative">
+                        <Search size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 pointer-events-none" />
+                        <input
+                            value={searchQuery}
+                            onChange={handleSearchChange}
+                            placeholder="Search booth code..."
+                            className="h-9 w-52 rounded-lg py-1.5 pl-8 pr-3 text-sm placeholder:text-gray-400 dark:placeholder:text-gray-400 shadow-sm focus:border-[#92C7CF] dark:focus:border-teal focus:outline-none focus:ring-1 focus:ring-[#92C7CF] dark:focus:ring-teal/50 transition"
+                            style={inputStyle}
+                        />
+                    </div>
+                    <button
+                        type="button"
+                        onClick={openAddModal}
+                        className="inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold text-white shadow-sm transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-[#92C7CF]/50"
+                        style={{ background: "linear-gradient(135deg, #92C7CF, #AAD7D9)" }}
+                    >
+                        <Plus size={15} />
+                        Add Outlet
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => loadData()}
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 shadow-sm transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#92C7CF]/50"
+                        aria-label="Refresh"
+                    >
+                        <RefreshCw size={16} />
+                    </button>
+                </div>
             </div>
 
             {/* Outlets table */}
@@ -335,7 +442,7 @@ export default function MyOutletsPage() {
                                     <td colSpan={5} className="px-4 py-10 text-center text-gray-500">No outlets assigned to you.</td>
                                 </tr>
                             ) : (
-                                filteredBooths.map((booth) => {
+                                paginatedBooths.map((booth) => {
                                     const opName = booth.operator || operatorNameMap.get(Number(booth.operator_id)) || "\u2014";
                                     const area = deriveArea(booth.booth_code);
                                     return (
@@ -352,6 +459,15 @@ export default function MyOutletsPage() {
                         </tbody>
                     </table>
                 </div>
+                {totalOutletPages > 1 && (
+                    <Pagination
+                        currentPage={outletPage}
+                        totalPages={totalOutletPages}
+                        totalItems={filteredBooths.length}
+                        onPageChange={setOutletPage}
+                        pageSize={OUTLETS_PER_PAGE}
+                    />
+                )}
             </div>
 
             {/* My Request Outlet History (below the outlets table) */}
@@ -393,7 +509,8 @@ export default function MyOutletsPage() {
                                     <td className="whitespace-nowrap px-4 py-3 font-medium" style={{ color: teal }}>{r.to_operator || "\u2014"}</td>
                                     <td className="whitespace-nowrap px-4 py-3">
                                         <span
-                                            className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide ${r.status === "pending" ? "bg-amber-100 text-amber-700" : r.status === "approved" ? "bg-green-100 text-green-700" : r.status === "rejected" ? "bg-red-100 text-red-700" : "bg-gray-100 text-gray-600"}`}
+                                            className="inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide"
+                                            style={getStatusBadgeStyle(r.status)}
                                         >
                                             {r.status}
                                         </span>
@@ -418,8 +535,6 @@ export default function MyOutletsPage() {
                     </table>
                 </div>
             </div>
-
-            <Toast open={toastOpen} message={toastMessage} type={toastType} onClose={() => setToastOpen(false)} />
 
             <ConfirmationModal
                 open={showConfirm && !!matchedBooth}
@@ -457,19 +572,19 @@ export default function MyOutletsPage() {
 
             {showAddModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={closeAddModal}>
-                    <div className="relative w-full max-w-lg rounded-2xl border bg-white/95 shadow-2xl p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
-                        <button onClick={closeAddModal} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"><X size={18} /></button>
-                        <h2 className="text-base font-bold text-gray-800">Add Outlet</h2>
-                        <p className="text-xs text-gray-600">Search by booth code to request operator change.</p>
+                    <div className={`relative w-full max-w-lg rounded-2xl border shadow-2xl p-6 space-y-4 ${darkMode ? "bg-gray-800/95 border-gray-700" : "bg-white/95"}`} onClick={(e) => e.stopPropagation()}>
+                        <button onClick={closeAddModal} className={`absolute top-4 right-4 ${darkMode ? "text-gray-400 hover:text-gray-200" : "text-gray-400 hover:text-gray-600"}`}><X size={18} /></button>
+                        <h2 className={`text-base font-bold ${darkMode ? "text-gray-100" : "text-gray-800"}`}>Add Outlet</h2>
+                        <p className={`text-xs ${darkMode ? "text-gray-400" : "text-gray-600"}`}>Search by booth code to request operator change.</p>
                         <div className="flex gap-2">
                             <input type="text" value={typedQuery} onChange={(e) => { setTypedQuery(e.target.value); setMatchedBooth(null); setMatchedOperator(null); setMatchError(""); }} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleLookup(); } }} placeholder="Type a booth code..." className="h-10 flex-1 rounded-xl px-3 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#92C7CF]/35" style={inputStyle} />
                             <button onClick={handleLookup} disabled={!typedQuery.trim()} className="inline-flex h-10 items-center gap-1.5 rounded-xl px-4 text-sm font-semibold text-white disabled:opacity-50" style={{ background: `linear-gradient(135deg, ${teal}, ${tealLight})` }}><Search size={14} /> Look up</button>
                         </div>
                         {matchError && <div className="rounded-xl border border-red-200/60 bg-red-50/95 px-4 py-2.5 text-sm font-medium text-red-700">{matchError}</div>}
                         {matchedBooth && !matchError && (
-                            <div className="rounded-xl border bg-white/40 p-4 space-y-2">
-                                <p className="text-sm text-gray-700"><span className="font-semibold">Booth:</span> <span style={{ color: teal }} className="font-mono">{matchedBooth.booth_code}</span></p>
-                                <p className="text-sm text-gray-700"><span className="font-semibold">Current operator:</span> <span style={{ color: teal }}>{matchedOperator?.operator || "Unassigned"}</span></p>
+                            <div className={`rounded-xl border p-4 space-y-2 ${darkMode ? "border-gray-700 bg-gray-800/50" : "border-white/40 bg-white/40"}`}>
+                                <p className={`text-sm ${darkMode ? "text-gray-200" : "text-gray-700"}`}><span className="font-semibold">Booth:</span> <span style={{ color: teal }} className="font-mono">{matchedBooth.booth_code}</span></p>
+                                <p className={`text-sm ${darkMode ? "text-gray-200" : "text-gray-700"}`}><span className="font-semibold">Current operator:</span> <span style={{ color: teal }}>{matchedOperator?.operator || "Unassigned"}</span></p>
                                 {isAlreadyMine ? <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">Already under you.</p> : hasPendingForBooth ? <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">Pending request exists.</p> : <button onClick={() => setShowConfirm(true)} disabled={submitting} className="inline-flex h-10 items-center gap-1.5 rounded-xl px-4 text-sm font-semibold text-white disabled:opacity-50" style={{ background: `linear-gradient(135deg, ${teal}, ${tealLight})` }}><Send size={14} /> Request</button>}
                             </div>
                         )}
