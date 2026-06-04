@@ -859,24 +859,47 @@ async function upsertAssetCodeFromSheet(client, row) {
         : null;
 
     if (assetCode.item_code) {
-        // Row has an item_code — upsert via ON CONFLICT so existing codes
-        // get updated and new ones are inserted.
-        const result = await client.query(
+        // Row has an item_code — manually check if it exists first, then
+        // INSERT or UPDATE (no UNIQUE constraint on item_code any more since
+        // the column was made nullable, so ON CONFLICT won't work).
+        const existing = await client.query(
+            `SELECT id FROM asset_coding WHERE item_code = $1 LIMIT 1`,
+            [assetCode.item_code]
+        );
+
+        if (existing.rows.length > 0) {
+            await client.query(
+                `
+                UPDATE asset_coding
+                SET description = $1,
+                    type = $2,
+                    department = $3,
+                    care_of = $4,
+                    space = $5,
+                    asset_id = $6,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = $7
+                `,
+                [
+                    assetCode.description,
+                    assetCode.type,
+                    assetCode.department,
+                    assetCode.care_of,
+                    assetCode.space,
+                    assetCode.asset_id,
+                    existing.rows[0].id,
+                ]
+            );
+            return { updated: true };
+        }
+
+        await client.query(
             `
             INSERT INTO asset_coding (
                 item_code, description, type, department, care_of, space, asset_id
             ) VALUES (
                 $1, $2, $3, $4, $5, $6, $7
             )
-            ON CONFLICT (item_code) DO UPDATE
-            SET description = EXCLUDED.description,
-                type = EXCLUDED.type,
-                department = EXCLUDED.department,
-                care_of = EXCLUDED.care_of,
-                space = EXCLUDED.space,
-                asset_id = EXCLUDED.asset_id,
-                updated_at = CURRENT_TIMESTAMP
-            RETURNING (xmax = 0) AS inserted
             `,
             [
                 assetCode.item_code,
@@ -889,7 +912,7 @@ async function upsertAssetCodeFromSheet(client, row) {
             ]
         );
 
-        return result.rows[0]?.inserted ? { inserted: true } : { updated: true };
+        return { inserted: true };
     }
 
     // Row has no item_code (ASSET ID is empty) but has description — do a plain
