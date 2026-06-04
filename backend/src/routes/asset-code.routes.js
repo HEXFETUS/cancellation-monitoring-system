@@ -41,7 +41,7 @@ function validate(body) {
 router.get("/", async (_req, res) => {
     try {
         const result = await pool.query(
-            `SELECT ${COLUMNS} FROM asset_codes ORDER BY id DESC`
+            `SELECT ${COLUMNS} FROM asset_coding ORDER BY id DESC`
         );
         res.json(result.rows);
     } catch (err) {
@@ -65,7 +65,7 @@ router.get("/by-payload/:payload", async (req, res) => {
 
     try {
         const result = await pool.query(
-            `SELECT ${COLUMNS} FROM asset_codes WHERE qr_payload = $1 LIMIT 1`,
+            `SELECT ${COLUMNS} FROM asset_coding WHERE qr_payload = $1 LIMIT 1`,
             [payload]
         );
         if (result.rows.length === 0) {
@@ -91,7 +91,7 @@ router.post("/", async (req, res) => {
     try {
         const result = await pool.query(
             `
-            INSERT INTO asset_codes
+            INSERT INTO asset_coding
                 (item_code, description, type, department, care_of, space, qr_payload, asset_id)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             RETURNING ${COLUMNS}
@@ -137,7 +137,7 @@ router.put("/:id", async (req, res) => {
     try {
         const result = await pool.query(
             `
-            UPDATE asset_codes
+            UPDATE asset_coding
             SET item_code = $1,
                 description = $2,
                 type = $3,
@@ -187,7 +187,7 @@ router.post("/:id/regenerate-qr", async (req, res) => {
 
     try {
         const existing = await pool.query(
-            "SELECT item_code FROM asset_codes WHERE id = $1",
+            "SELECT item_code FROM asset_coding WHERE id = $1",
             [id]
         );
         if (existing.rows.length === 0) {
@@ -198,7 +198,7 @@ router.post("/:id/regenerate-qr", async (req, res) => {
 
         const result = await pool.query(
             `
-            UPDATE asset_codes
+            UPDATE asset_coding
             SET qr_payload = $1, updated_at = CURRENT_TIMESTAMP
             WHERE id = $2
             RETURNING ${COLUMNS}
@@ -219,7 +219,7 @@ router.delete("/:id", blockPurchaserDelete, async (req, res) => {
 
     try {
         const result = await pool.query(
-            "DELETE FROM asset_codes WHERE id = $1 RETURNING id",
+            "DELETE FROM asset_coding WHERE id = $1 RETURNING id",
             [id]
         );
         if (result.rows.length === 0) {

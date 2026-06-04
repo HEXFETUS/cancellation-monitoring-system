@@ -85,7 +85,9 @@ export default function AssetFormModal({
         0,
         Number(values.purchasePrice || 0) - Number(values.discount || 0)
     );
-    const computedTotalValue = Number(values.assetValue || 0) * Number(values.quantity || 1);
+    const effectiveAssetValue =
+        Number(values.assetValue || 0) > 0 ? Number(values.assetValue || 0) : computedAssetValue;
+    const computedTotalValue = effectiveAssetValue * Number(values.quantity || 1);
 
     const setField = <K extends keyof AssetFormValues>(
         key: K,
@@ -103,7 +105,10 @@ export default function AssetFormModal({
         setSaving(true);
         setError("");
         try {
-            await onSubmit(values);
+            await onSubmit({
+                ...values,
+                assetValue: effectiveAssetValue,
+            });
             onClose();
         } catch (err) {
             setError(err instanceof Error ? (err instanceof Error ? err.message : String(err)) : "Save failed");

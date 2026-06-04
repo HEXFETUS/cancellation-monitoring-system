@@ -60,7 +60,7 @@ export const ASSET_CODE_HEADERS = [
     "Care Of",
     "Space",
     "QR Payload",
-    "Linked Asset ID",
+    "Asset ID",
     "Created At",
     "Updated At",
 ];
@@ -366,13 +366,35 @@ async function fetchSheetRowsByNameFromWebApp(sheetName) {
         payload.workbook?.[sheetName] ||
         [];
 
-    const rows = Array.isArray(sourceRows[0])
-        ? rowsFromSheetValues(sourceRows)
-        : normalizeObjectRows(sourceRows);
+    let rows;
+    if (Array.isArray(sourceRows[0])) {
+        // Raw values — the GAS returned a 2D grid. Try rowsFromSheetValues
+        // first (looks for a real header row). If every row comes back empty
+        // (header scan failed, e.g. empty cells in row 1), fall back to
+        // treating the first row as the header manually, then object-map the
+        // rest so we don't lose data.
+        rows = rowsFromSheetValues(sourceRows);
+        if (rows.every((row) => Object.keys(row).length === 0) && sourceRows.length > 1) {
+            const rawHeaders = sourceRows[0].map(normalizeHeader);
+            rows = sourceRows.slice(1).map((valuesRow) => {
+                const row = {};
+                rawHeaders.forEach((header, index) => {
+                    if (header) row[header] = valuesRow?.[index] ?? "";
+                });
+                return row;
+            });
+        }
+    } else {
+        // Already object-mapped by the GAS
+        rows = normalizeObjectRows(sourceRows);
+    }
 
     if (sourceRows.length > 0 && rows.every((row) => Object.keys(row).length === 0)) {
-        throw new Error(
-            `Google Sheets Web App returned ${sourceRows.length} empty rows for "${sheetName}". Check the Apps Script response: it must return header-mapped objects or raw sheet values with a real header row.`
+        // Still empty after both attempts — log a warning and return empty
+        // so the rest of the sync (other tabs) can proceed.
+        console.warn(
+            `GAS Web App returned ${sourceRows.length} rows for "${sheetName}" ` +
+            `but none had recognisable headers. The tab will be skipped.`
         );
     }
 
@@ -414,7 +436,7 @@ async function findOfficeDepartmentId(client, department) {
 }
 
 async function syncSerialSequence(client, tableName) {
-    if (!["assets", "asset_codes"].includes(tableName)) {
+    if (!["asset_inv", "asset_coding"].includes(tableName)) {
         throw new Error(`Cannot sync unknown asset table sequence: ${tableName}`);
     }
 
@@ -504,17 +526,17 @@ export async function getAssetRows({ location } = {}) {
                a.location,
                a.item_description,
                a.type,
-               a.serial_number,
+        a.serial_no AS serial_number,
                a.department,
                a.space,
                a.date_purchase,
                a.vendor,
-               a.purchase_price,
+        a.purchase_price_per_item AS purchase_price,
                a.warranty_date,
                a.quantity,
                a.discount,
                a.asset_value,
-               a.total_value,
+        a.asset_total AS total_value,
                a.color,
                a.remarks,
                a.payout_station_id,
@@ -525,7 +547,7 @@ export async function getAssetRows({ location } = {}) {
                od.name AS office_department_name,
                a.created_at,
                a.updated_at
-        FROM assets a
+    FROM asset_inv a
         LEFT JOIN payout_stations ps ON ps.id = a.payout_station_id
         LEFT JOIN office_departments od ON od.id = a.office_department_id
         ${where}
@@ -542,7 +564,7 @@ export async function getAssetCodeRows() {
         `
         SELECT id, item_code, description, type, department, care_of, space,
                qr_payload, asset_id, created_at, updated_at
-        FROM asset_codes
+        FROM asset_coding
         ORDER BY item_code ASC
         `
     );
@@ -580,8 +602,8 @@ export async function getAssetSummaryRows() {
         SELECT location,
                COUNT(*)::int AS asset_count,
                COALESCE(SUM(quantity), 0)::int AS total_quantity,
-               COALESCE(SUM(total_value), 0)::numeric(14,2) AS total_value
-        FROM assets
+        COALESCE(SUM(asset_total), 0)::numeric(14,2) AS total_value
+    FROM asset_inv
         GROUP BY location
         ORDER BY location ASC
         `
@@ -704,8 +726,8 @@ async function upsertAssetFromSheet(client, row) {
         const existing = await client.query(
             `
             SELECT id
-            FROM assets
-            WHERE LOWER(serial_number) = LOWER($1)
+            FROM asset_inv
+            WHERE LOWER(serial_no) = LOWER($1)
             LIMIT 1
             `,
             [asset.serial_number]
@@ -717,7 +739,7 @@ async function upsertAssetFromSheet(client, row) {
         const existing = await client.query(
             `
             SELECT id
-            FROM assets
+            FROM asset_inv
             WHERE location = $1
               AND LOWER(item_description) = LOWER($2)
             LIMIT 1
@@ -730,10 +752,10 @@ async function upsertAssetFromSheet(client, row) {
     if (asset.id) {
         const result = await client.query(
             `
-            INSERT INTO assets (
-                id, location, item_description, type, serial_number, department, space,
-                date_purchase, vendor, purchase_price, warranty_date, quantity,
-                discount, asset_value, total_value, color, remarks, payout_station_id,
+            INSERT INTO asset_inv (
+                id, location, item_description, type, serial_no, department, space,
+                date_purchase, vendor, purchase_price_per_item, warranty_date, quantity,
+                discount, asset_value, asset_total, color, remarks, payout_station_id,
                 office_department_id
             ) VALUES (
                 $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19
@@ -742,17 +764,17 @@ async function upsertAssetFromSheet(client, row) {
             SET location = EXCLUDED.location,
                 item_description = EXCLUDED.item_description,
                 type = EXCLUDED.type,
-                serial_number = EXCLUDED.serial_number,
+                serial_no = EXCLUDED.serial_no,
                 department = EXCLUDED.department,
                 space = EXCLUDED.space,
                 date_purchase = EXCLUDED.date_purchase,
                 vendor = EXCLUDED.vendor,
-                purchase_price = EXCLUDED.purchase_price,
+                purchase_price_per_item = EXCLUDED.purchase_price_per_item,
                 warranty_date = EXCLUDED.warranty_date,
                 quantity = EXCLUDED.quantity,
                 discount = EXCLUDED.discount,
                 asset_value = EXCLUDED.asset_value,
-                total_value = EXCLUDED.total_value,
+                asset_total = EXCLUDED.asset_total,
                 color = EXCLUDED.color,
                 remarks = EXCLUDED.remarks,
                 payout_station_id = EXCLUDED.payout_station_id,
@@ -788,10 +810,10 @@ async function upsertAssetFromSheet(client, row) {
 
     await client.query(
         `
-        INSERT INTO assets (
-            location, item_description, type, serial_number, department, space,
-            date_purchase, vendor, purchase_price, warranty_date, quantity,
-            discount, asset_value, total_value, color, remarks, payout_station_id,
+        INSERT INTO asset_inv (
+            location, item_description, type, serial_no, department, space,
+            date_purchase, vendor, purchase_price_per_item, warranty_date, quantity,
+            discount, asset_value, asset_total, color, remarks, payout_station_id,
             office_department_id
         ) VALUES (
             $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
@@ -833,7 +855,7 @@ async function nextAvailableItemCode(client) {
             MAX(NULLIF(regexp_replace(item_code, '[^0-9]', '', 'g'), ''))::int,
             0
         ) + 1 AS next
-        FROM asset_codes
+        FROM asset_coding
         WHERE item_code ~ '^ITEM-[0-9]+$'
         `
     );
@@ -854,7 +876,7 @@ async function upsertAssetCodeFromSheet(client, row) {
         const existing = await client.query(
             `
             SELECT item_code
-            FROM asset_codes
+            FROM asset_coding
             WHERE LOWER(description) = LOWER($1)
               AND COALESCE(LOWER(department), '') = COALESCE(LOWER($2), '')
             ORDER BY id ASC
@@ -876,7 +898,7 @@ async function upsertAssetCodeFromSheet(client, row) {
 
     const result = await client.query(
         `
-        INSERT INTO asset_codes (
+        INSERT INTO asset_coding (
             item_code, description, type, department, care_of, space, qr_payload, asset_id
         ) VALUES (
             $1, $2, $3, $4, $5, $6, $7, $8
@@ -887,6 +909,7 @@ async function upsertAssetCodeFromSheet(client, row) {
             department = EXCLUDED.department,
             care_of = EXCLUDED.care_of,
             space = EXCLUDED.space,
+            qr_payload = COALESCE(asset_coding.qr_payload, EXCLUDED.qr_payload),
             asset_id = EXCLUDED.asset_id,
             updated_at = CURRENT_TIMESTAMP
         RETURNING (xmax = 0) AS inserted
@@ -947,7 +970,7 @@ export async function syncAssetInventoryFromGoogleSheets() {
             );
         }
 
-        await syncSerialSequence(client, "assets");
+        await syncSerialSequence(client, "asset_inv");
 
         for (const row of assetCodeSheetRows) {
             addOutcome(
@@ -956,7 +979,7 @@ export async function syncAssetInventoryFromGoogleSheets() {
             );
         }
 
-        await syncSerialSequence(client, "asset_codes");
+        await syncSerialSequence(client, "asset_coding");
         await client.query("COMMIT");
 
         return summary;

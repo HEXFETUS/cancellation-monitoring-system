@@ -111,14 +111,26 @@ router.post("/", async (req, res) => {
 
         // Reject if the requesting user already owns the booth
         const requesterOpRes = await pool.query(
-            `SELECT id, operator FROM operator_list WHERE user_id = $1::int LIMIT 1`,
+            `SELECT id, operator, COALESCE(parent_operator_id, id) AS root_id
+             FROM operator_list WHERE user_id = $1::int LIMIT 1`,
             [user_id]
         );
-        const requesterOpId = requesterOpRes.rows[0]?.id ?? null;
-        if (requesterOpId && booth.operator_id && Number(booth.operator_id) === Number(requesterOpId)) {
-            return res.status(400).json({
-                error: "You already own this booth.",
-            });
+        const requesterOp = requesterOpRes.rows[0] ?? null;
+        if (requesterOp && booth.operator_id) {
+            const boothOwnerRes = await pool.query(
+                `SELECT id, COALESCE(parent_operator_id, id) AS root_id
+                 FROM operator_list WHERE id = $1::int LIMIT 1`,
+                [booth.operator_id]
+            );
+            const boothOwner = boothOwnerRes.rows[0] ?? null;
+            if (
+                boothOwner &&
+                Number(boothOwner.root_id) === Number(requesterOp.root_id)
+            ) {
+                return res.status(400).json({
+                    error: "This booth is already under your operator group.",
+                });
+            }
         }
 
         // Reject if there's already a pending request for the same booth

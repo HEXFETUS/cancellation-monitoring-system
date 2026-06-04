@@ -12,11 +12,12 @@ const SERIAL_TABLES = [
     "user_logs",
     "cancellation_record",
     "cancellation_human_force",
-    "assets",
-    "asset_codes",
+    "asset_inv",
+    "asset_coding",
     "payout_stations",
     "office_departments",
     "booth_change_requests",
+    "operator_booth_requests",
     "operator_change_requests",
     "diagnosis_list",
     "repair_records",
@@ -300,15 +301,24 @@ async function initDatabase() {
                 date DATE NOT NULL,
                 area VARCHAR(255),
                 reaseon_for_deny VARCHAR(255),
+                reason_for_deny VARCHAR(255),
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 booth_id INTEGER REFERENCES booth_info(id) ON DELETE SET NULL,
                 ticket_number VARCHAR(255),
                 reference_code VARCHAR(255),
-                booth_code VARCHAR(255)
+                booth_code VARCHAR(255),
+                user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         `);
+        await client.query("ALTER TABLE cancellation_human_force ADD COLUMN IF NOT EXISTS date DATE");
+        await client.query("ALTER TABLE cancellation_human_force ADD COLUMN IF NOT EXISTS area VARCHAR(255)");
+        await client.query("ALTER TABLE cancellation_human_force ADD COLUMN IF NOT EXISTS reaseon_for_deny VARCHAR(255)");
+        await client.query("ALTER TABLE cancellation_human_force ADD COLUMN IF NOT EXISTS reason_for_deny VARCHAR(255)");
         await client.query("ALTER TABLE cancellation_human_force ADD COLUMN IF NOT EXISTS reference_code VARCHAR(255)");
         await client.query("ALTER TABLE cancellation_human_force ADD COLUMN IF NOT EXISTS booth_code VARCHAR(255)");
+        await client.query("ALTER TABLE cancellation_human_force ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE SET NULL");
+        await client.query("ALTER TABLE cancellation_human_force ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
 
         const userCount = await client.query("SELECT COUNT(*) FROM users");
         if (Number(userCount.rows[0].count) === 0) {
@@ -327,30 +337,32 @@ async function initDatabase() {
            so the same table can power all the section pages.
         ========================= */
         await client.query(`
-            CREATE TABLE IF NOT EXISTS assets (
-                id SERIAL PRIMARY KEY,
+            CREATE TABLE IF NOT EXISTS asset_inv (
+                id BIGSERIAL PRIMARY KEY,
                 location VARCHAR(50) NOT NULL CHECK (location IN ('office', 'payout', 'drawcourt', 'obs', 'staffhouse', 'vehicle')),
                 item_description VARCHAR(255) NOT NULL,
                 type VARCHAR(100),
-                serial_number VARCHAR(255),
+                serial_no VARCHAR(150) UNIQUE,
                 department VARCHAR(255),
                 space VARCHAR(255),
                 date_purchase DATE,
                 vendor VARCHAR(255),
-                purchase_price NUMERIC(14,2) DEFAULT 0,
+                purchase_price_per_item NUMERIC(12,2) DEFAULT 0,
                 warranty_date DATE,
                 quantity INTEGER DEFAULT 1,
-                discount NUMERIC(14,2) DEFAULT 0,
-                asset_value NUMERIC(14,2) DEFAULT 0,
-                total_value NUMERIC(14,2) DEFAULT 0,
+                discount NUMERIC(12,2) DEFAULT 0,
+                asset_value NUMERIC(12,2) DEFAULT 0,
+                asset_total NUMERIC(12,2) DEFAULT 0,
                 color VARCHAR(50),
                 remarks TEXT,
+                created_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
+                assigned_to BIGINT REFERENCES users(id) ON DELETE SET NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         `);
         await client.query(
-            "CREATE INDEX IF NOT EXISTS idx_assets_location ON assets(location)"
+            "CREATE INDEX IF NOT EXISTS idx_asset_inv_location ON asset_inv(location)"
         );
 
         // Migrate existing assets.location CHECK constraint to add the new
@@ -364,15 +376,15 @@ async function initDatabase() {
                 SELECT con.conname INTO constraint_name
                 FROM pg_constraint con
                 JOIN pg_class tbl ON tbl.oid = con.conrelid
-                WHERE tbl.relname = 'assets'
+                WHERE tbl.relname = 'asset_inv'
                   AND con.contype = 'c'
                   AND pg_get_constraintdef(con.oid) ILIKE '%location%';
 
                 IF constraint_name IS NOT NULL THEN
-                    EXECUTE format('ALTER TABLE assets DROP CONSTRAINT %I', constraint_name);
+                    EXECUTE format('ALTER TABLE asset_inv DROP CONSTRAINT %I', constraint_name);
                 END IF;
 
-                ALTER TABLE assets ADD CONSTRAINT assets_location_check
+                ALTER TABLE asset_inv ADD CONSTRAINT asset_inv_location_check
                     CHECK (location IN ('office', 'payout', 'drawcourt', 'obs', 'staffhouse', 'vehicle'));
             END $$;
         `);
@@ -384,8 +396,8 @@ async function initDatabase() {
            want the QR to identify a specific physical item.
         ========================= */
         await client.query(`
-            CREATE TABLE IF NOT EXISTS asset_codes (
-                id SERIAL PRIMARY KEY,
+            CREATE TABLE IF NOT EXISTS asset_coding (
+                id BIGSERIAL PRIMARY KEY,
                 item_code VARCHAR(100) UNIQUE NOT NULL,
                 description VARCHAR(255) NOT NULL,
                 type VARCHAR(100),
@@ -393,13 +405,16 @@ async function initDatabase() {
                 care_of VARCHAR(255),
                 space VARCHAR(255),
                 qr_payload VARCHAR(255) UNIQUE NOT NULL,
-                asset_id INTEGER REFERENCES assets(id) ON DELETE SET NULL,
+                asset_id BIGINT REFERENCES asset_inv(id) ON DELETE CASCADE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         `);
         await client.query(
-            "CREATE INDEX IF NOT EXISTS idx_asset_codes_item_code ON asset_codes(item_code)"
+            "CREATE INDEX IF NOT EXISTS idx_asset_coding_item_code ON asset_coding(item_code)"
+        );
+        await client.query(
+            "CREATE INDEX IF NOT EXISTS idx_asset_coding_qr_payload ON asset_coding(qr_payload)"
         );
 
         /* =========================
@@ -433,7 +448,7 @@ async function initDatabase() {
 
         // Link from assets to the station (only meaningful when location='payout')
         await client.query(
-            "ALTER TABLE assets ADD COLUMN IF NOT EXISTS payout_station_id INTEGER REFERENCES payout_stations(id) ON DELETE SET NULL"
+            "ALTER TABLE asset_inv ADD COLUMN IF NOT EXISTS payout_station_id INTEGER REFERENCES payout_stations(id) ON DELETE SET NULL"
         );
 
         /* =========================
@@ -467,7 +482,7 @@ async function initDatabase() {
 
         // Link from assets to the office department (only meaningful when location='office')
         await client.query(
-            "ALTER TABLE assets ADD COLUMN IF NOT EXISTS office_department_id INTEGER REFERENCES office_departments(id) ON DELETE SET NULL"
+            "ALTER TABLE asset_inv ADD COLUMN IF NOT EXISTS office_department_id INTEGER REFERENCES office_departments(id) ON DELETE SET NULL"
         );
 
         /* =========================
@@ -553,6 +568,53 @@ async function initDatabase() {
         );
         await client.query(
             "CREATE INDEX IF NOT EXISTS idx_bcr_user ON booth_change_requests(requested_by_user_id)"
+        );
+
+        /* =========================
+           operator_booth_requests — operators ask admins to re-assign an
+           outlet/booth to their operator profile. This backs the operator
+           "My Outlets" Add Outlet workflow.
+        ========================= */
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS operator_booth_requests (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                booth_info_id INTEGER NOT NULL REFERENCES booth_info(id) ON DELETE CASCADE,
+                status VARCHAR(20) NOT NULL DEFAULT 'pending'
+                    CHECK (status IN ('pending', 'approved', 'rejected', 'cancelled')),
+                decided_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                decided_at TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        await client.query(
+            "ALTER TABLE operator_booth_requests ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE CASCADE"
+        );
+        await client.query(
+            "ALTER TABLE operator_booth_requests ADD COLUMN IF NOT EXISTS booth_info_id INTEGER REFERENCES booth_info(id) ON DELETE CASCADE"
+        );
+        await client.query(
+            "ALTER TABLE operator_booth_requests ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'pending'"
+        );
+        await client.query(
+            "ALTER TABLE operator_booth_requests ADD COLUMN IF NOT EXISTS decided_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL"
+        );
+        await client.query("ALTER TABLE operator_booth_requests ADD COLUMN IF NOT EXISTS decided_at TIMESTAMP");
+        await client.query(
+            "ALTER TABLE operator_booth_requests ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        );
+        await client.query(
+            "ALTER TABLE operator_booth_requests ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        );
+        await client.query(
+            "CREATE INDEX IF NOT EXISTS idx_obr_status ON operator_booth_requests(status)"
+        );
+        await client.query(
+            "CREATE INDEX IF NOT EXISTS idx_obr_user ON operator_booth_requests(user_id)"
+        );
+        await client.query(
+            "CREATE INDEX IF NOT EXISTS idx_obr_booth ON operator_booth_requests(booth_info_id)"
         );
 
         /* =========================
@@ -825,8 +887,8 @@ async function initDatabase() {
         ========================= */
         await client.query(`
             CREATE TABLE IF NOT EXISTS asset_media (
-                id SERIAL PRIMARY KEY,
-                asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+                id BIGSERIAL PRIMARY KEY,
+                asset_id BIGINT NOT NULL REFERENCES asset_inv(id) ON DELETE CASCADE,
                 url TEXT NOT NULL,
                 mime_type VARCHAR(100),
                 uploaded_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
