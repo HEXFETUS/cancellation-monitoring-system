@@ -4,6 +4,7 @@ import { useAuth } from "../../../context/AuthContext";
 import type { BoothInfo, OperatorInfo, PosRecord } from "../../pos/types";
 import { createBoothChangeRequest } from "../../pos/services/boothChangeRequests";
 import ConfirmationModal from "../../pos/components/ConfirmationModal";
+import Dropdown from "./Dropdown";
 
 interface Props {
     open: boolean;
@@ -19,6 +20,7 @@ interface Props {
     hasPendingRequest?: boolean;
     onClose: () => void;
     onSubmitted: () => Promise<void>;
+    onError?: (message: string) => void;
 }
 
 export default function RequestBoothChangeModal({
@@ -30,6 +32,7 @@ export default function RequestBoothChangeModal({
     hasPendingRequest = false,
     onClose,
     onSubmitted,
+    onError,
 }: Props) {
     const { user } = useAuth();
     const [boothId, setBoothId] = useState<number | null>(null);
@@ -115,7 +118,9 @@ export default function RequestBoothChangeModal({
             });
             await onSubmitted();
         } catch (e) {
-            setError(e instanceof Error ? (e instanceof Error ? e.message : String(e)) : "Failed to submit");
+            const message = e instanceof Error ? e.message : "Failed to submit";
+            setError(message);
+            onError?.(message);
         } finally {
             setSaving(false);
         }
@@ -165,27 +170,16 @@ export default function RequestBoothChangeModal({
                         <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-muted">
                             Move to Booth *
                         </span>
-                        <select
-                            value={boothId ?? ""}
-                            onChange={(e) =>
-                                setBoothId(e.target.value === "" ? null : Number(e.target.value))
-                            }
-                            className="w-full rounded-lg border border-warm bg-card px-3 py-2 text-sm text-ink focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal"
-                        >
-                            <option value="" disabled hidden>
-                                Pick a booth
-                            </option>
-                            {availableBooths.map((b) => (
-                                <option key={b.id} value={b.id}>
-                                    {b.booth_code} {b.location ? `· ${b.location}` : ""}
-                                </option>
-                            ))}
-                        </select>
-                        {availableBooths.length === 0 && (
-                            <p className="mt-1 text-xs text-ink-subtle">
-                                No alternate booths are available within your operator family.
-                            </p>
-                        )}
+                        <Dropdown
+                            value={boothId}
+                            placeholder="Pick a booth"
+                            emptyMessage="No alternate booths are available within your operator family."
+                            onChange={(v) => setBoothId(v)}
+                            options={availableBooths.map((b) => ({
+                                value: b.id,
+                                label: `${b.booth_code}${b.location ? ` · ${b.location}` : ""}`,
+                            }))}
+                        />
                     </label>
 
                     <label className="block">

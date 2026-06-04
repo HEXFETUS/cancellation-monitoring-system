@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
     cancelBoothChangeRequest,
     type BoothChangeRequest,
@@ -7,11 +7,21 @@ import ConfirmationModal from "../../pos/components/ConfirmationModal";
 
 interface Props {
     requests: BoothChangeRequest[];
+    search?: string;
     onChanged: () => Promise<void>;
     userId: number | null;
+    onCancelled?: (request: BoothChangeRequest) => void;
+    onCancelError?: (message: string) => void;
 }
 
-export default function BoothChangeRequestHistory({ requests, onChanged, userId }: Props) {
+export default function BoothChangeRequestHistory({
+    requests,
+    search = "",
+    onChanged,
+    userId,
+    onCancelled,
+    onCancelError,
+}: Props) {
     const [cancelTarget, setCancelTarget] = useState<BoothChangeRequest | null>(null);
     const [canceling, setCanceling] = useState(false);
     const [cancelError, setCancelError] = useState("");
@@ -20,16 +30,30 @@ export default function BoothChangeRequestHistory({ requests, onChanged, userId 
         if (!cancelTarget || userId == null) return;
         setCancelError("");
         setCanceling(true);
+        const target = cancelTarget;
         try {
-            await cancelBoothChangeRequest(cancelTarget.id, userId);
+            await cancelBoothChangeRequest(target.id, userId);
             setCancelTarget(null);
             await onChanged();
+            onCancelled?.(target);
         } catch (err) {
-            setCancelError(err instanceof Error ? err.message : String(err));
+            const message = err instanceof Error ? err.message : String(err);
+            setCancelError(message);
+            onCancelError?.(message);
         } finally {
             setCanceling(false);
         }
     };
+
+    const filteredRequests = useMemo(() => {
+        const q = search.trim().toLowerCase();
+        if (!q) return requests;
+        return requests.filter((r) => {
+            const deviceNo = String(r.device_no || "").toLowerCase();
+            const serial = String(r.serial_number || "").toLowerCase();
+            return deviceNo.includes(q) || serial.includes(q);
+        });
+    }, [requests, search]);
 
     if (requests.length === 0) {
         return (
@@ -55,29 +79,47 @@ export default function BoothChangeRequestHistory({ requests, onChanged, userId 
                         </tr>
                     </thead>
                     <tbody>
-                        {requests.map((r) => (
-                            <tr key={r.id} className="border-b border-white/30 transition hover:bg-[#92C7CF]/8">
-                                <td className="whitespace-nowrap px-4 py-3 font-medium text-gray-800">{r.device_no || `POS #${r.pos_record_id}`}</td>
-                                <td className="whitespace-nowrap px-4 py-3 text-gray-500">{r.current_booth_code || "-"}</td>
-                                <td className="whitespace-nowrap px-4 py-3 text-gray-700">{r.requested_booth_code || `#${r.requested_booth_id}`}</td>
-                                <td className="px-4 py-3 text-gray-500">{r.reason || "-"}</td>
-                                <td className="whitespace-nowrap px-4 py-3"><StatusPill status={r.status} /></td>
-                                <td className="whitespace-nowrap px-4 py-3 text-xs text-gray-400">{new Date(r.created_at).toLocaleString()}</td>
-                                <td className="whitespace-nowrap px-4 py-3 text-right">
-                                    {(r.status || "").toLowerCase() === "pending" ? (
-                                        <button
-                                            onClick={() => setCancelTarget(r)}
-                                            disabled={canceling}
-                                            className="rounded-lg border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 transition hover:bg-red-100 disabled:opacity-50"
-                                        >
-                                            Cancel
-                                        </button>
-                                    ) : (
-                                        <span className="text-xs text-gray-400">-</span>
-                                    )}
+                        {filteredRequests.length === 0 ? (
+                            <tr>
+                                <td
+                                    colSpan={7}
+                                    className="px-4 py-6 text-center text-sm text-gray-500"
+                                >
+                                    No requests match "{search}".
                                 </td>
                             </tr>
-                        ))}
+                        ) : (
+                            filteredRequests.map((r) => (
+                                <tr key={r.id} className="border-b border-white/30 transition hover:bg-[#92C7CF]/8">
+                                    <td className="whitespace-nowrap px-4 py-3">
+                                        <div className="font-medium text-gray-800">
+                                            {r.device_no || `POS #${r.pos_record_id}`}
+                                        </div>
+                                        <div className="font-mono text-xs text-gray-500">
+                                            {r.serial_number || "—"}
+                                        </div>
+                                    </td>
+                                    <td className="whitespace-nowrap px-4 py-3 text-gray-500">{r.current_booth_code || "-"}</td>
+                                    <td className="whitespace-nowrap px-4 py-3 text-gray-700">{r.requested_booth_code || `#${r.requested_booth_id}`}</td>
+                                    <td className="px-4 py-3 text-gray-500">{r.reason || "-"}</td>
+                                    <td className="whitespace-nowrap px-4 py-3"><StatusPill status={r.status} /></td>
+                                    <td className="whitespace-nowrap px-4 py-3 text-xs text-gray-400">{new Date(r.created_at).toLocaleString()}</td>
+                                    <td className="whitespace-nowrap px-4 py-3 text-right">
+                                        {(r.status || "").toLowerCase() === "pending" ? (
+                                            <button
+                                                onClick={() => setCancelTarget(r)}
+                                                disabled={canceling}
+                                                className="rounded-lg border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 transition hover:bg-red-100 disabled:opacity-50"
+                                            >
+                                                Cancel
+                                            </button>
+                                        ) : (
+                                            <span className="text-xs text-gray-400">-</span>
+                                        )}
+                                    </td>
+                                </tr>
+                            ))
+                        )}
                     </tbody>
                 </table>
             </div>
@@ -103,7 +145,14 @@ export default function BoothChangeRequestHistory({ requests, onChanged, userId 
                     <div className="space-y-2 px-4 py-3 text-sm text-gray-700">
                         <div className="flex items-center justify-between">
                             <span className="font-semibold">Device</span>
-                            <span>{cancelTarget.device_no || `POS #${cancelTarget.pos_record_id}`}</span>
+                            <span>
+                                {cancelTarget.device_no || `POS #${cancelTarget.pos_record_id}`}
+                                {cancelTarget.serial_number ? (
+                                    <span className="ml-2 font-mono text-xs text-gray-500">
+                                        {cancelTarget.serial_number}
+                                    </span>
+                                ) : null}
+                            </span>
                         </div>
                         <div className="flex items-center justify-between">
                             <span className="font-semibold">From</span>

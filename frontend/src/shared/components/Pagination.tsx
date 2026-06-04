@@ -7,6 +7,7 @@ interface PaginationProps {
     totalPages: number;
     totalItems: number;
     onPageChange: (page: number) => void;
+    pageSize?: number;
 }
 
 export default function Pagination({
@@ -14,6 +15,7 @@ export default function Pagination({
     totalPages,
     totalItems,
     onPageChange,
+    pageSize = 10,
 }: PaginationProps) {
     if (totalPages <= 1) return null;
 
@@ -40,14 +42,16 @@ export default function Pagination({
     };
 
     const visiblePages = getVisiblePages();
+    const fromItem = Math.min((currentPage - 1) * pageSize + 1, totalItems);
+    const toItem = Math.min(currentPage * pageSize, totalItems);
 
     return (
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/20 px-5 py-3">
             <p className="text-xs text-gray-500">
-                Showing {Math.min((currentPage - 1) * 20 + 1, totalItems)}–
-                {Math.min(currentPage * 20, totalItems)} of {totalItems}
+                Showing {fromItem}–{toItem} of {totalItems}
             </p>
             <div className="flex items-center gap-1">
+                {/* First page */}
                 <button
                     onClick={() => onPageChange(1)}
                     disabled={currentPage === 1}
@@ -60,6 +64,8 @@ export default function Pagination({
                 >
                     <ChevronsLeft className="h-4 w-4" />
                 </button>
+
+                {/* Previous page */}
                 <button
                     onClick={() => onPageChange(currentPage - 1)}
                     disabled={currentPage === 1}
@@ -72,13 +78,14 @@ export default function Pagination({
                     <ChevronLeft className="h-4 w-4" />
                 </button>
 
+                {/* Page numbers */}
                 {visiblePages.map((page, i) =>
                     page === "..." ? (
                         <span
                             key={`ellipsis-${i}`}
                             className="inline-flex h-8 w-8 items-center justify-center text-xs text-gray-400"
                         >
-                            …
+                            &#8230;
                         </span>
                     ) : (
                         <button
@@ -106,6 +113,7 @@ export default function Pagination({
                     )
                 )}
 
+                {/* Next page */}
                 <button
                     onClick={() => onPageChange(currentPage + 1)}
                     disabled={currentPage === totalPages}
@@ -117,6 +125,8 @@ export default function Pagination({
                 >
                     <ChevronRight className="h-4 w-4" />
                 </button>
+
+                {/* Last page */}
                 <button
                     onClick={() => onPageChange(totalPages)}
                     disabled={currentPage === totalPages}

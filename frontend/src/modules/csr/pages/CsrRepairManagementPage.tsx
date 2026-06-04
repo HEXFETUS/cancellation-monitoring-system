@@ -11,8 +11,6 @@ import {
     RefreshCw,
     X,
     Save,
-    AlertCircle,
-    CheckCircle,
     ListChecks,
     Printer,
     CreditCard,
@@ -24,10 +22,9 @@ import { listRepairRecords, updateRepairRecord, clearRepairRecord, proceedRepair
 import type { RepairRecord } from "../services/repairRecords";
 import { listDiagnoses, type DiagnosisItem } from "../services/diagnosisList";
 import TransmittalModal from "../../pos-repair/components/TransmittalModal";
-import CsrConfirmationModal from "../components/CsrConfirmationModal";
+import { ConfirmationModal, Pagination, Toast } from "../../../shared/components";
 import CsrBatchForRepairModal from "../components/CsrBatchForRepairModal";
 import CsrBatchForReleaseModal from "../components/CsrBatchForReleaseModal";
-import CsrPagination from "../components/CsrPagination";
 
 const teal = "#92C7CF";
 
@@ -178,7 +175,7 @@ function EditModal({ record, diagnoses, onClose, onSave, showToast }: EditModalP
                     </div>
                 </div>
             </div>
-            <CsrConfirmationModal open={showSaveConfirm} title="Save changes?" message={`This will update POS #${record.device_no || record.id}.`} confirmLabel="Save Changes" loading={saving} onCancel={() => setShowSaveConfirm(false)} onConfirm={handleConfirmSave} />
+            <ConfirmationModal open={showSaveConfirm} title="Save changes?" message={`This will update POS #${record.device_no || record.id}.`} confirmLabel="Save Changes" isLoading={saving} onCancel={() => setShowSaveConfirm(false)} onConfirm={handleConfirmSave} />
         </div>
     );
 }
@@ -207,15 +204,18 @@ export default function CsrRepairManagementPage() {
     const [showRepairTransmittal, setShowRepairTransmittal] = useState(false);
     const [expandedReleasedIds, setExpandedReleasedIds] = useState<Set<number>>(new Set());
     const [batchProcessing, setBatchProcessing] = useState(false);
-    const [toast, setToast] = useState<{ show: boolean; message: string; type: "error" | "success" }>({ show: false, message: "", type: "error" });
+    const [toastOpen, setToastOpen] = useState(false);
+    const [toastMessage, setToastMessage] = useState("");
+    const [toastType, setToastType] = useState<"error" | "success">("error");
     const [page, setPage] = useState(1);
     const pageSize = 20;
 
     const showToast = (message: string, type: "error" | "success" = "error") => {
-        setToast({ show: true, message, type });
-        setTimeout(() => setToast({ show: false, message: "", type: "error" }), 4000);
+        setToastMessage(message);
+        setToastType(type);
+        setToastOpen(true);
     };
-    const hideToast = () => setToast({ show: false, message: "", type: "error" });
+    const hideToast = () => setToastOpen(false);
 
     const showActions = !noActionTabs.includes(activeStatusTab);
     const showAccessories = activeStatusTab === "request";
@@ -395,13 +395,7 @@ export default function CsrRepairManagementPage() {
                 )}
             </div>
 
-            {toast.show && (
-                <div className={`relative rounded-xl px-4 py-3 shadow-lg backdrop-blur-xl transition-all duration-300 flex items-center gap-3 ${toast.type === "error" ? "bg-red-50/95 border border-red-200/60" : "bg-green-50/95 border border-green-200/60"}`}>
-                    {toast.type === "error" ? <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0" /> : <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" />}
-                    <p className={`text-sm font-medium ${toast.type === "error" ? "text-red-700" : "text-green-700"}`}>{toast.message}</p>
-                    <button onClick={hideToast} className="ml-auto p-1 rounded-lg hover:bg-black/5 transition-colors"><X className="h-4 w-4 text-gray-500" /></button>
-                </div>
-            )}
+            <Toast open={toastOpen} message={toastMessage} type={toastType} onClose={hideToast} />
 
             <div className="relative rounded-3xl border border-white/40 backdrop-blur-xl bg-white/20 shadow-lg overflow-hidden">
                 {loading ? (
@@ -480,7 +474,7 @@ export default function CsrRepairManagementPage() {
                                         </div>
                                     );
                                 })}
-                                <CsrPagination currentPage={page} totalPages={groupTotalPages} totalItems={filteredRecords.length} onPageChange={setPage} />
+                                <Pagination currentPage={page} totalPages={groupTotalPages} totalItems={filteredRecords.length} onPageChange={setPage} pageSize={pageSize} />
                             </>
                         )}
                     </div>
@@ -552,7 +546,7 @@ export default function CsrRepairManagementPage() {
                             </tbody>
                         </table>
                         {filteredRecords.length > 0 && (
-                            <CsrPagination currentPage={page} totalPages={standardTotalPages} totalItems={filteredRecords.length} onPageChange={setPage} />
+                            <Pagination currentPage={page} totalPages={standardTotalPages} totalItems={filteredRecords.length} onPageChange={setPage} pageSize={pageSize} />
                         )}
                     </div>
                 )}
@@ -560,8 +554,8 @@ export default function CsrRepairManagementPage() {
 
             {editingRecord && <EditModal record={editingRecord} diagnoses={diagnoses} onClose={handleEditClose} onSave={handleEditSave} showToast={showToast} />}
 
-            <CsrConfirmationModal open={recordToProceed !== null} title="Proceed with repair request?" message={recordToProceed ? `This will forward POS #${recordToProceed.device_no || recordToProceed.id} to "For Repair" status.` : undefined} confirmLabel="Proceed" loading={proceeding} onCancel={() => setRecordToProceed(null)} onConfirm={handleConfirmProceed} />
-            <CsrConfirmationModal open={recordToDelete !== null} title="Delete repair record?" message="Are you sure you want to delete this repair record? This action cannot be undone." confirmLabel="Delete Record" loading={deleting} variant="delete" onCancel={() => setRecordToDelete(null)} onConfirm={handleConfirmDelete} />
+            <ConfirmationModal open={recordToProceed !== null} title="Proceed with repair request?" message={recordToProceed ? `This will forward POS #${recordToProceed.device_no || recordToProceed.id} to "For Repair" status.` : undefined} confirmLabel="Proceed" isLoading={proceeding} onCancel={() => setRecordToProceed(null)} onConfirm={handleConfirmProceed} />
+            <ConfirmationModal open={recordToDelete !== null} title="Delete repair record?" message="Are you sure you want to delete this repair record? This action cannot be undone." confirmLabel="Delete Record" isLoading={deleting} variant="delete" onCancel={() => setRecordToDelete(null)} onConfirm={handleConfirmDelete} />
             {recordToRelease && (
                 <TransmittalModal
                     mode="release"

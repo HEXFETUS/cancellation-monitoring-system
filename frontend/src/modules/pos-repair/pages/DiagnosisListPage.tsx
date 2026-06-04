@@ -6,11 +6,10 @@ import {
     X,
     Save,
     AlertTriangle,
-    AlertCircle,
-    CheckCircle,
     RefreshCw,
     Stethoscope,
 } from "lucide-react";
+import { Toast } from "../../../shared/components";
 import {
     listDiagnoses,
     createDiagnosis,
@@ -19,16 +18,10 @@ import {
 } from "../services/diagnosisList";
 import type { DiagnosisItem } from "../services/diagnosisList";
 import CsrConfirmationModal from "../../csr/components/CsrConfirmationModal";
-import Pagination from "../components/Pagination";
+import { Pagination } from "../../../shared/components";
 
 const teal = "#92C7CF";
 
-/* ─── Toast ─── */
-interface Toast {
-    show: boolean;
-    message: string;
-    type: "error" | "success";
-}
 
 /* ─── Create / Edit Modal ─── */
 interface FormModalProps {
@@ -142,13 +135,16 @@ export default function DiagnosisListPage() {
     const [deleting, setDeleting] = useState(false);
 
     /* toast */
-    const [toast, setToast] = useState<Toast>({ show: false, message: "", type: "success" });
+    const [toastOpen, setToastOpen] = useState(false);
+    const [toastMessage, setToastMessage] = useState("");
+    const [toastType, setToastType] = useState<"error" | "success">("success");
 
     const showToast = (message: string, type: "error" | "success" = "success") => {
-        setToast({ show: true, message, type });
-        setTimeout(() => setToast({ show: false, message: "", type: "success" }), 4000);
+        setToastMessage(message);
+        setToastType(type);
+        setToastOpen(true);
     };
-    const hideToast = () => setToast({ show: false, message: "", type: "success" });
+    const hideToast = () => setToastOpen(false);
 
     /* ─── Fetch ─── */
     const fetchItems = async () => {
@@ -280,35 +276,7 @@ export default function DiagnosisListPage() {
                 </div>
             </div>
 
-            {/* Toast */}
-            {toast.show && (
-                <div
-                    className={`relative rounded-xl px-4 py-3 shadow-lg backdrop-blur-xl transition-all duration-300 flex items-center gap-3 ${
-                        toast.type === "error"
-                            ? "bg-red-50/95 border border-red-200/60"
-                            : "bg-green-50/95 border border-green-200/60"
-                    }`}
-                >
-                    {toast.type === "error" ? (
-                        <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0" />
-                    ) : (
-                        <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" />
-                    )}
-                    <p
-                        className={`text-sm font-medium ${
-                            toast.type === "error" ? "text-red-700" : "text-green-700"
-                        }`}
-                    >
-                        {toast.message}
-                    </p>
-                    <button
-                        onClick={hideToast}
-                        className="ml-auto p-1 rounded-lg hover:bg-black/5 transition-colors"
-                    >
-                        <X className="h-4 w-4 text-gray-500" />
-                    </button>
-                </div>
-            )}
+            <Toast open={toastOpen} message={toastMessage} type={toastType} onClose={hideToast} />
 
             {/* Table */}
             <div className="relative rounded-2xl border border-white/50 backdrop-blur-xl bg-white/25 shadow-lg overflow-hidden">

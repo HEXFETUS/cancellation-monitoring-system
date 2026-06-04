@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowUpRight, Search } from "lucide-react";
 import { listReleasedLogs } from "../services/releasedLogs";
 import type { ReleasedLog } from "../services/releasedLogs";
-import CsrPagination from "../components/CsrPagination";
+import { Pagination } from "../../../shared/components";
 
 const teal = "#92C7CF";
 const tealLight = "#AAD7D9";
@@ -147,11 +147,12 @@ export default function CsrReleasedLogPage() {
                                 ))}
                             </tbody>
                         </table>
-                        <CsrPagination
+                        <Pagination
                             currentPage={page}
                             totalPages={totalPages}
                             totalItems={filteredLogs.length}
                             onPageChange={setPage}
+                            pageSize={pageSize}
                         />
                         </>
                     )}

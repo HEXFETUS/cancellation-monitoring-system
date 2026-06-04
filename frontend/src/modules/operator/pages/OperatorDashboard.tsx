@@ -4,9 +4,9 @@ import {
     ArrowRightLeft,
     CheckCircle2,
     Monitor,
-    XCircle,
-    Ban,
-    FileX,
+    Store,
+    History,
+    Send,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../../context/AuthContext";
@@ -16,8 +16,14 @@ import {
     listBoothChangeRequests,
     type BoothChangeRequest,
 } from "../../pos/services/boothChangeRequests";
-import { fetchCancellationRecords, fetchCancellationHumanForce } from "../../cancellation/services";
-import type { CancellationRecord, CancellationHumanForce } from "../../cancellation/types";
+import {
+    listOperatorChangeRequests,
+    type OperatorChangeRequest,
+} from "../../pos/services/operatorChangeRequests";
+import {
+    listBoothOperatorChangeRequests,
+    type BoothOperatorChangeRequest,
+} from "../../pos/services/boothOperatorChangeRequests";
 import RequestBoothChangeModal from "../components/RequestBoothChangeModal";
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
@@ -31,12 +37,6 @@ interface Me {
     operator_name: string | null;
 }
 
-/** Get today's date string in YYYY-MM-DD format. */
-function todayStr() {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
 export default function OperatorDashboard() {
     const { user } = useAuth();
     const [me, setMe] = useState<Me | null>(null);
@@ -44,8 +44,8 @@ export default function OperatorDashboard() {
     const [booths, setBooths] = useState<BoothInfo[]>([]);
     const [requests, setRequests] = useState<BoothChangeRequest[]>([]);
     const [operators, setOperators] = useState<OperatorInfo[]>([]);
-    const [cancelRecords, setCancelRecords] = useState<CancellationRecord[]>([]);
-    const [humanForce, setHumanForce] = useState<CancellationHumanForce[]>([]);
+    const [posRequests, setPosRequests] = useState<OperatorChangeRequest[]>([]);
+    const [outletRequests, setOutletRequests] = useState<BoothOperatorChangeRequest[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
 
@@ -70,13 +70,17 @@ export default function OperatorDashboard() {
                     }
                     : null;
 
-                const [pos, reqs, ops, bh, cancelRecs, hf] = await Promise.all([
+                const [pos, reqs, ops, bh, posReqs, outletReqs] = await Promise.all([
                     fetchPosRecords({ user_id: String(user.id) }),
                     listBoothChangeRequests({ userId: user.id }),
                     fetchOperators().catch(() => [] as OperatorInfo[]),
                     fetchBoothInfo().catch(() => [] as BoothInfo[]),
-                    fetchCancellationRecords(todayStr()).catch(() => [] as CancellationRecord[]),
-                    fetchCancellationHumanForce(todayStr()).catch(() => [] as CancellationHumanForce[]),
+                    listOperatorChangeRequests({ userId: user.id }).catch(
+                        () => [] as OperatorChangeRequest[]
+                    ),
+                    listBoothOperatorChangeRequests({ userId: user.id }).catch(
+                        () => [] as BoothOperatorChangeRequest[]
+                    ),
                 ]);
                 if (!cancelled) {
                     setMe(meSafe);
@@ -84,8 +88,8 @@ export default function OperatorDashboard() {
                     setRequests(reqs);
                     setOperators(ops);
                     setBooths(bh);
-                    setCancelRecords(cancelRecs);
-                    setHumanForce(hf);
+                    setPosRequests(posReqs);
+                    setOutletRequests(outletReqs);
                 }
             } catch (err) {
                 if (!cancelled) setError(err instanceof Error ? (err instanceof Error ? err.message : String(err)) : "Failed to load");
@@ -145,47 +149,20 @@ export default function OperatorDashboard() {
     // Combined (main + sub) stats for "Your Devices"
     const combinedStats = useMemo(() => computeStats(allRecords), [allRecords]);
 
-    // Booth / area scope used to filter cancellation data to "the devices
-    // I have". A sub-operator's `allRecords` only contains rows for its
-    // own operator_id, so this naturally narrows their cancellation view
-    // to their own booths. A main operator sees the union with its subs.
-    const myBoothIds = useMemo(
-        () => new Set(allRecords.map((r) => r.booth_id).filter((id): id is number => id != null)),
-        [allRecords]
-    );
-    const myAreas = useMemo(
-        () => new Set(
-            allRecords
-                .map((r) => (r.area || "").trim().toUpperCase())
-                .filter((a) => a.length > 0)
-        ),
-        [allRecords]
-    );
-
-    // ── Cancellation stats for today ─────────────────────────────────
-    // Scoped to booths/areas the current operator owns. cancellation_record
-    // is aggregated per-area so we filter by area; cancellation_human_force
-    // is per-ticket and carries booth_id, so we filter by booth_id directly.
-    const cancelStats = useMemo(() => {
-        const myCancelRecords = myAreas.size === 0
-            ? []
-            : cancelRecords.filter((r) =>
-                myAreas.has((r.area || "").trim().toUpperCase())
-            );
-        const myHumanForce = myBoothIds.size === 0
-            ? []
-            : humanForce.filter((r) => r.booth_id != null && myBoothIds.has(r.booth_id));
-
-        const approved = myCancelRecords.reduce((sum, r) => sum + (Number(r.approved) || 0), 0);
-        const denied = myCancelRecords.reduce((sum, r) => sum + (Number(r.denied) || 0), 0);
-        const forceCancel = myHumanForce.filter((r) =>
-            ((r.reaseon_for_deny || "")).toUpperCase().includes("FORCE CANCEL")
+    // Total outlets: count booths currently assigned to the logged-in
+    // operator (and their sub-operators, when applicable).
+    const totalOutlets = useMemo(() => {
+        if (!myOperator) return booths.length;
+        const ownerIds = new Set<number>([Number(myOperator.id)]);
+        for (const subId of subOperatorIds) ownerIds.add(subId);
+        return booths.filter(
+            (b) => b.operator_id != null && ownerIds.has(Number(b.operator_id))
         ).length;
-        const humanError = myHumanForce.filter((r) =>
-            ((r.reaseon_for_deny || "")).toUpperCase().includes("HUMAN ERROR")
-        ).length;
-        return { approved, denied, forceCancel, humanError };
-    }, [cancelRecords, humanForce, myAreas, myBoothIds]);
+    }, [booths, myOperator, subOperatorIds]);
+
+    // Counts of the operator's POS / outlet change requests.
+    const posRequestCount = posRequests.length;
+    const outletRequestCount = outletRequests.length;
 
     const recent = requests.slice(0, 5);
     const unavailableBoothIds = useMemo(
@@ -213,7 +190,7 @@ export default function OperatorDashboard() {
                         {user?.name || "Operator"}
                     </h1>
                     <p className="mt-1 text-sm text-ink-muted">
-                        Here's a quick look at your devices, cancellation records, and recent requests.
+                        Here's a quick look at your devices and recent requests.
                     </p>
                 </div>
             </div>
@@ -251,34 +228,28 @@ export default function OperatorDashboard() {
                 </div>
             </div>
 
-            {/* ── Cancellation summary cards (today) ── */}
+            {/* ── Outlets & request history ── */}
             <div>
                 <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-ink-muted">
-                    Today's Cancellation Records
+                    Outlets & Requests
                 </h2>
-                <div className="grid gap-4 sm:grid-cols-4">
+                <div className="grid gap-4 sm:grid-cols-3">
                     <StatCard
-                        label="Approved"
-                        value={loading ? "—" : cancelStats.approved}
-                        icon={CheckCircle2}
-                        color="#6BBF6B"
+                        label="Total Outlets"
+                        value={loading ? "—" : totalOutlets}
+                        icon={Store}
+                        color={teal}
                     />
                     <StatCard
-                        label="Rejected"
-                        value={loading ? "—" : cancelStats.denied}
-                        icon={XCircle}
-                        color="#E8B4B8"
+                        label="Request POS History"
+                        value={loading ? "—" : posRequestCount}
+                        icon={Send}
+                        color="#AAD7D9"
                     />
                     <StatCard
-                        label="Force Cancel"
-                        value={loading ? "—" : cancelStats.forceCancel}
-                        icon={Ban}
-                        color="#9CA3AF"
-                    />
-                    <StatCard
-                        label="Human Error"
-                        value={loading ? "—" : cancelStats.humanError}
-                        icon={FileX}
+                        label="Request Outlet History"
+                        value={loading ? "—" : outletRequestCount}
+                        icon={History}
                         color="#F2D7B5"
                     />
                 </div>

@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-    CheckCircle,
     ChevronDown,
     ChevronLeft,
     ChevronRight,
@@ -9,12 +8,12 @@ import {
     Filter,
     RefreshCw,
     Search,
-    X,
 } from "lucide-react";
 import type { PosRecord } from "../types";
 import { fetchPosRecords, updatePosRecord } from "../services";
 import { useAuth } from "../../../context/AuthContext";
 import { ConfirmationModal } from "../components";
+import { Toast } from "../../../shared/components";
 
 type FilterField = "all" | "device_no" | "serial_no" | "booth_code";
 
@@ -63,29 +62,6 @@ function getStatusTextColor(status: string): string {
     return getStatusColor(status || "").text;
 }
 
-
-function SuccessToast({
-    message,
-    onClose,
-}: {
-    message: string;
-    onClose: () => void;
-}) {
-    useEffect(() => {
-        const timer = setTimeout(onClose, 3000);
-        return () => clearTimeout(timer);
-    }, [onClose]);
-
-    return (
-        <div className="flex items-center gap-3 rounded-lg border border-teal/30 bg-teal-light/30 px-4 py-3 shadow-sm">
-            <CheckCircle className="h-5 w-5 text-teal" />
-            <span className="text-sm font-medium text-teal-dark">{message}</span>
-            <button type="button" onClick={onClose} className="ml-auto text-teal-dark/60 hover:text-teal-dark">
-                <X className="h-4 w-4" />
-            </button>
-        </div>
-    );
-}
 
 export default function PosStatusPage() {
     const { user } = useAuth();
@@ -321,10 +297,7 @@ export default function PosStatusPage() {
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-end">
                 {successMessage && (
                     <div className="mr-auto w-full lg:w-auto lg:min-w-80">
-                        <SuccessToast
-                            message={successMessage}
-                            onClose={() => setSuccessMessage(null)}
-                        />
+                        <Toast open={true} message={successMessage} type="success" onClose={() => setSuccessMessage(null)} />
                     </div>
                 )}
 

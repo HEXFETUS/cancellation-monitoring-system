@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { FileText, Search } from "lucide-react";
 import { listDiagnosisLogs } from "../services/diagnosisLogs";
 import type { DiagnosisLog } from "../services/diagnosisLogs";
-import CsrPagination from "../components/CsrPagination";
+import { Pagination } from "../../../shared/components";
 
 const teal = "#92C7CF";
 const tealLight = "#AAD7D9";
@@ -173,11 +173,12 @@ export default function CsrRepairLogPage() {
                                     ))}
                                 </tbody>
                             </table>
-                            <CsrPagination
+                            <Pagination
                                 currentPage={page}
                                 totalPages={totalPages}
                                 totalItems={filteredLogs.length}
                                 onPageChange={setPage}
+                                pageSize={pageSize}
                             />
                         </>
                     )}

@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Monitor, RefreshCw, Send, Search } from "lucide-react";
-import MyPosPage from "./MyPosPage";
+import OperatorPosPage from "./OperatorPosPage";
 import RequestPosPage from "./RequestPosPage";
+import { useAuth } from "../../../context/AuthContext";
 import { listOperatorChangeRequests } from "../../pos/services/operatorChangeRequests";
 
 const teal = "#92C7CF";
@@ -20,22 +21,28 @@ const TABS: Tab[] = [
 ];
 
 export default function OperatorTabbedPage() {
+    const { user } = useAuth();
     const [activeTab, setActiveTab] = useState<TabId>("my-pos");
     const [pendingRequestCount, setPendingRequestCount] = useState(0);
     const [searchQuery, setSearchQuery] = useState("");
     const [refreshKey, setRefreshKey] = useState(0);
 
+    const fetchCount = useCallback(async () => {
+        if (!user?.id) return;
+        try {
+            const reqs = await listOperatorChangeRequests({ status: "pending", userId: user.id });
+            setPendingRequestCount(reqs.length);
+        } catch {
+            setPendingRequestCount(0);
+        }
+    }, [user?.id]);
+
     useEffect(() => {
         let cancelled = false;
-        const fetchCount = async () => {
-            try {
-                const reqs = await listOperatorChangeRequests({ status: "pending" });
-                if (!cancelled) setPendingRequestCount(reqs.length);
-            } catch {
-                if (!cancelled) setPendingRequestCount(0);
-            }
+        const fn = async () => {
+            await fetchCount();
         };
-        fetchCount();
+        if (!cancelled) fn();
         const interval = window.setInterval(fetchCount, 8000);
         const onVisibility = () => {
             if (document.visibilityState === "visible") fetchCount();
@@ -46,7 +53,7 @@ export default function OperatorTabbedPage() {
             window.clearInterval(interval);
             document.removeEventListener("visibilitychange", onVisibility);
         };
-    }, [activeTab]);
+    }, [activeTab, fetchCount]);
 
     return (
         <div className="space-y-5">
@@ -114,7 +121,7 @@ export default function OperatorTabbedPage() {
             {/* Active tab content */}
             <div>
                 {activeTab === "my-pos" && (
-                    <MyPosPage searchQuery={searchQuery} refreshKey={refreshKey} />
+                    <OperatorPosPage searchQuery={searchQuery} refreshKey={refreshKey} />
                 )}
                 {activeTab === "request-pos" && <RequestPosPage />}
             </div>

@@ -9,7 +9,7 @@ import {
     listOperatorChangeRequests,
     type OperatorChangeRequest,
 } from "../../pos/services/operatorChangeRequests";
-import Toast from "../../pos/components/Toast";
+import { Toast } from "../../../shared/components";
 import ConfirmationModal from "../../pos/components/ConfirmationModal";
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
@@ -476,6 +476,7 @@ export default function RequestPosPage() {
                 message={toastMessage}
                 type={toastType}
                 onClose={() => setToastOpen(false)}
+                position="top-right"
             />
 
             <ConfirmationModal

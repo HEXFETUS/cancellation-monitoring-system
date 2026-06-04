@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Pagination } from "../../../shared/components";
 import {
     History,
     Plus,
@@ -17,8 +18,10 @@ import {
     listBoothOperatorChangeRequests,
     type BoothOperatorChangeRequest,
 } from "../../pos/services/boothOperatorChangeRequests";
-import Toast from "../../pos/components/Toast";
+import { Toast } from "../../../shared/components";
 import ConfirmationModal from "../../pos/components/ConfirmationModal";
+
+const OUTLETS_PER_PAGE = 10;
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 const teal = "#92C7CF";
@@ -45,7 +48,7 @@ interface Me {
     parent_operator_id: number | null;
 }
 
-export default function MyOutletsPage() {
+export default function OperatorOutletsPage() {
     const { user } = useAuth();
     const [me, setMe] = useState<Me | null>(null);
     const [booths, setBooths] = useState<BoothInfo[]>([]);
@@ -54,6 +57,7 @@ export default function MyOutletsPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [searchQuery, setSearchQuery] = useState("");
+    const [outletPage, setOutletPage] = useState(1);
 
     // Add Outlet modal state
     const [showAddModal, setShowAddModal] = useState(false);
@@ -162,6 +166,12 @@ export default function MyOutletsPage() {
         );
     }, [myBooths, searchQuery]);
 
+    const totalOutletPages = Math.ceil(filteredBooths.length / OUTLETS_PER_PAGE);
+    const paginatedBooths = useMemo(() => {
+        const start = (outletPage - 1) * OUTLETS_PER_PAGE;
+        return filteredBooths.slice(start, start + OUTLETS_PER_PAGE);
+    }, [filteredBooths, outletPage]);
+
     // ---- Add Outlet modal logic ----
     const openAddModal = useCallback(() => {
         setTypedQuery("");
@@ -171,6 +181,11 @@ export default function MyOutletsPage() {
         setShowConfirm(false);
         setShowAddModal(true);
     }, []);
+
+    const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setSearchQuery(e.target.value);
+        setOutletPage(1);
+    };
 
     const closeAddModal = () => {
         if (submitting) return;
@@ -283,12 +298,18 @@ export default function MyOutletsPage() {
             )}
 
             {/* Toolbar */}
-            <div className="flex items-center justify-end gap-2">
+            <div className="flex items-center justify-between gap-2">
+                {/* Toast */}
+                <div className="flex items-center">
+                    <Toast open={toastOpen} message={toastMessage} type={toastType} onClose={() => setToastOpen(false)} position="top-left" />
+                </div>
+
+                <div className="flex items-center gap-2">
                 <div className="relative">
                     <Search size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                     <input
                         value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
+                        onChange={handleSearchChange}
                         placeholder="Search booth code..."
                         className="h-9 w-52 rounded-lg border border-gray-200 bg-white py-1.5 pl-8 pr-3 text-sm text-gray-800 placeholder:text-gray-400 shadow-sm focus:border-[#92C7CF] focus:outline-none focus:ring-1 focus:ring-[#92C7CF] transition"
                     />
@@ -310,6 +331,7 @@ export default function MyOutletsPage() {
                 >
                     <RefreshCw size={16} />
                 </button>
+                </div>
             </div>
 
             {/* Outlets table */}
@@ -335,7 +357,7 @@ export default function MyOutletsPage() {
                                     <td colSpan={5} className="px-4 py-10 text-center text-gray-500">No outlets assigned to you.</td>
                                 </tr>
                             ) : (
-                                filteredBooths.map((booth) => {
+                                paginatedBooths.map((booth) => {
                                     const opName = booth.operator || operatorNameMap.get(Number(booth.operator_id)) || "\u2014";
                                     const area = deriveArea(booth.booth_code);
                                     return (
@@ -352,6 +374,15 @@ export default function MyOutletsPage() {
                         </tbody>
                     </table>
                 </div>
+                {totalOutletPages > 1 && (
+                    <Pagination
+                        currentPage={outletPage}
+                        totalPages={totalOutletPages}
+                        totalItems={filteredBooths.length}
+                        onPageChange={setOutletPage}
+                        pageSize={OUTLETS_PER_PAGE}
+                    />
+                )}
             </div>
 
             {/* My Request Outlet History (below the outlets table) */}
@@ -418,8 +449,6 @@ export default function MyOutletsPage() {
                     </table>
                 </div>
             </div>
-
-            <Toast open={toastOpen} message={toastMessage} type={toastType} onClose={() => setToastOpen(false)} />
 
             <ConfirmationModal
                 open={showConfirm && !!matchedBooth}

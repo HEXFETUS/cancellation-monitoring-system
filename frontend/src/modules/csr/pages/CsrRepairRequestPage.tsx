@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ClipboardList, Save, RotateCcw, AlertCircle, CheckCircle, X } from "lucide-react";
+import { ClipboardList, Save, RotateCcw } from "lucide-react";
 import { listDiagnoses, type DiagnosisItem } from "../services/diagnosisList";
 import { searchPosRecords, type PosRecord } from "../services/posRecords";
 import { checkRepairRequestEligibility, createRepairRecord } from "../services/repairRecords";
-import CsrConfirmationModal from "../components/CsrConfirmationModal";
+import { ConfirmationModal, Toast } from "../../../shared/components";
 
 const teal = "#92C7CF";
 const tealLight = "#AAD7D9";
@@ -32,19 +32,18 @@ export default function CsrRepairRequestPage() {
     });
 
     // Toast state
-    const [toast, setToast] = useState<{ show: boolean; message: string; type: "error" | "success" }>({
-        show: false,
-        message: "",
-        type: "error",
-    });
+    const [toastOpen, setToastOpen] = useState(false);
+    const [toastMessage, setToastMessage] = useState("");
+    const [toastType, setToastType] = useState<"error" | "success">("error");
 
     const showToast = (message: string, type: "error" | "success" = "error") => {
-        setToast({ show: true, message, type });
-        setTimeout(() => setToast({ show: false, message: "", type: "error" }), 4000);
+        setToastMessage(message);
+        setToastType(type);
+        setToastOpen(true);
     };
 
     const hideToast = () => {
-        setToast({ show: false, message: "", type: "error" });
+        setToastOpen(false);
     };
 
     // Validation: check if required fields are filled
@@ -393,30 +392,7 @@ export default function CsrRepairRequestPage() {
                 </div>
             </div>
 
-            {/* Toast Notification */}
-            {toast.show && (
-                <div
-                    className={`relative rounded-xl px-4 py-3 shadow-lg backdrop-blur-xl transition-all duration-300 flex items-center gap-3 ${toast.type === "error"
-                        ? "bg-red-50/95 border border-red-200/60"
-                        : "bg-green-50/95 border border-green-200/60"
-                        }`}
-                >
-                    {toast.type === "error" ? (
-                        <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0" />
-                    ) : (
-                        <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" />
-                    )}
-                    <p className={`text-sm font-medium ${toast.type === "error" ? "text-red-700" : "text-green-700"}`}>
-                        {toast.message}
-                    </p>
-                    <button
-                        onClick={hideToast}
-                        className="ml-auto p-1 rounded-lg hover:bg-black/5 transition-colors"
-                    >
-                        <X className="h-4 w-4 text-gray-500" />
-                    </button>
-                </div>
-            )}
+            <Toast open={toastOpen} message={toastMessage} type={toastType} onClose={hideToast} />
 
             {/* Form Card */}
             <div className="relative rounded-2xl border border-white/50 backdrop-blur-xl bg-white/25 shadow-lg overflow-hidden">
@@ -616,12 +592,12 @@ export default function CsrRepairRequestPage() {
                 </div>
             </div>
 
-            <CsrConfirmationModal
+            <ConfirmationModal
                 open={showSaveConfirm}
                 title="Save repair record?"
                 message={`This will create a repair record for POS ${formData.posNumber || "selected POS"}.`}
                 confirmLabel="Save Record"
-                loading={saving}
+                isLoading={saving}
                 onCancel={() => setShowSaveConfirm(false)}
                 onConfirm={handleConfirmSave}
             />

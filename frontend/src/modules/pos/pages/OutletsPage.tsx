@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { Search, Plus, List, Edit, RefreshCw, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, X, Check } from "lucide-react";
+import { Search, Plus, List, Edit, RefreshCw, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, X } from "lucide-react";
 import { useAuth } from "../../../context/AuthContext";
 import type { BoothInfo, OperatorInfo } from "../types";
 import { createBoothInfo, createOperator, fetchBoothInfo, fetchOperators, updateBoothInfo } from "../services";
 import { ConfirmationModal, EditModal } from "../components";
+import { Toast } from "../../../shared/components";
 
 const ROWS_PER_PAGE = 20;
 
@@ -94,13 +95,12 @@ export default function OutletsPage() {
         setCurrentPage(totalPages);
     };
 
-    const [toastVisible, setToastVisible] = useState(false);
+    const [toastOpen, setToastOpen] = useState(false);
     const [toastMessage, setToastMessage] = useState("");
 
     const showToast = (message: string) => {
         setToastMessage(message);
-        setToastVisible(true);
-        setTimeout(() => setToastVisible(false), 3000);
+        setToastOpen(true);
     };
 
     // ── Edit Booth Modal state ──
@@ -454,20 +454,8 @@ export default function OutletsPage() {
         <div className="flex flex-col gap-6">
             {/* Toolbar: Toast (left) + Search & Button (right) */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                {/* Success Toast */}
-                {toastVisible && (
-                    <div className="rounded-xl bg-teal px-5 py-3 text-sm font-medium text-white shadow-lg flex items-center gap-2 animate-[slideDown_0.3s_ease-out] ring-1 ring-teal-dark/30">
-                        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-white/20">
-                            <Check size={16} className="text-white" />
-                        </div>
-                        <span>{toastMessage}</span>
-                        <button
-                            onClick={() => setToastVisible(false)}
-                            className="ml-auto rounded-lg p-0.5 hover:bg-white/20 transition-colors"
-                        >
-                            <X size={14} />
-                        </button>
-                    </div>
+                {toastOpen && (
+                    <Toast open={toastOpen} message={toastMessage} type="success" onClose={() => setToastOpen(false)} />
                 )}
 
                 <div className="flex items-center gap-3 ml-auto">

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowRightLeft, ChevronLeft, ChevronRight, History } from "lucide-react";
+import { ArrowRightLeft, ChevronLeft, ChevronRight, History, CheckCircle2, AlertCircle, Info, Search, X } from "lucide-react";
 import { useAuth } from "../../../context/AuthContext";
 import { fetchPosRecords, fetchBoothInfo, fetchOperators } from "../../pos/services";
 import type { OperatorInfo, PosRecord, BoothInfo } from "../../pos/types";
@@ -15,18 +15,26 @@ const PAGE_SIZE = 10;
 const teal = "#92C7CF";
 const tealLight = "#AAD7D9";
 
+type NoticeType = "success" | "error" | "info";
+
+interface Notice {
+    id: number;
+    type: NoticeType;
+    message: string;
+}
+
 interface Me {
     id: number;
     operator_id: number | null;
     parent_operator_id: number | null;
 }
 
-interface MyPosPageProps {
+interface OperatorPosPageProps {
     searchQuery?: string;
     refreshKey?: number;
 }
 
-export default function MyPosPage({ searchQuery: externalSearch = "", refreshKey = 0 }: MyPosPageProps = {}) {
+export default function OperatorPosPage({ searchQuery: externalSearch = "", refreshKey = 0 }: OperatorPosPageProps = {}) {
     const { user } = useAuth();
     const [allOperators, setAllOperators] = useState<OperatorInfo[]>([]);
     const [records, setRecords] = useState<PosRecord[]>([]);
@@ -40,6 +48,28 @@ export default function MyPosPage({ searchQuery: externalSearch = "", refreshKey
     const [page, setPage] = useState(1);
 
     const [requesting, setRequesting] = useState<PosRecord | null>(null);
+
+    // Inline notice (toast shown above the table, on the left side)
+    const [notice, setNotice] = useState<Notice | null>(null);
+
+    // Search query for the Booth Change Requests history card.
+    const [historySearch, setHistorySearch] = useState("");
+
+    const inputStyle = {
+        background: "rgba(255,255,255,0.58)",
+    };
+
+    const showNotice = useCallback((type: NoticeType, message: string) => {
+        setNotice({ id: Date.now(), type, message });
+    }, []);
+
+    useEffect(() => {
+        if (!notice) return;
+        const timer = setTimeout(() => {
+            setNotice((current) => (current?.id === notice.id ? null : current));
+        }, 5000);
+        return () => clearTimeout(timer);
+    }, [notice]);
 
     const refreshData = useCallback(async () => {
         if (!user?.id) return;
@@ -128,11 +158,18 @@ export default function MyPosPage({ searchQuery: externalSearch = "", refreshKey
     const getPendingRequest = (rec: PosRecord | null) => {
         if (!rec) return undefined;
         const deviceNo = String(rec.device_no || "").trim();
-        return (
-            pendingByPosId.get(Number(rec.id)) ||
-            (deviceNo ? pendingByPosId.get(Number(deviceNo)) : undefined) ||
-            (deviceNo ? pendingByDeviceNo.get(deviceNo) : undefined)
-        );
+        // Match only by the real POS record id. A previous version also
+        // looked up `pendingByPosId` with the device number, which caused
+        // pending badges to appear on unrelated rows whenever the
+        // device number happened to coincide with another row's
+        // pos_record_id.
+        const byPosId = pendingByPosId.get(Number(rec.id));
+        if (byPosId) return byPosId;
+        if (deviceNo) {
+            const byDeviceNo = pendingByDeviceNo.get(deviceNo);
+            if (byDeviceNo) return byDeviceNo;
+        }
+        return undefined;
     };
 
     const unavailableBoothIds = useMemo(
@@ -173,11 +210,46 @@ export default function MyPosPage({ searchQuery: externalSearch = "", refreshKey
         return pages;
     }, [totalPages, safePage]);
 
+    const noticeStyleMap: Record<NoticeType, { wrapper: string; icon: React.ReactNode }> = {
+        success: {
+            wrapper: "border-green-200 bg-green-50 text-green-700",
+            icon: <CheckCircle2 className="h-4 w-4 text-green-600" />,
+        },
+        error: {
+            wrapper: "border-red-200 bg-red-50 text-red-700",
+            icon: <AlertCircle className="h-4 w-4 text-red-600" />,
+        },
+        info: {
+            wrapper: "border-blue-200 bg-blue-50 text-blue-700",
+            icon: <Info className="h-4 w-4 text-blue-600" />,
+        },
+    };
+
     return (
         <div className="w-full max-w-full space-y-5">
             {error && (
                 <div className="relative rounded-xl border border-red-200/60 bg-red-50/95 backdrop-blur-xl px-4 py-3 text-sm font-medium text-red-700 shadow-lg flex items-center gap-2">
                     <span>{error}</span>
+                </div>
+            )}
+
+            {/* Inline notice (toast) - shown above the table, on the left side */}
+            {notice && (
+                <div className="flex justify-start">
+                    <div
+                        role="status"
+                        className={`inline-flex max-w-md items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium shadow-md backdrop-blur-xl transition-all duration-300 ${noticeStyleMap[notice.type].wrapper}`}
+                    >
+                        <span className="shrink-0">{noticeStyleMap[notice.type].icon}</span>
+                        <span className="flex-1">{notice.message}</span>
+                        <button
+                            onClick={() => setNotice(null)}
+                            className="shrink-0 rounded-full p-0.5 opacity-70 transition hover:bg-black/5 hover:opacity-100"
+                            aria-label="Dismiss notice"
+                        >
+                            <X size={14} />
+                        </button>
+                    </div>
                 </div>
             )}
 
@@ -301,14 +373,40 @@ export default function MyPosPage({ searchQuery: externalSearch = "", refreshKey
 
             {/* Request History */}
             <div className="relative rounded-2xl border border-white/50 backdrop-blur-xl bg-white/25 shadow-lg overflow-hidden">
-                <div className="border-b border-white/40 px-5 py-3">
+                <div className="flex items-center justify-between gap-3 border-b border-white/40 px-5 py-3">
                     <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-800">
                         <History size={16} />
                         Booth Change Requests
                     </h2>
+                    <div className="relative w-44">
+                        <Search
+                            size={14}
+                            className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"
+                        />
+                        <input
+                            type="text"
+                            value={historySearch}
+                            onChange={(e) => setHistorySearch(e.target.value)}
+                            placeholder="Search…"
+                            style={inputStyle}
+                            className="h-9 w-44 rounded-xl pl-8 pr-3 text-sm text-gray-800 outline-none transition-all duration-200 focus:ring-2 focus:ring-[#92C7CF]/35 focus:border-[#92C7CF]/60 placeholder:text-gray-400"
+                        />
+                    </div>
                 </div>
                 <div className="p-5">
-                    <BoothChangeRequestHistory requests={requests} onChanged={refreshData} userId={user?.id ?? null} />
+                    <BoothChangeRequestHistory
+                        requests={requests}
+                        search={historySearch}
+                        onChanged={refreshData}
+                        userId={user?.id ?? null}
+                        onCancelled={(r) =>
+                            showNotice(
+                                "info",
+                                `Booth change request for device ${r.device_no || `#${r.pos_record_id}`} was cancelled.`
+                            )
+                        }
+                        onCancelError={(message) => showNotice("error", message)}
+                    />
                 </div>
             </div>
 
@@ -323,7 +421,9 @@ export default function MyPosPage({ searchQuery: externalSearch = "", refreshKey
                 onSubmitted={async () => {
                     setRequesting(null);
                     await refreshData();
+                    showNotice("success", "Booth change request submitted successfully.");
                 }}
+                onError={(message) => showNotice("error", message)}
             />
         </div>
     );

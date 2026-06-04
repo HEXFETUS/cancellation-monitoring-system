@@ -8,9 +8,6 @@ import {
     Edit,
     Trash2,
     RefreshCw,
-    X,
-    AlertCircle,
-    CheckCircle,
     RotateCcw,
     CreditCard,
     Minus,
@@ -27,6 +24,7 @@ import TransmittalModal from "../components/TransmittalModal";
 import { EditModal, FinalDiagnosisModal, ReceivedModal, TechnicianModal } from "../components/RepairManagementModals";
 import { BatchCheckedPosModal, BatchForRepairModal, BatchReceivedPosModal } from "../components/BatchProcessingModals";
 import CsrBatchForReleaseModal from "../../csr/components/CsrBatchForReleaseModal";
+import { Toast } from "../../../shared/components";
 
 const teal = "#92C7CF";
 
@@ -117,13 +115,16 @@ export default function RepairManagementPage() {
     const [expandedReleasedIds, setExpandedReleasedIds] = useState<Set<number>>(new Set());
     const [batchModal, setBatchModal] = useState<"for-repair" | "checked" | "received" | "release" | null>(null);
     const [batchProcessing, setBatchProcessing] = useState(false);
-    const [toast, setToast] = useState<{ show: boolean; message: string; type: "error" | "success" }>({ show: false, message: "", type: "error" });
+    const [toastOpen, setToastOpen] = useState(false);
+    const [toastMessage, setToastMessage] = useState("");
+    const [toastType, setToastType] = useState<"error" | "success">("error");
 
     const showToast = (message: string, type: "error" | "success" = "error") => {
-        setToast({ show: true, message, type });
-        setTimeout(() => setToast({ show: false, message: "", type: "error" }), 4000);
+        setToastMessage(message);
+        setToastType(type);
+        setToastOpen(true);
     };
-    const hideToast = () => setToast({ show: false, message: "", type: "error" });
+    const hideToast = () => setToastOpen(false);
 
     const showActions = !noActionTabs.includes(activeStatusTab);
     const isForChecking = activeStatusTab === "for-checking";
@@ -400,13 +401,7 @@ export default function RepairManagementPage() {
                 )}
             </div>
 
-            {toast.show && (
-                <div className={`relative rounded-xl px-4 py-3 shadow-lg backdrop-blur-xl transition-all duration-300 flex items-center gap-3 ${toast.type === "error" ? "bg-red-50/95 border border-red-200/60" : "bg-green-50/95 border border-green-200/60"}`}>
-                    {toast.type === "error" ? <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0" /> : <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" />}
-                    <p className={`text-sm font-medium ${toast.type === "error" ? "text-red-700" : "text-green-700"}`}>{toast.message}</p>
-                    <button onClick={hideToast} className="ml-auto p-1 rounded-lg hover:bg-black/5 transition-colors"><X className="h-4 w-4 text-gray-500" /></button>
-                </div>
-            )}
+            <Toast open={toastOpen} message={toastMessage} type={toastType} onClose={hideToast} />
 
             <div className="relative rounded-3xl border border-white/40 backdrop-blur-xl bg-white/20 shadow-lg overflow-hidden">
                 {loading ? (
