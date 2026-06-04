@@ -110,7 +110,11 @@ export default function OperatorTabbedPage() {
                                 className={`flex items-center gap-2 border-b-2 px-5 py-3 text-sm transition-all duration-200 font-medium`}
                                 style={{
                                     borderBottomColor: isActive ? teal : "transparent",
-                                    color: isActive ? "#374151" : "#9CA3AF",
+                                    color: isActive
+                                        ? darkMode
+                                            ? "#FFFFFF"
+                                            : "#374151"
+                                        : "#9CA3AF",
                                 }}
                             >
                                 <Icon size={16} />

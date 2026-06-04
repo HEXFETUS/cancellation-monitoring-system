@@ -43,6 +43,23 @@ function AdminSettingsPage() {
     const [activeTab, setActiveTab] = useState("user-accounts");
     const [activeUserSubTab, setActiveUserSubTab] = useState("accounts");
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
+    const [darkMode, setDarkMode] = useState(() => {
+        return document.documentElement.classList.contains("dark") || localStorage.getItem("theme") === "dark";
+    });
+
+    useEffect(() => {
+        const syncTheme = () => {
+            setDarkMode(document.documentElement.classList.contains("dark"));
+        };
+        const observer = new MutationObserver(syncTheme);
+        observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+        window.addEventListener("storage", syncTheme);
+        syncTheme();
+        return () => {
+            observer.disconnect();
+            window.removeEventListener("storage", syncTheme);
+        };
+    }, []);
 
     useEffect(() => {
         if (!successMessage) return;
@@ -125,7 +142,11 @@ function AdminSettingsPage() {
                                                 borderBottom: isSubActive
                                                     ? "1px solid white"
                                                     : "1px solid transparent",
-                                                color: isSubActive ? "#1F2937" : "#6B7280",
+                                                color: isSubActive
+                                                    ? darkMode
+                                                        ? "#FFFFFF"
+                                                        : "#1F2937"
+                                                    : "#6B7280",
                                             }}
                                             onMouseEnter={(e) => {
                                                 if (!isSubActive) {

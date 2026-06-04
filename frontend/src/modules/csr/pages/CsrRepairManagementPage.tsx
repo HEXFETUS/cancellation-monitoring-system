@@ -183,6 +183,23 @@ function EditModal({ record, diagnoses, onClose, onSave, showToast }: EditModalP
 export default function CsrRepairManagementPage() {
     const { user } = useAuth();
     const [activeStatusTab, setActiveStatusTab] = useState("request");
+    const [darkMode, setDarkMode] = useState(() => {
+        return document.documentElement.classList.contains("dark") || localStorage.getItem("theme") === "dark";
+    });
+
+    useEffect(() => {
+        const syncTheme = () => {
+            setDarkMode(document.documentElement.classList.contains("dark"));
+        };
+        const observer = new MutationObserver(syncTheme);
+        observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+        window.addEventListener("storage", syncTheme);
+        syncTheme();
+        return () => {
+            observer.disconnect();
+            window.removeEventListener("storage", syncTheme);
+        };
+    }, []);
     const [records, setRecords] = useState<RepairRecord[]>([]);
     const [filteredRecords, setFilteredRecords] = useState<RepairRecord[]>([]);
     const [loading, setLoading] = useState(true);
@@ -338,7 +355,7 @@ export default function CsrRepairManagementPage() {
                         return (
                             <button key={tab.id} onClick={() => setActiveStatusTab(tab.id)}
                                 className="flex shrink-0 items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all duration-200 rounded-t-xl cursor-pointer"
-                                style={{ background: isActive ? "rgba(146,199,207,0.15)" : "transparent", border: isActive ? "1px solid rgba(146,199,207,0.25)" : "1px solid transparent", borderBottom: isActive ? "1px solid white" : "1px solid transparent", color: isActive ? "#1F2937" : "#6B7280" }}
+                                style={{ background: isActive ? "rgba(146,199,207,0.15)" : "transparent", border: isActive ? "1px solid rgba(146,199,207,0.25)" : "1px solid transparent", borderBottom: isActive ? "1px solid white" : "1px solid transparent", color: isActive ? (darkMode ? "#FFFFFF" : "#1F2937") : "#6B7280" }}
                                 onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = "rgba(146,199,207,0.06)"; }}
                                 onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
                             >

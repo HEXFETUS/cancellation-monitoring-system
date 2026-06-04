@@ -23,6 +23,23 @@ const subTabs = [
 
 export default function PosRepairTabbedPage() {
     const [activeTab, setActiveTab] = useState("repair-management");
+    const [darkMode, setDarkMode] = useState(() => {
+        return document.documentElement.classList.contains("dark") || localStorage.getItem("theme") === "dark";
+    });
+
+    useEffect(() => {
+        const syncTheme = () => {
+            setDarkMode(document.documentElement.classList.contains("dark"));
+        };
+        const observer = new MutationObserver(syncTheme);
+        observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+        window.addEventListener("storage", syncTheme);
+        syncTheme();
+        return () => {
+            observer.disconnect();
+            window.removeEventListener("storage", syncTheme);
+        };
+    }, []);
     const [activeSubTab, setActiveSubTab] = useState("repair-logs");
     const [repairLogSearch, setRepairLogSearch] = useState("");
     const [releasedLogSearch, setReleasedLogSearch] = useState("");
@@ -129,7 +146,11 @@ export default function PosRepairTabbedPage() {
                                                 border: isSubActive
                                                     ? "1px solid rgba(146,199,207,0.25)"
                                                     : "1px solid transparent",
-                                                color: isSubActive ? "#1F2937" : "#6B7280",
+                                                color: isSubActive
+                                                    ? darkMode
+                                                        ? "#FFFFFF"
+                                                        : "#1F2937"
+                                                    : "#6B7280",
                                             }}
                                             onMouseEnter={(e) => {
                                                 if (!isSubActive) {

@@ -17,6 +17,23 @@ export default function RequestResetPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [filter, setFilter] = useState<RequestStatus | "all">("pending");
+    const [darkMode, setDarkMode] = useState(() => {
+        return document.documentElement.classList.contains("dark") || localStorage.getItem("theme") === "dark";
+    });
+
+    useEffect(() => {
+        const syncTheme = () => {
+            setDarkMode(document.documentElement.classList.contains("dark"));
+        };
+        const observer = new MutationObserver(syncTheme);
+        observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+        window.addEventListener("storage", syncTheme);
+        syncTheme();
+        return () => {
+            observer.disconnect();
+            window.removeEventListener("storage", syncTheme);
+        };
+    }, []);
     const [busyId, setBusyId] = useState<number | null>(null);
 
     // Toast state
@@ -186,7 +203,11 @@ export default function RequestResetPage() {
                                     borderBottom: isActive
                                         ? "1px solid white"
                                         : "1px solid transparent",
-                                    color: isActive ? "#1F2937" : "#6B7280",
+                                    color: isActive
+                                        ? darkMode
+                                            ? "#FFFFFF"
+                                            : "#1F2937"
+                                        : "#6B7280",
                                 }}
                                 onMouseEnter={(e) => {
                                     if (!isActive) {
