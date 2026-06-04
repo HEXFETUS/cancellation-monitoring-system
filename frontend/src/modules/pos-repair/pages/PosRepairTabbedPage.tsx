@@ -23,6 +23,23 @@ const subTabs = [
 
 export default function PosRepairTabbedPage() {
     const [activeTab, setActiveTab] = useState("repair-management");
+    const [darkMode, setDarkMode] = useState(() => {
+        return document.documentElement.classList.contains("dark") || localStorage.getItem("theme") === "dark";
+    });
+
+    useEffect(() => {
+        const syncTheme = () => {
+            setDarkMode(document.documentElement.classList.contains("dark"));
+        };
+        const observer = new MutationObserver(syncTheme);
+        observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+        window.addEventListener("storage", syncTheme);
+        syncTheme();
+        return () => {
+            observer.disconnect();
+            window.removeEventListener("storage", syncTheme);
+        };
+    }, []);
     const [activeSubTab, setActiveSubTab] = useState("repair-logs");
     const [repairLogSearch, setRepairLogSearch] = useState("");
     const [releasedLogSearch, setReleasedLogSearch] = useState("");
@@ -129,7 +146,11 @@ export default function PosRepairTabbedPage() {
                                                 border: isSubActive
                                                     ? "1px solid rgba(146,199,207,0.25)"
                                                     : "1px solid transparent",
-                                                color: isSubActive ? "#1F2937" : "#6B7280",
+                                                color: isSubActive
+                                                    ? darkMode
+                                                        ? "#FFFFFF"
+                                                        : "#1F2937"
+                                                    : "#6B7280",
                                             }}
                                             onMouseEnter={(e) => {
                                                 if (!isSubActive) {
@@ -149,7 +170,7 @@ export default function PosRepairTabbedPage() {
                             </div>
 
                             <div className="ml-auto relative">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-gray-500 pointer-events-none" />
                                 <input
                                     type="text"
                                     value={activeSubTab === "repair-logs" ? repairLogSearch : releasedLogSearch}
@@ -159,7 +180,7 @@ export default function PosRepairTabbedPage() {
                                             : setReleasedLogSearch(e.target.value)
                                     }
                                     placeholder={activeSubTab === "repair-logs" ? "Search POS / Serial Number…" : "Search Billing Code…"}
-                                    className="pl-9 pr-4 py-2 text-sm rounded-xl border border-gray-200/60 bg-white/40 backdrop-blur-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-300/50 focus:border-teal-300 w-64"
+                                    className="pl-9 pr-4 py-2 text-sm rounded-xl border border-gray-200/60 dark:border-gray-700 bg-white/40 dark:bg-gray-800/70 backdrop-blur-sm text-gray-700 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-300/50 dark:focus:ring-teal/50 focus:border-teal-300 dark:focus:border-teal w-64"
                                 />
                             </div>
                         </div>

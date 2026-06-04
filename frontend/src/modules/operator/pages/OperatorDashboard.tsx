@@ -4,9 +4,11 @@ import {
     ArrowRightLeft,
     CheckCircle2,
     Monitor,
-    XCircle,
-    Ban,
-    FileX,
+    Store,
+    History,
+    Send,
+    ChevronRight,
+    RefreshCw,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../../context/AuthContext";
@@ -16,13 +18,19 @@ import {
     listBoothChangeRequests,
     type BoothChangeRequest,
 } from "../../pos/services/boothChangeRequests";
-import { fetchCancellationRecords, fetchCancellationHumanForce } from "../../cancellation/services";
-import type { CancellationRecord, CancellationHumanForce } from "../../cancellation/types";
+import {
+    listOperatorChangeRequests,
+    type OperatorChangeRequest,
+} from "../../pos/services/operatorChangeRequests";
+import {
+    listBoothOperatorChangeRequests,
+    type BoothOperatorChangeRequest,
+} from "../../pos/services/boothOperatorChangeRequests";
 import RequestBoothChangeModal from "../components/RequestBoothChangeModal";
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
-
 const teal = "#92C7CF";
+const tealLight = "#AAD7D9";
 
 interface Me {
     id: number;
@@ -31,10 +39,38 @@ interface Me {
     operator_name: string | null;
 }
 
-/** Get today's date string in YYYY-MM-DD format. */
-function todayStr() {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+type SectionId = "devices" | "requests";
+
+const SECTION_HEADERS: Record<SectionId, { title: string; icon: React.ComponentType<{ size?: number; className?: string }> }> = {
+    devices: { title: "Your Devices & Outlets", icon: Monitor },
+    requests: { title: "Recent Requests", icon: Send },
+};
+
+function SectionHeader({ section }: { section: SectionId }) {
+    const { title, icon: Icon } = SECTION_HEADERS[section];
+    return (
+        <div className="flex items-center gap-2 mb-3">
+            <span
+                className="flex h-7 w-7 items-center justify-center rounded-lg"
+                style={{ background: `${teal}20`, color: teal }}
+            >
+                <Icon size={14} />
+            </span>
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-500">
+                {title}
+            </h2>
+        </div>
+    );
+}
+
+function GlassCard({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+    return (
+        <div
+            className={`relative rounded-2xl border border-white/50 backdrop-blur-xl bg-white/25 shadow-lg overflow-hidden ${className}`}
+        >
+            {children}
+        </div>
+    );
 }
 
 export default function OperatorDashboard() {
@@ -44,59 +80,62 @@ export default function OperatorDashboard() {
     const [booths, setBooths] = useState<BoothInfo[]>([]);
     const [requests, setRequests] = useState<BoothChangeRequest[]>([]);
     const [operators, setOperators] = useState<OperatorInfo[]>([]);
-    const [cancelRecords, setCancelRecords] = useState<CancellationRecord[]>([]);
-    const [humanForce, setHumanForce] = useState<CancellationHumanForce[]>([]);
+    const [posRequests, setPosRequests] = useState<OperatorChangeRequest[]>([]);
+    const [outletRequests, setOutletRequests] = useState<BoothOperatorChangeRequest[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
 
     // Booth change request modal
     const [requesting, setRequesting] = useState<PosRecord | null>(null);
 
-    useEffect(() => {
+    const fetchAll = async () => {
         if (!user?.id) return;
-        let cancelled = false;
-        (async () => {
-            try {
-                setLoading(true);
-                setError("");
-                const meRes = await fetch(`${API_BASE_URL}/api/users/me?id=${user.id}`);
-                const meData = meRes.ok ? await meRes.json() : null;
-                const meSafe: Me | null = meData
-                    ? {
-                        id: meData.id,
-                        operator_id: meData.operator_id ?? null,
-                        parent_operator_id: meData.parent_operator_id ?? null,
-                        operator_name: meData.operator_name ?? null,
-                    }
-                    : null;
-
-                const [pos, reqs, ops, bh, cancelRecs, hf] = await Promise.all([
-                    fetchPosRecords({ user_id: String(user.id) }),
-                    listBoothChangeRequests({ userId: user.id }),
-                    fetchOperators().catch(() => [] as OperatorInfo[]),
-                    fetchBoothInfo().catch(() => [] as BoothInfo[]),
-                    fetchCancellationRecords(todayStr()).catch(() => [] as CancellationRecord[]),
-                    fetchCancellationHumanForce(todayStr()).catch(() => [] as CancellationHumanForce[]),
-                ]);
-                if (!cancelled) {
-                    setMe(meSafe);
-                    setRecords(pos);
-                    setRequests(reqs);
-                    setOperators(ops);
-                    setBooths(bh);
-                    setCancelRecords(cancelRecs);
-                    setHumanForce(hf);
+        try {
+            setLoading(true);
+            setError("");
+            const meRes = await fetch(`${API_BASE_URL}/api/users/me?id=${user.id}`);
+            const meData = meRes.ok ? await meRes.json() : null;
+            const meSafe: Me | null = meData
+                ? {
+                    id: meData.id,
+                    operator_id: meData.operator_id ?? null,
+                    parent_operator_id: meData.parent_operator_id ?? null,
+                    operator_name: meData.operator_name ?? null,
                 }
-            } catch (err) {
-                if (!cancelled) setError(err instanceof Error ? (err instanceof Error ? err.message : String(err)) : "Failed to load");
-            } finally {
-                if (!cancelled) setLoading(false);
-            }
-        })();
-        return () => { cancelled = true; };
+                : null;
+
+            const [pos, reqs, ops, bh, posReqs, outletReqs] = await Promise.all([
+                fetchPosRecords({ user_id: String(user.id) }),
+                listBoothChangeRequests({ userId: user.id }),
+                fetchOperators().catch(() => [] as OperatorInfo[]),
+                fetchBoothInfo().catch(() => [] as BoothInfo[]),
+                listOperatorChangeRequests({ userId: user.id }).catch(
+                    () => [] as OperatorChangeRequest[]
+                ),
+                listBoothOperatorChangeRequests({ userId: user.id }).catch(
+                    () => [] as BoothOperatorChangeRequest[]
+                ),
+            ]);
+            setMe(meSafe);
+            setRecords(pos);
+            setRequests(reqs);
+            setOperators(ops);
+            setBooths(bh);
+            setPosRequests(posReqs);
+            setOutletRequests(outletReqs);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : String(err));
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchAll();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user?.id]);
 
-    // Resolve the logged-in user's operator profile (with type-safe Number() coercion)
+    // Resolve the logged-in user's operator profile
     const myOperator = useMemo(() => {
         const myOpId = me?.operator_id != null ? Number(me.operator_id) : null;
         if (myOpId != null) return operators.find((o) => Number(o.id) === myOpId) ?? null;
@@ -130,10 +169,7 @@ export default function OperatorDashboard() {
     );
 
     // Combined records (main + sub) for the "Your Devices" section
-    const allRecords = useMemo(
-        () => [...mainRecords, ...subRecords],
-        [mainRecords, subRecords]
-    );
+    const allRecords = useMemo(() => [...mainRecords, ...subRecords], [mainRecords, subRecords]);
 
     function computeStats(recs: PosRecord[]) {
         const total = recs.length;
@@ -142,52 +178,36 @@ export default function OperatorDashboard() {
         return { total, active, inactive };
     }
 
-    // Combined (main + sub) stats for "Your Devices"
     const combinedStats = useMemo(() => computeStats(allRecords), [allRecords]);
 
-    // Booth / area scope used to filter cancellation data to "the devices
-    // I have". A sub-operator's `allRecords` only contains rows for its
-    // own operator_id, so this naturally narrows their cancellation view
-    // to their own booths. A main operator sees the union with its subs.
-    const myBoothIds = useMemo(
-        () => new Set(allRecords.map((r) => r.booth_id).filter((id): id is number => id != null)),
-        [allRecords]
-    );
-    const myAreas = useMemo(
-        () => new Set(
-            allRecords
-                .map((r) => (r.area || "").trim().toUpperCase())
-                .filter((a) => a.length > 0)
-        ),
-        [allRecords]
-    );
+    // Total outlets with area breakdown
+    const { totalOutlets, cdoCount, misorCount } = useMemo(() => {
+        const ownerIds = new Set<number>();
+        if (myOperator) {
+            ownerIds.add(Number(myOperator.id));
+            for (const subId of subOperatorIds) ownerIds.add(subId);
+        }
+        const ownedBooths = ownerIds.size > 0
+            ? booths.filter((b) => b.operator_id != null && ownerIds.has(Number(b.operator_id)))
+            : booths;
+        const total = ownedBooths.length;
+        let cdo = 0;
+        let misor = 0;
+        for (const b of ownedBooths) {
+            const code = String(b.booth_code || "").trim().toUpperCase();
+            if (code.startsWith("MOE-") || code.startsWith("MOW-")) {
+                misor++;
+            } else if (code.startsWith("CDO-")) {
+                cdo++;
+            }
+        }
+        return { totalOutlets: total, cdoCount: cdo, misorCount: misor };
+    }, [booths, myOperator, subOperatorIds]);
 
-    // ── Cancellation stats for today ─────────────────────────────────
-    // Scoped to booths/areas the current operator owns. cancellation_record
-    // is aggregated per-area so we filter by area; cancellation_human_force
-    // is per-ticket and carries booth_id, so we filter by booth_id directly.
-    const cancelStats = useMemo(() => {
-        const myCancelRecords = myAreas.size === 0
-            ? []
-            : cancelRecords.filter((r) =>
-                myAreas.has((r.area || "").trim().toUpperCase())
-            );
-        const myHumanForce = myBoothIds.size === 0
-            ? []
-            : humanForce.filter((r) => r.booth_id != null && myBoothIds.has(r.booth_id));
+    const recentBoothRequests = useMemo(() => requests.slice(0, 5), [requests]);
+    const recentPosRequests = useMemo(() => posRequests.slice(0, 5), [posRequests]);
+    const recentOutletRequests = useMemo(() => outletRequests.slice(0, 5), [outletRequests]);
 
-        const approved = myCancelRecords.reduce((sum, r) => sum + (Number(r.approved) || 0), 0);
-        const denied = myCancelRecords.reduce((sum, r) => sum + (Number(r.denied) || 0), 0);
-        const forceCancel = myHumanForce.filter((r) =>
-            ((r.reaseon_for_deny || "")).toUpperCase().includes("FORCE CANCEL")
-        ).length;
-        const humanError = myHumanForce.filter((r) =>
-            ((r.reaseon_for_deny || "")).toUpperCase().includes("HUMAN ERROR")
-        ).length;
-        return { approved, denied, forceCancel, humanError };
-    }, [cancelRecords, humanForce, myAreas, myBoothIds]);
-
-    const recent = requests.slice(0, 5);
     const unavailableBoothIds = useMemo(
         () =>
             requests
@@ -198,149 +218,299 @@ export default function OperatorDashboard() {
     );
 
     return (
-        <div className="space-y-7">
-            {/* Welcome banner */}
-            <div className="relative rounded-3xl border border-white/40 bg-white/20 p-6 shadow-lg backdrop-blur-xl">
-                <div
-                    className="absolute -top-10 -right-10 h-40 w-40 rounded-full opacity-15 blur-3xl pointer-events-none"
-                    style={{ background: teal }}
-                />
-                <div className="relative">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-ink-muted">
-                        Welcome back
-                    </p>
-                    <h1 className="mt-1 text-2xl font-bold text-ink">
-                        {user?.name || "Operator"}
-                    </h1>
-                    <p className="mt-1 text-sm text-ink-muted">
-                        Here's a quick look at your devices, cancellation records, and recent requests.
-                    </p>
-                </div>
-            </div>
-
+        <div className="w-full max-w-full space-y-6">
+            {/* ── Error banner ── */}
             {error && (
-                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
-                    {error}
+                <div className="relative rounded-xl border border-red-200/60 bg-red-50/95 backdrop-blur-xl px-4 py-3 text-sm font-medium text-red-700 shadow-lg flex items-center gap-2">
+                    <span>{error}</span>
                 </div>
             )}
 
-            {/* ── Device status cards (main + sub combined) ── */}
+            {/* ── Welcome banner ── */}
+            <GlassCard>
+                <div className="absolute -top-10 -right-10 h-40 w-40 rounded-full opacity-15 blur-3xl pointer-events-none" style={{ background: teal }} />
+                <div className="relative px-6 py-5">
+                    <div className="flex items-start justify-between">
+                        <div>
+                            <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+                                Welcome back
+                            </p>
+                            <h1 className="mt-0.5 text-2xl font-bold text-gray-800">
+                                {user?.name || "Operator"}
+                            </h1>
+                            <p className="mt-0.5 text-sm text-gray-500">
+                                Here's a quick look at your devices and recent requests.
+                            </p>
+                        </div>
+                        <button
+                            onClick={fetchAll}
+                            disabled={loading}
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/40 bg-white/50 text-gray-500 shadow-sm transition hover:bg-white/80 disabled:opacity-50"
+                            aria-label="Refresh"
+                        >
+                            <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
+                        </button>
+                    </div>
+                </div>
+            </GlassCard>
+
+            {/* ── Devices & Outlets section ── */}
             <div>
-                <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-ink-muted">
-                    Your Devices
-                </h2>
-                <div className="grid gap-4 sm:grid-cols-3">
-                    <StatCard
-                        label="My Devices"
+                <SectionHeader section="devices" />
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    <DeviceStatCard
+                        label="Total Devices"
                         value={loading ? "—" : combinedStats.total}
                         icon={Monitor}
                         color={teal}
+                        subtitle={myOperator?.operator || ""}
                     />
-                    <StatCard
+                    <DeviceStatCard
                         label="Active"
                         value={loading ? "—" : combinedStats.active}
                         icon={CheckCircle2}
                         color="#6BBF6B"
+                        subtitle="Operational"
                     />
-                    <StatCard
+                    <DeviceStatCard
                         label="Inactive"
                         value={loading ? "—" : combinedStats.inactive}
                         icon={Activity}
                         color="#E8B4B8"
+                        subtitle="Needs attention"
+                    />
+                    <DeviceStatCard
+                        label="Total Outlets"
+                        value={loading ? "—" : totalOutlets}
+                        icon={Store}
+                        color={teal}
+                        subtitle={
+                            loading
+                                ? ""
+                                : `${cdoCount} CDO  ·  ${misorCount} MISOR`
+                        }
                     />
                 </div>
             </div>
 
-            {/* ── Cancellation summary cards (today) ── */}
+            {/* ── Recent Requests section ── */}
             <div>
-                <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-ink-muted">
-                    Today's Cancellation Records
-                </h2>
-                <div className="grid gap-4 sm:grid-cols-4">
-                    <StatCard
-                        label="Approved"
-                        value={loading ? "—" : cancelStats.approved}
-                        icon={CheckCircle2}
-                        color="#6BBF6B"
-                    />
-                    <StatCard
-                        label="Rejected"
-                        value={loading ? "—" : cancelStats.denied}
-                        icon={XCircle}
-                        color="#E8B4B8"
-                    />
-                    <StatCard
-                        label="Force Cancel"
-                        value={loading ? "—" : cancelStats.forceCancel}
-                        icon={Ban}
-                        color="#9CA3AF"
-                    />
-                    <StatCard
-                        label="Human Error"
-                        value={loading ? "—" : cancelStats.humanError}
-                        icon={FileX}
-                        color="#F2D7B5"
-                    />
+                <SectionHeader section="requests" />
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    {/* Request POS History */}
+                    <GlassCard>
+                        <div className="border-b border-white/40 bg-gradient-to-r from-[#92C7CF]/10 to-[#AAD7D9]/10 px-5 py-3">
+                            <div className="flex items-center justify-between">
+                                <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-800">
+                                    <Send size={15} />
+                                    Request POS History
+                                </h3>
+                                <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-amber-100 px-1.5 text-[10px] font-bold text-amber-700">
+                                    {posRequests.length}
+                                </span>
+                            </div>
+                        </div>
+                        <div className="p-4">
+                            {loading ? (
+                                <div className="flex items-center justify-center py-6">
+                                    <RefreshCw size={18} className="animate-spin text-gray-400" />
+                                </div>
+                            ) : recentPosRequests.length === 0 ? (
+                                <div className="rounded-xl border border-dashed border-[#92C7CF]/20 bg-white/30 px-4 py-6 text-center">
+                                    <Send size={28} className="mx-auto text-gray-300 mb-2" />
+                                    <p className="text-sm text-gray-500">No POS requests yet.</p>
+                                </div>
+                            ) : (
+                                <ul className="divide-y divide-gray-100">
+                                    {recentPosRequests.map((r) => (
+                                        <li key={r.id} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
+                                            <div className="min-w-0 flex-1">
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className="text-sm font-semibold text-gray-800 truncate">
+                                                        {r.device_no || `POS #${r.pos_record_id}`}
+                                                    </span>
+                                                    <RequestStatusPill status={r.status} size="sm" />
+                                                </div>
+                                                <p className="mt-0.5 text-xs text-gray-500 truncate">
+                                                    {r.from_operator || "Unassigned"}
+                                                    <span className="mx-1 text-gray-300">→</span>
+                                                    <span style={{ color: teal }} className="font-medium">
+                                                        {r.to_operator || "—"}
+                                                    </span>
+                                                </p>
+                                                <p className="text-[11px] text-gray-400 mt-0.5">
+                                                    {r.created_at ? new Date(r.created_at).toLocaleDateString() : "—"}
+                                                </p>
+                                            </div>
+                                        </li>
+                                    ))}
+                                    <li className="pt-2">
+                                        <Link
+                                            to="/app/my-pos"
+                                            className="group inline-flex items-center gap-1 text-xs font-medium transition"
+                                            style={{ color: teal }}
+                                        >
+                                            View all
+                                            <ChevronRight size={13} className="transition-transform group-hover:translate-x-0.5" />
+                                        </Link>
+                                    </li>
+                                </ul>
+                            )}
+                        </div>
+                    </GlassCard>
+
+                    {/* Request Outlet History */}
+                    <GlassCard>
+                        <div className="border-b border-white/40 bg-gradient-to-r from-[#92C7CF]/10 to-[#AAD7D9]/10 px-5 py-3">
+                            <div className="flex items-center justify-between">
+                                <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-800">
+                                    <History size={15} />
+                                    Request Outlet History
+                                </h3>
+                                <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-amber-100 px-1.5 text-[10px] font-bold text-amber-700">
+                                    {outletRequests.length}
+                                </span>
+                            </div>
+                        </div>
+                        <div className="p-4">
+                            {loading ? (
+                                <div className="flex items-center justify-center py-6">
+                                    <RefreshCw size={18} className="animate-spin text-gray-400" />
+                                </div>
+                            ) : recentOutletRequests.length === 0 ? (
+                                <div className="rounded-xl border border-dashed border-[#92C7CF]/20 bg-white/30 px-4 py-6 text-center">
+                                    <History size={28} className="mx-auto text-gray-300 mb-2" />
+                                    <p className="text-sm text-gray-500">No outlet requests yet.</p>
+                                </div>
+                            ) : (
+                                <ul className="divide-y divide-gray-100">
+                                    {recentOutletRequests.map((r) => (
+                                        <li key={r.id} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
+                                            <div className="min-w-0 flex-1">
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className="text-sm font-semibold text-gray-800 truncate">
+                                                        {r.booth_code || `Booth #${r.booth_info_id}`}
+                                                    </span>
+                                                    <RequestStatusPill status={r.status} size="sm" />
+                                                </div>
+                                                <p className="mt-0.5 text-xs text-gray-500 truncate">
+                                                    {r.current_operator || "Unassigned"}
+                                                    <span className="mx-1 text-gray-300">→</span>
+                                                    <span style={{ color: teal }} className="font-medium">
+                                                        {r.to_operator || "—"}
+                                                    </span>
+                                                </p>
+                                                <p className="text-[11px] text-gray-400 mt-0.5">
+                                                    {r.created_at ? new Date(r.created_at).toLocaleDateString() : "—"}
+                                                </p>
+                                            </div>
+                                        </li>
+                                    ))}
+                                    <li className="pt-2">
+                                        <Link
+                                            to="/app/my-outlets"
+                                            className="group inline-flex items-center gap-1 text-xs font-medium transition"
+                                            style={{ color: teal }}
+                                        >
+                                            View all
+                                            <ChevronRight size={13} className="transition-transform group-hover:translate-x-0.5" />
+                                        </Link>
+                                    </li>
+                                </ul>
+                            )}
+                        </div>
+                    </GlassCard>
+
+                    {/* Booth Change Requests */}
+                    <GlassCard>
+                        <div className="border-b border-white/40 bg-gradient-to-r from-[#92C7CF]/10 to-[#AAD7D9]/10 px-5 py-3">
+                            <div className="flex items-center justify-between">
+                                <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-800">
+                                    <ArrowRightLeft size={15} />
+                                    Booth Change Requests
+                                </h3>
+                                <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-amber-100 px-1.5 text-[10px] font-bold text-amber-700">
+                                    {requests.length}
+                                </span>
+                            </div>
+                        </div>
+                        <div className="p-4">
+                            {loading ? (
+                                <div className="flex items-center justify-center py-6">
+                                    <RefreshCw size={18} className="animate-spin text-gray-400" />
+                                </div>
+                            ) : recentBoothRequests.length === 0 ? (
+                                <div className="rounded-xl border border-dashed border-[#92C7CF]/20 bg-white/30 px-4 py-6 text-center">
+                                    <ArrowRightLeft size={28} className="mx-auto text-gray-300 mb-2" />
+                                    <p className="text-sm text-gray-500">No booth change requests yet.</p>
+                                </div>
+                            ) : (
+                                <ul className="divide-y divide-gray-100">
+                                    {recentBoothRequests.map((r) => (
+                                        <li key={r.id} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
+                                            <div className="min-w-0 flex-1">
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className="text-sm font-semibold text-gray-800 truncate">
+                                                        {r.device_no || `POS #${r.pos_record_id}`}
+                                                    </span>
+                                                    <BoothStatusPill status={r.status} />
+                                                </div>
+                                                <p className="mt-0.5 text-xs text-gray-500 truncate">
+                                                    <span className="font-mono">{r.current_booth_code || "—"}</span>
+                                                    <span className="mx-1 text-gray-300">→</span>
+                                                    <span className="font-mono" style={{ color: teal }}>
+                                                        {r.requested_booth_code || `#${r.requested_booth_id}`}
+                                                    </span>
+                                                </p>
+                                                <p className="text-[11px] text-gray-400 mt-0.5">
+                                                    {new Date(r.created_at).toLocaleString()}
+                                                </p>
+                                            </div>
+                                        </li>
+                                    ))}
+                                    <li className="pt-2">
+                                        <Link
+                                            to="/app/my-pos"
+                                            className="group inline-flex items-center gap-1 text-xs font-medium transition"
+                                            style={{ color: teal }}
+                                        >
+                                            View all
+                                            <ChevronRight size={13} className="transition-transform group-hover:translate-x-0.5" />
+                                        </Link>
+                                    </li>
+                                </ul>
+                            )}
+                        </div>
+                    </GlassCard>
                 </div>
             </div>
 
-            {/* Recent requests + CTA */}
-            <div className="grid gap-4 lg:grid-cols-3">
-                <div className="rounded-2xl border border-warm bg-card p-5 shadow-sm lg:col-span-2">
-                    <div className="mb-3 flex items-center justify-between">
-                        <h2 className="text-base font-semibold text-ink">
-                            Recent Booth Change Requests
-                        </h2>
-                        <Link
-                            to="/app/my-pos"
-                            className="text-xs font-medium text-teal hover:underline"
-                        >
-                            View all →
-                        </Link>
-                    </div>
-
-                    {loading ? (
-                        <p className="text-sm text-ink-subtle">Loading...</p>
-                    ) : recent.length === 0 ? (
-                        <p className="rounded-lg border border-dashed border-warm bg-cream/50 px-3 py-4 text-center text-sm text-ink-subtle">
-                            No requests yet.
-                        </p>
-                    ) : (
-                        <ul className="divide-y divide-warm/60">
-                            {recent.map((r) => (
-                                <li key={r.id} className="flex items-center justify-between gap-3 py-2">
-                                    <div className="min-w-0">
-                                        <p className="truncate text-sm font-medium text-ink">
-                                            {r.device_no || `POS #${r.pos_record_id}`}
-                                            <span className="text-ink-muted">
-                                                {" "}— {r.current_booth_code || "—"} → {r.requested_booth_code || `#${r.requested_booth_id}`}
-                                            </span>
-                                        </p>
-                                        <p className="text-xs text-ink-subtle">
-                                            {new Date(r.created_at).toLocaleString()}
-                                        </p>
-                                    </div>
-                                    <StatusPill status={r.status} />
-                                </li>
-                            ))}
-                        </ul>
-                    )}
-                </div>
-
-                <div className="rounded-2xl border border-warm bg-card p-5 shadow-sm">
-                    <h2 className="text-base font-semibold text-ink">Quick action</h2>
-                    <p className="mt-1 text-sm text-ink-muted">
-                        Need to move a device to a different booth?
+            {/* ── Quick action ── */}
+            <GlassCard>
+                <div className="p-5 flex flex-col items-center text-center">
+                    <span
+                        className="flex h-10 w-10 items-center justify-center rounded-xl mb-3"
+                        style={{ background: `${teal}20`, color: teal }}
+                    >
+                        <ArrowRightLeft size={18} />
+                    </span>
+                    <h3 className="text-base font-semibold text-gray-800">Quick action</h3>
+                    <p className="mt-1 text-sm text-gray-500">
+                        Need to request a new POS device under your account?
                     </p>
                     <Link
-                        to="/app/my-pos"
-                        className="mt-4 inline-flex items-center gap-2 rounded-lg bg-teal px-4 py-2 text-sm font-semibold text-ink transition hover:bg-teal-dark"
+                        to="/app/request-pos?tab=request-pos"
+                        className="mt-4 inline-flex w-full max-w-xs items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:opacity-90 active:scale-[0.98]"
+                        style={{
+                            background: `linear-gradient(135deg, ${teal}, ${tealLight})`,
+                            boxShadow: `0 2px 8px rgba(146,199,207,0.30)`,
+                        }}
                     >
-                        <ArrowRightLeft size={16} />
-                        Go to My POS
+                        <Send size={15} />
+                        Add POS
                     </Link>
                 </div>
-            </div>
+            </GlassCard>
 
             <RequestBoothChangeModal
                 open={!!requesting}
@@ -351,7 +521,6 @@ export default function OperatorDashboard() {
                 onClose={() => setRequesting(null)}
                 onSubmitted={async () => {
                     setRequesting(null);
-                    // Re-fetch to update state
                     try {
                         const [pos, reqs] = await Promise.all([
                             fetchPosRecords({ user_id: String(user!.id) }),
@@ -368,44 +537,72 @@ export default function OperatorDashboard() {
     );
 }
 
-function StatCard({
+/* ──────────────────────────────────────────────
+ *  Sub-components
+ * ────────────────────────────────────────────── */
+
+function DeviceStatCard({
     label,
     value,
     icon: Icon,
     color,
+    subtitle,
 }: {
     label: string;
     value: number | string;
     icon: React.ComponentType<{ size?: number; className?: string }>;
     color: string;
+    subtitle: string;
 }) {
     return (
-        <div className="rounded-2xl border border-warm bg-card p-4 shadow-sm">
-            <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
-                    {label}
-                </p>
-                <span
-                    className="flex h-8 w-8 items-center justify-center rounded-lg"
-                    style={{ background: `${color}20`, color }}
-                >
-                    <Icon size={16} />
-                </span>
+        <div className="relative rounded-2xl border border-white/50 backdrop-blur-xl bg-white/25 shadow-lg overflow-hidden group hover:shadow-xl transition-all duration-300 hover:-translate-y-0.5">
+            <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300" style={{ background: `linear-gradient(135deg, ${color}08, ${color}04)` }} />
+            <div className="relative p-5">
+                <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                        {label}
+                    </p>
+                    <span
+                        className="flex h-9 w-9 items-center justify-center rounded-xl transition-transform duration-300 group-hover:scale-110"
+                        style={{ background: `${color}20`, color }}
+                    >
+                        <Icon size={17} />
+                    </span>
+                </div>
+                <p className="mt-2 text-3xl font-bold text-gray-800">{value}</p>
+                <p className="mt-0.5 text-[11px] text-gray-400">{subtitle}</p>
             </div>
-            <p className="mt-2 text-2xl font-bold text-ink">{value}</p>
+            <div className="absolute bottom-0 left-0 right-0 h-0.5" style={{ background: `linear-gradient(90deg, ${color}40, ${color}10)` }} />
         </div>
     );
 }
 
-function StatusPill({ status }: { status: BoothChangeRequest["status"] }) {
+function BoothStatusPill({ status }: { status: BoothChangeRequest["status"] }) {
     const colors: Record<BoothChangeRequest["status"], string> = {
-        pending: "bg-peach/40 text-ink",
-        approved: "bg-teal-light/60 text-ink",
-        rejected: "bg-rose/40 text-ink",
-        cancelled: "bg-warm text-ink-muted",
+        pending: "bg-amber-100 text-amber-700",
+        approved: "bg-green-100 text-green-700",
+        rejected: "bg-red-100 text-red-700",
+        cancelled: "bg-gray-100 text-gray-500",
     };
     return (
-        <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide ${colors[status]}`}>
+        <span className={`inline-block shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${colors[status]}`}>
+            {status}
+        </span>
+    );
+}
+
+function RequestStatusPill({ status, size = "md" }: { status: string | null | undefined; size?: "sm" | "md" }) {
+    const colorMap: Record<string, string> = {
+        pending: "bg-amber-100 text-amber-700",
+        approved: "bg-green-100 text-green-700",
+        rejected: "bg-red-100 text-red-700",
+        cancelled: "bg-gray-100 text-gray-500",
+    };
+    const normalized = (status || "").toLowerCase();
+    const cls = colorMap[normalized] || "bg-gray-100 text-gray-500";
+    const sizeCls = size === "sm" ? "px-1.5 py-0.5 text-[9px]" : "px-2 py-0.5 text-[10px]";
+    return (
+        <span className={`inline-block shrink-0 rounded-full font-semibold uppercase tracking-wide ${sizeCls} ${cls}`}>
             {status}
         </span>
     );

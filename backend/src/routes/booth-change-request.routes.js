@@ -37,6 +37,25 @@ function nullable(value) {
     return s ? s : null;
 }
 
+// Returns the current time in Asia/Manila formatted as a PostgreSQL
+// TIMESTAMP string ("YYYY-MM-DD HH:MM:SS"). Used when creating new rows so
+// the displayed "Submitted" timestamp matches the local time the operator
+// is in, regardless of the database session timezone.
+function manilaTimestamp(date = new Date()) {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Manila",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false,
+    }).formatToParts(date);
+    const get = (type) => parts.find((p) => p.type === type)?.value || "00";
+    return `${get("year")}-${get("month")}-${get("day")} ${get("hour")}:${get("minute")}:${get("second")}`;
+}
+
 /**
  * GET /api/booth-change-requests
  * Query params:
@@ -173,11 +192,19 @@ router.post("/", async (req, res) => {
             }
         }
 
+        // Store created_at and updated_at in Asia/Manila local time so the
+        // "Submitted" timestamp shown in the Booth Change Requests table matches
+        // the time the operator actually submitted the request. The DB column is
+        // TIMESTAMP (no timezone), so the value is stored verbatim; pg then reads
+        // it back as UTC, and the frontend (which already runs in Asia/Manila)
+        // displays the same wall-clock value.
+        const nowManila = manilaTimestamp();
+
         const result = await pool.query(
             `
             INSERT INTO booth_change_requests
-                (pos_record_id, requested_booth_id, requested_by_user_id, reason)
-            VALUES ($1, $2, $3, $4)
+                (pos_record_id, requested_booth_id, requested_by_user_id, reason, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $5)
             RETURNING id
             `,
             [
@@ -185,6 +212,7 @@ router.post("/", async (req, res) => {
                 Number(requested_booth_id),
                 requested_by_user_id ? Number(requested_by_user_id) : null,
                 nullable(reason),
+                nowManila,
             ]
         );
 
