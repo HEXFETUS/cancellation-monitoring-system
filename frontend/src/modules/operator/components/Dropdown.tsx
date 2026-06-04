@@ -126,8 +126,8 @@ export default function Dropdown({
                                 }}
                                 className={`cursor-pointer px-3 py-2 text-sm transition ${
                                     idx === highlight
-                                        ? "bg-teal/10 text-ink"
-                                        : "text-ink hover:bg-cream"
+                                        ? "bg-teal/10 text-ink dark:bg-teal/30 dark:text-white"
+                                        : "text-ink hover:bg-cream dark:text-gray-300 dark:hover:bg-gray-700"
                                 }`}
                             >
                                 {opt.label}

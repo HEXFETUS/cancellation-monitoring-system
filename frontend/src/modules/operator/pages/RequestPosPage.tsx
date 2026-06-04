@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { History, Search, Send, X, XCircle } from "lucide-react";
 import { useAuth } from "../../../context/AuthContext";
 import { fetchOperators, fetchPosRecords } from "../../pos/services";
@@ -24,6 +24,9 @@ interface Me {
 
 export default function RequestPosPage() {
     const { user } = useAuth();
+    const [darkMode, setDarkMode] = useState(() => {
+        return localStorage.getItem("theme") === "dark";
+    });
     const [me, setMe] = useState<Me | null>(null);
     const [allOperators, setAllOperators] = useState<OperatorInfo[]>([]);
     const [allPos, setAllPos] = useState<PosRecord[]>([]);
@@ -45,6 +48,31 @@ export default function RequestPosPage() {
     const [toastMessage, setToastMessage] = useState("");
     const [toastType, setToastType] = useState<"success" | "error" | "info" | "warning">("success");
 
+    // Floating toast state (top-center) for status change notifications
+    const [floatingToastOpen, setFloatingToastOpen] = useState(false);
+    const [floatingToastMessage, setFloatingToastMessage] = useState("");
+    const [floatingToastType, setFloatingToastType] = useState<"success" | "error" | "info" | "warning">("success");
+
+    // Track previous request statuses to detect approved/rejected changes
+    const prevRequestStatusMap = useRef<Map<number, string>>(new Map());
+    const isInitialLoad = useRef(true);
+
+    // Observe dark mode changes on <html>
+    useEffect(() => {
+        const handleThemeChange = () => {
+            setDarkMode(localStorage.getItem("theme") === "dark");
+        };
+        const observer = new MutationObserver(() => {
+            setDarkMode(document.documentElement.classList.contains("dark"));
+        });
+        observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+        window.addEventListener("storage", handleThemeChange);
+        return () => {
+            observer.disconnect();
+            window.removeEventListener("storage", handleThemeChange);
+        };
+    }, []);
+
     const myOperator = useMemo(() => {
         const myOpId = me?.operator_id != null ? Number(me.operator_id) : null;
         if (myOpId != null)
@@ -64,6 +92,9 @@ export default function RequestPosPage() {
         try {
             setLoading(true);
             setError("");
+
+            // Capture previous statuses before fetching new data
+            const prevStatuses = new Map(prevRequestStatusMap.current);
 
             const meRes = await fetch(
                 `${API_BASE_URL}/api/users/me?id=${user.id}`
@@ -92,6 +123,34 @@ export default function RequestPosPage() {
             setAllPos(pos);
             setAllOperators(ops);
             setRequests(reqs);
+
+            // Detect status changes from approved/rejected perspective
+            if (!isInitialLoad.current) {
+                for (const req of reqs) {
+                    const prevStatus = prevStatuses.get(req.id);
+                    const currentStatus = (req.status || "").toLowerCase();
+                    if (prevStatus === "pending" && (currentStatus === "approved" || currentStatus === "rejected")) {
+                        const deviceInfo = req.device_no || `POS #${req.pos_record_id}`;
+                        if (currentStatus === "approved") {
+                            setFloatingToastType("success");
+                            setFloatingToastMessage(`POS request for ${deviceInfo} has been approved.`);
+                            setFloatingToastOpen(true);
+                        } else {
+                            setFloatingToastType("error");
+                            setFloatingToastMessage(`POS request for ${deviceInfo} has been rejected.`);
+                            setFloatingToastOpen(true);
+                        }
+                    }
+                }
+            }
+
+            // Update the status map for next comparison
+            const newStatusMap = new Map<number, string>();
+            for (const req of reqs) {
+                newStatusMap.set(req.id, (req.status || "").toLowerCase());
+            }
+            prevRequestStatusMap.current = newStatusMap;
+            isInitialLoad.current = false;
         } catch (err) {
             setError(err instanceof Error ? err.message : String(err));
         } finally {
@@ -201,10 +260,33 @@ export default function RequestPosPage() {
         );
 
     const inputStyle = {
-        background: "rgba(255,255,255,0.58)",
-        border: "1px solid rgba(146,199,207,0.28)",
-        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.55)",
+        background: darkMode ? "rgba(31,41,55,0.80)" : "rgba(255,255,255,0.78)",
+        border: darkMode ? "1px solid rgba(75,85,99,0.55)" : "1px solid rgba(146,199,207,0.30)",
+        color: darkMode ? "#F3F4F6" : "#1F2937",
+        boxShadow: darkMode ? "none" : "inset 0 1px 0 rgba(255,255,255,0.55)",
         backdropFilter: "blur(8px)",
+    };
+
+    const getStatusBadgeStyle = (status: string): React.CSSProperties => {
+        const normalized = status.toLowerCase();
+        if (normalized === "pending") {
+            return darkMode
+                ? { backgroundColor: "rgba(146,64,14,0.60)", color: "#FDE68A" }
+                : { backgroundColor: "#FEF3C7", color: "#B45309" };
+        }
+        if (normalized === "approved") {
+            return darkMode
+                ? { backgroundColor: "rgba(22,101,52,0.60)", color: "#BBF7D0" }
+                : { backgroundColor: "#DCFCE7", color: "#15803D" };
+        }
+        if (normalized === "rejected") {
+            return darkMode
+                ? { backgroundColor: "rgba(153,27,27,0.60)", color: "#FECACA" }
+                : { backgroundColor: "#FEE2E2", color: "#B91C1C" };
+        }
+        return darkMode
+            ? { backgroundColor: "rgba(55,65,81,0.80)", color: "#D1D5DB" }
+            : { backgroundColor: "#F3F4F6", color: "#4B5563" };
     };
 
     const filteredRequests = useMemo(() => {
@@ -227,8 +309,11 @@ export default function RequestPosPage() {
                 </div>
             )}
 
+            {/* Floating toast (top-center) for status change notifications */}
+            <Toast open={floatingToastOpen} message={floatingToastMessage} type={floatingToastType} onClose={() => setFloatingToastOpen(false)} position="top-center" />
+
             {/* Form 1: type POS + operator detection */}
-            <div className="relative rounded-2xl border border-white/50 backdrop-blur-xl bg-white/25 shadow-lg p-5">
+            <div className="relative rounded-2xl border border-white/50 backdrop-blur-xl bg-white/25 shadow-lg p-5 max-w-4xl">
                 <h2 className="text-sm font-semibold text-gray-800 mb-3">
                     Request to add a POS device under your operator account. An admin must approve before the change takes effect.
                 </h2>
@@ -249,7 +334,7 @@ export default function RequestPosPage() {
                             }
                         }}
                         placeholder="Type a device number or serial number…"
-                        className="h-10 flex-1 rounded-xl px-3 text-sm text-gray-800 outline-none transition-all duration-200 focus:ring-2 focus:ring-[#92C7CF]/35 focus:border-[#92C7CF]/60 placeholder:text-gray-400"
+                        className="h-10 flex-1 rounded-xl px-3 text-sm outline-none transition-all duration-200 focus:border-[#92C7CF]/60 focus:ring-2 focus:ring-[#92C7CF]/35 placeholder:text-gray-400 dark:placeholder:text-gray-400"
                         style={inputStyle}
                     />
                     <button
@@ -327,10 +412,10 @@ export default function RequestPosPage() {
                                         setMatchedOperator(null);
                                         setMatchError("");
                                     }}
-                                    className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl px-3 text-sm font-medium text-gray-600 transition-all duration-200 hover:bg-white/50"
+                                    className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl px-3 text-sm font-medium text-gray-600 dark:text-gray-400 transition-all duration-200 hover:bg-white/50 dark:hover:bg-white/10"
                                     style={{
-                                        border: "1px solid rgba(146,199,207,0.20)",
-                                        background: "rgba(255,255,255,0.25)",
+                                        border: darkMode ? "1px solid rgba(75,85,99,0.40)" : "1px solid rgba(146,199,207,0.20)",
+                                        background: darkMode ? "rgba(31,41,55,0.50)" : "rgba(255,255,255,0.25)",
                                     }}
                                 >
                                     <X size={14} />
@@ -352,14 +437,14 @@ export default function RequestPosPage() {
                     <div className="relative">
                         <Search
                             size={14}
-                            className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"
+                            className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500"
                         />
                         <input
                             type="text"
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                             placeholder="Search…"
-                            className="h-9 w-44 rounded-xl pl-8 pr-3 text-sm text-gray-800 outline-none transition-all duration-200 focus:ring-2 focus:ring-[#92C7CF]/35 focus:border-[#92C7CF]/60 placeholder:text-gray-400"
+                            className="h-9 w-44 rounded-xl pl-8 pr-3 text-sm outline-none transition-all duration-200 focus:border-[#92C7CF]/60 focus:ring-2 focus:ring-[#92C7CF]/35 placeholder:text-gray-400 dark:placeholder:text-gray-400"
                             style={inputStyle}
                         />
                     </div>
@@ -429,14 +514,8 @@ export default function RequestPosPage() {
                                         </td>
                                         <td className="whitespace-nowrap px-4 py-3">
                                             <span
-                                                className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide ${r.status === "pending"
-                                                    ? "bg-amber-100 text-amber-700"
-                                                    : r.status === "approved"
-                                                        ? "bg-green-100 text-green-700"
-                                                        : r.status === "rejected"
-                                                            ? "bg-red-100 text-red-700"
-                                                            : "bg-gray-100 text-gray-600"
-                                                    }`}
+                                                className="inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide"
+                                                style={getStatusBadgeStyle(r.status)}
                                             >
                                                 {r.status}
                                             </span>
@@ -476,7 +555,7 @@ export default function RequestPosPage() {
                 message={toastMessage}
                 type={toastType}
                 onClose={() => setToastOpen(false)}
-                position="top-right"
+                position="top-center"
             />
 
             <ConfirmationModal

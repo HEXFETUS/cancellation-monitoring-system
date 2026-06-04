@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowRightLeft, ChevronLeft, ChevronRight, History, CheckCircle2, AlertCircle, Info, Search, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ArrowRightLeft, History, CheckCircle2, AlertCircle, Info, Search, X } from "lucide-react";
 import { useAuth } from "../../../context/AuthContext";
 import { fetchPosRecords, fetchBoothInfo, fetchOperators } from "../../pos/services";
 import type { OperatorInfo, PosRecord, BoothInfo } from "../../pos/types";
@@ -7,6 +7,7 @@ import {
     listBoothChangeRequests,
     type BoothChangeRequest,
 } from "../../pos/services/boothChangeRequests";
+import { Pagination, Toast } from "../../../shared/components";
 import BoothChangeRequestHistory from "../components/BoothChangeRequestHistory";
 import RequestBoothChangeModal from "../components/RequestBoothChangeModal";
 
@@ -36,6 +37,9 @@ interface OperatorPosPageProps {
 
 export default function OperatorPosPage({ searchQuery: externalSearch = "", refreshKey = 0 }: OperatorPosPageProps = {}) {
     const { user } = useAuth();
+    const [darkMode, setDarkMode] = useState(() => {
+        return localStorage.getItem("theme") === "dark";
+    });
     const [allOperators, setAllOperators] = useState<OperatorInfo[]>([]);
     const [records, setRecords] = useState<PosRecord[]>([]);
     const [booths, setBooths] = useState<BoothInfo[]>([]);
@@ -55,12 +59,46 @@ export default function OperatorPosPage({ searchQuery: externalSearch = "", refr
     // Search query for the Booth Change Requests history card.
     const [historySearch, setHistorySearch] = useState("");
 
+    // Floating toast state (top-center)
+    const [toastOpen, setToastOpen] = useState(false);
+    const [toastMessage, setToastMessage] = useState("");
+    const [toastType, setToastType] = useState<"success" | "error" | "info" | "warning">("success");
+
+    // Track previous request statuses to detect approved/rejected changes
+    const prevRequestStatusMap = useRef<Map<number, string>>(new Map());
+    const isInitialLoad = useRef(true);
+
+    // Observe dark mode changes on <html>
+    useEffect(() => {
+        const handleThemeChange = () => {
+            setDarkMode(localStorage.getItem("theme") === "dark");
+        };
+        const observer = new MutationObserver(() => {
+            setDarkMode(document.documentElement.classList.contains("dark"));
+        });
+        observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+        window.addEventListener("storage", handleThemeChange);
+        return () => {
+            observer.disconnect();
+            window.removeEventListener("storage", handleThemeChange);
+        };
+    }, []);
+
     const inputStyle = {
-        background: "rgba(255,255,255,0.58)",
+        background: darkMode ? "rgba(31,41,55,0.70)" : "rgba(255,255,255,0.78)",
+        border: darkMode ? "1px solid rgba(75,85,99,0.55)" : "1px solid rgba(146,199,207,0.30)",
+        color: darkMode ? "#F3F4F6" : "#1F2937",
+        boxShadow: darkMode ? "none" : "inset 0 1px 0 rgba(255,255,255,0.70)",
     };
 
     const showNotice = useCallback((type: NoticeType, message: string) => {
         setNotice({ id: Date.now(), type, message });
+    }, []);
+
+    const showFloatingToast = useCallback((type: "success" | "error" | "info" | "warning", message: string) => {
+        setToastType(type);
+        setToastMessage(message);
+        setToastOpen(true);
     }, []);
 
     useEffect(() => {
@@ -76,6 +114,10 @@ export default function OperatorPosPage({ searchQuery: externalSearch = "", refr
         try {
             setLoading(true);
             setError("");
+
+            // Capture previous statuses before fetching new data
+            const prevStatuses = new Map(prevRequestStatusMap.current);
+
             const meRes = await fetch(`${API_BASE_URL}/api/users/me?id=${user.id}`);
             const meData = meRes.ok ? await meRes.json() : null;
             const meSafe: Me | null = meData
@@ -109,12 +151,36 @@ export default function OperatorPosPage({ searchQuery: externalSearch = "", refr
             setRequests(reqData);
             setPendingRequests(pendingReqData);
             setAllOperators(ops);
+
+            // Detect status changes from approved/rejected perspective
+            if (!isInitialLoad.current) {
+                for (const req of reqData) {
+                    const prevStatus = prevStatuses.get(req.id);
+                    const currentStatus = (req.status || "").toLowerCase();
+                    if (prevStatus === "pending" && (currentStatus === "approved" || currentStatus === "rejected")) {
+                        const deviceInfo = req.device_no || `POS #${req.pos_record_id}`;
+                        if (currentStatus === "approved") {
+                            showFloatingToast("success", `Booth change request for ${deviceInfo} has been approved.`);
+                        } else {
+                            showFloatingToast("error", `Booth change request for ${deviceInfo} has been rejected.`);
+                        }
+                    }
+                }
+            }
+
+            // Update the status map for next comparison
+            const newStatusMap = new Map<number, string>();
+            for (const req of reqData) {
+                newStatusMap.set(req.id, (req.status || "").toLowerCase());
+            }
+            prevRequestStatusMap.current = newStatusMap;
+            isInitialLoad.current = false;
         } catch (err) {
             setError(err instanceof Error ? (err instanceof Error ? err.message : String(err)) : "Failed to load");
         } finally {
             setLoading(false);
         }
-    }, [user?.id, filterOperatorId]);
+    }, [user, filterOperatorId, showFloatingToast]);
 
     useEffect(() => {
         refreshData();
@@ -158,11 +224,6 @@ export default function OperatorPosPage({ searchQuery: externalSearch = "", refr
     const getPendingRequest = (rec: PosRecord | null) => {
         if (!rec) return undefined;
         const deviceNo = String(rec.device_no || "").trim();
-        // Match only by the real POS record id. A previous version also
-        // looked up `pendingByPosId` with the device number, which caused
-        // pending badges to appear on unrelated rows whenever the
-        // device number happened to coincide with another row's
-        // pos_record_id.
         const byPosId = pendingByPosId.get(Number(rec.id));
         if (byPosId) return byPosId;
         if (deviceNo) {
@@ -194,22 +255,6 @@ export default function OperatorPosPage({ searchQuery: externalSearch = "", refr
         [searchedRecords, safePage]
     );
 
-    const pageNumbers = useMemo(() => {
-        const pages: (number | "...")[] = [];
-        if (totalPages <= 7) {
-            for (let i = 1; i <= totalPages; i++) pages.push(i);
-        } else {
-            pages.push(1);
-            if (safePage > 3) pages.push("...");
-            const start = Math.max(2, safePage - 1);
-            const end = Math.min(totalPages - 1, safePage + 1);
-            for (let i = start; i <= end; i++) pages.push(i);
-            if (safePage < totalPages - 2) pages.push("...");
-            pages.push(totalPages);
-        }
-        return pages;
-    }, [totalPages, safePage]);
-
     const noticeStyleMap: Record<NoticeType, { wrapper: string; icon: React.ReactNode }> = {
         success: {
             wrapper: "border-green-200 bg-green-50 text-green-700",
@@ -232,6 +277,9 @@ export default function OperatorPosPage({ searchQuery: externalSearch = "", refr
                     <span>{error}</span>
                 </div>
             )}
+
+            {/* Floating toast (top-center) */}
+            <Toast open={toastOpen} message={toastMessage} type={toastType} onClose={() => setToastOpen(false)} position="top-center" />
 
             {/* Inline notice (toast) - shown above the table, on the left side */}
             {notice && (
@@ -287,8 +335,8 @@ export default function OperatorPosPage({ searchQuery: externalSearch = "", refr
                                             <td className="whitespace-nowrap px-4 py-3 text-gray-500">{rec.operator || "—"}</td>
                                             <td className="whitespace-nowrap px-4 py-3">
                                                 <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${rec.status === "Active"
-                                                    ? "bg-green-100 text-green-700"
-                                                    : "bg-gray-100 text-gray-600"
+                                                    ? "bg-green-100 text-green-700 dark:bg-green-800/60 dark:text-green-200"
+                                                    : "bg-gray-100 text-gray-600 dark:bg-gray-700/80 dark:text-gray-300"
                                                     }`}>
                                                     {rec.status || "—"}
                                                 </span>
@@ -325,49 +373,13 @@ export default function OperatorPosPage({ searchQuery: externalSearch = "", refr
 
                 {/* Pagination */}
                 {!loading && searchedRecords.length > 0 && (
-                    <div className="flex items-center justify-between border-t border-white/40 px-4 py-3">
-                        <p className="text-xs text-gray-500">
-                            Showing {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, searchedRecords.length)} of {searchedRecords.length}
-                        </p>
-                        <div className="flex items-center gap-1">
-                            <button
-                                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                                disabled={safePage <= 1}
-                                className="inline-flex items-center justify-center rounded-md p-1.5 text-gray-500 transition hover:bg-white/40 disabled:opacity-30 disabled:pointer-events-none"
-                                aria-label="Previous page"
-                            >
-                                <ChevronLeft size={16} />
-                            </button>
-                            {pageNumbers.map((p, i) =>
-                                p === "..." ? (
-                                    <span key={`ellipsis-${i}`} className="px-1.5 text-xs text-gray-400">…</span>
-                                ) : (
-                                    <button
-                                        key={p}
-                                        onClick={() => setPage(p)}
-                                        className={`inline-flex h-7 w-7 items-center justify-center rounded-md text-xs font-medium transition ${p === safePage
-                                            ? "text-white"
-                                            : "text-gray-500 hover:bg-white/40"
-                                            }`}
-                                        style={p === safePage ? {
-                                            background: `linear-gradient(135deg, ${teal}, ${tealLight})`,
-                                            boxShadow: `0 2px 8px rgba(146,199,207,0.30)`,
-                                        } : {}}
-                                    >
-                                        {p}
-                                    </button>
-                                )
-                            )}
-                            <button
-                                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                                disabled={safePage >= totalPages}
-                                className="inline-flex items-center justify-center rounded-md p-1.5 text-gray-500 transition hover:bg-white/40 disabled:opacity-30 disabled:pointer-events-none"
-                                aria-label="Next page"
-                            >
-                                <ChevronRight size={16} />
-                            </button>
-                        </div>
-                    </div>
+                    <Pagination
+                        currentPage={safePage}
+                        totalPages={totalPages}
+                        totalItems={searchedRecords.length}
+                        onPageChange={setPage}
+                        pageSize={PAGE_SIZE}
+                    />
                 )}
             </div>
 
@@ -381,15 +393,15 @@ export default function OperatorPosPage({ searchQuery: externalSearch = "", refr
                     <div className="relative w-44">
                         <Search
                             size={14}
-                            className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"
+                            className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500"
                         />
                         <input
                             type="text"
                             value={historySearch}
                             onChange={(e) => setHistorySearch(e.target.value)}
                             placeholder="Search…"
+                            className="h-9 w-44 rounded-xl pl-8 pr-3 text-sm outline-none transition-all duration-200 focus:border-[#92C7CF]/60 focus:ring-2 focus:ring-[#92C7CF]/35 placeholder:text-gray-400 dark:placeholder:text-gray-400"
                             style={inputStyle}
-                            className="h-9 w-44 rounded-xl pl-8 pr-3 text-sm text-gray-800 outline-none transition-all duration-200 focus:ring-2 focus:ring-[#92C7CF]/35 focus:border-[#92C7CF]/60 placeholder:text-gray-400"
                         />
                     </div>
                 </div>

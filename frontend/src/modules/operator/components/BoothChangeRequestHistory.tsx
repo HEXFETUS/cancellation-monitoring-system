@@ -172,7 +172,7 @@ export default function BoothChangeRequestHistory({
 function StatusPill({ status }: { status: BoothChangeRequest["status"] }) {
     const normalizedStatus = ((status || "") as string).toLowerCase() as BoothChangeRequest["status"];
     const colorMap: Record<BoothChangeRequest["status"], string> = {
-        pending: "bg-[#F2D7B5]/40 text-gray-700",
+        pending: "bg-[#F2D7B5]/40 text-gray-700 dark:bg-amber-800/60 dark:text-amber-200",
         approved: "bg-green-100 text-green-700",
         rejected: "bg-red-100 text-red-600",
         cancelled: "bg-gray-100 text-gray-500",

@@ -9,7 +9,7 @@ type ToastProps = {
     type?: ToastType;
     duration?: number;
     onClose: () => void;
-    position?: "bottom-right" | "top-left" | "top-right";
+    position?: "bottom-right" | "top-left" | "top-right" | "top-center";
 };
 
 const iconMap: Record<ToastType, React.ReactNode> = {
@@ -26,10 +26,11 @@ const bgMap: Record<ToastType, string> = {
     warning: "border-amber-200 bg-amber-50",
 };
 
-const positionClassMap: Record<"bottom-right" | "top-left" | "top-right", string> = {
+const positionClassMap: Record<string, string> = {
     "top-left": "top-6 left-6",
     "top-right": "top-6 right-6",
     "bottom-right": "bottom-6 right-6",
+    "top-center": "top-6 left-1/2 -translate-x-1/2",
 };
 
 export default function Toast({
@@ -38,7 +39,7 @@ export default function Toast({
     type = "error",
     duration = 4000,
     onClose,
-    position = "bottom-right",
+    position = "top-center",
 }: ToastProps) {
     const [visible, setVisible] = useState(false);
 
