@@ -331,91 +331,17 @@ async function initDatabase() {
         }
 
         /* =========================
-           assets — Asset Inventory
-           One row per physical asset record. The "location" column
-           groups by section (office/payout/drawcourt/obs/staffhouse/vehicle)
-           so the same table can power all the section pages.
+           Asset Inventory tables (asset_inv, asset_coding)
+           Schema is owned by Supabase — do NOT recreate them here. The full
+           DDL lives in db/schema_assets.sql (or wherever the team keeps
+           Supabase migrations) so init.js does not drift.
+
+           Old code in this file used to create `assets`/`asset_codes`. Those
+           names are gone in the new schema. If a fresh install needs the
+           tables, run the Supabase script first. Server boot only verifies
+           schema for tables we still own (users, pos_records, cancellation,
+           etc.) below.
         ========================= */
-        await client.query(`
-            CREATE TABLE IF NOT EXISTS asset_inv (
-                id BIGSERIAL PRIMARY KEY,
-                location VARCHAR(50) NOT NULL CHECK (location IN ('office', 'payout', 'drawcourt', 'obs', 'staffhouse', 'vehicle')),
-                item_description VARCHAR(255) NOT NULL,
-                type VARCHAR(100),
-                serial_no VARCHAR(150) UNIQUE,
-                department VARCHAR(255),
-                space VARCHAR(255),
-                date_purchase DATE,
-                vendor VARCHAR(255),
-                purchase_price_per_item NUMERIC(12,2) DEFAULT 0,
-                warranty_date DATE,
-                quantity INTEGER DEFAULT 1,
-                discount NUMERIC(12,2) DEFAULT 0,
-                asset_value NUMERIC(12,2) DEFAULT 0,
-                asset_total NUMERIC(12,2) DEFAULT 0,
-                color VARCHAR(50),
-                remarks TEXT,
-                created_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
-                assigned_to BIGINT REFERENCES users(id) ON DELETE SET NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-        `);
-        await client.query(
-            "CREATE INDEX IF NOT EXISTS idx_asset_inv_location ON asset_inv(location)"
-        );
-
-        // Migrate existing assets.location CHECK constraint to add the new
-        // canonical values 'staffhouse' and 'vehicle'. Drops whatever check
-        // constraint Postgres auto-named for the column and re-adds the
-        // wider list. Idempotent — safe to run on fresh and existing DBs.
-        await client.query(`
-            DO $$
-            DECLARE constraint_name TEXT;
-            BEGIN
-                SELECT con.conname INTO constraint_name
-                FROM pg_constraint con
-                JOIN pg_class tbl ON tbl.oid = con.conrelid
-                WHERE tbl.relname = 'asset_inv'
-                  AND con.contype = 'c'
-                  AND pg_get_constraintdef(con.oid) ILIKE '%location%';
-
-                IF constraint_name IS NOT NULL THEN
-                    EXECUTE format('ALTER TABLE asset_inv DROP CONSTRAINT %I', constraint_name);
-                END IF;
-
-                ALTER TABLE asset_inv ADD CONSTRAINT asset_inv_location_check
-                    CHECK (location IN ('office', 'payout', 'drawcourt', 'obs', 'staffhouse', 'vehicle'));
-            END $$;
-        `);
-
-        /* =========================
-           asset_codes — the master "Asset Coding" registry.
-           Each row gets a unique qr_payload that scanners decode.
-           A row may also link to a concrete asset (assets.id) if you
-           want the QR to identify a specific physical item.
-        ========================= */
-        await client.query(`
-            CREATE TABLE IF NOT EXISTS asset_coding (
-                id BIGSERIAL PRIMARY KEY,
-                item_code VARCHAR(100) UNIQUE NOT NULL,
-                description VARCHAR(255) NOT NULL,
-                type VARCHAR(100),
-                department VARCHAR(255),
-                care_of VARCHAR(255),
-                space VARCHAR(255),
-                qr_payload VARCHAR(255) UNIQUE NOT NULL,
-                asset_id BIGINT REFERENCES asset_inv(id) ON DELETE CASCADE,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-        `);
-        await client.query(
-            "CREATE INDEX IF NOT EXISTS idx_asset_coding_item_code ON asset_coding(item_code)"
-        );
-        await client.query(
-            "CREATE INDEX IF NOT EXISTS idx_asset_coding_qr_payload ON asset_coding(qr_payload)"
-        );
 
         /* =========================
            payout_stations — user-managed list of payout outlets.
@@ -446,10 +372,9 @@ async function initDatabase() {
             `);
         }
 
-        // Link from assets to the station (only meaningful when location='payout')
-        await client.query(
-            "ALTER TABLE asset_inv ADD COLUMN IF NOT EXISTS payout_station_id INTEGER REFERENCES payout_stations(id) ON DELETE SET NULL"
-        );
+        // asset_inv.payout_station_id is owned by Supabase. The previous
+        // ALTER TABLE here was a no-op against the new schema and we've
+        // dropped it to keep init.js focused on the tables it actually owns.
 
         /* =========================
            office_departments — user-managed list of departments / sub-areas
@@ -480,10 +405,8 @@ async function initDatabase() {
             ON CONFLICT (dept_code) DO NOTHING;
         `);
 
-        // Link from assets to the office department (only meaningful when location='office')
-        await client.query(
-            "ALTER TABLE asset_inv ADD COLUMN IF NOT EXISTS office_department_id INTEGER REFERENCES office_departments(id) ON DELETE SET NULL"
-        );
+        // asset_inv.office_department_id is owned by Supabase; the ALTER
+        // here was a no-op against the new schema and has been removed.
 
         /* =========================
            diagnosis_list — master list of repair diagnoses.

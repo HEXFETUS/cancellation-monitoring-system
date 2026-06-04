@@ -1,5 +1,4 @@
 import pool from "../config/db.js";
-import crypto from "node:crypto";
 
 const DEFAULT_ASSET_SPREADSHEET_ID = "1BagmkvbfnwSf3SKgCx4C6GUiTdd_dEi5Mp-Q3qeL0L8";
 const ASSET_SHEET_URL = process.env.ASSET_INVENTORY_SHEET_URL;
@@ -59,8 +58,7 @@ export const ASSET_CODE_HEADERS = [
     "Department",
     "Care Of",
     "Space",
-    "QR Payload",
-    "Asset ID",
+    "Linked Asset ID",
     "Created At",
     "Updated At",
 ];
@@ -267,25 +265,6 @@ function parseLocation(value) {
     return null;
 }
 
-// Asset Coding rows in the Google Sheet are bare descriptions — there's no
-// Item Code column. We mint one server-side that's stable per (description, id)
-// pair so re-runs don't churn through duplicates. Format keeps a short prefix
-// and zero-padded counter for readability on stickers.
-function buildSyntheticItemCode(prefix, sequence) {
-    const safePrefix = String(prefix || "ITEM")
-        .toUpperCase()
-        .replace(/[^A-Z0-9]/g, "")
-        .slice(0, 4) || "ITEM";
-    const numeric = String(sequence).padStart(4, "0");
-    return `${safePrefix}-${numeric}`;
-}
-
-function generateQrPayload(itemCode) {
-    const code = String(itemCode || "").toUpperCase().replace(/[^A-Z0-9-]/g, "");
-    const suffix = crypto.randomBytes(4).toString("hex").toUpperCase();
-    return code ? `ASSET-${code}-${suffix}` : `ASSET-${suffix}`;
-}
-
 async function fetchSheetRowsByName(sheetName) {
     // First try: GAS Web App (supports bidirectional sync)
     if (ASSET_SHEET_URL) {
@@ -487,7 +466,6 @@ export function mapAssetCodeToSheetRow(row) {
         value(row.department),
         value(row.care_of),
         value(row.space),
-        row.qr_payload,
         value(row.asset_id),
         value(row.created_at),
         value(row.updated_at),
@@ -563,7 +541,7 @@ export async function getAssetCodeRows() {
     const result = await pool.query(
         `
         SELECT id, item_code, description, type, department, care_of, space,
-               qr_payload, asset_id, created_at, updated_at
+               asset_id, created_at, updated_at
         FROM asset_coding
         ORDER BY item_code ASC
         `
@@ -658,7 +636,10 @@ function sheetAssetToDbRow(row) {
             : parseNumber(pick(row, ["Asset Value", "Value"]), 0);
 
     return {
-        id: parseId(pick(row, ["ID", "Asset ID", "Purchase No", "No"])),
+        // Don't trust the sheet to assign DB primary keys. Sheet's "ID"/"NO."
+        // columns are row counters for humans, not foreign keys. Existing rows
+        // are matched downstream by serial_number or (location, item_description).
+        id: null,
         location,
         item_description: itemDescription,
         type: pick(row, ["Type", "Category"]) || null,
@@ -691,24 +672,30 @@ function sheetAssetToDbRow(row) {
 }
 
 function sheetAssetCodeToDbRow(row) {
-    const itemCode = pick(row, ["Item Code", "Code", "Asset Code"]);
+    // The sheet's "ASSET ID" column is the canonical identifier for the
+    // asset code (printed on stickers, scanned via QR). It is NOT a foreign
+    // key into asset_inv. Treat it as the item_code and preserve the value
+    // verbatim so QR lookups stay stable. Whitespace gets trimmed; nothing
+    // else is rewritten.
+    const itemCode = pick(row, [
+        "Asset ID",
+        "ID",
+        "Item Code",
+        "Code",
+        "Asset Code",
+    ]);
     const description = pick(row, ["Description", "Item Description", "Item"]);
 
     return {
-        id: parseId(pick(row, ["Asset Code ID"])),
+        // asset_id (FK to asset_inv) is resolved later via description match
+        // inside upsertAssetCodeFromSheet. Never read it from the sheet.
         item_code: itemCode,
         description,
         type: pick(row, ["Type", "Category"]) || null,
         department: pick(row, ["Department"]) || null,
         care_of: pick(row, ["Care Of", "Careof", "Custodian"]) || null,
         space: pick(row, ["Space", "Sub Location", "Sub-Location", "Room"]) || null,
-        qr_payload: pick(row, ["QR Payload", "QR", "QR Code"]) || null,
-        // Linked-to-asset id is read from the sheet's "ASSET ID" or
-        // "Linked Asset ID" cell. Decoupled from the asset code's own primary
-        // key (which we read separately as "Asset Code ID") so a row that
-        // only carries an ASSET ID doesn't collide with the auto-generated
-        // item_code logic in the upsert.
-        asset_id: parseId(pick(row, ["Linked Asset ID", "Asset ID", "ID"])),
+        asset_id: null,
     };
 }
 
@@ -844,64 +831,37 @@ async function upsertAssetFromSheet(client, row) {
     return { inserted: true };
 }
 
-async function nextAvailableItemCode(client) {
-    // Hand out fresh "ITEM-NNNN" identifiers for sheet rows that don't
-    // include an Item Code column. Picks the next number after whatever's
-    // already in the table, so reruns don't fight over the same code. For an
-    // empty table this returns "ITEM-0001".
+async function findAssetIdByDescription(client, description) {
+    if (!description) return null;
     const result = await client.query(
-        `
-        SELECT COALESCE(
-            MAX(NULLIF(regexp_replace(item_code, '[^0-9]', '', 'g'), ''))::int,
-            0
-        ) + 1 AS next
-        FROM asset_coding
-        WHERE item_code ~ '^ITEM-[0-9]+$'
-        `
+        `SELECT id FROM asset_inv
+         WHERE LOWER(item_description) = LOWER($1)
+         ORDER BY id ASC LIMIT 1`,
+        [description]
     );
-    return buildSyntheticItemCode("ITEM", result.rows[0]?.next || 1);
+    return result.rows[0]?.id || null;
 }
 
 async function upsertAssetCodeFromSheet(client, row) {
     const assetCode = sheetAssetCodeToDbRow(row);
 
+    if (!assetCode.item_code) {
+        return { skipped: true, reason: "Missing ASSET ID" };
+    }
     if (!assetCode.description) {
         return { skipped: true, reason: "Missing description" };
     }
 
-    // Sheet doesn't carry an Item Code column today, so we either reuse an
-    // existing row that matches description+department (idempotent re-runs)
-    // or mint a fresh "ITEM-NNNN" code. Same path covers both cases.
-    if (!assetCode.item_code) {
-        const existing = await client.query(
-            `
-            SELECT item_code
-            FROM asset_coding
-            WHERE LOWER(description) = LOWER($1)
-              AND COALESCE(LOWER(department), '') = COALESCE(LOWER($2), '')
-            ORDER BY id ASC
-            LIMIT 1
-            `,
-            [assetCode.description, assetCode.department]
-        );
-
-        if (existing.rows[0]?.item_code) {
-            assetCode.item_code = existing.rows[0].item_code;
-        } else {
-            assetCode.item_code = await nextAvailableItemCode(client);
-        }
-    }
-
-    if (!assetCode.qr_payload) {
-        assetCode.qr_payload = generateQrPayload(assetCode.item_code);
-    }
+    // Best-effort link to asset_inv by description match. Null is fine —
+    // the FK is nullable on the new schema and CASCADE-deletes when set.
+    assetCode.asset_id = await findAssetIdByDescription(client, assetCode.description);
 
     const result = await client.query(
         `
         INSERT INTO asset_coding (
-            item_code, description, type, department, care_of, space, qr_payload, asset_id
+            item_code, description, type, department, care_of, space, asset_id
         ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7, $8
+            $1, $2, $3, $4, $5, $6, $7
         )
         ON CONFLICT (item_code) DO UPDATE
         SET description = EXCLUDED.description,
@@ -909,7 +869,6 @@ async function upsertAssetCodeFromSheet(client, row) {
             department = EXCLUDED.department,
             care_of = EXCLUDED.care_of,
             space = EXCLUDED.space,
-            qr_payload = COALESCE(asset_coding.qr_payload, EXCLUDED.qr_payload),
             asset_id = EXCLUDED.asset_id,
             updated_at = CURRENT_TIMESTAMP
         RETURNING (xmax = 0) AS inserted
@@ -921,7 +880,6 @@ async function upsertAssetCodeFromSheet(client, row) {
             assetCode.department,
             assetCode.care_of,
             assetCode.space,
-            assetCode.qr_payload,
             assetCode.asset_id,
         ]
     );

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Pencil, Plus, QrCode, RefreshCw, ScanLine, Search, Trash2, Wand2 } from "lucide-react";
+import { Pencil, Plus, QrCode, ScanLine, Search, Trash2, Wand2 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import {
     type AssetCode,
@@ -7,7 +7,6 @@ import {
     createAssetCode,
     deleteAssetCode,
     listAssetCodes,
-    regenerateQr,
     updateAssetCode,
 } from "../services/assetCodes";
 import AssetCodeFormModal from "../components/AssetCodeFormModal";
@@ -144,15 +143,6 @@ export default function AssetCodingPage() {
         if (!confirm(`Delete asset code "${row.itemCode}"? This cannot be undone.`)) return;
         try {
             await deleteAssetCode(row.id);
-            await refresh();
-        } catch (e) {
-            alert((e instanceof Error ? e.message : String(e)));
-        }
-    };
-    const handleRegenerate = async (row: AssetCode) => {
-        if (!confirm(`Regenerate QR for "${row.itemCode}"? The old QR will stop working.`)) return;
-        try {
-            await regenerateQr(row.id);
             await refresh();
         } catch (e) {
             alert((e instanceof Error ? e.message : String(e)));
@@ -313,14 +303,6 @@ export default function AssetCodingPage() {
                                             >
                                                 <Pencil size={14} />
                                                 Edit
-                                            </button>
-                                            <button
-                                                onClick={() => handleRegenerate(row)}
-                                                className="inline-flex items-center gap-1 rounded-lg bg-peach px-2.5 py-1 text-xs font-medium text-ink transition hover:bg-peach-dark"
-                                                title="Regenerate QR payload"
-                                            >
-                                                <RefreshCw size={14} />
-                                                Regen
                                             </button>
                                             {canDelete && (
                                                 <button
