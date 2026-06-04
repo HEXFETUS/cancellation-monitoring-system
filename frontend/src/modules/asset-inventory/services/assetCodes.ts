@@ -23,7 +23,7 @@ export interface AssetCode {
 
 interface AssetCodeWire {
     id: number;
-    item_code: string;
+    item_code: string | null;
     description: string;
     type: string | null;
     department: string | null;
@@ -55,14 +55,15 @@ async function getErrorMessage(res: Response, fallback: string) {
 function fromWire(w: AssetCodeWire): AssetCode {
     return {
         id: w.id,
-        itemCode: w.item_code,
+        itemCode: w.item_code ?? "",
         description: w.description,
         type: w.type ?? "",
         department: w.department ?? "",
         careOf: w.care_of ?? "",
         space: w.space ?? "",
         // QR sticker text is the item_code itself in the new schema.
-        qrPayload: w.item_code,
+        // Fall back to "NO-CODE" when the sheet row had no ASSET ID.
+        qrPayload: w.item_code ?? "NO-CODE",
         assetId: w.asset_id,
         createdAt: w.created_at,
         updatedAt: w.updated_at,
