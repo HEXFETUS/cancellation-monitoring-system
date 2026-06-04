@@ -100,7 +100,7 @@ export async function listAllAssets(): Promise<Array<AssetRow & { location: Asse
 
 export interface GoogleSheetsSyncSummary {
     spreadsheet_id: string;
-    mode: "two-way";
+    mode: "read-only" | "two-way";
     rule: string;
     write_configured: boolean;
     from_google_sheets: {

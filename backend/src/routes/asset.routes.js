@@ -47,24 +47,24 @@ const blockPurchaserDelete = blockRoles(["purchaser"], {
     errorMessage: "Purchasers can't delete assets",
 });
 
-const VALID_LOCATIONS = new Set(["office", "payout", "drawcourt", "obs"]);
+const VALID_LOCATIONS = new Set(["office", "payout", "drawcourt", "obs", "staffhouse", "vehicle"]);
 
 const ASSET_COLUMNS = `
     id,
     location,
     item_description,
     type,
-    serial_number,
+    serial_no AS serial_number,
     department,
     space,
     date_purchase,
     vendor,
-    purchase_price,
+    purchase_price_per_item AS purchase_price,
     warranty_date,
     quantity,
     discount,
     asset_value,
-    total_value,
+    asset_total AS total_value,
     color,
     remarks,
     payout_station_id,
@@ -159,10 +159,10 @@ router.get("/", async (req, res) => {
 
         const result = location
             ? await pool.query(
-                `SELECT ${ASSET_COLUMNS} FROM assets WHERE location = $1 ORDER BY id DESC`,
+                    `SELECT ${ASSET_COLUMNS} FROM asset_inv WHERE location = $1 ORDER BY id DESC`,
                 [location]
             )
-            : await pool.query(`SELECT ${ASSET_COLUMNS} FROM assets ORDER BY id DESC`);
+                : await pool.query(`SELECT ${ASSET_COLUMNS} FROM asset_inv ORDER BY id DESC`);
 
         res.json(result.rows);
     } catch (err) {
@@ -181,10 +181,10 @@ router.post("/", async (req, res) => {
     try {
         const result = await pool.query(
             `
-            INSERT INTO assets (
-                location, item_description, type, serial_number, department, space,
-                date_purchase, vendor, purchase_price, warranty_date, quantity,
-                discount, asset_value, total_value, color, remarks, payout_station_id,
+            INSERT INTO asset_inv (
+                location, item_description, type, serial_no, department, space,
+                date_purchase, vendor, purchase_price_per_item, warranty_date, quantity,
+                discount, asset_value, asset_total, color, remarks, payout_station_id,
                 office_department_id
             ) VALUES (
                 $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
@@ -272,21 +272,21 @@ router.put("/:id", async (req, res) => {
     try {
         const result = await pool.query(
             `
-            UPDATE assets
+            UPDATE asset_inv
             SET location = $1,
                 item_description = $2,
                 type = $3,
-                serial_number = $4,
+                serial_no = $4,
                 department = $5,
                 space = $6,
                 date_purchase = $7,
                 vendor = $8,
-                purchase_price = $9,
+                purchase_price_per_item = $9,
                 warranty_date = $10,
                 quantity = $11,
                 discount = $12,
                 asset_value = $13,
-                total_value = $14,
+                asset_total = $14,
                 color = $15,
                 remarks = $16,
                 payout_station_id = $17,
@@ -342,7 +342,7 @@ router.delete("/:id", blockPurchaserDelete, async (req, res) => {
     if (!Number.isFinite(id)) return res.status(400).json({ error: "Invalid id" });
 
     try {
-        const result = await pool.query("DELETE FROM assets WHERE id = $1 RETURNING id", [id]);
+        const result = await pool.query("DELETE FROM asset_inv WHERE id = $1 RETURNING id", [id]);
         if (result.rows.length === 0) {
             return res.status(404).json({ error: "Asset not found" });
         }
@@ -373,7 +373,7 @@ router.patch("/:id/remarks", async (req, res) => {
 
     try {
         const result = await pool.query(
-            `UPDATE assets
+            `UPDATE asset_inv
              SET remarks = $1,
                  updated_at = CURRENT_TIMESTAMP
              WHERE id = $2::int
@@ -443,10 +443,7 @@ router.post("/:id/media", mediaUpload.array("media", 10), async (req, res) => {
     }
 
     try {
-        const exists = await pool.query(
-            "SELECT id FROM assets WHERE id = $1::int",
-            [id]
-        );
+        const exists = await pool.query("SELECT id FROM asset_inv WHERE id = $1::int", [id]);
         if (exists.rows.length === 0) {
             cleanupUploaded();
             return res.status(404).json({ error: "Asset not found" });

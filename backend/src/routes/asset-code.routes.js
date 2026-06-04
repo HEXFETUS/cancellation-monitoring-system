@@ -1,8 +1,6 @@
 import express from "express";
-import crypto from "node:crypto";
 import pool from "../config/db.js";
 import { blockRoles } from "../middleware/role-guard.js";
-import { validateQrPayload } from "../utils/qr-payload.js";
 import { recordActivity } from "../utils/activity-log.js";
 
 const router = express.Router();
@@ -11,23 +9,19 @@ const blockPurchaserDelete = blockRoles(["purchaser"], {
     errorMessage: "Purchasers can't delete asset codes",
 });
 
+// Note on `qr_payload`: previous schema had a separate qr_payload column on
+// asset_codes that we'd encode into the printed QR sticker. The new
+// asset_coding schema drops that column — the QR sticker now encodes the
+// item_code directly. All scanning lookups go through item_code.
 const COLUMNS = `
     id, item_code, description, type, department, care_of, space,
-    qr_payload, asset_id, created_at, updated_at
+    asset_id, created_at, updated_at
 `;
 
 function nullable(value) {
     if (value === undefined || value === null) return null;
     const s = String(value).trim();
     return s ? s : null;
-}
-
-function generateQrPayload(itemCode) {
-    // Stable, scannable, unique. Format: ASSET-{ITEM_CODE}-{rand}
-    // Random suffix prevents collisions if two rows ever share an item_code accidentally.
-    const code = String(itemCode || "").toUpperCase().replace(/[^A-Z0-9-]/g, "");
-    const suffix = crypto.randomBytes(4).toString("hex").toUpperCase();
-    return code ? `ASSET-${code}-${suffix}` : `ASSET-${suffix}`;
 }
 
 function validate(body) {
@@ -41,7 +35,7 @@ function validate(body) {
 router.get("/", async (_req, res) => {
     try {
         const result = await pool.query(
-            `SELECT ${COLUMNS} FROM asset_codes ORDER BY id DESC`
+            `SELECT ${COLUMNS} FROM asset_coding ORDER BY id DESC`
         );
         res.json(result.rows);
     } catch (err) {
@@ -50,30 +44,28 @@ router.get("/", async (_req, res) => {
     }
 });
 
-// GET /api/asset-codes/by-payload/:payload
-// Useful for a future "scan to look up" feature.
-router.get("/by-payload/:payload", async (req, res) => {
-    const payload = req.params.payload;
-
-    // Reject obvious garbage before hitting the DB. Returning 400 (not 404)
-    // lets the UI surface a "this isn't an asset QR" message distinct from
-    // "valid format, just not in the DB".
-    const reason = validateQrPayload(payload);
-    if (reason) {
-        return res.status(400).json({ error: reason });
+// GET /api/asset-codes/by-item-code/:itemCode
+// QR scanner endpoint. Decoded sticker text is the item_code itself
+// (no qr_payload indirection). Trim and case-fold defensively so
+// "01" and "1" don't both fail the lookup when the printer or scanner
+// adds whitespace.
+router.get("/by-item-code/:itemCode", async (req, res) => {
+    const raw = String(req.params.itemCode || "").trim();
+    if (!raw) {
+        return res.status(400).json({ error: "EMPTY_ITEM_CODE" });
     }
 
     try {
         const result = await pool.query(
-            `SELECT ${COLUMNS} FROM asset_codes WHERE qr_payload = $1 LIMIT 1`,
-            [payload]
+            `SELECT ${COLUMNS} FROM asset_coding WHERE item_code = $1 LIMIT 1`,
+            [raw]
         );
         if (result.rows.length === 0) {
-            return res.status(404).json({ error: "QR payload not found" });
+            return res.status(404).json({ error: "Item code not found" });
         }
         res.json(result.rows[0]);
     } catch (err) {
-        console.error("GET /api/asset-codes/by-payload error:", err.message);
+        console.error("GET /api/asset-codes/by-item-code error:", err.message);
         res.status(500).json({ error: "Failed to look up asset code" });
     }
 });
@@ -84,16 +76,13 @@ router.post("/", async (req, res) => {
     if (validationError) return res.status(400).json({ error: validationError });
 
     const itemCode = req.body.itemCode.trim();
-    // If client supplies a qrPayload, respect it; otherwise generate one.
-    const qrPayload =
-        nullable(req.body.qrPayload) ?? generateQrPayload(itemCode);
 
     try {
         const result = await pool.query(
             `
-            INSERT INTO asset_codes
-                (item_code, description, type, department, care_of, space, qr_payload, asset_id)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            INSERT INTO asset_coding
+                (item_code, description, type, department, care_of, space, asset_id)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
             RETURNING ${COLUMNS}
             `,
             [
@@ -103,7 +92,6 @@ router.post("/", async (req, res) => {
                 nullable(req.body.department),
                 nullable(req.body.careOf),
                 nullable(req.body.space),
-                qrPayload,
                 req.body.assetId ? Number(req.body.assetId) : null,
             ]
         );
@@ -118,7 +106,7 @@ router.post("/", async (req, res) => {
         if (err.code === "23505") {
             // Postgres unique violation
             return res.status(409).json({
-                error: "Item code or QR payload already exists",
+                error: "Item code already exists",
             });
         }
         console.error("POST /api/asset-codes error:", err.message);
@@ -137,7 +125,7 @@ router.put("/:id", async (req, res) => {
     try {
         const result = await pool.query(
             `
-            UPDATE asset_codes
+            UPDATE asset_coding
             SET item_code = $1,
                 description = $2,
                 type = $3,
@@ -179,39 +167,6 @@ router.put("/:id", async (req, res) => {
     }
 });
 
-// POST /api/asset-codes/:id/regenerate-qr
-// Mints a fresh qr_payload (e.g. when a printed sticker is lost or compromised).
-router.post("/:id/regenerate-qr", async (req, res) => {
-    const id = Number(req.params.id);
-    if (!Number.isFinite(id)) return res.status(400).json({ error: "Invalid id" });
-
-    try {
-        const existing = await pool.query(
-            "SELECT item_code FROM asset_codes WHERE id = $1",
-            [id]
-        );
-        if (existing.rows.length === 0) {
-            return res.status(404).json({ error: "Asset code not found" });
-        }
-
-        const newPayload = generateQrPayload(existing.rows[0].item_code);
-
-        const result = await pool.query(
-            `
-            UPDATE asset_codes
-            SET qr_payload = $1, updated_at = CURRENT_TIMESTAMP
-            WHERE id = $2
-            RETURNING ${COLUMNS}
-            `,
-            [newPayload, id]
-        );
-        res.json(result.rows[0]);
-    } catch (err) {
-        console.error("POST regenerate-qr error:", err.message);
-        res.status(500).json({ error: "Failed to regenerate QR payload" });
-    }
-});
-
 // DELETE /api/asset-codes/:id
 router.delete("/:id", blockPurchaserDelete, async (req, res) => {
     const id = Number(req.params.id);
@@ -219,7 +174,7 @@ router.delete("/:id", blockPurchaserDelete, async (req, res) => {
 
     try {
         const result = await pool.query(
-            "DELETE FROM asset_codes WHERE id = $1 RETURNING id",
+            "DELETE FROM asset_coding WHERE id = $1 RETURNING id",
             [id]
         );
         if (result.rows.length === 0) {
