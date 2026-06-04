@@ -246,6 +246,8 @@ export default function BulkGenerateQrModal({
                             <option value="payout">Payout</option>
                             <option value="drawcourt">Drawcourt</option>
                             <option value="obs">OBS</option>
+                            <option value="staffhouse">Staffhouse</option>
+                            <option value="vehicle">Vehicle</option>
                         </select>
                     </div>
 
