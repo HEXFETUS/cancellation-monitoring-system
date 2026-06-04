@@ -1,5 +1,4 @@
 import { useState } from "react";
-
 import { Wrench, ClipboardList, FileText, ArrowUpRight, Stethoscope } from "lucide-react";
 import CsrRepairRequestPage from "./CsrRepairRequestPage";
 import CsrRepairManagementPage from "./CsrRepairManagementPage";
@@ -34,7 +33,7 @@ export default function CsrTabbedPage() {
                                 onClick={() => setActiveTab(tab.id)}
                                 title={tab.label}
                                 aria-label={tab.label}
-                                className="flex shrink-0 items-center justify-center rounded-xl transition-all duration-200"
+                                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-all duration-200"
                                 style={{
                                     background: isActive
                                         ? "rgba(146,199,207,0.20)"
@@ -55,9 +54,7 @@ export default function CsrTabbedPage() {
                                     }
                                 }}
                             >
-                                <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl">
-                                    <Icon className="h-4 w-4" />
-                                </span>
+                                <Icon className="h-4 w-4" />
                             </button>
                         );
                     })}
