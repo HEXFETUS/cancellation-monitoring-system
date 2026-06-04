@@ -80,7 +80,7 @@ export default function QrPreviewModal({ open, code, onClose }: Props) {
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 pt-8 pb-8">
             <div className="w-full max-w-md rounded-2xl border border-warm bg-card shadow-xl">
                 <div className="flex items-center justify-between border-b border-warm px-6 py-4">
                     <h3 className="text-lg font-semibold text-ink">QR Code</h3>
