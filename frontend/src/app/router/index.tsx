@@ -19,6 +19,7 @@ import AssetObsPage from "../../modules/asset-inventory/pages/ObsPage";
 import AssetCodingPage from "../../modules/asset-inventory/pages/AssetCodingPage";
 
 import SettingsPage from "../../modules/settings/pages/SettingsPage";
+import RequestsTabbedPage from "../../modules/requests/pages/RequestsTabbedPage";
 import BulletinBoardPage from "../../modules/bulletin/pages/BulletinBoardPage";
 import OperatorTabbedPage from "../../modules/operator/pages/OperatorTabbedPage";
 import OperatorOutletsPage from "../../modules/operator/pages/OperatorOutletsPage";
@@ -226,6 +227,15 @@ export const router = createBrowserRouter([
                 element: (
                     <RoleGuard allow={["admin", "purchaser"]}>
                         <AssetCodingPage />
+                    </RoleGuard>
+                ),
+            },
+
+            {
+                path: "requests",
+                element: (
+                    <RoleGuard allow={["admin"]}>
+                        <RequestsTabbedPage />
                     </RoleGuard>
                 ),
             },

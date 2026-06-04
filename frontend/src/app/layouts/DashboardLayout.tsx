@@ -20,6 +20,7 @@ import {
     Megaphone,
     MessageSquare,
     Send,
+    Notebook,
     Sun,
     Moon,
     Star,
@@ -64,6 +65,7 @@ const iconMap: Record<string, LucideIcon> = {
     Posts: Megaphone,
     "Bulletin Board": MessageSquare,
     "Request POS": Send,
+    Requests: Notebook,
     Settings: Settings,
 };
 
@@ -286,6 +288,7 @@ export default function DashboardLayout() {
                     { name: "POS", path: "/app/pos" },
                     { name: "POS Repair", path: "/app/pos-repair" },
                     { name: "Cancellation", path: "/app/cancellation" },
+                    { name: "Requests", path: "/app/requests" },
                     { name: "Assets", path: "/app/asset-inventory" },
                     { name: "Bulletin Board", path: "/app/bulletin-board" },
                     { name: "Settings", path: "/app/settings" },

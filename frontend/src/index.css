@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Class-based dark mode for Tailwind v4 (replaces deprecated tailwind.config.js darkMode) */
+@variant dark (&:where(.dark, .dark *));
+
 /* ---------------- BRAND COLOR PALETTE ----------------
  * #92C7CF – primary teal
  * #AAD7D9 – light teal
