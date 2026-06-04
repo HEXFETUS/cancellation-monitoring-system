@@ -846,10 +846,18 @@ async function findAssetIdByDescription(client, description) {
 async function upsertAssetCodeFromSheet(client, row) {
     const assetCode = sheetAssetCodeToDbRow(row);
 
-    // If both item_code and description are missing there's nothing useful to
-    // import, so skip the row entirely.
-    if (!assetCode.item_code && !assetCode.description) {
-        return { skipped: true, reason: "Missing ASSET ID and description" };
+    // If every column in the row is empty there's nothing useful to import,
+    // so skip it entirely. A single non-empty cell (even just TYPE or SPACE)
+    // is enough to keep the row.
+    if (
+        !assetCode.item_code &&
+        !assetCode.description &&
+        !assetCode.type &&
+        !assetCode.department &&
+        !assetCode.care_of &&
+        !assetCode.space
+    ) {
+        return { skipped: true, reason: "All columns are empty" };
     }
 
     // Best-effort link to asset_inv by description match. Null is fine —
