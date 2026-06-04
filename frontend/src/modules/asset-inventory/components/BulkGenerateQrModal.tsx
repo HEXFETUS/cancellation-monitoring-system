@@ -195,7 +195,7 @@ export default function BulkGenerateQrModal({
     if (!open) return null;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 pt-8 pb-8">
             <div className="flex w-full max-w-3xl flex-col rounded-2xl border border-warm bg-card shadow-xl">
                 <div className="flex items-center justify-between border-b border-warm px-6 py-4">
                     <h3 className="text-lg font-semibold text-ink">Generate QR Codes</h3>
