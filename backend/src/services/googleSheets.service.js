@@ -280,7 +280,8 @@ async function fetchSheetRowsByName(sheetName) {
     // Second try: CSV export (works when sheet is shared "Anyone with the link")
     for (const csvUrl of [
         `https://docs.google.com/spreadsheets/d/${ASSET_SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}`,
-        `https://docs.google.com/spreadsheets/d/${ASSET_SPREADSHEET_ID}/export?format=csv`,
+        `https://docs.google.com/spreadsheets/d/${ASSET_SPREADSHEET_ID}/export?format=csv&sheet=${encodeURIComponent(sheetName)}`,
+        `https://docs.google.com/spreadsheets/d/${ASSET_SPREADSHEET_ID}/export?gid=0&format=csv`,
     ]) {
         try {
             const response = await fetch(csvUrl);
@@ -845,36 +846,64 @@ async function findAssetIdByDescription(client, description) {
 async function upsertAssetCodeFromSheet(client, row) {
     const assetCode = sheetAssetCodeToDbRow(row);
 
-    if (!assetCode.item_code) {
-        return { skipped: true, reason: "Missing ASSET ID" };
-    }
-    if (!assetCode.description) {
-        return { skipped: true, reason: "Missing description" };
+    // If both item_code and description are missing there's nothing useful to
+    // import, so skip the row entirely.
+    if (!assetCode.item_code && !assetCode.description) {
+        return { skipped: true, reason: "Missing ASSET ID and description" };
     }
 
     // Best-effort link to asset_inv by description match. Null is fine —
     // the FK is nullable on the new schema and CASCADE-deletes when set.
-    assetCode.asset_id = await findAssetIdByDescription(client, assetCode.description);
+    assetCode.asset_id = assetCode.description
+        ? await findAssetIdByDescription(client, assetCode.description)
+        : null;
 
-    const result = await client.query(
+    if (assetCode.item_code) {
+        // Row has an item_code — upsert via ON CONFLICT so existing codes
+        // get updated and new ones are inserted.
+        const result = await client.query(
+            `
+            INSERT INTO asset_coding (
+                item_code, description, type, department, care_of, space, asset_id
+            ) VALUES (
+                $1, $2, $3, $4, $5, $6, $7
+            )
+            ON CONFLICT (item_code) DO UPDATE
+            SET description = EXCLUDED.description,
+                type = EXCLUDED.type,
+                department = EXCLUDED.department,
+                care_of = EXCLUDED.care_of,
+                space = EXCLUDED.space,
+                asset_id = EXCLUDED.asset_id,
+                updated_at = CURRENT_TIMESTAMP
+            RETURNING (xmax = 0) AS inserted
+            `,
+            [
+                assetCode.item_code,
+                assetCode.description,
+                assetCode.type,
+                assetCode.department,
+                assetCode.care_of,
+                assetCode.space,
+                assetCode.asset_id,
+            ]
+        );
+
+        return result.rows[0]?.inserted ? { inserted: true } : { updated: true };
+    }
+
+    // Row has no item_code (ASSET ID is empty) but has description — do a plain
+    // INSERT without ON CONFLICT since the UNIQUE constraint doesn't apply to NULL.
+    await client.query(
         `
         INSERT INTO asset_coding (
             item_code, description, type, department, care_of, space, asset_id
         ) VALUES (
             $1, $2, $3, $4, $5, $6, $7
         )
-        ON CONFLICT (item_code) DO UPDATE
-        SET description = EXCLUDED.description,
-            type = EXCLUDED.type,
-            department = EXCLUDED.department,
-            care_of = EXCLUDED.care_of,
-            space = EXCLUDED.space,
-            asset_id = EXCLUDED.asset_id,
-            updated_at = CURRENT_TIMESTAMP
-        RETURNING (xmax = 0) AS inserted
         `,
         [
-            assetCode.item_code,
+            null,
             assetCode.description,
             assetCode.type,
             assetCode.department,
@@ -884,7 +913,7 @@ async function upsertAssetCodeFromSheet(client, row) {
         ]
     );
 
-    return result.rows[0]?.inserted ? { inserted: true } : { updated: true };
+    return { inserted: true };
 }
 
 function addOutcome(summary, outcome) {
