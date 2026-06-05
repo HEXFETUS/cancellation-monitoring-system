@@ -12,8 +12,8 @@ const SERIAL_TABLES = [
     "user_logs",
     "cancellation_record",
     "cancellation_human_force",
-    "assets",
-    "asset_codes",
+    "asset_inv",
+    "asset_coding",
     "payout_stations",
     "office_departments",
     "booth_change_requests",
@@ -321,28 +321,28 @@ async function initDatabase() {
         }
 
         /* =========================
-           assets — Asset Inventory
+           asset_inv — Asset Inventory
            One row per physical asset record. The "location" column
            groups by section (office/payout/drawcourt/obs/staffhouse/vehicle)
            so the same table can power all the section pages.
         ========================= */
         await client.query(`
-            CREATE TABLE IF NOT EXISTS assets (
+            CREATE TABLE IF NOT EXISTS asset_inv (
                 id SERIAL PRIMARY KEY,
                 location VARCHAR(50) NOT NULL CHECK (location IN ('office', 'payout', 'drawcourt', 'obs', 'staffhouse', 'vehicle')),
                 item_description VARCHAR(255) NOT NULL,
                 type VARCHAR(100),
-                serial_number VARCHAR(255),
+                serial_no VARCHAR(255),
                 department VARCHAR(255),
                 space VARCHAR(255),
                 date_purchase DATE,
                 vendor VARCHAR(255),
-                purchase_price NUMERIC(14,2) DEFAULT 0,
+                purchase_price_per_item NUMERIC(14,2) DEFAULT 0,
                 warranty_date DATE,
                 quantity INTEGER DEFAULT 1,
                 discount NUMERIC(14,2) DEFAULT 0,
                 asset_value NUMERIC(14,2) DEFAULT 0,
-                total_value NUMERIC(14,2) DEFAULT 0,
+                asset_total NUMERIC(14,2) DEFAULT 0,
                 color VARCHAR(50),
                 remarks TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -350,10 +350,13 @@ async function initDatabase() {
             );
         `);
         await client.query(
-            "CREATE INDEX IF NOT EXISTS idx_assets_location ON assets(location)"
+            "CREATE INDEX IF NOT EXISTS idx_asset_inv_location ON asset_inv(location)"
+        );
+        await client.query(
+            "CREATE INDEX IF NOT EXISTS idx_asset_inv_serial_no ON asset_inv(serial_no)"
         );
 
-        // Migrate existing assets.location CHECK constraint to add the new
+        // Migrate existing asset_inv.location CHECK constraint to add the new
         // canonical values 'staffhouse' and 'vehicle'. Drops whatever check
         // constraint Postgres auto-named for the column and re-adds the
         // wider list. Idempotent — safe to run on fresh and existing DBs.
@@ -364,49 +367,48 @@ async function initDatabase() {
                 SELECT con.conname INTO constraint_name
                 FROM pg_constraint con
                 JOIN pg_class tbl ON tbl.oid = con.conrelid
-                WHERE tbl.relname = 'assets'
+                WHERE tbl.relname = 'asset_inv'
                   AND con.contype = 'c'
                   AND pg_get_constraintdef(con.oid) ILIKE '%location%';
 
                 IF constraint_name IS NOT NULL THEN
-                    EXECUTE format('ALTER TABLE assets DROP CONSTRAINT %I', constraint_name);
+                    EXECUTE format('ALTER TABLE asset_inv DROP CONSTRAINT %I', constraint_name);
                 END IF;
 
-                ALTER TABLE assets ADD CONSTRAINT assets_location_check
+                ALTER TABLE asset_inv ADD CONSTRAINT asset_inv_location_check
                     CHECK (location IN ('office', 'payout', 'drawcourt', 'obs', 'staffhouse', 'vehicle'));
             END $$;
         `);
 
         /* =========================
-           asset_codes — the master "Asset Coding" registry.
+           asset_coding — the master "Asset Coding" registry.
            Each row gets a unique qr_payload that scanners decode.
-           A row may also link to a concrete asset (assets.id) if you
+           A row may also link to a concrete asset (asset_inv.id) if you
            want the QR to identify a specific physical item.
         ========================= */
         await client.query(`
-            CREATE TABLE IF NOT EXISTS asset_codes (
+            CREATE TABLE IF NOT EXISTS asset_coding (
                 id SERIAL PRIMARY KEY,
-                item_code VARCHAR(100) UNIQUE NOT NULL,
-                description VARCHAR(255) NOT NULL,
+                item_code VARCHAR(100),
+                description VARCHAR(255),
                 type VARCHAR(100),
                 department VARCHAR(255),
                 care_of VARCHAR(255),
                 space VARCHAR(255),
-                qr_payload VARCHAR(255) UNIQUE NOT NULL,
-                asset_id INTEGER REFERENCES assets(id) ON DELETE SET NULL,
+                asset_id INTEGER REFERENCES asset_inv(id) ON DELETE SET NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         `);
         await client.query(
-            "CREATE INDEX IF NOT EXISTS idx_asset_codes_item_code ON asset_codes(item_code)"
+            "CREATE INDEX IF NOT EXISTS idx_asset_coding_item_code ON asset_coding(item_code)"
         );
 
         /* =========================
            payout_stations — user-managed list of payout outlets.
            Each row has a short station_code (CDO, MOE, MOW…) used
            when generating asset item codes like CDO-PAY-001.
-           Links from assets.payout_station_id (added below).
+           Links from asset_inv.id.payout_station_id (added below).
         ========================= */
         await client.query(`
             CREATE TABLE IF NOT EXISTS payout_stations (
@@ -431,15 +433,15 @@ async function initDatabase() {
             `);
         }
 
-        // Link from assets to the station (only meaningful when location='payout')
+        // Link from asset_inv to the station (only meaningful when location='payout')
         await client.query(
-            "ALTER TABLE assets ADD COLUMN IF NOT EXISTS payout_station_id INTEGER REFERENCES payout_stations(id) ON DELETE SET NULL"
+            "ALTER TABLE asset_inv ADD COLUMN IF NOT EXISTS payout_station_id INTEGER REFERENCES payout_stations(id) ON DELETE SET NULL"
         );
 
         /* =========================
            office_departments — user-managed list of departments / sub-areas
-           inside the Main Office. Used for Office assets. dept_code goes into
-           the assets.space field so the Summary page sub-location counts work.
+           inside the Main Office. Used for Office asset_inv. dept_code goes into
+           the asset_inv.space field so the Summary page sub-location counts work.
         ========================= */
         await client.query(`
             CREATE TABLE IF NOT EXISTS office_departments (
@@ -465,9 +467,9 @@ async function initDatabase() {
             ON CONFLICT (dept_code) DO NOTHING;
         `);
 
-        // Link from assets to the office department (only meaningful when location='office')
+        // Link from asset_inv to the office department (only meaningful when location='office')
         await client.query(
-            "ALTER TABLE assets ADD COLUMN IF NOT EXISTS office_department_id INTEGER REFERENCES office_departments(id) ON DELETE SET NULL"
+            "ALTER TABLE asset_inv ADD COLUMN IF NOT EXISTS office_department_id INTEGER REFERENCES office_departments(id) ON DELETE SET NULL"
         );
 
         /* =========================
@@ -816,9 +818,9 @@ async function initDatabase() {
         `);
 
         /* =========================
-           asset_media — photos and videos attached to an asset record.
+           asset_media — photos and videos attached to an asset_inv record.
            Populated from the QR-scan flow (purchaser scans a sticker, sees
-           the asset details, attaches a picture/video and updates remarks).
+           the asset_inv details, attaches a picture/video and updates remarks).
            Files live under <backend>/src/public/uploads and are referenced
            by relative URL so the existing /uploads static handler serves
            them.
@@ -826,13 +828,36 @@ async function initDatabase() {
         await client.query(`
             CREATE TABLE IF NOT EXISTS asset_media (
                 id SERIAL PRIMARY KEY,
-                asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+                asset_id INTEGER NOT NULL REFERENCES asset_inv(id) ON DELETE CASCADE,
                 url TEXT NOT NULL,
                 mime_type VARCHAR(100),
                 uploaded_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
                 caption TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
+        `);
+        await client.query(`
+            DO $$
+            DECLARE constraint_name TEXT;
+            BEGIN
+                SELECT con.conname INTO constraint_name
+                FROM pg_constraint con
+                JOIN pg_class tbl ON tbl.oid = con.conrelid
+                JOIN pg_attribute att ON att.attrelid = tbl.oid
+                    AND att.attnum = ANY(con.conkey)
+                WHERE tbl.relname = 'asset_media'
+                  AND con.contype = 'f'
+                  AND att.attname = 'asset_id';
+
+                IF constraint_name IS NOT NULL THEN
+                    EXECUTE format('ALTER TABLE asset_media DROP CONSTRAINT %I', constraint_name);
+                END IF;
+
+                ALTER TABLE asset_media
+                    ADD CONSTRAINT asset_media_asset_id_fkey
+                    FOREIGN KEY (asset_id) REFERENCES asset_inv(id)
+                    ON DELETE CASCADE;
+            END $$;
         `);
         await client.query(
             "CREATE INDEX IF NOT EXISTS idx_asset_media_asset ON asset_media(asset_id)"
@@ -841,10 +866,10 @@ async function initDatabase() {
         /* =========================
            activity_logs — system-wide audit trail of user actions.
            Populated by every CRUD endpoint that mutates state (users,
-           assets, asset codes, bulletin, posts, ...). The Settings →
+           asset_inv, asset_coding, bulletin, posts, ...). The Settings →
            Activity Logs page reads from this table. Schema is intentionally
            generic so we don't have to add a column every time we add a new
-           resource: `entity` is a free-form string ('user', 'asset_code',
+           resource: `entity` is a free-form string ('user', 'asset_coding',
            ...) and `details` is a JSON-encoded payload for any extra
            context. Indexed by created_at so the most common query
            (recent-first listing) is cheap.
