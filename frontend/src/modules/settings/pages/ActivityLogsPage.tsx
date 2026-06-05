@@ -154,7 +154,7 @@ export default function ActivityLogsPage() {
             <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center">
                 <div className="relative w-full sm:w-72">
                     <Search
-                        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle"
+                        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle dark:text-gray-500"
                         size={16}
                     />
                     <input
@@ -162,7 +162,7 @@ export default function ActivityLogsPage() {
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                         placeholder="Search this page..."
-                        className="w-full rounded-lg border border-warm bg-card pl-9 pr-3 py-2 text-sm text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal"
+                        className="w-full rounded-lg border border-warm dark:border-gray-700 bg-card dark:bg-gray-800/70 pl-9 pr-3 py-2 text-sm text-ink dark:text-gray-100 placeholder:text-ink-subtle dark:placeholder:text-gray-400 focus:border-teal dark:focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal dark:focus:ring-teal/50"
                     />
                 </div>
                 <div className="flex items-center gap-2">
@@ -248,10 +248,9 @@ export default function ActivityLogsPage() {
                                     <td className="px-4 py-3">
                                         {log.user_role ? (
                                             <span
-                                                className={`inline-block rounded-full border px-2.5 py-0.5 text-xs font-medium capitalize ${
-                                                    ROLE_BADGE[log.user_role] ??
+                                                className={`inline-block rounded-full border px-2.5 py-0.5 text-xs font-medium capitalize ${ROLE_BADGE[log.user_role] ??
                                                     "border-warm bg-cream text-ink-muted"
-                                                }`}
+                                                    }`}
                                             >
                                                 {log.user_role}
                                             </span>
@@ -261,10 +260,9 @@ export default function ActivityLogsPage() {
                                     </td>
                                     <td className="px-4 py-3">
                                         <span
-                                            className={`inline-block rounded-full border px-2.5 py-0.5 text-xs font-medium capitalize ${
-                                                ACTION_BADGE[log.action] ??
+                                            className={`inline-block rounded-full border px-2.5 py-0.5 text-xs font-medium capitalize ${ACTION_BADGE[log.action] ??
                                                 "border-warm bg-cream text-ink-muted"
-                                            }`}
+                                                }`}
                                         >
                                             {log.action}
                                         </span>

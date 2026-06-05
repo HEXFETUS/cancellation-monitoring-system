@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { useAuth } from "../../../context/AuthContext";
 import type { BoothInfo, OperatorInfo, PosRecord } from "../../pos/types";
-import { createBoothChangeRequest } from "../../pos/services/boothChangeRequests";
+import { createBoothChangeRequest } from "../../requests/services/boothChangeRequests";
 import ConfirmationModal from "../../pos/components/ConfirmationModal";
 import Dropdown from "./Dropdown";
 

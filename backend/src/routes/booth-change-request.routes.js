@@ -192,13 +192,13 @@ router.post("/", async (req, res) => {
             }
         }
 
-        // Store created_at and updated_at in Asia/Manila local time so the
-        // "Submitted" timestamp shown in the Booth Change Requests table matches
-        // the time the operator actually submitted the request. The DB column is
-        // TIMESTAMP (no timezone), so the value is stored verbatim; pg then reads
-        // it back as UTC, and the frontend (which already runs in Asia/Manila)
-        // displays the same wall-clock value.
-        const nowManila = manilaTimestamp();
+// Store created_at and updated_at in Asia/Manila local time so the
+// "Submitted" timestamp shown in the Booth Change Requests table matches
+// the time the operator actually submitted the request. The DB column is
+// TIMESTAMP (no timezone), so the value is stored verbatim; pg then reads
+// it back as UTC, and the frontend (which already runs in Asia/Manila)
+// displays the same wall-clock value.
+const nowManila = manilaTimestamp();
 
         const result = await pool.query(
             `
