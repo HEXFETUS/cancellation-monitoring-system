@@ -182,7 +182,7 @@ export default function AssetCodingPage() {
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                     <div className="relative w-full sm:w-72">
                         <Search
-                            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle"
+                            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle dark:text-gray-500"
                             size={16}
                         />
                         <input
@@ -190,7 +190,7 @@ export default function AssetCodingPage() {
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                             placeholder="Search asset codes..."
-                            className="w-full rounded-lg border border-warm bg-card pl-9 pr-3 py-2 text-sm text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal"
+                            className="w-full rounded-lg border border-warm dark:border-gray-700 bg-card dark:bg-gray-800/70 pl-9 pr-3 py-2 text-sm text-ink dark:text-gray-100 placeholder:text-ink-subtle dark:placeholder:text-gray-400 focus:border-teal dark:focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal dark:focus:ring-teal/50"
                         />
                     </div>
                     <button
