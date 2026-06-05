@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const teal = "#92C7CF";
 
@@ -12,6 +12,23 @@ const statusTabs = [
 
 export default function RepairRequestPage() {
     const [activeStatusTab, setActiveStatusTab] = useState("for-checking");
+    const [darkMode, setDarkMode] = useState(() => {
+        return document.documentElement.classList.contains("dark") || localStorage.getItem("theme") === "dark";
+    });
+
+    useEffect(() => {
+        const syncTheme = () => {
+            setDarkMode(document.documentElement.classList.contains("dark"));
+        };
+        const observer = new MutationObserver(syncTheme);
+        observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+        window.addEventListener("storage", syncTheme);
+        syncTheme();
+        return () => {
+            observer.disconnect();
+            window.removeEventListener("storage", syncTheme);
+        };
+    }, []);
 
     return (
         <div>
@@ -27,7 +44,7 @@ export default function RepairRequestPage() {
                             style={{
                                 background: isActive ? "rgba(146,199,207,0.15)" : "transparent",
                                 border: isActive ? "1px solid rgba(146,199,207,0.25)" : "1px solid transparent",
-                                color: isActive ? "#1F2937" : "#6B7280",
+                                color: isActive ? (darkMode ? "#FFFFFF" : "#1F2937") : "#6B7280",
                                 boxShadow: isActive ? "0 2px 8px rgba(146,199,207,0.10)" : "none",
                             }}
                             onMouseEnter={(e) => {

@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-    CheckCircle,
     ChevronDown,
     ChevronLeft,
     ChevronRight,
@@ -9,12 +8,12 @@ import {
     Filter,
     RefreshCw,
     Search,
-    X,
 } from "lucide-react";
 import type { PosRecord } from "../types";
 import { fetchPosRecords, updatePosRecord } from "../services";
 import { useAuth } from "../../../context/AuthContext";
 import { ConfirmationModal } from "../components";
+import { Toast } from "../../../shared/components";
 
 type FilterField = "all" | "device_no" | "serial_no" | "booth_code";
 
@@ -63,29 +62,6 @@ function getStatusTextColor(status: string): string {
     return getStatusColor(status || "").text;
 }
 
-
-function SuccessToast({
-    message,
-    onClose,
-}: {
-    message: string;
-    onClose: () => void;
-}) {
-    useEffect(() => {
-        const timer = setTimeout(onClose, 3000);
-        return () => clearTimeout(timer);
-    }, [onClose]);
-
-    return (
-        <div className="flex items-center gap-3 rounded-lg border border-teal/30 bg-teal-light/30 px-4 py-3 shadow-sm">
-            <CheckCircle className="h-5 w-5 text-teal" />
-            <span className="text-sm font-medium text-teal-dark">{message}</span>
-            <button type="button" onClick={onClose} className="ml-auto text-teal-dark/60 hover:text-teal-dark">
-                <X className="h-4 w-4" />
-            </button>
-        </div>
-    );
-}
 
 export default function PosStatusPage() {
     const { user } = useAuth();
@@ -321,22 +297,19 @@ export default function PosStatusPage() {
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-end">
                 {successMessage && (
                     <div className="mr-auto w-full lg:w-auto lg:min-w-80">
-                        <SuccessToast
-                            message={successMessage}
-                            onClose={() => setSuccessMessage(null)}
-                        />
+                        <Toast open={true} message={successMessage} type="success" onClose={() => setSuccessMessage(null)} />
                     </div>
                 )}
 
                 <div className="flex items-center gap-2">
                     <div className="relative w-full sm:w-72">
-                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-subtle" />
+                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-subtle dark:text-gray-500" />
                         <input
                             type="text"
                             value={searchQuery}
                             onChange={(event) => setSearchQuery(event.target.value)}
                             placeholder="Search status records..."
-                            className="w-full rounded-lg border border-warm bg-card py-2 pl-9 pr-3 text-sm text-ink shadow-sm transition placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-1 focus:ring-teal"
+                            className="w-full rounded-lg border border-warm dark:border-gray-700 bg-card dark:bg-gray-800/70 py-2 pl-9 pr-3 text-sm text-ink dark:text-gray-100 shadow-sm transition placeholder:text-ink-subtle dark:placeholder:text-gray-400 focus:border-teal dark:focus:border-teal focus:outline-none focus:ring-1 focus:ring-teal dark:focus:ring-teal/50"
                         />
                     </div>
 
@@ -393,9 +366,8 @@ export default function PosStatusPage() {
                                                         setStatusFilter("all");
                                                         setChangeStatusOpen(null);
                                                     }}
-                                                    className={`flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium transition hover:bg-cream ${
-                                                        statusFilter === "all" ? "bg-cream" : ""
-                                                    } text-ink-muted`}
+                                                    className={`flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium transition hover:bg-cream ${statusFilter === "all" ? "bg-cream" : ""
+                                                        } text-ink-muted`}
                                                 >
                                                     All
                                                 </button>
@@ -409,11 +381,10 @@ export default function PosStatusPage() {
                                                                 setStatusFilter(opt);
                                                                 setChangeStatusOpen(null);
                                                             }}
-                                                            className={`flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium transition hover:bg-cream ${
-                                                                statusFilter === opt
-                                                                    ? "bg-cream"
-                                                                    : ""
-                                                            } ${getStatusTextColor(opt)}`}
+                                                            className={`flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium transition hover:bg-cream ${statusFilter === opt
+                                                                ? "bg-cream"
+                                                                : ""
+                                                                } ${getStatusTextColor(opt)}`}
                                                         >
                                                             <span
                                                                 className={`inline-block h-2 w-2 rounded-full ${dotColor}`}
@@ -514,11 +485,10 @@ export default function PosStatusPage() {
                                                                             nextStatus: opt,
                                                                         });
                                                                     }}
-                                                                    className={`flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium transition hover:bg-cream ${
-                                                                        currentStatus === opt
-                                                                            ? "bg-cream"
-                                                                            : ""
-                                                                    } ${getStatusTextColor(opt)}`}
+                                                                    className={`flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium transition hover:bg-cream ${currentStatus === opt
+                                                                        ? "bg-cream"
+                                                                        : ""
+                                                                        } ${getStatusTextColor(opt)}`}
                                                                 >
                                                                     <span
                                                                         className={`inline-block h-2 w-2 rounded-full ${dotColor}`}
@@ -599,11 +569,10 @@ export default function PosStatusPage() {
                                     key={page}
                                     type="button"
                                     onClick={() => setCurrentPage(page)}
-                                    className={`min-w-8 rounded-lg px-2.5 py-1.5 text-xs font-medium shadow-sm transition ${
-                                        page === currentPage
-                                            ? "bg-teal text-white"
-                                            : "border border-warm bg-white text-ink hover:bg-surface"
-                                    }`}
+                                    className={`min-w-8 rounded-lg px-2.5 py-1.5 text-xs font-medium shadow-sm transition ${page === currentPage
+                                        ? "bg-teal text-white"
+                                        : "border border-warm bg-white text-ink hover:bg-surface"
+                                        }`}
                                 >
                                     {page}
                                 </button>
