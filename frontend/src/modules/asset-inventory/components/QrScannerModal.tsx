@@ -28,25 +28,28 @@ const ACCEPTED_MIME = /^(image\/(jpe?g|png)|video\/mp4)$/i;
 const ACCEPTED_EXT = /\.(jpe?g|png|mp4)$/i;
 const MAX_FILE_BYTES = 25 * 1024 * 1024;
 
-// Mirror of backend/src/utils/qr-payload.js. Frontend duplicates the rule so
-// invalid payloads (URLs, vCards, random text, tampered stickers) are caught
-// before we ever round-trip to the API. Keep these two in sync.
-const QR_PAYLOAD_REGEX = /^ASSET-[A-Z0-9-]*[A-F0-9]{4,}$/;
-const QR_PAYLOAD_MAX_LENGTH = 200;
+// QR stickers now encode the item_code directly (e.g. "1", "2", "ITEM-A")
+// rather than a separate qr_payload string. We do basic shape validation so
+// non-asset QRs (URLs, vCards, random text) get caught before hitting the API.
+const ITEM_CODE_MAX_LENGTH = 100;
+const ITEM_CODE_REGEX = /^[A-Za-z0-9._-]+$/;
 
-function validateScannedPayload(payload: string): string | null {
-    if (typeof payload !== "string" || payload.length === 0) return "EMPTY_PAYLOAD";
-    if (payload.length > QR_PAYLOAD_MAX_LENGTH) return "PAYLOAD_TOO_LONG";
-    if (!QR_PAYLOAD_REGEX.test(payload)) return "PAYLOAD_FORMAT_INVALID";
+function validateScannedItemCode(payload: string): string | null {
+    if (typeof payload !== "string" || payload.length === 0) return "EMPTY_ITEM_CODE";
+    if (payload.length > ITEM_CODE_MAX_LENGTH) return "ITEM_CODE_TOO_LONG";
+    if (!ITEM_CODE_REGEX.test(payload)) return "ITEM_CODE_FORMAT_INVALID";
     return null;
 }
 
-function payloadErrorMessage(reason: string, payload: string): string {
+function itemCodeErrorMessage(reason: string, payload: string): string {
     switch (reason) {
+        case "EMPTY_ITEM_CODE":
         case "EMPTY_PAYLOAD":
             return "The QR appears empty. Try scanning again.";
+        case "ITEM_CODE_TOO_LONG":
         case "PAYLOAD_TOO_LONG":
             return "This QR is too long to be an asset code. Wrong sticker?";
+        case "ITEM_CODE_FORMAT_INVALID":
         case "PAYLOAD_FORMAT_INVALID":
             return `This isn't an asset QR. Decoded value: "${
                 payload.length > 60 ? payload.slice(0, 60) + "..." : payload
@@ -64,7 +67,6 @@ interface AssetCodeWire {
     department: string | null;
     care_of: string | null;
     space: string | null;
-    qr_payload: string;
     asset_id: number | null;
     created_at: string;
     updated_at: string;
@@ -79,7 +81,9 @@ function fromWire(w: AssetCodeWire): AssetCode {
         department: w.department ?? "",
         careOf: w.care_of ?? "",
         space: w.space ?? "",
-        qrPayload: w.qr_payload,
+        // qrPayload is no longer stored — derive a sensible display value
+        // from the item_code so any UI that still reads it has something.
+        qrPayload: w.item_code,
         assetId: w.asset_id,
         createdAt: w.created_at,
         updatedAt: w.updated_at,
@@ -193,12 +197,12 @@ export default function QrScannerModal({ open, onClose }: Props) {
         // Client-side validation first: catches non-asset QRs (URLs, vCards,
         // random text) without hitting the API. Backend repeats the same
         // check as defense in depth.
-        const reason = validateScannedPayload(payload);
+        const reason = validateScannedItemCode(payload);
         if (reason) {
             setResult({
                 payload,
                 code: null,
-                error: payloadErrorMessage(reason, payload),
+                error: itemCodeErrorMessage(reason, payload),
             });
             return;
         }
@@ -206,14 +210,14 @@ export default function QrScannerModal({ open, onClose }: Props) {
         setResult({ payload, code: null, error: null });
         try {
             const res = await fetch(
-                `${API_BASE_URL}/api/asset-codes/by-payload/${encodeURIComponent(payload)}`
+                `${API_BASE_URL}/api/asset-codes/by-item-code/${encodeURIComponent(payload)}`
             );
             if (res.status === 400) {
                 const body = await res.json().catch(() => ({}));
                 setResult({
                     payload,
                     code: null,
-                    error: payloadErrorMessage(body?.error ?? "PAYLOAD_FORMAT_INVALID", payload),
+                    error: itemCodeErrorMessage(body?.error ?? "ITEM_CODE_FORMAT_INVALID", payload),
                 });
                 return;
             }

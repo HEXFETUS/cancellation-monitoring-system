@@ -8,6 +8,13 @@ export interface AssetCode {
     department: string;
     careOf: string;
     space: string;
+    /**
+     * Legacy field. The new `asset_coding` schema dropped the dedicated
+     * `qr_payload` column — QR stickers now encode the item_code directly.
+     * We keep this property on the typed model so existing UI (QR previews,
+     * download/print labels) continues to render without a schema-wide
+     * refactor; `fromWire()` populates it with the item_code.
+     */
     qrPayload: string;
     assetId: number | null;
     createdAt: string;
@@ -16,21 +23,21 @@ export interface AssetCode {
 
 interface AssetCodeWire {
     id: number;
-    item_code: string;
+    item_code: string | null;
     description: string;
     type: string | null;
     department: string | null;
     care_of: string | null;
     space: string | null;
-    qr_payload: string;
     asset_id: number | null;
     created_at: string;
     updated_at: string;
 }
 
-export type AssetCodeInput = Omit<AssetCode, "id" | "qrPayload" | "createdAt" | "updatedAt"> & {
-    qrPayload?: string;
-};
+export type AssetCodeInput = Omit<
+    AssetCode,
+    "id" | "qrPayload" | "createdAt" | "updatedAt"
+>;
 
 function apiUrl(path: string) {
     return `${API_BASE_URL}${path}`;
@@ -48,13 +55,15 @@ async function getErrorMessage(res: Response, fallback: string) {
 function fromWire(w: AssetCodeWire): AssetCode {
     return {
         id: w.id,
-        itemCode: w.item_code,
+        itemCode: w.item_code ?? "",
         description: w.description,
         type: w.type ?? "",
         department: w.department ?? "",
         careOf: w.care_of ?? "",
         space: w.space ?? "",
-        qrPayload: w.qr_payload,
+        // QR sticker text is the item_code itself in the new schema.
+        // Fall back to "NO-CODE" when the sheet row had no ASSET ID.
+        qrPayload: w.item_code ?? "NO-CODE",
         assetId: w.asset_id,
         createdAt: w.created_at,
         updatedAt: w.updated_at,
@@ -69,7 +78,6 @@ function toWireBody(input: AssetCodeInput) {
         department: input.department || null,
         careOf: input.careOf || null,
         space: input.space || null,
-        qrPayload: input.qrPayload,
         assetId: input.assetId ?? null,
     };
 }
@@ -98,12 +106,6 @@ export async function updateAssetCode(id: number, input: AssetCodeInput): Promis
         body: JSON.stringify(toWireBody(input)),
     });
     if (!res.ok) throw new Error(await getErrorMessage(res, "Failed to update asset code"));
-    return fromWire(await res.json());
-}
-
-export async function regenerateQr(id: number): Promise<AssetCode> {
-    const res = await fetch(apiUrl(`/api/asset-codes/${id}/regenerate-qr`), { method: "POST" });
-    if (!res.ok) throw new Error(await getErrorMessage(res, "Failed to regenerate QR"));
     return fromWire(await res.json());
 }
 

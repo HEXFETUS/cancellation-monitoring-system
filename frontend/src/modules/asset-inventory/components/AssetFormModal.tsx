@@ -85,7 +85,9 @@ export default function AssetFormModal({
         0,
         Number(values.purchasePrice || 0) - Number(values.discount || 0)
     );
-    const computedTotalValue = Number(values.assetValue || 0) * Number(values.quantity || 1);
+    const effectiveAssetValue =
+        Number(values.assetValue || 0) > 0 ? Number(values.assetValue || 0) : computedAssetValue;
+    const computedTotalValue = effectiveAssetValue * Number(values.quantity || 1);
 
     const setField = <K extends keyof AssetFormValues>(
         key: K,
@@ -103,7 +105,10 @@ export default function AssetFormModal({
         setSaving(true);
         setError("");
         try {
-            await onSubmit(values);
+            await onSubmit({
+                ...values,
+                assetValue: effectiveAssetValue,
+            });
             onClose();
         } catch (err) {
             setError(err instanceof Error ? (err instanceof Error ? err.message : String(err)) : "Save failed");
@@ -113,7 +118,7 @@ export default function AssetFormModal({
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 pt-8 pb-8">
             <div className="w-full max-w-3xl rounded-2xl border border-warm bg-card shadow-xl">
                 <div className="flex items-center justify-between border-b border-warm px-6 py-4">
                     <h3 className="text-lg font-semibold text-ink">{title}</h3>

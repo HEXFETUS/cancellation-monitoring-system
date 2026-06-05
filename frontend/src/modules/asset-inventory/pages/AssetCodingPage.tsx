@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Pencil, Plus, QrCode, RefreshCw, ScanLine, Search, Trash2, Wand2 } from "lucide-react";
+import { Pencil, Plus, QrCode, ScanLine, Search, Trash2, Wand2 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import {
     type AssetCode,
@@ -7,7 +7,6 @@ import {
     createAssetCode,
     deleteAssetCode,
     listAssetCodes,
-    regenerateQr,
     updateAssetCode,
 } from "../services/assetCodes";
 import AssetCodeFormModal from "../components/AssetCodeFormModal";
@@ -37,6 +36,8 @@ export default function AssetCodingPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [search, setSearch] = useState("");
+    const [page, setPage] = useState(1);
+    const PAGE_SIZE = 20;
 
     const [formOpen, setFormOpen] = useState(false);
     const [editing, setEditing] = useState<AssetCode | null>(null);
@@ -132,6 +133,14 @@ export default function AssetCodingPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [items, search, assets]);
 
+    // Reset to page 1 whenever the search or items change
+    const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+    const safePage = Math.min(page, totalPages);
+    const paginated = useMemo(
+        () => filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
+        [filtered, safePage]
+    );
+
     const handleAdd = () => {
         setEditing(null);
         setFormOpen(true);
@@ -144,15 +153,6 @@ export default function AssetCodingPage() {
         if (!confirm(`Delete asset code "${row.itemCode}"? This cannot be undone.`)) return;
         try {
             await deleteAssetCode(row.id);
-            await refresh();
-        } catch (e) {
-            alert((e instanceof Error ? e.message : String(e)));
-        }
-    };
-    const handleRegenerate = async (row: AssetCode) => {
-        if (!confirm(`Regenerate QR for "${row.itemCode}"? The old QR will stop working.`)) return;
-        try {
-            await regenerateQr(row.id);
             await refresh();
         } catch (e) {
             alert((e instanceof Error ? e.message : String(e)));
@@ -251,12 +251,12 @@ export default function AssetCodingPage() {
                             <tr>
                                 <td colSpan={8} className="px-4 py-10 text-center text-ink-subtle">
                                     {items.length === 0
-                                        ? "No asset codes yet. Click \"Add Asset Code\" to create one."
+                                        ? `No asset codes yet. Click "Add Asset Code" to create one.`
                                         : "No asset codes match your search."}
                                 </td>
                             </tr>
                         ) : (
-                            filtered.map((row) => (
+                            paginated.map((row) => (
                                 <tr
                                     key={row.id}
                                     className="border-b border-warm/60 transition hover:bg-cream"
@@ -278,7 +278,7 @@ export default function AssetCodingPage() {
                                                 {row.type}
                                             </span>
                                         ) : (
-                                            <span className="text-ink-subtle">—</span>
+                                            <span className="text-ink-subtle">&mdash;</span>
                                         )}
                                     </Td>
                                     <Td className="text-ink-muted">
@@ -314,14 +314,6 @@ export default function AssetCodingPage() {
                                                 <Pencil size={14} />
                                                 Edit
                                             </button>
-                                            <button
-                                                onClick={() => handleRegenerate(row)}
-                                                className="inline-flex items-center gap-1 rounded-lg bg-peach px-2.5 py-1 text-xs font-medium text-ink transition hover:bg-peach-dark"
-                                                title="Regenerate QR payload"
-                                            >
-                                                <RefreshCw size={14} />
-                                                Regen
-                                            </button>
                                             {canDelete && (
                                                 <button
                                                     onClick={() => handleDelete(row)}
@@ -340,9 +332,46 @@ export default function AssetCodingPage() {
                 </table>
             </div>
 
-            <p className="mt-3 text-xs text-ink-subtle">
-                Showing {filtered.length} of {items.length} asset codes
-            </p>
+            <div className="mt-4 flex items-center justify-between gap-3">
+                <p className="text-xs text-ink-subtle">
+                    Page {safePage} of {totalPages} &middot; {filtered.length} result{filtered.length === 1 ? "" : "s"}
+                </p>
+
+                <div className="flex items-center gap-1">
+                    <button
+                        disabled={safePage <= 1}
+                        onClick={() => setPage((p) => Math.max(1, p - 1))}
+                        className="rounded-lg border border-warm bg-card px-3 py-1.5 text-xs font-medium text-ink transition hover:bg-warm/40 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                        Prev
+                    </button>
+                    {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                        // Show pages around the current page
+                        const start = Math.max(1, safePage - 2);
+                        const pageNum = start + i;
+                        if (pageNum > totalPages) return null;
+                        return (
+                            <button
+                                key={pageNum}
+                                onClick={() => setPage(pageNum)}
+                                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${pageNum === safePage
+                                        ? "bg-teal text-ink"
+                                        : "border border-warm bg-card text-ink hover:bg-warm/40"
+                                    }`}
+                            >
+                                {pageNum}
+                            </button>
+                        );
+                    })}
+                    <button
+                        disabled={safePage >= totalPages}
+                        onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                        className="rounded-lg border border-warm bg-card px-3 py-1.5 text-xs font-medium text-ink transition hover:bg-warm/40 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                        Next
+                    </button>
+                </div>
+            </div>
 
             <AssetCodeFormModal
                 open={formOpen}
