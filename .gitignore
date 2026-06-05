@@ -6,7 +6,6 @@ dist
 .vite-cache/
 frontend/.vite-cache/
 
-
 # Ignore local documentation and migration guides
 *.md
 *.sql

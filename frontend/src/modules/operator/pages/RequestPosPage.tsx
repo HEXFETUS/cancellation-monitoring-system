@@ -8,7 +8,7 @@ import {
     createOperatorChangeRequest,
     listOperatorChangeRequests,
     type OperatorChangeRequest,
-} from "../../pos/services/operatorChangeRequests";
+} from "../../requests/services/operatorChangeRequests";
 import { Toast } from "../../../shared/components";
 import ConfirmationModal from "../../pos/components/ConfirmationModal";
 

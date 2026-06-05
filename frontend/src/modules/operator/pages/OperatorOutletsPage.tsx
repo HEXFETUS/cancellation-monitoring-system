@@ -17,7 +17,7 @@ import {
     createBoothOperatorChangeRequest,
     listBoothOperatorChangeRequests,
     type BoothOperatorChangeRequest,
-} from "../../pos/services/boothOperatorChangeRequests";
+} from "../../requests/services/boothOperatorChangeRequests";
 import ConfirmationModal from "../../pos/components/ConfirmationModal";
 
 const OUTLETS_PER_PAGE = 10;

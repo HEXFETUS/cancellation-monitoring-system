@@ -11,8 +11,6 @@ import {
     RefreshCw,
     X,
     Save,
-    AlertCircle,
-    CheckCircle,
     ListChecks,
     Printer,
     CreditCard,
@@ -24,10 +22,9 @@ import { listRepairRecords, updateRepairRecord, clearRepairRecord, proceedRepair
 import type { RepairRecord } from "../services/repairRecords";
 import { listDiagnoses, type DiagnosisItem } from "../services/diagnosisList";
 import TransmittalModal from "../../pos-repair/components/TransmittalModal";
-import CsrConfirmationModal from "../components/CsrConfirmationModal";
+import { ConfirmationModal, Pagination, Toast, TopTabs } from "../../../shared/components";
 import CsrBatchForRepairModal from "../components/CsrBatchForRepairModal";
 import CsrBatchForReleaseModal from "../components/CsrBatchForReleaseModal";
-import CsrPagination from "../components/CsrPagination";
 
 const teal = "#92C7CF";
 
@@ -39,6 +36,7 @@ const statusTabs = [
     { id: "for-release", label: "For Release", icon: CheckCircle2 },
     { id: "released", label: "Released", icon: ArrowUpRight },
 ];
+
 
 const tabStatusMap: Record<string, string> = {
     "request": "For Request",
@@ -178,7 +176,7 @@ function EditModal({ record, diagnoses, onClose, onSave, showToast }: EditModalP
                     </div>
                 </div>
             </div>
-            <CsrConfirmationModal open={showSaveConfirm} title="Save changes?" message={`This will update POS #${record.device_no || record.id}.`} confirmLabel="Save Changes" loading={saving} onCancel={() => setShowSaveConfirm(false)} onConfirm={handleConfirmSave} />
+            <ConfirmationModal open={showSaveConfirm} title="Save changes?" message={`This will update POS #${record.device_no || record.id}.`} confirmLabel="Save Changes" isLoading={saving} onCancel={() => setShowSaveConfirm(false)} onConfirm={handleConfirmSave} />
         </div>
     );
 }
@@ -186,6 +184,23 @@ function EditModal({ record, diagnoses, onClose, onSave, showToast }: EditModalP
 export default function CsrRepairManagementPage() {
     const { user } = useAuth();
     const [activeStatusTab, setActiveStatusTab] = useState("request");
+    const [darkMode, setDarkMode] = useState(() => {
+        return document.documentElement.classList.contains("dark") || localStorage.getItem("theme") === "dark";
+    });
+
+    useEffect(() => {
+        const syncTheme = () => {
+            setDarkMode(document.documentElement.classList.contains("dark"));
+        };
+        const observer = new MutationObserver(syncTheme);
+        observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+        window.addEventListener("storage", syncTheme);
+        syncTheme();
+        return () => {
+            observer.disconnect();
+            window.removeEventListener("storage", syncTheme);
+        };
+    }, []);
     const [records, setRecords] = useState<RepairRecord[]>([]);
     const [filteredRecords, setFilteredRecords] = useState<RepairRecord[]>([]);
     const [loading, setLoading] = useState(true);
@@ -207,15 +222,18 @@ export default function CsrRepairManagementPage() {
     const [showRepairTransmittal, setShowRepairTransmittal] = useState(false);
     const [expandedReleasedIds, setExpandedReleasedIds] = useState<Set<number>>(new Set());
     const [batchProcessing, setBatchProcessing] = useState(false);
-    const [toast, setToast] = useState<{ show: boolean; message: string; type: "error" | "success" }>({ show: false, message: "", type: "error" });
+    const [toastOpen, setToastOpen] = useState(false);
+    const [toastMessage, setToastMessage] = useState("");
+    const [toastType, setToastType] = useState<"error" | "success">("error");
     const [page, setPage] = useState(1);
     const pageSize = 20;
 
     const showToast = (message: string, type: "error" | "success" = "error") => {
-        setToast({ show: true, message, type });
-        setTimeout(() => setToast({ show: false, message: "", type: "error" }), 4000);
+        setToastMessage(message);
+        setToastType(type);
+        setToastOpen(true);
     };
-    const hideToast = () => setToast({ show: false, message: "", type: "error" });
+    const hideToast = () => setToastOpen(false);
 
     const showActions = !noActionTabs.includes(activeStatusTab);
     const showAccessories = activeStatusTab === "request";
@@ -327,81 +345,67 @@ export default function CsrRepairManagementPage() {
 
     const colCount = 7 + (showAccessories ? 3 : 0) + (showActions ? 1 : 0) + (showRepairedBy ? 1 : 0) + (showRemarks ? 1 : 0) + (showBillingInfo ? 2 : 0);
 
+    const batchAction = activeStatusTab === "request" ? (
+        <button
+            type="button"
+            onClick={() => setShowBatchForRepair(true)}
+            disabled={filteredRecords.length === 0 || batchProcessing}
+            className="inline-flex shrink-0 items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+            style={{
+                background: "linear-gradient(to right, #92C7CF, #AAD7D9)",
+                boxShadow: "0 4px 16px rgba(146,199,207,0.25)",
+            }}
+        >
+            <ListChecks className="h-4 w-4" />
+            Process Batch
+        </button>
+    ) : activeStatusTab === "for-repair" ? (
+        <button
+            type="button"
+            onClick={() => setShowRepairTransmittal(true)}
+            disabled={filteredRecords.length === 0}
+            className="inline-flex shrink-0 items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+            style={{
+                background: "linear-gradient(to right, #2563EB, #3B82F6)",
+                boxShadow: "0 4px 16px rgba(37,99,235,0.25)",
+            }}
+        >
+            <Printer className="h-4 w-4" />
+            Print Repair Transmittal
+        </button>
+    ) : activeStatusTab === "for-release" ? (
+        <button
+            type="button"
+            onClick={() => setShowBatchForRelease(true)}
+            disabled={filteredRecords.filter(isNonHexaTechnician).length === 0 || batchProcessing}
+            className="inline-flex shrink-0 items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+            style={{
+                background: "linear-gradient(to right, #92C7CF, #AAD7D9)",
+                boxShadow: "0 4px 16px rgba(146,199,207,0.25)",
+            }}
+        >
+            <ListChecks className="h-4 w-4" />
+            Process Batch
+        </button>
+    ) : null;
+
     return (
         <div className="space-y-6">
-            <div className="flex flex-wrap items-center justify-between gap-3" style={{ borderBottom: "1px solid rgba(146,199,207,0.25)" }}>
-                <div className="flex flex-wrap gap-2 overflow-x-auto">
-                    {statusTabs.map((tab) => {
-                        const Icon = tab.icon;
-                        const isActive = activeStatusTab === tab.id;
-                        const count = filterRecordsByTab(records, tab.id).length;
-                        return (
-                            <button key={tab.id} onClick={() => setActiveStatusTab(tab.id)}
-                                className="flex shrink-0 items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all duration-200 rounded-t-xl cursor-pointer"
-                                style={{ background: isActive ? "rgba(146,199,207,0.15)" : "transparent", border: isActive ? "1px solid rgba(146,199,207,0.25)" : "1px solid transparent", borderBottom: isActive ? "1px solid white" : "1px solid transparent", color: isActive ? "#1F2937" : "#6B7280" }}
-                                onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = "rgba(146,199,207,0.06)"; }}
-                                onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
-                            >
-                                <Icon size={16} />{tab.label}
-                                {count > 0 && <span className="inline-flex items-center justify-center rounded-full px-1.5 py-0.5 text-xs font-semibold" style={{ background: "rgba(146,199,207,0.3)", color: "#1F2937" }}>{count}</span>}
-                            </button>
-                        );
-                    })}
-                </div>
-                {activeStatusTab === "request" && (
-                    <button
-                        type="button"
-                        onClick={() => setShowBatchForRepair(true)}
-                        disabled={filteredRecords.length === 0 || batchProcessing}
-                        className="mb-2 inline-flex shrink-0 items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
-                        style={{
-                            background: "linear-gradient(to right, #92C7CF, #AAD7D9)",
-                            boxShadow: "0 4px 16px rgba(146,199,207,0.25)",
-                        }}
-                    >
-                        <ListChecks className="h-4 w-4" />
-                        Process Batch
-                    </button>
-                )}
-                {activeStatusTab === "for-repair" && (
-                    <button
-                        type="button"
-                        onClick={() => setShowRepairTransmittal(true)}
-                        disabled={filteredRecords.length === 0}
-                        className="mb-2 inline-flex shrink-0 items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
-                        style={{
-                            background: "linear-gradient(to right, #2563EB, #3B82F6)",
-                            boxShadow: "0 4px 16px rgba(37,99,235,0.25)",
-                        }}
-                    >
-                        <Printer className="h-4 w-4" />
-                        Print Repair Transmittal
-                    </button>
-                )}
-                {activeStatusTab === "for-release" && (
-                    <button
-                        type="button"
-                        onClick={() => setShowBatchForRelease(true)}
-                        disabled={filteredRecords.filter(isNonHexaTechnician).length === 0 || batchProcessing}
-                        className="mb-2 inline-flex shrink-0 items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
-                        style={{
-                            background: "linear-gradient(to right, #92C7CF, #AAD7D9)",
-                            boxShadow: "0 4px 16px rgba(146,199,207,0.25)",
-                        }}
-                    >
-                        <ListChecks className="h-4 w-4" />
-                        Process Batch
-                    </button>
-                )}
-            </div>
+            <TopTabs
+                variant="secondary"
+                tabs={statusTabs.map((t) => ({
+                    ...t,
+                    badge: filterRecordsByTab(records, t.id).length,
+                }))}
+                activeId={activeStatusTab}
+                onChange={setActiveStatusTab}
+                rightSlot={batchAction}
+                darkMode={darkMode}
+                ariaLabel="Repair management status"
+            />
 
-            {toast.show && (
-                <div className={`relative rounded-xl px-4 py-3 shadow-lg backdrop-blur-xl transition-all duration-300 flex items-center gap-3 ${toast.type === "error" ? "bg-red-50/95 border border-red-200/60" : "bg-green-50/95 border border-green-200/60"}`}>
-                    {toast.type === "error" ? <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0" /> : <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" />}
-                    <p className={`text-sm font-medium ${toast.type === "error" ? "text-red-700" : "text-green-700"}`}>{toast.message}</p>
-                    <button onClick={hideToast} className="ml-auto p-1 rounded-lg hover:bg-black/5 transition-colors"><X className="h-4 w-4 text-gray-500" /></button>
-                </div>
-            )}
+
+            <Toast open={toastOpen} message={toastMessage} type={toastType} onClose={hideToast} />
 
             <div className="relative rounded-3xl border border-white/40 backdrop-blur-xl bg-white/20 shadow-lg overflow-hidden">
                 {loading ? (
@@ -480,7 +484,7 @@ export default function CsrRepairManagementPage() {
                                         </div>
                                     );
                                 })}
-                                <CsrPagination currentPage={page} totalPages={groupTotalPages} totalItems={filteredRecords.length} onPageChange={setPage} />
+                                <Pagination currentPage={page} totalPages={groupTotalPages} totalItems={filteredRecords.length} onPageChange={setPage} pageSize={pageSize} />
                             </>
                         )}
                     </div>
@@ -552,7 +556,7 @@ export default function CsrRepairManagementPage() {
                             </tbody>
                         </table>
                         {filteredRecords.length > 0 && (
-                            <CsrPagination currentPage={page} totalPages={standardTotalPages} totalItems={filteredRecords.length} onPageChange={setPage} />
+                            <Pagination currentPage={page} totalPages={standardTotalPages} totalItems={filteredRecords.length} onPageChange={setPage} pageSize={pageSize} />
                         )}
                     </div>
                 )}
@@ -560,8 +564,8 @@ export default function CsrRepairManagementPage() {
 
             {editingRecord && <EditModal record={editingRecord} diagnoses={diagnoses} onClose={handleEditClose} onSave={handleEditSave} showToast={showToast} />}
 
-            <CsrConfirmationModal open={recordToProceed !== null} title="Proceed with repair request?" message={recordToProceed ? `This will forward POS #${recordToProceed.device_no || recordToProceed.id} to "For Repair" status.` : undefined} confirmLabel="Proceed" loading={proceeding} onCancel={() => setRecordToProceed(null)} onConfirm={handleConfirmProceed} />
-            <CsrConfirmationModal open={recordToDelete !== null} title="Delete repair record?" message="Are you sure you want to delete this repair record? This action cannot be undone." confirmLabel="Delete Record" loading={deleting} variant="delete" onCancel={() => setRecordToDelete(null)} onConfirm={handleConfirmDelete} />
+            <ConfirmationModal open={recordToProceed !== null} title="Proceed with repair request?" message={recordToProceed ? `This will forward POS #${recordToProceed.device_no || recordToProceed.id} to "For Repair" status.` : undefined} confirmLabel="Proceed" isLoading={proceeding} onCancel={() => setRecordToProceed(null)} onConfirm={handleConfirmProceed} />
+            <ConfirmationModal open={recordToDelete !== null} title="Delete repair record?" message="Are you sure you want to delete this repair record? This action cannot be undone." confirmLabel="Delete Record" isLoading={deleting} variant="delete" onCancel={() => setRecordToDelete(null)} onConfirm={handleConfirmDelete} />
             {recordToRelease && (
                 <TransmittalModal
                     mode="release"

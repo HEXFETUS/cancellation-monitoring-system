@@ -6,7 +6,7 @@ import type { OperatorInfo, PosRecord, BoothInfo } from "../../pos/types";
 import {
     listBoothChangeRequests,
     type BoothChangeRequest,
-} from "../../pos/services/boothChangeRequests";
+} from "../../requests/services/boothChangeRequests";
 import { Pagination, Toast } from "../../../shared/components";
 import BoothChangeRequestHistory from "../components/BoothChangeRequestHistory";
 import RequestBoothChangeModal from "../components/RequestBoothChangeModal";
