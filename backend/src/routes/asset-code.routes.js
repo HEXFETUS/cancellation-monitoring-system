@@ -9,8 +9,8 @@ const blockPurchaserDelete = blockRoles(["purchaser"], {
     errorMessage: "Purchasers can't delete asset codes",
 });
 
-// Note on `qr_payload`: previous schema had a separate qr_payload column on
-// asset_codes that we'd encode into the printed QR sticker. The new
+// Note on `qr_payload`: previous schema had a separate qr_payload column that
+// we'd encode into the printed QR sticker. The new
 // asset_coding schema drops that column — the QR sticker now encodes the
 // item_code directly. All scanning lookups go through item_code.
 const COLUMNS = `
