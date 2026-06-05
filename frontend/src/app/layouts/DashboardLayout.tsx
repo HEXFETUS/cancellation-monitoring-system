@@ -38,9 +38,19 @@ type SidebarUser = {
     email?: string;
     usertype?: string;
     department?: string;
+    profile_picture?: string | null;
 };
 
 import type { LucideIcon } from "lucide-react";
+
+// Build a fully qualified URL for a stored profile picture path. The DB stores
+// the relative `/uploads/...` path; the static handler lives on the same
+// backend origin as the API, so we prefix with API_BASE_URL.
+function resolveAvatarUrl(p?: string | null) {
+    if (!p) return null;
+    if (/^https?:\/\//i.test(p)) return p;
+    return `${API_BASE_URL}${p}`;
+}
 
 const iconMap: Record<string, LucideIcon> = {
     Dashboard: LayoutDashboard,
@@ -234,6 +244,7 @@ export default function DashboardLayout() {
         : displayName;
     const displayUserType =
         sidebarUser?.usertype?.trim() || authUser?.usertype?.trim() || "Unknown role";
+    const avatarUrl = resolveAvatarUrl(sidebarUser?.profile_picture ?? authUser?.profile_picture);
 
     const handleLogout = async () => {
         await logout();
@@ -562,7 +573,7 @@ export default function DashboardLayout() {
                             />
                             <div className="relative flex items-center gap-3">
                                 <img
-                                    src="/src/assets/LogoOnly.webp"
+                                    src="/src/assets/LogoOnly.png"
                                     alt="Logo"
                                     className="h-8 w-8 rounded-xl object-contain"
                                 />
@@ -727,15 +738,30 @@ export default function DashboardLayout() {
                                     : "1px solid rgba(146,199,207,0.12)",
                             }}
                         >
-                            <div
-                                className="flex h-8 w-8 items-center justify-center rounded-xl text-white text-sm font-bold shrink-0"
-                                style={{
-                                    background: `linear-gradient(135deg, ${teal}, ${tealLight})`,
-                                    boxShadow: `0 2px 12px rgba(146,199,207,0.30)`,
-                                }}
-                            >
-                                <User className="h-4 w-4 text-white" />
-                            </div>
+                            {avatarUrl ? (
+                                <div
+                                    className="h-8 w-8 rounded-xl overflow-hidden shrink-0 ring-1 ring-white/40"
+                                    style={{
+                                        boxShadow: `0 2px 12px rgba(146,199,207,0.30)`,
+                                    }}
+                                >
+                                    <img
+                                        src={avatarUrl}
+                                        alt={displayName}
+                                        className="h-full w-full object-cover"
+                                    />
+                                </div>
+                            ) : (
+                                <div
+                                    className="flex h-8 w-8 items-center justify-center rounded-xl text-white text-sm font-bold shrink-0"
+                                    style={{
+                                        background: `linear-gradient(135deg, ${teal}, ${tealLight})`,
+                                        boxShadow: `0 2px 12px rgba(146,199,207,0.30)`,
+                                    }}
+                                >
+                                    <User className="h-4 w-4 text-white" />
+                                </div>
+                            )}
                             <div className="min-w-0 flex-1">
                                 <p
                                     className="text-[13px] font-semibold truncate transition-colors duration-300"
