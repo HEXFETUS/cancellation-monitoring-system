@@ -182,13 +182,6 @@ export default function RequestResetPage() {
         return "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300";
     };
 
-    const inputStyle = {
-        background: darkMode ? "rgba(31,41,55,0.70)" : "rgba(255,255,255,0.78)",
-        border: darkMode ? "1px solid rgba(75,85,99,0.55)" : "1px solid rgba(146,199,207,0.30)",
-        color: darkMode ? "#F3F4F6" : "#1F2937",
-        boxShadow: darkMode ? "none" : "inset 0 1px 0 rgba(255,255,255,0.70)",
-    };
-
     return (
         <div className="w-full max-w-full space-y-5">
             <Toast open={toastOpen} message={toastMessage} type={toastType} onClose={() => setToastOpen(false)} position="top-center" />

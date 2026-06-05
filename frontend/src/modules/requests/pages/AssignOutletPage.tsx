@@ -5,14 +5,12 @@ import { Pagination, Toast, ConfirmationModal } from "../../../shared/components
 import { EditModal } from "../components";
 import {
     approveBoothOperatorChangeRequest,
-    cancelBoothOperatorChangeRequest,
     listBoothOperatorChangeRequests,
     rejectBoothOperatorChangeRequest,
     type BoothOperatorChangeRequest,
 } from "../services/boothOperatorChangeRequests";
 
 const teal = "#92C7CF";
-const tealLight = "#AAD7D9";
 const PAGE_SIZE = 10;
 
 type StatusFilter = "pending" | "approved" | "rejected" | "cancelled";
@@ -92,42 +90,11 @@ export default function AssignOutletPage() {
         return c;
     }, [requests]);
 
-    const handleApprove = async (req: BoothOperatorChangeRequest) => {
-        if (!user?.id) return;
-        try {
-            setBusyId(req.id);
-            await approveBoothOperatorChangeRequest(req.id, { admin_user_id: user.id });
-            showToast("success", `Approved request for outlet ${req.booth_code || `#${req.booth_info_id}`}.`);
-            await load();
-        } catch (e) { showToast("error", e instanceof Error ? e.message : "Failed to approve request"); }
-        finally { setBusyId(null); }
-    };
-
-    const handleForceCancel = async (req: BoothOperatorChangeRequest) => {
-        if (!user?.id) return;
-        try {
-            setBusyId(req.id);
-            await cancelBoothOperatorChangeRequest(req.id, user.id);
-            showToast("warning", `Cancelled request for outlet ${req.booth_code || `#${req.booth_info_id}`}.`);
-            await load();
-        } catch (e) { showToast("error", e instanceof Error ? e.message : "Failed to cancel request"); }
-        finally { setBusyId(null); }
-    };
-
     const inputStyle = {
         background: darkMode ? "rgba(31,41,55,0.70)" : "rgba(255,255,255,0.78)",
         border: darkMode ? "1px solid rgba(75,85,99,0.55)" : "1px solid rgba(146,199,207,0.30)",
         color: darkMode ? "#F3F4F6" : "#1F2937",
         boxShadow: darkMode ? "none" : "inset 0 1px 0 rgba(255,255,255,0.70)",
-    };
-
-    const getStatusBadgeStyle = (status: string): React.CSSProperties => {
-        const n = status.toLowerCase();
-        if (n === "pending") return darkMode ? { backgroundColor: "rgba(146,64,14,0.60)", color: "#FDE68A" } : { backgroundColor: "#FEF3C7", color: "#B45309" };
-        if (n === "approved") return darkMode ? { backgroundColor: "rgba(22,101,52,0.60)", color: "#BBF7D0" } : { backgroundColor: "#DCFCE7", color: "#15803D" };
-        if (n === "rejected") return darkMode ? { backgroundColor: "rgba(153,27,27,0.60)", color: "#FECACA" } : { backgroundColor: "#FEE2E2", color: "#B91C1C" };
-        if (n === "cancelled") return darkMode ? { backgroundColor: "rgba(55,65,81,0.80)", color: "#D1D5DB" } : { backgroundColor: "#E5E7EB", color: "#374151" };
-        return darkMode ? { backgroundColor: "rgba(55,65,81,0.80)", color: "#D1D5DB" } : { backgroundColor: "#F3F4F6", color: "#4B5563" };
     };
 
     const closeToast = () => setToast((t) => ({ ...t, open: false }));
