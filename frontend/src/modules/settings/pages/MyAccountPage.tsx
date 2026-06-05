@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Camera, Eye, EyeOff, Pencil, RefreshCw, Save, User, X } from "lucide-react";
 import { useAuth } from "../../../context/AuthContext";
+import { Toast, type ToastType } from "../../../shared/components";
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 function apiUrl(p: string) { return `${API_BASE_URL}${p}`; }
@@ -37,7 +38,16 @@ export default function MyAccountPage() {
     // Profile picture upload
     const fileInputRef = useRef<HTMLInputElement | null>(null);
     const [uploadingPic, setUploadingPic] = useState(false);
-    const [picMsg, setPicMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+
+    // Toast notifications (used for profile-picture validation / status feedback)
+    const [toastOpen, setToastOpen] = useState(false);
+    const [toastMessage, setToastMessage] = useState("");
+    const [toastType, setToastType] = useState<ToastType>("error");
+    const showToast = (message: string, type: ToastType = "error") => {
+        setToastMessage(message);
+        setToastType(type);
+        setToastOpen(true);
+    };
 
     // Password change
     const [newPwd, setNewPwd] = useState("");
@@ -132,22 +142,28 @@ export default function MyAccountPage() {
         }
     };
 
+    // Only JPG/JPEG and PNG images are accepted. Max 5 MB. These limits are
+    // enforced up-front to avoid a needless round trip when the user picks
+    // an unsupported file or an oversized one. Failures are surfaced as a
+    // floating toast (and as a backend-side safety net on the server).
+    const MAX_PROFILE_PICTURE_SIZE = 5 * 1024 * 1024;
+    const ALLOWED_PROFILE_PICTURE_TYPES = /^image\/(jpe?g|png)$/i;
+    const ALLOWED_PROFILE_PICTURE_ACCEPT = "image/jpeg,image/png";
+
     const handleProfilePictureChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         // Reset input so picking the same file twice still triggers onChange.
         if (fileInputRef.current) fileInputRef.current.value = "";
         if (!file || !user?.id) return;
 
-        setPicMsg(null);
-
         // Client-side guards. The backend enforces these too, but flagging
-        // them up-front avoids a needless round trip.
-        if (!/^image\/(jpe?g|png|gif|webp)$/i.test(file.type)) {
-            setPicMsg({ kind: "err", text: "Please choose a JPG, PNG, GIF, or WebP image." });
+        // them up-front avoids a needless round trip and gives instant feedback.
+        if (!ALLOWED_PROFILE_PICTURE_TYPES.test(file.type)) {
+            showToast("Only JPG or PNG images are allowed.", "error");
             return;
         }
-        if (file.size > 5 * 1024 * 1024) {
-            setPicMsg({ kind: "err", text: "Image is too large (max 5 MB)." });
+        if (file.size > MAX_PROFILE_PICTURE_SIZE) {
+            showToast("Image is too large. Maximum file size is 5 MB.", "error");
             return;
         }
 
@@ -165,9 +181,9 @@ export default function MyAccountPage() {
             const newUrl: string | null = data.profile_picture ?? null;
             setMe((prev) => (prev ? { ...prev, profile_picture: newUrl } : prev));
             updateUser({ profile_picture: newUrl });
-            setPicMsg({ kind: "ok", text: "Profile picture updated." });
+            showToast("Profile picture updated.", "success");
         } catch (err) {
-            setPicMsg({ kind: "err", text: err instanceof Error ? err.message : "Failed to upload picture" });
+            showToast(err instanceof Error ? err.message : "Failed to upload picture", "error");
         } finally {
             setUploadingPic(false);
         }
@@ -274,7 +290,7 @@ export default function MyAccountPage() {
                                 <input
                                     ref={fileInputRef}
                                     type="file"
-                                    accept="image/jpeg,image/png,image/gif,image/webp"
+                                    accept={ALLOWED_PROFILE_PICTURE_ACCEPT}
                                     className="hidden"
                                     onChange={handleProfilePictureChange}
                                 />
@@ -282,19 +298,10 @@ export default function MyAccountPage() {
                             <div className="flex-1">
                                 <p className="text-sm font-medium text-ink">Profile picture</p>
                                 <p className="text-xs text-ink-muted">
-                                    JPG, PNG, GIF, or WebP. Max 5 MB.
+                                    JPG or PNG only. Maximum 5 MB.
                                 </p>
                                 {uploadingPic && (
                                     <p className="mt-1 text-xs text-ink-subtle">Uploading...</p>
-                                )}
-                                {picMsg && !uploadingPic && (
-                                    <p
-                                        className={`mt-1 text-xs ${
-                                            picMsg.kind === "ok" ? "text-teal-dark" : "text-red-600"
-                                        }`}
-                                    >
-                                        {picMsg.text}
-                                    </p>
                                 )}
                             </div>
                         </div>
@@ -386,6 +393,15 @@ export default function MyAccountPage() {
                     </>
                 ) : null}
             </section>
+
+            {/* Toast for profile-picture upload validation / status feedback */}
+            <Toast
+                open={toastOpen}
+                message={toastMessage}
+                type={toastType}
+                onClose={() => setToastOpen(false)}
+                position="top-center"
+            />
 
             {/* Change password card */}
             <section className="rounded-2xl border border-warm bg-card p-5 shadow-sm">

@@ -30,6 +30,15 @@ const teal = "#92C7CF";
 const tealLight = "#AAD7D9";
 const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 
+// Build a fully qualified URL for a stored profile picture path. The DB stores
+// the relative `/uploads/...` path; the static handler lives on the same
+// backend origin as the API, so we prefix with API_BASE_URL.
+function resolveAvatarUrl(p?: string | null) {
+    if (!p) return null;
+    if (/^https?:\/\//i.test(p)) return p;
+    return `${API_BASE_URL}${p}`;
+}
+
 /* ---------------- Data ---------------- */
 const kpiCards = [
     {
@@ -290,6 +299,7 @@ function AdminDashboardHome() {
     const [lastLogin, setLastLogin] = useState<string | null>(null);
     const displayName = currentUser?.name || user?.name || "User";
     const displayPosition = currentUser?.position?.trim() || user?.position?.trim();
+    const avatarUrl = resolveAvatarUrl(currentUser?.profile_picture ?? user?.profile_picture);
 
     useEffect(() => {
         setCurrentUser(user);
@@ -361,14 +371,26 @@ function AdminDashboardHome() {
                                     background: `linear-gradient(135deg, ${teal}, ${tealLight})`,
                                 }}
                             />
-                            <div
-                                className="relative w-16 h-16 rounded-2xl flex items-center justify-center text-white shadow-lg"
-                                style={{
-                                    background: `linear-gradient(135deg, ${teal} 0%, ${tealLight} 100%)`,
-                                }}
-                            >
-                                <UserCircle className="h-7 w-7" />
-                            </div>
+                            {avatarUrl ? (
+                                <div
+                                    className="relative w-16 h-16 rounded-2xl overflow-hidden shadow-lg ring-1 ring-white/40"
+                                >
+                                    <img
+                                        src={avatarUrl}
+                                        alt={displayName}
+                                        className="h-full w-full object-cover"
+                                    />
+                                </div>
+                            ) : (
+                                <div
+                                    className="relative w-16 h-16 rounded-2xl flex items-center justify-center text-white shadow-lg"
+                                    style={{
+                                        background: `linear-gradient(135deg, ${teal} 0%, ${tealLight} 100%)`,
+                                    }}
+                                >
+                                    <UserCircle className="h-7 w-7" />
+                                </div>
+                            )}
                         </div>
                         <div>
                             <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">

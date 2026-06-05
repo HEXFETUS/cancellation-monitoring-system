@@ -9,6 +9,7 @@ import {
     Send,
     ChevronRight,
     RefreshCw,
+    UserCircle,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../../context/AuthContext";
@@ -17,26 +18,36 @@ import type { BoothInfo, OperatorInfo, PosRecord } from "../../pos/types";
 import {
     listBoothChangeRequests,
     type BoothChangeRequest,
-} from "../../pos/services/boothChangeRequests";
+} from "../../requests/services/boothChangeRequests";
 import {
     listOperatorChangeRequests,
     type OperatorChangeRequest,
-} from "../../pos/services/operatorChangeRequests";
+} from "../../requests/services/operatorChangeRequests";
 import {
     listBoothOperatorChangeRequests,
     type BoothOperatorChangeRequest,
-} from "../../pos/services/boothOperatorChangeRequests";
+} from "../../requests/services/boothOperatorChangeRequests";
 import RequestBoothChangeModal from "../components/RequestBoothChangeModal";
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 const teal = "#92C7CF";
 const tealLight = "#AAD7D9";
 
+// Build a fully qualified URL for a stored profile picture path. The DB stores
+// the relative `/uploads/...` path; the static handler lives on the same
+// backend origin as the API, so we prefix with API_BASE_URL.
+function resolveAvatarUrl(p?: string | null) {
+    if (!p) return null;
+    if (/^https?:\/\//i.test(p)) return p;
+    return `${API_BASE_URL}${p}`;
+}
+
 interface Me {
     id: number;
     operator_id: number | null;
     parent_operator_id: number | null;
     operator_name: string | null;
+    profile_picture?: string | null;
 }
 
 type SectionId = "devices" | "requests";
@@ -101,6 +112,7 @@ export default function OperatorDashboard() {
                     operator_id: meData.operator_id ?? null,
                     parent_operator_id: meData.parent_operator_id ?? null,
                     operator_name: meData.operator_name ?? null,
+                    profile_picture: meData.profile_picture ?? null,
                 }
                 : null;
 
@@ -217,6 +229,11 @@ export default function OperatorDashboard() {
         [requests]
     );
 
+    // Resolve the user's profile picture URL (prefers the freshest fetch from
+    // /api/users/me over the cached auth user).
+    const avatarUrl = resolveAvatarUrl(me?.profile_picture ?? user?.profile_picture);
+    const displayName = user?.name || "Operator";
+
     return (
         <div className="w-full max-w-full space-y-6">
             {/* ── Error banner ── */}
@@ -230,22 +247,53 @@ export default function OperatorDashboard() {
             <GlassCard>
                 <div className="absolute -top-10 -right-10 h-40 w-40 rounded-full opacity-15 blur-3xl pointer-events-none" style={{ background: teal }} />
                 <div className="relative px-6 py-5">
-                    <div className="flex items-start justify-between">
-                        <div>
-                            <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">
-                                Welcome back
-                            </p>
-                            <h1 className="mt-0.5 text-2xl font-bold text-gray-800">
-                                {user?.name || "Operator"}
-                            </h1>
-                            <p className="mt-0.5 text-sm text-gray-500">
-                                Here's a quick look at your devices and recent requests.
-                            </p>
+                    <div className="flex items-start justify-between gap-4">
+                        <div className="flex items-center gap-4">
+                            {/* Avatar with glow */}
+                            <div className="relative shrink-0">
+                                <div
+                                    className="absolute inset-0 rounded-2xl blur-md opacity-40"
+                                    style={{
+                                        background: `linear-gradient(135deg, ${teal}, ${tealLight})`,
+                                    }}
+                                />
+                                {avatarUrl ? (
+                                    <div
+                                        className="relative w-14 h-14 rounded-2xl overflow-hidden shadow-lg ring-1 ring-white/40"
+                                    >
+                                        <img
+                                            src={avatarUrl}
+                                            alt={displayName}
+                                            className="h-full w-full object-cover"
+                                        />
+                                    </div>
+                                ) : (
+                                    <div
+                                        className="relative w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-lg"
+                                        style={{
+                                            background: `linear-gradient(135deg, ${teal} 0%, ${tealLight} 100%)`,
+                                        }}
+                                    >
+                                        <UserCircle size={26} />
+                                    </div>
+                                )}
+                            </div>
+                            <div className="min-w-0">
+                                <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+                                    Welcome back
+                                </p>
+                                <h1 className="mt-0.5 text-2xl font-bold text-gray-800 truncate">
+                                    {displayName}
+                                </h1>
+                                <p className="mt-0.5 text-sm text-gray-500">
+                                    Here's a quick look at your devices and recent requests.
+                                </p>
+                            </div>
                         </div>
                         <button
                             onClick={fetchAll}
                             disabled={loading}
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/40 bg-white/50 text-gray-500 shadow-sm transition hover:bg-white/80 disabled:opacity-50"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/40 bg-white/50 text-gray-500 shadow-sm transition hover:bg-white/80 disabled:opacity-50 shrink-0"
                             aria-label="Refresh"
                         >
                             <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
