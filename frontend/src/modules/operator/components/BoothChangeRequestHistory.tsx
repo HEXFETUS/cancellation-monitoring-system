@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import {
     cancelBoothChangeRequest,
     type BoothChangeRequest,
-} from "../../pos/services/boothChangeRequests";
+} from "../../requests/services/boothChangeRequests";
 import ConfirmationModal from "../../pos/components/ConfirmationModal";
 
 interface Props {

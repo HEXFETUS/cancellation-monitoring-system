@@ -1,22 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Monitor, RefreshCw, Send, Search } from "lucide-react";
+import { Monitor, Send, Search, RefreshCw } from "lucide-react";
 import OperatorPosPage from "./OperatorPosPage";
 import RequestPosPage from "./RequestPosPage";
 import { useAuth } from "../../../context/AuthContext";
-import { listOperatorChangeRequests } from "../../pos/services/operatorChangeRequests";
-
-const teal = "#92C7CF";
+import { listOperatorChangeRequests } from "../../requests/services/operatorChangeRequests";
+import { TopTabs } from "../../../shared/components";
 
 type TabId = "my-pos" | "request-pos";
 
-interface Tab {
-    id: TabId;
-    label: string;
-    icon: React.ComponentType<{ size?: number; className?: string }>;
-}
-
-const TABS: Tab[] = [
+const tabs: { id: TabId; label: string; icon: typeof Monitor }[] = [
     { id: "my-pos", label: "My POS", icon: Monitor },
     { id: "request-pos", label: "Add POS", icon: Send },
 ];
@@ -86,81 +79,50 @@ export default function OperatorTabbedPage() {
         };
     }, [activeTab, fetchCount]);
 
+    const handleChange = (id: string) => {
+        const next = id as TabId;
+        setActiveTab(next);
+        setSearchParams({ tab: next }, { replace: true });
+    };
+
+    const toolbar = activeTab === "my-pos" ? (
+        <div className="flex items-center gap-2 pr-2">
+            <div className="relative">
+                <Search size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 pointer-events-none" />
+                <input
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search device no. or serial..."
+                    className="h-9 w-64 rounded-lg py-1.5 pl-8 pr-3 text-sm placeholder:text-gray-400 dark:placeholder:text-gray-400 focus:border-[#92C7CF] dark:focus:border-teal focus:outline-none focus:ring-1 focus:ring-[#92C7CF] dark:focus:ring-teal/50 transition"
+                    style={searchInputStyle}
+                />
+            </div>
+            <button
+                type="button"
+                onClick={() => setRefreshKey((k) => k + 1)}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 shadow-sm transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#92C7CF]/50"
+                aria-label="Refresh"
+            >
+                <RefreshCw size={16} />
+            </button>
+        </div>
+    ) : null;
+
     return (
         <div className="space-y-5">
-            {/* Top bar: tabs + toolbar on same row */}
-            <div
-                className="flex items-center justify-between border-b pb-0"
-                style={{ borderColor: darkMode ? "rgba(75,85,99,0.55)" : "rgba(229,225,218,0.90)" }}
-            >
-                {/* Tabs */}
-                <div className="flex">
-                    {TABS.map((tab) => {
-                        const Icon = tab.icon;
-                        const isActive = activeTab === tab.id;
-                        return (
-                            <button
-                                key={tab.id}
-                                role="tab"
-                                aria-selected={isActive}
-                                onClick={() => {
-                                    setActiveTab(tab.id);
-                                    setSearchParams({ tab: tab.id }, { replace: true });
-                                }}
-                                className={`flex items-center gap-2 border-b-2 px-5 py-3 text-sm transition-all duration-200 font-medium`}
-                                style={{
-                                    borderBottomColor: isActive ? teal : "transparent",
-                                    color: isActive
-                                        ? darkMode
-                                            ? "#FFFFFF"
-                                            : "#374151"
-                                        : "#9CA3AF",
-                                }}
-                            >
-                                <Icon size={16} />
-                                {tab.label}
-                                {tab.id === "request-pos" && pendingRequestCount > 0 && (
-                                    <span
-                                        className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-[10px] font-bold text-white"
-                                        style={{
-                                            background: "linear-gradient(135deg, #F59E0B, #FB923C)",
-                                            boxShadow: "0 2px 6px rgba(245,158,11,0.35)",
-                                        }}
-                                    >
-                                        {pendingRequestCount > 99 ? "99+" : pendingRequestCount}
-                                    </span>
-                                )}
-                            </button>
-                        );
-                    })}
-                </div>
+            <TopTabs
+                tabs={tabs.map((t) => ({
+                    ...t,
+                    badge: t.id === "request-pos" ? pendingRequestCount : undefined,
+                    badgeColor: "orange",
+                }))}
+                activeId={activeTab}
+                onChange={handleChange}
+                rightSlot={toolbar}
+                darkMode={darkMode}
+                ariaLabel="Operator sections"
+            />
 
-                {/* Toolbar — only visible for "My POS" tab */}
-                {activeTab === "my-pos" && (
-                    <div className="flex items-center gap-2">
-                        <div className="relative">
-                            <Search size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 pointer-events-none" />
-                            <input
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                placeholder="Search device no. or serial..."
-                                className="h-9 w-64 rounded-lg py-1.5 pl-8 pr-3 text-sm placeholder:text-gray-400 dark:placeholder:text-gray-400 focus:border-[#92C7CF] dark:focus:border-teal focus:outline-none focus:ring-1 focus:ring-[#92C7CF] dark:focus:ring-teal/50 transition"
-                                style={searchInputStyle}
-                            />
-                        </div>
-                        <button
-                            type="button"
-                            onClick={() => setRefreshKey((k) => k + 1)}
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 shadow-sm transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#92C7CF]/50"
-                            aria-label="Refresh"
-                        >
-                            <RefreshCw size={16} />
-                        </button>
-                    </div>
-                )}
-            </div>
-
-            {/* Active tab content */}
             <div>
                 {activeTab === "my-pos" && (
                     <OperatorPosPage searchQuery={searchQuery} refreshKey={refreshKey} />

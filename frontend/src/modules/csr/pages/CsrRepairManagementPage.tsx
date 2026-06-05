@@ -22,7 +22,7 @@ import { listRepairRecords, updateRepairRecord, clearRepairRecord, proceedRepair
 import type { RepairRecord } from "../services/repairRecords";
 import { listDiagnoses, type DiagnosisItem } from "../services/diagnosisList";
 import TransmittalModal from "../../pos-repair/components/TransmittalModal";
-import { ConfirmationModal, Pagination, Toast } from "../../../shared/components";
+import { ConfirmationModal, Pagination, Toast, TopTabs } from "../../../shared/components";
 import CsrBatchForRepairModal from "../components/CsrBatchForRepairModal";
 import CsrBatchForReleaseModal from "../components/CsrBatchForReleaseModal";
 
@@ -36,6 +36,7 @@ const statusTabs = [
     { id: "for-release", label: "For Release", icon: CheckCircle2 },
     { id: "released", label: "Released", icon: ArrowUpRight },
 ];
+
 
 const tabStatusMap: Record<string, string> = {
     "request": "For Request",
@@ -344,73 +345,65 @@ export default function CsrRepairManagementPage() {
 
     const colCount = 7 + (showAccessories ? 3 : 0) + (showActions ? 1 : 0) + (showRepairedBy ? 1 : 0) + (showRemarks ? 1 : 0) + (showBillingInfo ? 2 : 0);
 
+    const batchAction = activeStatusTab === "request" ? (
+        <button
+            type="button"
+            onClick={() => setShowBatchForRepair(true)}
+            disabled={filteredRecords.length === 0 || batchProcessing}
+            className="inline-flex shrink-0 items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+            style={{
+                background: "linear-gradient(to right, #92C7CF, #AAD7D9)",
+                boxShadow: "0 4px 16px rgba(146,199,207,0.25)",
+            }}
+        >
+            <ListChecks className="h-4 w-4" />
+            Process Batch
+        </button>
+    ) : activeStatusTab === "for-repair" ? (
+        <button
+            type="button"
+            onClick={() => setShowRepairTransmittal(true)}
+            disabled={filteredRecords.length === 0}
+            className="inline-flex shrink-0 items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+            style={{
+                background: "linear-gradient(to right, #2563EB, #3B82F6)",
+                boxShadow: "0 4px 16px rgba(37,99,235,0.25)",
+            }}
+        >
+            <Printer className="h-4 w-4" />
+            Print Repair Transmittal
+        </button>
+    ) : activeStatusTab === "for-release" ? (
+        <button
+            type="button"
+            onClick={() => setShowBatchForRelease(true)}
+            disabled={filteredRecords.filter(isNonHexaTechnician).length === 0 || batchProcessing}
+            className="inline-flex shrink-0 items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+            style={{
+                background: "linear-gradient(to right, #92C7CF, #AAD7D9)",
+                boxShadow: "0 4px 16px rgba(146,199,207,0.25)",
+            }}
+        >
+            <ListChecks className="h-4 w-4" />
+            Process Batch
+        </button>
+    ) : null;
+
     return (
         <div className="space-y-6">
-            <div className="flex flex-wrap items-center justify-between gap-3" style={{ borderBottom: "1px solid rgba(146,199,207,0.25)" }}>
-                <div className="flex flex-wrap gap-2 overflow-x-auto">
-                    {statusTabs.map((tab) => {
-                        const Icon = tab.icon;
-                        const isActive = activeStatusTab === tab.id;
-                        const count = filterRecordsByTab(records, tab.id).length;
-                        return (
-                            <button key={tab.id} onClick={() => setActiveStatusTab(tab.id)}
-                                className="flex shrink-0 items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all duration-200 rounded-t-xl cursor-pointer"
-                                style={{ background: isActive ? "rgba(146,199,207,0.15)" : "transparent", border: isActive ? "1px solid rgba(146,199,207,0.25)" : "1px solid transparent", borderBottom: isActive ? "1px solid white" : "1px solid transparent", color: isActive ? (darkMode ? "#FFFFFF" : "#1F2937") : "#6B7280" }}
-                                onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = "rgba(146,199,207,0.06)"; }}
-                                onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
-                            >
-                                <Icon size={16} />{tab.label}
-                                {count > 0 && <span className="inline-flex items-center justify-center rounded-full px-1.5 py-0.5 text-xs font-semibold" style={{ background: "rgba(146,199,207,0.3)", color: "#1F2937" }}>{count}</span>}
-                            </button>
-                        );
-                    })}
-                </div>
-                {activeStatusTab === "request" && (
-                    <button
-                        type="button"
-                        onClick={() => setShowBatchForRepair(true)}
-                        disabled={filteredRecords.length === 0 || batchProcessing}
-                        className="mb-2 inline-flex shrink-0 items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
-                        style={{
-                            background: "linear-gradient(to right, #92C7CF, #AAD7D9)",
-                            boxShadow: "0 4px 16px rgba(146,199,207,0.25)",
-                        }}
-                    >
-                        <ListChecks className="h-4 w-4" />
-                        Process Batch
-                    </button>
-                )}
-                {activeStatusTab === "for-repair" && (
-                    <button
-                        type="button"
-                        onClick={() => setShowRepairTransmittal(true)}
-                        disabled={filteredRecords.length === 0}
-                        className="mb-2 inline-flex shrink-0 items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
-                        style={{
-                            background: "linear-gradient(to right, #2563EB, #3B82F6)",
-                            boxShadow: "0 4px 16px rgba(37,99,235,0.25)",
-                        }}
-                    >
-                        <Printer className="h-4 w-4" />
-                        Print Repair Transmittal
-                    </button>
-                )}
-                {activeStatusTab === "for-release" && (
-                    <button
-                        type="button"
-                        onClick={() => setShowBatchForRelease(true)}
-                        disabled={filteredRecords.filter(isNonHexaTechnician).length === 0 || batchProcessing}
-                        className="mb-2 inline-flex shrink-0 items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
-                        style={{
-                            background: "linear-gradient(to right, #92C7CF, #AAD7D9)",
-                            boxShadow: "0 4px 16px rgba(146,199,207,0.25)",
-                        }}
-                    >
-                        <ListChecks className="h-4 w-4" />
-                        Process Batch
-                    </button>
-                )}
-            </div>
+            <TopTabs
+                variant="secondary"
+                tabs={statusTabs.map((t) => ({
+                    ...t,
+                    badge: filterRecordsByTab(records, t.id).length,
+                }))}
+                activeId={activeStatusTab}
+                onChange={setActiveStatusTab}
+                rightSlot={batchAction}
+                darkMode={darkMode}
+                ariaLabel="Repair management status"
+            />
+
 
             <Toast open={toastOpen} message={toastMessage} type={toastType} onClose={hideToast} />
 

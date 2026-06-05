@@ -91,3 +91,29 @@ export async function cancelOperatorChangeRequest(
     if (!res.ok) throw new Error(await getErrorMessage(res, "Failed to cancel"));
     return await res.json();
 }
+
+export async function approveOperatorChangeRequest(
+    id: number,
+    input: { admin_user_id?: number | null; admin_notes?: string }
+): Promise<OperatorChangeRequest> {
+    const res = await fetch(apiUrl(`/api/operator-change-requests/${id}/approve`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+    });
+    if (!res.ok) throw new Error(await getErrorMessage(res, "Failed to approve"));
+    return await res.json();
+}
+
+export async function rejectOperatorChangeRequest(
+    id: number,
+    input: { admin_user_id?: number | null; admin_notes?: string }
+): Promise<OperatorChangeRequest> {
+    const res = await fetch(apiUrl(`/api/operator-change-requests/${id}/reject`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+    });
+    if (!res.ok) throw new Error(await getErrorMessage(res, "Failed to reject"));
+    return await res.json();
+}

@@ -20,6 +20,9 @@ import AssetCodingPage from "../../modules/asset-inventory/pages/AssetCodingPage
 
 import SettingsPage from "../../modules/settings/pages/SettingsPage";
 import RequestsTabbedPage from "../../modules/requests/pages/RequestsTabbedPage";
+import AssignPosPage from "../../modules/requests/pages/AssignPosPage";
+import AssignOutletPage from "../../modules/requests/pages/AssignOutletPage";
+import RequestResetPage from "../../modules/requests/pages/RequestResetPage";
 import BulletinBoardPage from "../../modules/bulletin/pages/BulletinBoardPage";
 import OperatorTabbedPage from "../../modules/operator/pages/OperatorTabbedPage";
 import OperatorOutletsPage from "../../modules/operator/pages/OperatorOutletsPage";
@@ -236,6 +239,30 @@ export const router = createBrowserRouter([
                 element: (
                     <RoleGuard allow={["admin"]}>
                         <RequestsTabbedPage />
+                    </RoleGuard>
+                ),
+            },
+            {
+                path: "requests/assign-pos",
+                element: (
+                    <RoleGuard allow={["admin"]}>
+                        <AssignPosPage />
+                    </RoleGuard>
+                ),
+            },
+            {
+                path: "requests/assign-outlet",
+                element: (
+                    <RoleGuard allow={["admin"]}>
+                        <AssignOutletPage />
+                    </RoleGuard>
+                ),
+            },
+            {
+                path: "requests/request-reset",
+                element: (
+                    <RoleGuard allow={["admin"]}>
+                        <RequestResetPage />
                     </RoleGuard>
                 ),
             },

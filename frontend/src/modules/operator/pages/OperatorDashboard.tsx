@@ -17,15 +17,15 @@ import type { BoothInfo, OperatorInfo, PosRecord } from "../../pos/types";
 import {
     listBoothChangeRequests,
     type BoothChangeRequest,
-} from "../../pos/services/boothChangeRequests";
+} from "../../requests/services/boothChangeRequests";
 import {
     listOperatorChangeRequests,
     type OperatorChangeRequest,
-} from "../../pos/services/operatorChangeRequests";
+} from "../../requests/services/operatorChangeRequests";
 import {
     listBoothOperatorChangeRequests,
     type BoothOperatorChangeRequest,
-} from "../../pos/services/boothOperatorChangeRequests";
+} from "../../requests/services/boothOperatorChangeRequests";
 import RequestBoothChangeModal from "../components/RequestBoothChangeModal";
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
