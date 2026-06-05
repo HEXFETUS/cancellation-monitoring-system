@@ -11,6 +11,8 @@ import {
 import { ConfirmationModal, EditModal } from "../components";
 import { Toast, type ToastType } from "../../../shared/components";
 
+const teal = "#92C7CF";
+
 export default function RequestResetPage() {
     const { user } = useAuth();
     const [requests, setRequests] = useState<BoothChangeRequest[]>([]);
@@ -171,10 +173,30 @@ export default function RequestResetPage() {
 
     const confirmLabel = "Approve";
 
+    const getStatusBadgeClass = (status: string): string => {
+        const n = status.toLowerCase();
+        if (n === "pending") return "bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200";
+        if (n === "approved") return "bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200";
+        if (n === "rejected") return "bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200";
+        if (n === "cancelled") return "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300";
+        return "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300";
+    };
+
+    const inputStyle = {
+        background: darkMode ? "rgba(31,41,55,0.70)" : "rgba(255,255,255,0.78)",
+        border: darkMode ? "1px solid rgba(75,85,99,0.55)" : "1px solid rgba(146,199,207,0.30)",
+        color: darkMode ? "#F3F4F6" : "#1F2937",
+        boxShadow: darkMode ? "none" : "inset 0 1px 0 rgba(255,255,255,0.70)",
+    };
+
     return (
-        <div>
-            {/* Filter tabs — reports log style */}
-            <div className="mb-5 border-b pb-0 flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between"
+        <div className="w-full max-w-full space-y-5">
+            <Toast open={toastOpen} message={toastMessage} type={toastType} onClose={() => setToastOpen(false)} position="top-center" />
+            {error && <div className="relative rounded-xl border border-red-200/60 bg-red-50/95 backdrop-blur-xl px-4 py-3 text-sm font-medium text-red-700 shadow-lg">{error}</div>}
+
+            {/* Filter tabs */}
+            <div
+                className="mb-5 border-b pb-0 flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between"
                 style={{ borderColor: "rgba(146,199,207,0.25)" }}
             >
                 <div className="flex gap-1 overflow-x-auto">
@@ -188,6 +210,7 @@ export default function RequestResetPage() {
                         ] as Array<[RequestStatus | "all", string]>
                     ).map(([value, label]) => {
                         const isActive = filter === value;
+                        const count = value !== "all" ? counts[value] : requests.length;
                         return (
                             <button
                                 key={value}
@@ -221,18 +244,18 @@ export default function RequestResetPage() {
                                 }}
                             >
                                 {label}
-                                {value !== "all" && isActive && (
-                                    <span className="ml-1 text-xs opacity-70" style={{ color: "#6B7280" }}>({counts[value]})</span>
+                                {isActive && (
+                                    <span className="ml-1 text-xs opacity-70" style={{ color: "#6B7280" }}>({count})</span>
                                 )}
                             </button>
                         );
                     })}
                 </div>
-                <div className="flex justify-end pb-2 xl:pb-1">
+                <div className="flex justify-end items-end gap-3 pb-2 xl:pb-1">
                     <button
                         onClick={refresh}
                         disabled={loading}
-                        className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-warm bg-card px-4 py-2 text-sm font-medium text-ink transition hover:bg-warm/40 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
                         Refresh
@@ -240,102 +263,107 @@ export default function RequestResetPage() {
                 </div>
             </div>
 
-            {error && (
-                <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
-                    {error}
-                </div>
-            )}
-
-            <Toast open={toastOpen} message={toastMessage} type={toastType} onClose={() => setToastOpen(false)} />
-
+            {/* Card-based layout (matching AssignOutletPage) */}
             <div className="space-y-3">
                 {loading ? (
-                    <p className="rounded-xl border border-warm bg-card px-3 py-10 text-center text-sm text-ink-subtle">
+                    <div className="rounded-xl border border-gray-200 bg-white px-3 py-10 text-center text-sm text-gray-500 shadow-sm">
                         Loading...
-                    </p>
+                    </div>
                 ) : requests.length === 0 ? (
-                    <p className="rounded-xl border border-warm bg-card px-3 py-10 text-center text-sm text-ink-subtle">
+                    <div className="rounded-xl border border-gray-200 bg-white px-3 py-10 text-center text-sm text-gray-500 shadow-sm">
                         No {filter === "all" ? "" : filter} requests.
-                    </p>
+                    </div>
                 ) : (
-                    requests.map((req) => (
-                        <div
-                            key={req.id}
-                            className="rounded-xl border border-warm bg-card p-4 shadow-sm"
-                        >
-                            <div className="flex flex-wrap items-start justify-between gap-3">
-                                <div>
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-base font-semibold text-ink">
-                                            {req.device_no || `POS #${req.pos_record_id}`}
-                                        </span>
-                                        <StatusPill status={req.status} />
+                    requests.map((req) => {
+                        const isPending = req.status === "pending";
+                        const isDisabled = busyId === req.id;
+                        return (
+                            <div
+                                key={req.id}
+                                className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm"
+                            >
+                                <div className="flex flex-wrap items-start justify-between gap-3">
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-base font-semibold text-gray-800">
+                                                {req.device_no || `POS #${req.pos_record_id}`}
+                                            </span>
+                                            <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide ${getStatusBadgeClass(req.status)}`}>{req.status}</span>
+                                        </div>
+                                        <p className="mt-1 text-xs text-gray-500">
+                                            Requested by <span className="font-medium text-gray-700">{req.requested_by_name || "—"}</span>
+                                            {" · "}
+                                            {new Date(req.created_at).toLocaleString()}
+                                        </p>
                                     </div>
-                                    <p className="mt-1 text-xs text-ink-muted">
-                                        Requested by{" "}
-                                        <span className="font-medium text-ink">
-                                            {req.requested_by_name || "—"}
-                                        </span>
-                                        {" · "}
-                                        {new Date(req.created_at).toLocaleString()}
-                                    </p>
+
+                                    {isPending && (
+                                        <div className="flex items-center gap-1.5">
+                                            <button
+                                                onClick={() => handleApprove(req)}
+                                                disabled={isDisabled}
+                                                className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold text-white shadow-sm transition hover:scale-[1.03] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50"
+                                                style={{ background: "linear-gradient(135deg, #10B981, #34D399)" }}
+                                            >
+                                                <CheckCircle2 size={13} /> Approve
+                                            </button>
+                                            <button
+                                                onClick={() => handleReject(req)}
+                                                disabled={isDisabled}
+                                                className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold text-white shadow-sm transition hover:scale-[1.03] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50"
+                                                style={{ background: "linear-gradient(135deg, #EF4444, #F87171)" }}
+                                            >
+                                                <XCircle size={13} /> Reject
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
 
-                                {req.status === "pending" && (
-                                    <div className="flex items-center gap-1">
-                                        <button
-                                            onClick={() => handleApprove(req)}
-                                            disabled={busyId === req.id}
-                                            className="rounded-lg p-1.5 transition-colors hover:bg-green-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                                            title="Approve"
-                                            style={{ color: "#16A34A" }}
-                                        >
-                                            <CheckCircle2 className="h-4 w-4" />
-                                        </button>
-                                        <button
-                                            onClick={() => handleReject(req)}
-                                            disabled={busyId === req.id}
-                                            className="rounded-lg p-1.5 transition-colors hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                                            title="Reject"
-                                            style={{ color: "#EF4444" }}
-                                        >
-                                            <XCircle className="h-4 w-4" />
-                                        </button>
+                                <div className="mt-3 grid gap-2 rounded-lg bg-gray-50 p-3 text-sm sm:grid-cols-3">
+                                    <div>
+                                        <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Serial</div>
+                                        <div className="text-sm text-gray-700">{req.serial_number || "—"}</div>
                                     </div>
+                                    <div>
+                                        <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Move from</div>
+                                        <div className="text-sm text-gray-700">{req.current_booth_code || "—"}</div>
+                                    </div>
+                                    <div>
+                                        <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Move to</div>
+                                        <div className="text-sm font-medium" style={{ color: teal }}>
+                                            {req.requested_booth_code || `#${req.requested_booth_id}`}
+                                            {req.requested_by_name && <span className="block text-xs font-normal text-gray-500">by {req.requested_by_name}</span>}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {req.reason && (
+                                    <p className="mt-3 rounded-lg border px-3 py-2 text-sm"
+                                        style={{
+                                            background: darkMode ? "rgba(55,65,81,0.50)" : "rgba(0,0,0,0.03)",
+                                            borderColor: darkMode ? "rgba(75,85,99,0.40)" : "rgba(0,0,0,0.08)",
+                                            color: darkMode ? "#F3F4F6" : "#374151",
+                                        }}
+                                    >
+                                        <span className="text-xs font-semibold uppercase tracking-wide"
+                                            style={{ color: darkMode ? "#9CA3AF" : "#6B7280" }}>
+                                            Reason
+                                        </span>
+                                        <br />
+                                        {req.reason}
+                                    </p>
+                                )}
+
+                                {req.admin_notes && (
+                                    <p className="mt-2 text-xs" style={{ color: darkMode ? "#9CA3AF" : "#6B7280" }}>
+                                        <span className="font-semibold" style={{ color: darkMode ? "#F3F4F6" : "#1F2937" }}>Admin note:</span>{" "}
+                                        {req.admin_notes}
+                                        {req.admin_name && <> — {req.admin_name}</>}
+                                    </p>
                                 )}
                             </div>
-
-                            <div className="mt-3 grid gap-2 rounded-lg bg-cream/50 p-3 text-sm sm:grid-cols-3">
-                                <Pair label="Serial" value={req.serial_number || "—"} />
-                                <Pair
-                                    label="Move from"
-                                    value={req.current_booth_code || "—"}
-                                />
-                                <Pair
-                                    label="Move to"
-                                    value={req.requested_booth_code || `#${req.requested_booth_id}`}
-                                />
-                            </div>
-
-                            {req.reason && (
-                                <p className="mt-3 rounded-lg border border-warm bg-cream px-3 py-2 text-sm text-ink">
-                                    <span className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
-                                        Reason
-                                    </span>
-                                    <br />
-                                    {req.reason}
-                                </p>
-                            )}
-
-                            {req.admin_notes && (
-                                <p className="mt-3 text-xs text-ink-muted">
-                                    <span className="font-semibold text-ink">Admin note:</span>{" "}
-                                    {req.admin_notes}
-                                    {req.admin_name && ` — ${req.admin_name}`}
-                                </p>
-                            )}
-                        </div>
-                    ))
+                        );
+                    })
                 )}
             </div>
 
@@ -362,23 +390,23 @@ export default function RequestResetPage() {
             >
                 <div className="flex flex-col gap-4">
                     {rejectTarget && (
-                        <div className="rounded-lg bg-cream/50 p-3 text-sm space-y-1">
+                        <div className="rounded-lg bg-gray-50 p-3 text-sm space-y-1">
                             <div className="flex items-center justify-between">
-                                <span className="text-xs font-medium text-ink-muted">Device</span>
-                                <span className="font-semibold text-ink">{rejectTarget.device_no}</span>
+                                <span className="text-xs font-medium text-gray-500">Device</span>
+                                <span className="font-semibold text-gray-800">{rejectTarget.device_no}</span>
                             </div>
                             <div className="flex items-center justify-between">
-                                <span className="text-xs font-medium text-ink-muted">From</span>
-                                <span className="text-ink">{rejectTarget.current_booth_code || "—"}</span>
+                                <span className="text-xs font-medium text-gray-500">From</span>
+                                <span className="text-gray-700">{rejectTarget.current_booth_code || "—"}</span>
                             </div>
                             <div className="flex items-center justify-between">
-                                <span className="text-xs font-medium text-ink-muted">To</span>
-                                <span className="font-semibold text-teal">{rejectTarget.requested_booth_code || `#${rejectTarget.requested_booth_id}`}</span>
+                                <span className="text-xs font-medium text-gray-500">To</span>
+                                <span className="font-semibold" style={{ color: teal }}>{rejectTarget.requested_booth_code || `#${rejectTarget.requested_booth_id}`}</span>
                             </div>
                         </div>
                     )}
                     <div>
-                        <label className="block text-sm font-semibold text-ink mb-1.5">
+                        <label className="block text-sm font-semibold text-gray-800 mb-1.5">
                             Rejection Note <span className="text-rose-500">*</span>
                         </label>
                         <textarea
@@ -386,13 +414,11 @@ export default function RequestResetPage() {
                             onChange={(e) => setRejectNoteValue(e.target.value)}
                             placeholder="Explain why this request is being rejected..."
                             rows={3}
-                            className="w-full rounded-xl border border-warm bg-card px-4 py-3 text-sm text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20 transition-all shadow-sm"
+                            className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-800 placeholder:text-gray-400 focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20 transition-all shadow-sm"
                         />
                     </div>
                 </div>
-
-                {/* Action buttons */}
-                <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-warm/60">
+                <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-200">
                     <button
                         onClick={handleRejectNoteClose}
                         className="rounded-xl border-2 border-gray-200 px-6 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-all active:scale-[0.98]"
@@ -410,32 +436,5 @@ export default function RequestResetPage() {
             </EditModal>
 
         </div>
-    );
-}
-
-function Pair({ label, value }: { label: string; value: string }) {
-    return (
-        <div>
-            <div className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
-                {label}
-            </div>
-            <div className="text-sm text-ink">{value}</div>
-        </div>
-    );
-}
-
-function StatusPill({ status }: { status: RequestStatus }) {
-    const colorMap: Record<RequestStatus, string> = {
-        pending: "bg-peach/40 text-ink",
-        approved: "bg-teal-light/60 text-ink",
-        rejected: "bg-rose/40 text-ink",
-        cancelled: "bg-warm text-ink-muted",
-    };
-    return (
-        <span
-            className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide ${colorMap[status]}`}
-        >
-            {status}
-        </span>
     );
 }
