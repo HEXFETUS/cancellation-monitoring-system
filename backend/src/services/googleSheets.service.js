@@ -326,18 +326,18 @@ async function fetchSheetRowsByName(sheetName) {
         }
     }
 
-    // If GAS Web App returned rows and they're not suspiciously few, use them.
-    // The truncation guard below catches the case where the GAS stopped at a
-    // blank row (e.g. only 256 rows) and forces a CSV export fallback.
+    // If GAS Web App returned rows and they don't look truncated, use them.
+    // Google Apps Script has a known 256-row limit per response. If the row
+    // count lands exactly on a 256 boundary, the Web App likely hit that
+    // ceiling and we should fall through to the CSV export (which has no
+    // such limit) to get the complete dataset.
     if (rows.length > 0) {
-        const truncated =
-            sheetName === ASSET_SHEET_NAMES.assets &&
-            rows.length < 300;
-        if (truncated) {
+        const isTruncated = rows.length === 256 || rows.length % 256 === 0;
+        if (isTruncated) {
             console.warn(
-                `GAS Web App returned only ${rows.length} rows for "${sheetName}" ` +
-                `— possible truncation at blank row. Falling back to CSV export ` +
-                `to attempt full data retrieval.`
+                `GAS Web App returned ${rows.length} rows for "${sheetName}" ` +
+                `— likely hit the 256-row GAS limit. Falling back to CSV export ` +
+                `which has no row restriction.`
             );
             rows = []; // Clear rows to force CSV fallback below
         } else {
