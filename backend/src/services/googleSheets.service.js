@@ -326,22 +326,22 @@ async function fetchSheetRowsByName(sheetName) {
         }
     }
 
-    // If GAS Web App returned rows and they don't look truncated, use them.
-    // Google Apps Script has a known 256-row limit per response. If the row
-    // count lands exactly on a 256 boundary, the Web App likely hit that
-    // ceiling and we should fall through to the CSV export (which has no
-    // such limit) to get the complete dataset.
+    // If GAS Web App returned rows, decide per-tab whether to trust them.
+    // The "Inventory - Asset" tab is always routed to the CSV export because
+    // Google Apps Script Web Apps have unreliable row limits that shift based
+    // on cell content, execution time, and memory. The CSV export (below) has
+    // no row limit and handles the full dataset reliably regardless of size.
+    // Other tabs (e.g. "Assets Coding") work fine through the Web App and
+    // benefit from its bidirectional sync support.
     if (rows.length > 0) {
-        const isTruncated = rows.length === 256 || rows.length % 256 === 0;
-        if (isTruncated) {
+        if (sheetName === ASSET_SHEET_NAMES.assets) {
             console.warn(
-                `GAS Web App returned ${rows.length} rows for "${sheetName}" ` +
-                `— likely hit the 256-row GAS limit. Falling back to CSV export ` +
-                `which has no row restriction.`
+                `Forcing CSV export for "${sheetName}" — Web App returned ${rows.length} rows ` +
+                `but may be truncated. CSV export has no row limit.`
             );
             rows = []; // Clear rows to force CSV fallback below
         } else {
-            return rows; // Early return — GAS data looks complete
+            return rows; // All other tabs — use Web App result as-is
         }
     }
 
