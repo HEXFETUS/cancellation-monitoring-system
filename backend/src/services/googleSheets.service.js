@@ -327,23 +327,20 @@ async function fetchSheetRowsByName(sheetName) {
         }
     }
 
-    // If GAS Web App returned rows, decide per-tab whether to trust them.
-    // The "Inventory - Asset" tab is always routed to the CSV export because
-    // Google Apps Script Web Apps have unreliable row limits that shift based
-    // on cell content, execution time, and memory. The CSV export (below) has
-    // no row limit and handles the full dataset reliably regardless of size.
-    // Other tabs (e.g. "Assets Coding") work fine through the Web App and
-    // benefit from its bidirectional sync support.
-    if (rows.length > 0) {
-        if (sheetName === ASSET_SHEET_NAMES.assets) {
-            console.warn(
-                `Forcing CSV export for "${sheetName}" — Web App returned ${rows.length} rows ` +
-                `but may be truncated. CSV export has no row limit.`
-            );
-            rows = []; // Clear rows to force CSV fallback below
-        } else {
-            return rows; // All other tabs — use Web App result as-is
-        }
+    // The "Inventory - Asset" tab is always tried via CSV export first (no row
+    // limit). We keep a backup of the Web App result so that if the CSV endpoint
+    // fails entirely (returns 0 parsed rows), we restore the Web App data
+    // instead of returning empty. This guarantees asset_inv is never 0 after sync.
+    let webAppBackup = null;
+    if (rows.length > 0 && sheetName === ASSET_SHEET_NAMES.assets) {
+        console.warn(
+            `Attempting CSV export for "${sheetName}" — ` +
+            `Web App returned ${rows.length} rows (may be truncated).`
+        );
+        webAppBackup = [...rows]; // Shallow copy for safety net
+        rows = []; // Clear to let the CSV engine run its course
+    } else if (rows.length > 0) {
+        return rows; // All other tabs — use Web App result as-is
     }
 
     // Second try (or fallback after truncation): CSV export
@@ -393,9 +390,18 @@ async function fetchSheetRowsByName(sheetName) {
         }
     }
 
-    // Last resort: return empty rows with a warning so the sync can continue
-    // for tabs that ARE readable. This prevents a single unreadable tab from
-    // blocking the entire sync.
+    // If CSV returned nothing, restore the Web App backup so the sync always
+    // has at least some data. This prevents asset_inv from being 0 when the
+    // CSV endpoint is blocked or returns an unparseable format.
+    if (webAppBackup && webAppBackup.length > 0) {
+        console.warn(
+            `CSV export returned 0 rows for "${sheetName}". ` +
+            `Restoring ${webAppBackup.length} rows from Web App as fallback.`
+        );
+        return webAppBackup;
+    }
+
+    // True last resort — nothing worked at all.
     console.warn(
         `Could not read "${sheetName}" from Google Sheets via ANY export method. ` +
         `Check that the spreadsheet is shared with "Anyone with the link" as Viewer. ` +
