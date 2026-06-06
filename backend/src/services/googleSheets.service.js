@@ -774,19 +774,11 @@ async function upsertAssetFromSheet(client, row) {
         asset.id = existing.rows[0]?.id || null;
     }
 
-    if (!asset.id && asset.location) {
-        const existing = await client.query(
-            `
-            SELECT id
-            FROM asset_inv
-            WHERE location = $1
-              AND LOWER(item_description) = LOWER($2)
-            LIMIT 1
-            `,
-            [asset.location, asset.item_description]
-        );
-        asset.id = existing.rows[0]?.id || null;
-    }
+    // NOTE: The (location, item_description) dedup block was removed because
+    // many rows legitimately share the same description (e.g. multiple "Office
+    // Chair" units). Matching by description alone caused all such rows to
+    // UPDATE the same record instead of inserting as separate rows. Only the
+    // serial_number match above (which is truly unique per asset) is kept.
 
     if (asset.id) {
         const result = await client.query(
@@ -1019,12 +1011,14 @@ export async function syncAssetInventoryFromGoogleSheets() {
                 inserted: 0,
                 updated: 0,
                 skipped: 0,
+                errors: 0,
             },
             [ASSET_SHEET_NAMES.assetCodes]: {
                 scanned: assetCodeSheetRows.length,
                 inserted: 0,
                 updated: 0,
                 skipped: 0,
+                errors: 0,
             },
         },
     };
@@ -1033,19 +1027,33 @@ export async function syncAssetInventoryFromGoogleSheets() {
         await client.query("BEGIN");
 
         for (const row of assetSheetRows) {
-            addOutcome(
-                summary.tabs[ASSET_SHEET_NAMES.assets],
-                await upsertAssetFromSheet(client, row)
-            );
+            try {
+                addOutcome(
+                    summary.tabs[ASSET_SHEET_NAMES.assets],
+                    await upsertAssetFromSheet(client, row)
+                );
+            } catch (rowErr) {
+                summary.tabs[ASSET_SHEET_NAMES.assets].errors += 1;
+                console.warn(
+                    `SKIPPED row in ${ASSET_SHEET_NAMES.assets}: ${rowErr.message}`
+                );
+            }
         }
 
         await syncSerialSequence(client, "asset_inv");
 
         for (const row of assetCodeSheetRows) {
-            addOutcome(
-                summary.tabs[ASSET_SHEET_NAMES.assetCodes],
-                await upsertAssetCodeFromSheet(client, row)
-            );
+            try {
+                addOutcome(
+                    summary.tabs[ASSET_SHEET_NAMES.assetCodes],
+                    await upsertAssetCodeFromSheet(client, row)
+                );
+            } catch (rowErr) {
+                summary.tabs[ASSET_SHEET_NAMES.assetCodes].errors += 1;
+                console.warn(
+                    `SKIPPED row in ${ASSET_SHEET_NAMES.assetCodes}: ${rowErr.message}`
+                );
+            }
         }
 
         await syncSerialSequence(client, "asset_coding");
