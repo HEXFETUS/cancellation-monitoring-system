@@ -1,5 +1,0 @@
-src/modules/operator/pages/MyOutletsPage.tsx(460,1): error TS1005: ')' expected.
-src/modules/operator/pages/MyOutletsPage.tsx(461,1): error TS1005: ')' expected.
-src/modules/operator/pages/MyOutletsPage.tsx(462,1): error TS1128: Declaration or statement expected.
-src/modules/operator/pages/MyOutletsPage.tsx(463,5): error TS1109: Expression expected.
-src/modules/operator/pages/MyOutletsPage.tsx(464,1): error TS1128: Declaration or statement expected.

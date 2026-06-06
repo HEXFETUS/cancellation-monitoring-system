@@ -1,23 +1,21 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Building2, CheckCircle2, XCircle, Search, RefreshCw, Filter, MapPin } from "lucide-react";
+import { CheckCircle2, XCircle, Search, RefreshCw, MapPin } from "lucide-react";
 import { useAuth } from "../../../context/AuthContext";
-import { Pagination, Toast } from "../../../shared/components";
+import { Pagination, Toast, ConfirmationModal } from "../../../shared/components";
+import { EditModal } from "../components";
 import {
     approveBoothOperatorChangeRequest,
-    cancelBoothOperatorChangeRequest,
     listBoothOperatorChangeRequests,
     rejectBoothOperatorChangeRequest,
     type BoothOperatorChangeRequest,
 } from "../services/boothOperatorChangeRequests";
 
 const teal = "#92C7CF";
-const tealLight = "#AAD7D9";
 const PAGE_SIZE = 10;
 
-type StatusFilter = "all" | "pending" | "approved" | "rejected" | "cancelled";
+type StatusFilter = "pending" | "approved" | "rejected" | "cancelled";
 
 const STATUS_OPTIONS: { id: StatusFilter; label: string }[] = [
-    { id: "all", label: "All" },
     { id: "pending", label: "Pending" },
     { id: "approved", label: "Approved" },
     { id: "rejected", label: "Rejected" },
@@ -68,7 +66,7 @@ export default function AssignOutletPage() {
     const filteredRequests = useMemo(() => {
         const q = search.trim().toLowerCase();
         return requests.filter((r) => {
-            if (statusFilter !== "all" && (r.status || "").toLowerCase() !== statusFilter) return false;
+            if ((r.status || "").toLowerCase() !== statusFilter) return false;
             if (!q) return true;
             return (r.booth_code || "").toLowerCase().includes(q) ||
                 (r.coordinate || "").toLowerCase().includes(q) ||
@@ -84,46 +82,13 @@ export default function AssignOutletPage() {
     const paginated = useMemo(() => filteredRequests.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE), [filteredRequests, safePage]);
 
     const counts = useMemo(() => {
-        const c: Record<StatusFilter, number> = { all: requests.length, pending: 0, approved: 0, rejected: 0, cancelled: 0 };
+        const c: Record<StatusFilter, number> = { pending: 0, approved: 0, rejected: 0, cancelled: 0 };
         for (const r of requests) {
             const s = (r.status || "").toLowerCase() as StatusFilter;
-            if (s in c && s !== "all") c[s] += 1;
+            if (s in c) c[s] += 1;
         }
         return c;
     }, [requests]);
-
-    const handleApprove = async (req: BoothOperatorChangeRequest) => {
-        if (!user?.id) return;
-        try {
-            setBusyId(req.id);
-            await approveBoothOperatorChangeRequest(req.id, { admin_user_id: user.id });
-            showToast("success", `Approved request for outlet ${req.booth_code || `#${req.booth_info_id}`}.`);
-            await load();
-        } catch (e) { showToast("error", e instanceof Error ? e.message : "Failed to approve request"); }
-        finally { setBusyId(null); }
-    };
-
-    const handleReject = async (req: BoothOperatorChangeRequest) => {
-        if (!user?.id) return;
-        try {
-            setBusyId(req.id);
-            await rejectBoothOperatorChangeRequest(req.id, { admin_user_id: user.id });
-            showToast("info", `Rejected request for outlet ${req.booth_code || `#${req.booth_info_id}`}.`);
-            await load();
-        } catch (e) { showToast("error", e instanceof Error ? e.message : "Failed to reject request"); }
-        finally { setBusyId(null); }
-    };
-
-    const handleForceCancel = async (req: BoothOperatorChangeRequest) => {
-        if (!user?.id) return;
-        try {
-            setBusyId(req.id);
-            await cancelBoothOperatorChangeRequest(req.id, user.id);
-            showToast("warning", `Cancelled request for outlet ${req.booth_code || `#${req.booth_info_id}`}.`);
-            await load();
-        } catch (e) { showToast("error", e instanceof Error ? e.message : "Failed to cancel request"); }
-        finally { setBusyId(null); }
-    };
 
     const inputStyle = {
         background: darkMode ? "rgba(31,41,55,0.70)" : "rgba(255,255,255,0.78)",
@@ -132,162 +97,310 @@ export default function AssignOutletPage() {
         boxShadow: darkMode ? "none" : "inset 0 1px 0 rgba(255,255,255,0.70)",
     };
 
-    const getStatusBadgeStyle = (status: string): React.CSSProperties => {
-        const n = status.toLowerCase();
-        if (n === "pending") return darkMode ? { backgroundColor: "rgba(146,64,14,0.60)", color: "#FDE68A" } : { backgroundColor: "#FEF3C7", color: "#B45309" };
-        if (n === "approved") return darkMode ? { backgroundColor: "rgba(22,101,52,0.60)", color: "#BBF7D0" } : { backgroundColor: "#DCFCE7", color: "#15803D" };
-        if (n === "rejected") return darkMode ? { backgroundColor: "rgba(153,27,27,0.60)", color: "#FECACA" } : { backgroundColor: "#FEE2E2", color: "#B91C1C" };
-        if (n === "cancelled") return darkMode ? { backgroundColor: "rgba(55,65,81,0.80)", color: "#D1D5DB" } : { backgroundColor: "#E5E7EB", color: "#374151" };
-        return darkMode ? { backgroundColor: "rgba(55,65,81,0.80)", color: "#D1D5DB" } : { backgroundColor: "#F3F4F6", color: "#4B5563" };
+    const closeToast = () => setToast((t) => ({ ...t, open: false }));
+
+    // Approve / Reject modals
+    const [approveTarget, setApproveTarget] = useState<BoothOperatorChangeRequest | null>(null);
+    const [rejectNoteTarget, setRejectNoteTarget] = useState<BoothOperatorChangeRequest | null>(null);
+    const [rejectNote, setRejectNote] = useState("");
+
+    const openApprove = (req: BoothOperatorChangeRequest) => setApproveTarget(req);
+    const closeApprove = () => setApproveTarget(null);
+
+    const openReject = (req: BoothOperatorChangeRequest) => {
+        setRejectNoteTarget(req);
+        setRejectNote("");
+    };
+    const closeReject = () => {
+        setRejectNoteTarget(null);
+        setRejectNote("");
     };
 
-    const closeToast = () => setToast((t) => ({ ...t, open: false }));
+    const confirmApprove = async () => {
+        const req = approveTarget;
+        if (!req || !user?.id) return;
+        setBusyId(req.id);
+        setApproveTarget(null);
+        try {
+            await approveBoothOperatorChangeRequest(req.id, { admin_user_id: user.id });
+            showToast("success", `Approved request for outlet ${req.booth_code || `#${req.booth_info_id}`}.`);
+            await load();
+        } catch (e) {
+            showToast("error", e instanceof Error ? e.message : "Failed to approve request");
+        } finally {
+            setBusyId(null);
+        }
+    };
+
+    const submitReject = async () => {
+        const req = rejectNoteTarget;
+        if (!req || !user?.id) return;
+        setBusyId(req.id);
+        setRejectNoteTarget(null);
+        setRejectNote("");
+        try {
+            await rejectBoothOperatorChangeRequest(req.id, { admin_user_id: user.id });
+            showToast("info", `Rejected request for outlet ${req.booth_code || `#${req.booth_info_id}`}.`);
+            await load();
+        } catch (e) {
+            showToast("error", e instanceof Error ? e.message : "Failed to reject request");
+        } finally {
+            setBusyId(null);
+        }
+    };
+
+    const getStatusBadgeClass = (status: string): string => {
+        const n = status.toLowerCase();
+        if (n === "pending") return "bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200";
+        if (n === "approved") return "bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200";
+        if (n === "rejected") return "bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200";
+        if (n === "cancelled") return "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300";
+        return "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300";
+    };
 
     return (
         <div className="w-full max-w-full space-y-5">
             <Toast open={toast.open} message={toast.message} type={toast.type} onClose={closeToast} position="top-center" />
             {error && <div className="relative rounded-xl border border-red-200/60 bg-red-50/95 backdrop-blur-xl px-4 py-3 text-sm font-medium text-red-700 shadow-lg">{error}</div>}
 
-            <div className="relative rounded-2xl border border-white/50 backdrop-blur-xl bg-white/25 shadow-lg overflow-hidden">
-                <div className="flex items-center justify-between gap-3 border-b border-white/40 px-5 py-4">
-                    <div className="flex items-center gap-2">
-                        <Building2 size={18} style={{ color: teal }} />
-                        <div>
-                            <h1 className="text-base font-semibold text-gray-800">Assign Outlet Requests</h1>
-                            <p className="text-xs text-gray-500">Review and approve operator change requests for outlets (booths).</p>
-                        </div>
-                    </div>
-                    <button type="button" onClick={load} className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 shadow-sm transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#92C7CF]/50" aria-label="Refresh"><RefreshCw size={16} /></button>
+            {/* Filter tabs */}
+            <div
+                className="mb-5 border-b pb-0 flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between"
+                style={{ borderColor: "rgba(146,199,207,0.25)" }}
+            >
+                <div className="flex gap-1 overflow-x-auto">
+                    {STATUS_OPTIONS.map((opt) => {
+                        const isActive = statusFilter === opt.id;
+                        const count = counts[opt.id] ?? 0;
+                        return (
+                            <button
+                                key={opt.id}
+                                onClick={() => setStatusFilter(opt.id)}
+                                className="flex shrink-0 items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all duration-200 rounded-t-xl cursor-pointer"
+                                style={{
+                                    background: isActive
+                                        ? "rgba(146,199,207,0.15)"
+                                        : "transparent",
+                                    border: isActive
+                                        ? "1px solid rgba(146,199,207,0.25)"
+                                        : "1px solid transparent",
+                                    borderBottom: isActive
+                                        ? "1px solid white"
+                                        : "1px solid transparent",
+                                    color: isActive
+                                        ? darkMode
+                                            ? "#FFFFFF"
+                                            : "#1F2937"
+                                        : "#6B7280",
+                                }}
+                                onMouseEnter={(e) => {
+                                    if (!isActive) {
+                                        e.currentTarget.style.background = "rgba(146,199,207,0.06)";
+                                    }
+                                }}
+                                onMouseLeave={(e) => {
+                                    if (!isActive) {
+                                        e.currentTarget.style.background = "transparent";
+                                    }
+                                }}
+                            >
+                                {opt.label}
+                                {isActive && (
+                                    <span className="ml-1 text-xs opacity-70" style={{ color: "#6B7280" }}>({count})</span>
+                                )}
+                            </button>
+                        );
+                    })}
                 </div>
-                <div className="flex flex-col gap-3 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
-                    <div className="flex flex-wrap items-center gap-2">
-                        <span className="inline-flex items-center gap-1 text-xs font-medium text-gray-500"><Filter size={13} /> Status</span>
-                        {STATUS_OPTIONS.map((opt) => {
-                            const isActive = statusFilter === opt.id;
-                            const count = counts[opt.id] ?? 0;
-                            return (
-                                <button key={opt.id} type="button" onClick={() => setStatusFilter(opt.id)} className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-all duration-200" style={{ background: isActive ? `linear-gradient(135deg, ${teal}, ${tealLight})` : darkMode ? "rgba(75,85,99,0.30)" : "rgba(146,199,207,0.15)", color: isActive ? "#FFFFFF" : darkMode ? "#E5E7EB" : "#374151", boxShadow: isActive ? "0 2px 6px rgba(146,199,207,0.30)" : "none" }}>
-                                    {opt.label}
-                                    <span className="inline-flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[10px] font-bold" style={{ background: isActive ? "rgba(255,255,255,0.30)" : darkMode ? "rgba(75,85,99,0.60)" : "rgba(146,199,207,0.30)", color: isActive ? "#FFFFFF" : darkMode ? "#E5E7EB" : "#374151" }}>{count}</span>
-                                </button>
-                            );
-                        })}
-                    </div>
-                    <div className="relative w-full lg:w-72">
+                <div className="flex justify-end items-end gap-3 pb-2 xl:pb-1">
+                    <div className="relative w-full sm:w-64">
                         <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" />
                         <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search booth, operator, location..." className="h-9 w-full rounded-lg pl-8 pr-3 text-sm outline-none transition-all duration-200 focus:border-[#92C7CF]/60 focus:ring-2 focus:ring-[#92C7CF]/35 placeholder:text-gray-400 dark:placeholder:text-gray-400" style={inputStyle} />
                     </div>
+                    <button
+                        onClick={load}
+                        disabled={loading}
+                        className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+                        Refresh
+                    </button>
                 </div>
             </div>
 
-            <AssignOutletTable
-                requests={paginated}
-                loading={loading}
-                empty={filteredRequests.length === 0}
-                busyId={busyId}
-                darkMode={darkMode}
-                teal={teal}
-                inputStyle={inputStyle}
-                getStatusBadgeStyle={getStatusBadgeStyle}
-                onApprove={handleApprove}
-                onReject={handleReject}
-                onCancel={handleForceCancel}
-            />
+            {/* Card-based layout (like RequestResetPage) */}
+            <div className="space-y-3">
+                {loading ? (
+                    <div className="rounded-xl border border-gray-200 bg-white px-3 py-10 text-center text-sm text-gray-500 shadow-sm">
+                        Loading...
+                    </div>
+                ) : filteredRequests.length === 0 ? (
+                    <div className="rounded-xl border border-gray-200 bg-white px-3 py-10 text-center text-sm text-gray-500 shadow-sm">
+                        No assign-outlet requests match the current filter.
+                    </div>
+                ) : (
+                    paginated.map((r) => {
+                        const boothLabel = r.booth_code || `Booth #${r.booth_info_id}`;
+                        const isPending = r.status?.toLowerCase() === "pending";
+                        const isDisabled = busyId === r.id;
+                        return (
+                            <div
+                                key={r.id}
+                                className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm"
+                            >
+                                <div className="flex flex-wrap items-start justify-between gap-3">
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-base font-semibold text-gray-800 font-mono">{boothLabel}</span>
+                                            <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide ${getStatusBadgeClass(r.status)}`}>{r.status}</span>
+                                        </div>
+                                        <p className="mt-1 text-xs text-gray-500">
+                                            <span className="inline-flex items-center gap-1"><MapPin size={12} className="text-gray-400" /> {r.booth_location || "—"}</span>
+                                            {" · "}
+                                            <span className="text-gray-400">{r.coordinate || "—"}</span>
+                                            {" · "}
+                                            Requested by <span className="font-medium text-gray-700">{r.requested_by_name || "—"}</span>
+                                            {" · "}
+                                            {r.created_at ? new Date(r.created_at).toLocaleString() : "—"}
+                                        </p>
+                                    </div>
 
-            {!loading && filteredRequests.length > 0 && (
-                <div className="relative rounded-2xl border border-white/50 backdrop-blur-xl bg-white/25 shadow-lg overflow-hidden">
-                    <Pagination currentPage={safePage} totalPages={totalPages} totalItems={filteredRequests.length} onPageChange={setPage} pageSize={PAGE_SIZE} />
-                </div>
-            )}
-        </div>
-    );
-}
+                                    {isPending && (
+                                        <div className="flex items-center gap-1.5">
+                                            <button
+                                                onClick={() => openApprove(r)}
+                                                disabled={isDisabled}
+                                                className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold text-white shadow-sm transition hover:scale-[1.03] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50"
+                                                style={{ background: "linear-gradient(135deg, #10B981, #34D399)" }}
+                                            >
+                                                <CheckCircle2 size={13} /> Approve
+                                            </button>
+                                            <button
+                                                onClick={() => openReject(r)}
+                                                disabled={isDisabled}
+                                                className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold text-white shadow-sm transition hover:scale-[1.03] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50"
+                                                style={{ background: "linear-gradient(135deg, #EF4444, #F87171)" }}
+                                            >
+                                                <XCircle size={13} /> Reject
+                                            </button>
+                                        </div>
+                                    )}
 
-interface AssignOutletTableProps {
-    requests: BoothOperatorChangeRequest[];
-    loading: boolean;
-    empty: boolean;
-    busyId: number | null;
-    darkMode: boolean;
-    teal: string;
-    inputStyle: React.CSSProperties;
-    getStatusBadgeStyle: (status: string) => React.CSSProperties;
-    onApprove: (req: BoothOperatorChangeRequest) => void;
-    onReject: (req: BoothOperatorChangeRequest) => void;
-    onCancel: (req: BoothOperatorChangeRequest) => void;
-}
+                                </div>
 
-function AssignOutletTable({ requests, loading, empty, busyId, teal, getStatusBadgeStyle, onApprove, onReject, onCancel }: AssignOutletTableProps) {
-    return (
-        <div className="relative rounded-2xl border border-white/50 backdrop-blur-xl bg-white/25 shadow-lg overflow-hidden">
-            <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                    <thead>
-                        <tr className="border-b border-white/40 bg-gradient-to-r from-[#92C7CF]/10 to-[#AAD7D9]/10">
-                            <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Outlet</th>
-                            <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Location / Coordinate</th>
-                            <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">From</th>
-                            <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">To</th>
-                            <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Status</th>
-                            <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Submitted</th>
-                            <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500 text-right">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {loading ? (
-                            <tr><td colSpan={7} className="px-4 py-10 text-center text-gray-500">Loading…</td></tr>
-                        ) : empty ? (
-                            <tr><td colSpan={7} className="px-4 py-10 text-center text-gray-500">No assign-outlet requests match the current filter.</td></tr>
-                        ) : (
-                            requests.map((r) => {
-                                const boothLabel = r.booth_code || `Booth #${r.booth_info_id}`;
-                                const isPending = r.status?.toLowerCase() === "pending";
-                                const isDisabled = busyId === r.id;
-                                return (
-                                    <tr key={r.id} className="border-b border-white/30 transition hover:bg-[#92C7CF]/8">
-                                        <td className="whitespace-nowrap px-4 py-3 font-medium text-gray-800">
-                                            <div className="flex flex-col">
-                                                <span style={{ color: teal }} className="font-mono">{boothLabel}</span>
-                                            </div>
-                                        </td>
-                                        <td className="whitespace-nowrap px-4 py-3 text-gray-700">
-                                            <div className="flex flex-col">
-                                                <span className="inline-flex items-center gap-1"><MapPin size={12} className="text-gray-400" /> {r.booth_location || "—"}</span>
-                                                <span className="text-xs text-gray-500">{r.coordinate || "—"}</span>
-                                            </div>
-                                        </td>
-                                        <td className="whitespace-nowrap px-4 py-3 text-gray-700">{r.current_operator || "Unassigned"}</td>
-                                        <td className="whitespace-nowrap px-4 py-3 font-medium" style={{ color: teal }}>
+                                <div className="mt-3 grid gap-2 rounded-lg bg-gray-50 p-3 text-sm sm:grid-cols-3">
+                                    <div>
+                                        <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">From</div>
+                                        <div className="text-sm text-gray-700">
+                                            {r.current_operator || "Unassigned"}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">To</div>
+                                        <div className="text-sm font-medium" style={{ color: teal }}>
                                             {r.to_operator || "—"}
                                             {r.requested_by_name && <span className="block text-xs font-normal text-gray-500">by {r.requested_by_name}</span>}
-                                        </td>
-                                        <td className="whitespace-nowrap px-4 py-3">
-                                            <span className="inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide" style={getStatusBadgeStyle(r.status)}>{r.status}</span>
-                                        </td>
-                                        <td className="whitespace-nowrap px-4 py-3 text-gray-500">{r.created_at ? new Date(r.created_at).toLocaleString() : "—"}</td>
-                                        <td className="whitespace-nowrap px-4 py-3 text-right">
-                                            {isPending ? (
-                                                <div className="inline-flex items-center gap-1.5">
-                                                    <button onClick={() => onApprove(r)} disabled={isDisabled} className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold text-white shadow-sm transition hover:scale-[1.03] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50" style={{ background: "linear-gradient(135deg, #10B981, #34D399)" }}>
-                                                        <CheckCircle2 size={13} /> Approve
-                                                    </button>
-                                                    <button onClick={() => onReject(r)} disabled={isDisabled} className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold text-white shadow-sm transition hover:scale-[1.03] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50" style={{ background: "linear-gradient(135deg, #EF4444, #F87171)" }}>
-                                                        <XCircle size={13} /> Reject
-                                                    </button>
-                                                </div>
-                                            ) : (
-                                                <button onClick={() => onCancel(r)} disabled={isDisabled} className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium text-red-700 transition-all duration-200 hover:scale-[1.03] active:scale-[0.97] disabled:opacity-50" style={{ background: "rgba(232,180,184,0.40)", border: "1px solid rgba(232,180,184,0.80)" }}>
-                                                    <XCircle size={13} /> Cancel
-                                                </button>
-                                            )}
-                                        </td>
-                                    </tr>
-                                );
-                            })
-                        )}
-                    </tbody>
-                </table>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {statusFilter === "rejected" && (
+                                    <div className="mt-2 text-xs" style={{ color: darkMode ? "#9CA3AF" : "#6B7280" }}>
+                                        <span className="font-semibold" style={{ color: darkMode ? "#F3F4F6" : "#1F2937" }}>Decided by:</span>{" "}
+                                        {r.decided_by_name || "—"}
+                                        {r.decided_at && <> · {new Date(r.decided_at).toLocaleString()}</>}
+                                    </div>
+                                )}
+                                {statusFilter === "approved" && r.decided_by_name && (
+                                    <div className="mt-2 text-xs" style={{ color: darkMode ? "#9CA3AF" : "#6B7280" }}>
+                                        <span className="font-semibold" style={{ color: darkMode ? "#F3F4F6" : "#1F2937" }}>Approved by:</span>{" "}
+                                        {r.decided_by_name}
+                                        {r.decided_at && <> · {new Date(r.decided_at).toLocaleString()}</>}
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })
+                )}
             </div>
+
+            {!loading && filteredRequests.length > 0 && (
+                <Pagination currentPage={safePage} totalPages={totalPages} totalItems={filteredRequests.length} onPageChange={setPage} pageSize={PAGE_SIZE} />
+            )}
+
+            {/* Approve confirmation modal */}
+            <ConfirmationModal
+                open={approveTarget !== null}
+                title="Approve Outlet Assignment"
+                message={
+                    approveTarget
+                        ? `Are you sure you want to approve the operator assignment for outlet ${approveTarget.booth_code || `#${approveTarget.booth_info_id}`} (${approveTarget.current_operator || "Unassigned"} → ${approveTarget.to_operator || "—"})?`
+                        : ""
+                }
+                confirmLabel="Approve"
+                cancelLabel="Cancel"
+                onConfirm={confirmApprove}
+                onCancel={closeApprove}
+                isLoading={busyId !== null}
+                loadingLabel="Approving..."
+            />
+
+            {/* Reject note modal — same look as RequestResetPage */}
+            <EditModal
+                open={rejectNoteTarget !== null}
+                title="Reject Outlet Assignment"
+                subtitle="Add a note explaining why this request is being rejected."
+                onClose={closeReject}
+                accentColor="rose"
+            >
+                <div className="flex flex-col gap-4">
+                    {rejectNoteTarget && (
+                        <div className="rounded-lg bg-gray-50 p-3 text-sm space-y-1">
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs font-medium text-gray-500">Outlet</span>
+                                <span className="font-semibold text-gray-800">{rejectNoteTarget.booth_code || `Booth #${rejectNoteTarget.booth_info_id}`}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs font-medium text-gray-500">From</span>
+                                <span className="text-gray-700">{rejectNoteTarget.current_operator || "Unassigned"}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs font-medium text-gray-500">To</span>
+                                <span className="font-semibold" style={{ color: teal }}>{rejectNoteTarget.to_operator || "—"}</span>
+                            </div>
+                        </div>
+                    )}
+                    <div>
+                        <label className="block text-sm font-semibold text-gray-800 mb-1.5">
+                            Rejection Note <span className="text-rose-500">*</span>
+                        </label>
+                        <textarea
+                            value={rejectNote}
+                            onChange={(e) => setRejectNote(e.target.value)}
+                            placeholder="Explain why this request is being rejected..."
+                            rows={3}
+                            className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-800 placeholder:text-gray-400 focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20 transition-all shadow-sm"
+                        />
+                    </div>
+                </div>
+                <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-200">
+                    <button
+                        type="button"
+                        onClick={closeReject}
+                        className="rounded-xl border-2 border-gray-200 px-6 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-all active:scale-[0.98]"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        type="button"
+                        onClick={submitReject}
+                        disabled={!rejectNote.trim()}
+                        className="rounded-xl bg-gradient-to-r from-rose to-rose-dark px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-rose/25 hover:shadow-xl hover:shadow-rose/30 hover:from-rose-dark hover:to-rose transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        Reject
+                    </button>
+                </div>
+            </EditModal>
         </div>
     );
 }
