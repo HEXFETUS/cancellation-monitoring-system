@@ -329,8 +329,8 @@ async function initDatabase() {
         await client.query(`
             CREATE TABLE IF NOT EXISTS asset_inv (
                 id SERIAL PRIMARY KEY,
-                location VARCHAR(50) NOT NULL CHECK (location IN ('office', 'payout', 'drawcourt', 'obs', 'staffhouse', 'vehicle')),
-                item_description VARCHAR(255) NOT NULL,
+                location VARCHAR(50) CHECK (location IN ('office', 'payout', 'drawcourt', 'obs', 'staffhouse', 'vehicle')),
+                item_description VARCHAR(255),
                 type VARCHAR(100),
                 serial_no VARCHAR(255),
                 department VARCHAR(255),
