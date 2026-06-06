@@ -170,6 +170,40 @@ function parseCsv(text) {
     row.push(cell);
     rows.push(row);
 
+    // Multi-line cell post-processor: if a row has fewer non-empty columns
+    // than the header row (first data row), it's likely a continuation of
+    // the previous row's multi-line cell content rather than a new record.
+    // Merge it back into the previous row's corresponding cell.
+    if (rows.length >= 2) {
+        const headerColCount = rows[0].length;
+        const merged = [rows[0]];
+        for (let i = 1; i < rows.length; i++) {
+            const current = rows[i];
+            const nonEmpty = current.filter((v) => String(v || "").trim()).length;
+            const prev = merged[merged.length - 1];
+            if (
+                nonEmpty > 0 &&
+                current.length < headerColCount &&
+                current.length <= prev.length
+            ) {
+                // Likely a continuation — append first cell of current to last
+                // cell of previous, preserving all data.
+                for (let j = 0; j < current.length; j++) {
+                    const val = String(current[j] || "").trim();
+                    if (val) {
+                        prev[j] = prev[j]
+                            ? String(prev[j]) + " " + val
+                            : val;
+                    }
+                }
+            } else {
+                merged.push(current);
+            }
+        }
+        rows.length = 0;
+        rows.push(...merged);
+    }
+
     return rows.filter((values) => values.some((item) => String(item || "").trim()));
 }
 
@@ -221,7 +255,15 @@ function parseNumber(value, fallback = 0) {
     if (value === null || value === undefined || value === "") return fallback;
     const cleaned = String(value).replace(/[^0-9.-]+/g, "");
     const n = Number(cleaned);
-    return Number.isFinite(n) ? n : fallback;
+    if (Number.isFinite(n)) return n;
+    // Mixed text like "200 /gal. + 500 Rent" — extract the first
+    // numeric value instead of crashing. This preserves the most
+    // important number (e.g. the price) while discarding unit labels.
+    const numbers = String(value).match(/\d+(?:\.\d+)?/g);
+    if (numbers && numbers.length > 0) {
+        return Number(numbers[0]);
+    }
+    return fallback;
 }
 
 function parseInteger(value, fallback = 0) {
@@ -273,9 +315,10 @@ function parseLocation(value) {
 
 async function fetchSheetRowsByName(sheetName) {
     // First try: GAS Web App (supports bidirectional sync)
+    let rows = [];
     if (ASSET_SHEET_URL) {
         try {
-            return await fetchSheetRowsByNameFromWebApp(sheetName);
+            rows = await fetchSheetRowsByNameFromWebApp(sheetName);
         } catch (_webAppErr) {
             console.warn(
                 `GAS Web App failed for "${sheetName}", falling back to CSV export: ${_webAppErr.message}`
@@ -283,7 +326,26 @@ async function fetchSheetRowsByName(sheetName) {
         }
     }
 
-    // Second try: CSV export (works when sheet is shared "Anyone with the link")
+    // If GAS Web App returned rows and they're not suspiciously few, use them.
+    // The truncation guard below catches the case where the GAS stopped at a
+    // blank row (e.g. only 256 rows) and forces a CSV export fallback.
+    if (rows.length > 0) {
+        const truncated =
+            sheetName === ASSET_SHEET_NAMES.assets &&
+            rows.length < 300;
+        if (truncated) {
+            console.warn(
+                `GAS Web App returned only ${rows.length} rows for "${sheetName}" ` +
+                `— possible truncation at blank row. Falling back to CSV export ` +
+                `to attempt full data retrieval.`
+            );
+            rows = []; // Clear rows to force CSV fallback below
+        } else {
+            return rows; // Early return — GAS data looks complete
+        }
+    }
+
+    // Second try (or fallback after truncation): CSV export
     for (const csvUrl of [
         `https://docs.google.com/spreadsheets/d/${ASSET_SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}`,
         `https://docs.google.com/spreadsheets/d/${ASSET_SPREADSHEET_ID}/export?format=csv&sheet=${encodeURIComponent(sheetName)}`,
@@ -755,6 +817,14 @@ async function upsertAssetFromSheet(client, row) {
         !asset.remarks &&
         !asset.vendor
     ) {
+        // Log the raw sheet row keys and values so you can see which rows
+        // are being dropped and why — helps debug blank-row truncation.
+        const rawKeys = Object.keys(row || {});
+        const rawSample = rawKeys.slice(0, 5).map((k) => `${k}=${JSON.stringify(row[k])}`).join("; ");
+        console.warn(
+            `SKIPPED row — all columns empty after parse` +
+            (rawKeys.length > 0 ? `. Raw row keys: [${rawKeys.join(", ")}]. Sample: ${rawSample}` : "")
+        );
         return { skipped: true, reason: "All columns are empty" };
     }
 
