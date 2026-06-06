@@ -245,6 +245,12 @@ function parseDateOrNull(value) {
     return parsed.toISOString().slice(0, 10);
 }
 
+function truncate(value, maxLen) {
+    if (!value) return value;
+    const s = String(value);
+    return s.length > maxLen ? s.slice(0, maxLen) : s;
+}
+
 function parseLocation(value) {
     const normalized = String(value || "").trim().toLowerCase();
     if (!normalized) return null;
@@ -293,7 +299,29 @@ async function fetchSheetRowsByName(sheetName) {
                 continue;
             }
 
-            const rows = toObjects(parseCsv(text));
+            const parsed = parseCsv(text);
+            if (parsed.length === 0) continue;
+
+            // Find the row that looks like an asset header (contains known
+            // column keywords). Spacer/title rows above the real header are
+            // common in manually-edited spreadsheets.
+            const knownHeaders = [
+                "itemdescription", "serialno", "dateofpurchase",
+                "purchasepriceperitem", "assetvalue", "totalvalue",
+            ];
+            const headerIndex = parsed.findIndex((values) =>
+                values.some((cell) => knownHeaders.includes(normalizeHeader(cell)))
+            );
+            if (headerIndex === -1) continue;
+
+            const headers = parsed[headerIndex].map(normalizeHeader);
+            const rows = parsed.slice(headerIndex + 1).map((values) => {
+                const row = {};
+                headers.forEach((header, index) => {
+                    if (header) row[header] = values[index] ?? "";
+                });
+                return row;
+            });
             if (rows.length === 0) continue;
 
             return rows;
@@ -618,7 +646,10 @@ export async function buildAssetInventorySheets({ location } = {}) {
 }
 
 function sheetAssetToDbRow(row) {
-    const location = parseLocation(pick(row, ["Location", "Area", "Section"]));
+    let location = parseLocation(pick(row, ["Location", "Area", "Section"]));
+    if (!location) {
+        location = parseLocation(pick(row, ["Department"]));
+    }
     const itemDescription = pick(row, ["Item Description", "Description", "Item", "Asset"]);
     const quantity = Math.max(1, parseInteger(pick(row, ["Quantity", "Qty"]), 1));
     const purchasePrice = parseNumber(
@@ -642,12 +673,15 @@ function sheetAssetToDbRow(row) {
         // are matched downstream by serial_number or (location, item_description).
         id: null,
         location,
-        item_description: itemDescription,
-        type: pick(row, ["Type", "Category"]) || null,
+        // Truncate text fields to DB column widths so long sheet values don't
+        // blow up the insert. Any trailing whitespace is already trimmed by
+        // pick(), so we just need to cap length.
+        item_description: truncate(itemDescription, 255),
+        type: truncate(pick(row, ["Type", "Category"]) || null, 100),
         serial_number:
-            pick(row, ["Serial Number", "Serial No", "Serial No.", "Serial"]) || null,
-        department: pick(row, ["Department"]) || null,
-        space: pick(row, ["Space", "Sub Location", "Sub-Location", "Room"]) || null,
+            truncate(pick(row, ["Serial Number", "Serial No", "Serial No.", "Serial"]) || null, 150),
+        department: truncate(pick(row, ["Department"]) || null, 100),
+        space: truncate(pick(row, ["Space", "Sub Location", "Sub-Location", "Room"]) || null, 100),
         date_purchase: parseDateOrNull(
             pick(row, [
                 "Date Purchased",
@@ -656,7 +690,7 @@ function sheetAssetToDbRow(row) {
                 "Purchase Date",
             ])
         ),
-        vendor: pick(row, ["Vendor", "Supplier"]) || null,
+        vendor: truncate(pick(row, ["Vendor", "Supplier"]) || null, 150),
         purchase_price: purchasePrice,
         warranty_date: parseDateOrNull(
             pick(row, ["Warranty Date", "Warranty Expiry Date", "Warranty"])
@@ -665,8 +699,8 @@ function sheetAssetToDbRow(row) {
         discount,
         asset_value: assetValue,
         total_value: assetValue * quantity,
-        color: pick(row, ["Color"]) || null,
-        remarks: pick(row, ["Remarks", "Notes"]) || null,
+        color: truncate(pick(row, ["Color"]) || null, 50),
+        remarks: pick(row, ["Remarks", "Notes"]) || null,  // TEXT column, no limit needed
         payout_station: pick(row, ["Payout Station", "Station", "Outlet"]),
         office_department: pick(row, ["Office Department", "Department"]),
     };
@@ -703,8 +737,25 @@ function sheetAssetCodeToDbRow(row) {
 async function upsertAssetFromSheet(client, row) {
     const asset = sheetAssetToDbRow(row);
 
-    if (!asset.location || !asset.item_description) {
-        return { skipped: true, reason: "Missing location or item description" };
+    // Skip only if every column is empty — matches how upsertAssetCodeFromSheet
+    // works. A single non-empty field (even just TYPE or SPACE) is enough to
+    // keep the row so nothing useful is lost.
+    if (
+        !asset.item_description &&
+        !asset.type &&
+        !asset.serial_number &&
+        !asset.department &&
+        !asset.space &&
+        !asset.purchase_price &&
+        !asset.warranty_date &&
+        !asset.quantity &&
+        !asset.discount &&
+        !asset.asset_value &&
+        !asset.color &&
+        !asset.remarks &&
+        !asset.vendor
+    ) {
+        return { skipped: true, reason: "All columns are empty" };
     }
 
     const payoutStationId = await findPayoutStationId(client, asset.payout_station);
@@ -723,7 +774,7 @@ async function upsertAssetFromSheet(client, row) {
         asset.id = existing.rows[0]?.id || null;
     }
 
-    if (!asset.id) {
+    if (!asset.id && asset.location) {
         const existing = await client.query(
             `
             SELECT id
