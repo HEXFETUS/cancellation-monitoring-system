@@ -315,35 +315,59 @@ function parseLocation(value) {
 }
 
 async function fetchSheetRowsByName(sheetName) {
-    // First try: GAS Web App (supports bidirectional sync)
+    // Step 1: GAS Web App JSON (supports bidirectional sync, but may be
+    // truncated to 256 rows by the GAS payload-size limit).
     let rows = [];
     if (ASSET_SHEET_URL) {
         try {
             rows = await fetchSheetRowsByNameFromWebApp(sheetName);
+            console.log(
+                `[GAS] Web App JSON for "${sheetName}" returned ${rows.length} rows`
+            );
         } catch (_webAppErr) {
             console.warn(
-                `GAS Web App failed for "${sheetName}", falling back to CSV export: ${_webAppErr.message}`
+                `[GAS] Web App JSON failed for "${sheetName}": ${_webAppErr.message}`
             );
         }
     }
 
-    // The "Inventory - Asset" tab is always tried via CSV export first (no row
-    // limit). We keep a backup of the Web App result so that if the CSV endpoint
-    // fails entirely (returns 0 parsed rows), we restore the Web App data
-    // instead of returning empty. This guarantees asset_inv is never 0 after sync.
+    // For the "Inventory - Asset" tab the JSON path often caps at 256 rows
+    // due to the GAS runtime limit. We always attempt a high-capacity CSV
+    // path afterwards and keep the JSON result as a safety-net backup so
+    // the sync never returns 0 rows.
     let webAppBackup = null;
     if (rows.length > 0 && sheetName === ASSET_SHEET_NAMES.assets) {
-        console.warn(
-            `Attempting CSV export for "${sheetName}" — ` +
-            `Web App returned ${rows.length} rows (may be truncated).`
+        console.log(
+            `[GAS] Saving ${rows.length} JSON rows as backup for "${sheetName}". ` +
+            `Attempting CSV bypass to retrieve full dataset…`
         );
-        webAppBackup = [...rows]; // Shallow copy for safety net
-        rows = []; // Clear to let the CSV engine run its course
+        webAppBackup = [...rows];
+        rows = []; // Clear to let the CSV engine run
     } else if (rows.length > 0) {
         return rows; // All other tabs — use Web App result as-is
     }
 
-    // Second try (or fallback after truncation): CSV export
+    // Step 2 (primary CSV bypass): Request CSV from the GAS Web App itself.
+    // This bypasses BOTH the 256-row JSON limit AND the public-sharing
+    // requirement for direct Google Sheets CSV URLs.  The GAS must handle
+    // type=READ_TAB_CSV — if it doesn't, this gracefully falls through.
+    if (ASSET_SHEET_URL) {
+        try {
+            const csvRows = await fetchSheetRowsByNameFromWebAppCSV(sheetName);
+            console.log(
+                `[GAS] CSV-from-GAS for "${sheetName}" returned ${csvRows.length} rows — using full dataset`
+            );
+            return csvRows;
+        } catch (_csvGasErr) {
+            console.warn(
+                `[GAS] CSV-from-GAS failed for "${sheetName}": ${_csvGasErr.message}`
+            );
+        }
+    }
+
+    // Step 3 (direct CSV export): Try Google Sheets public CSV endpoints.
+    // These only work when the spreadsheet is shared "Anyone with the link"
+    // as Viewer. If the sheet is private these will return HTML login pages.
     for (const csvUrl of [
         `https://docs.google.com/spreadsheets/d/${ASSET_SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}`,
         `https://docs.google.com/spreadsheets/d/${ASSET_SPREADSHEET_ID}/export?format=csv&sheet=${encodeURIComponent(sheetName)}`,
@@ -356,6 +380,9 @@ async function fetchSheetRowsByName(sheetName) {
             if (!response.ok) continue;
 
             if (/^<!doctype html/i.test(text.trim()) || text.includes("<title>")) {
+                console.warn(
+                    `[CSV] Direct Google Sheets CSV returned HTML (likely auth wall): ${csvUrl.slice(0, 80)}…`
+                );
                 continue;
             }
 
@@ -375,35 +402,38 @@ async function fetchSheetRowsByName(sheetName) {
             if (headerIndex === -1) continue;
 
             const headers = parsed[headerIndex].map(normalizeHeader);
-            const rows = parsed.slice(headerIndex + 1).map((values) => {
+            const csvRows = parsed.slice(headerIndex + 1).map((values) => {
                 const row = {};
                 headers.forEach((header, index) => {
                     if (header) row[header] = values[index] ?? "";
                 });
                 return row;
             });
-            if (rows.length === 0) continue;
+            if (csvRows.length === 0) continue;
 
-            return rows;
+            console.log(
+                `[CSV] Direct Google Sheets CSV for "${sheetName}" returned ${csvRows.length} rows`
+            );
+            return csvRows;
         } catch {
             continue;
         }
     }
 
-    // If CSV returned nothing, restore the Web App backup so the sync always
-    // has at least some data. This prevents asset_inv from being 0 when the
-    // CSV endpoint is blocked or returns an unparseable format.
+    // Step 4 (safety-net fallback): Restore the Web App JSON backup so the
+    // sync always has at least some data. This prevents asset_inv from being
+    // 0 when every CSV path is blocked.
     if (webAppBackup && webAppBackup.length > 0) {
         console.warn(
-            `CSV export returned 0 rows for "${sheetName}". ` +
-            `Restoring ${webAppBackup.length} rows from Web App as fallback.`
+            `[FALLBACK] All CSV paths returned 0 rows for "${sheetName}". ` +
+            `Restoring ${webAppBackup.length} rows from Web App JSON backup.`
         );
         return webAppBackup;
     }
 
     // True last resort — nothing worked at all.
     console.warn(
-        `Could not read "${sheetName}" from Google Sheets via ANY export method. ` +
+        `[SKIP] Could not read "${sheetName}" from Google Sheets via ANY method. ` +
         `Check that the spreadsheet is shared with "Anyone with the link" as Viewer. ` +
         `Syncing this tab will be skipped.`
     );
@@ -476,6 +506,80 @@ async function fetchSheetRowsByNameFromWebApp(sheetName) {
     }
 
     return rows;
+}
+
+/**
+ * Request CSV-formatted data from the GAS Web App, bypassing the 256-row
+ * JSON payload limit. The GAS reads all rows internally and returns them
+ * as a single CSV text blob — no row cap applies.
+ *
+ * The GAS must handle `type=READ_TAB_CSV` and return raw CSV text via
+ * ContentService.createTextOutput(...).setMimeType(MimeType.TEXT).
+ *
+ * @returns {Promise<Array<Object>>} Parsed CSV rows as objects.
+ * @throws {Error} If the GAS doesn't support CSV mode or returns invalid data.
+ */
+async function fetchSheetRowsByNameFromWebAppCSV(sheetName) {
+    const url = new URL(ASSET_SHEET_URL);
+    url.searchParams.set("type", "READ_TAB_CSV");
+    url.searchParams.set("sheet", sheetName);
+    url.searchParams.set("spreadsheet_id", ASSET_SPREADSHEET_ID);
+    if (ASSET_SHEET_TOKEN) url.searchParams.set("token", ASSET_SHEET_TOKEN);
+
+    const response = await fetch(url, {
+        headers: ASSET_SHEET_TOKEN ? { "X-SHEET-TOKEN": ASSET_SHEET_TOKEN } : {},
+    });
+    const text = await response.text();
+
+    if (!response.ok) {
+        throw new Error(`GAS CSV endpoint failed for "${sheetName}": HTTP ${response.status}`);
+    }
+
+    // The GAS may wrap CSV in JSON (e.g. {"csv": "..."}) or return raw CSV.
+    // Detect JSON wrapper first; if it's an error object, bail out.
+    const trimmed = text.trim();
+    if (trimmed.startsWith("{")) {
+        try {
+            const payload = JSON.parse(trimmed);
+            if (payload.error || payload.status === "error") {
+                throw new Error(payload.error || payload.message || `GAS CSV mode error for "${sheetName}"`);
+            }
+            // JSON-wrapped CSV: {"csv": "col1,col2\n..."}
+            if (typeof payload.csv === "string" && payload.csv.length > 0) {
+                const parsed = parseCsv(payload.csv);
+                if (parsed.length === 0) throw new Error("GAS CSV payload was empty after parse");
+                const headers = parsed[0].map(normalizeHeader);
+                return parsed.slice(1).map((values) => {
+                    const row = {};
+                    headers.forEach((header, index) => {
+                        if (header) row[header] = values[index] ?? "";
+                    });
+                    return row;
+                });
+            }
+            // JSON object but no .csv field — not a CSV response
+            throw new Error("GAS returned JSON without .csv field for CSV mode");
+        } catch (e) {
+            // If it's our own thrown error, re-throw; otherwise it's a parse
+            // error meaning the response isn't JSON — try raw CSV below.
+            if (e.message.includes("GAS CSV") || e.message.includes("GAS returned")) throw e;
+        }
+    }
+
+    // Raw CSV response — parse directly.
+    const parsed = parseCsv(text);
+    if (parsed.length === 0) {
+        throw new Error(`GAS CSV response for "${sheetName}" was empty after parse`);
+    }
+
+    const headers = parsed[0].map(normalizeHeader);
+    return parsed.slice(1).map((values) => {
+        const row = {};
+        headers.forEach((header, index) => {
+            if (header) row[header] = values[index] ?? "";
+        });
+        return row;
+    });
 }
 
 async function findPayoutStationId(client, station) {
