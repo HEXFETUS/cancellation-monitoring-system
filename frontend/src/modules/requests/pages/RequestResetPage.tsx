@@ -346,7 +346,7 @@ export default function RequestResetPage() {
                                     <div>
                                         <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Move to</div>
                                         <div className="text-sm font-medium" style={{ color: teal }}>
-                                            {req.requested_booth_code || `#${req.requested_booth_id}`}
+                                            {getRequestedBoothIdLabel(req)}
                                             {req.requested_by_name && <span className="block text-xs font-normal text-gray-500"></span>}
                                         </div>
                                     </div>
@@ -431,7 +431,7 @@ export default function RequestResetPage() {
                             </div>
                             <div className="flex items-center justify-between">
                                 <span className="text-xs font-medium text-gray-500">To</span>
-                                <span className="font-semibold" style={{ color: teal }}>{rejectTarget.requested_booth_code || `#${rejectTarget.requested_booth_id}`}</span>
+                                <span className="font-semibold" style={{ color: teal }}>{getRequestedBoothIdLabel(rejectTarget)}</span>
                             </div>
                         </div>
                     )}
