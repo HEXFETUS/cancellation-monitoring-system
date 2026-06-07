@@ -75,6 +75,7 @@ export default function BoothChangeRequestHistory({
                             <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Reason</th>
                             <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Status</th>
                             <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Submitted</th>
+                            <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Admin Note</th>
                             <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500 text-right">Actions</th>
                         </tr>
                     </thead>
@@ -82,7 +83,7 @@ export default function BoothChangeRequestHistory({
                         {filteredRequests.length === 0 ? (
                             <tr>
                                 <td
-                                    colSpan={7}
+                                    colSpan={8}
                                     className="px-4 py-6 text-center text-sm text-gray-500"
                                 >
                                     No requests match "{search}".
@@ -104,6 +105,7 @@ export default function BoothChangeRequestHistory({
                                     <td className="px-4 py-3 text-gray-500">{r.reason || "-"}</td>
                                     <td className="whitespace-nowrap px-4 py-3"><StatusPill status={r.status} /></td>
                                     <td className="whitespace-nowrap px-4 py-3 text-xs text-gray-400">{new Date(r.created_at).toLocaleString()}</td>
+                                    <td className="whitespace-nowrap px-4 py-3 text-gray-500 max-w-[200px] truncate" title={r.admin_notes || ""}>{r.admin_notes || "-"}</td>
                                     <td className="whitespace-nowrap px-4 py-3 text-right">
                                         {(r.status || "").toLowerCase() === "pending" ? (
                                             <button

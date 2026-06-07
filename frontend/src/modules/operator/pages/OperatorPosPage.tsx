@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRightLeft, History, CheckCircle2, AlertCircle, Info, Search, X } from "lucide-react";
+import { ArrowRightLeft, History, CheckCircle2, AlertCircle, Info, Search, X, UserCog } from "lucide-react";
 import { useAuth } from "../../../context/AuthContext";
 import { fetchPosRecords, fetchBoothInfo, fetchOperators } from "../../pos/services";
 import type { OperatorInfo, PosRecord, BoothInfo } from "../../pos/types";
@@ -10,6 +10,7 @@ import {
 import { Pagination, Toast } from "../../../shared/components";
 import BoothChangeRequestHistory from "../components/BoothChangeRequestHistory";
 import RequestBoothChangeModal from "../components/RequestBoothChangeModal";
+import AssignSubOperatorModal from "../components/AssignSubOperatorModal";
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 const PAGE_SIZE = 10;
@@ -41,6 +42,8 @@ export default function OperatorPosPage({ searchQuery: externalSearch = "", refr
         return localStorage.getItem("theme") === "dark";
     });
     const [allOperators, setAllOperators] = useState<OperatorInfo[]>([]);
+    const [myOperatorId, setMyOperatorId] = useState<number | null>(null);
+    const [myParentOperatorId, setMyParentOperatorId] = useState<number | null>(null);
     const [records, setRecords] = useState<PosRecord[]>([]);
     const [booths, setBooths] = useState<BoothInfo[]>([]);
     const [requests, setRequests] = useState<BoothChangeRequest[]>([]);
@@ -52,6 +55,7 @@ export default function OperatorPosPage({ searchQuery: externalSearch = "", refr
     const [page, setPage] = useState(1);
 
     const [requesting, setRequesting] = useState<PosRecord | null>(null);
+    const [assigning, setAssigning] = useState<PosRecord | null>(null);
 
     // Inline notice (toast shown above the table, on the left side)
     const [notice, setNotice] = useState<Notice | null>(null);
@@ -146,6 +150,8 @@ export default function OperatorPosPage({ searchQuery: externalSearch = "", refr
                 listBoothChangeRequests({ status: "pending" }),
                 fetchOperators().catch(() => [] as OperatorInfo[]),
             ]);
+            setMyOperatorId(meSafe?.operator_id ?? null);
+            setMyParentOperatorId(meSafe?.parent_operator_id ?? null);
             setRecords(posData);
             setBooths(boothData);
             setRequests(reqData);
@@ -342,26 +348,44 @@ export default function OperatorPosPage({ searchQuery: externalSearch = "", refr
                                                 </span>
                                             </td>
                                             <td className="whitespace-nowrap px-4 py-3 text-right">
-                                                <button
-                                                    onClick={() => {
-                                                        if (!pending) setRequesting(rec);
-                                                    }}
-                                                    disabled={!!pending}
-                                                    title={pending ? "This device has a pending booth change request." : undefined}
-                                                    className="group inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium text-gray-700 transition-all duration-200 hover:scale-[1.03] active:scale-[0.97] disabled:cursor-not-allowed disabled:hover:scale-100 disabled:active:scale-100"
-                                                    style={{
-                                                        background: pending
-                                                            ? "rgba(242,215,181,0.60)"
-                                                            : `linear-gradient(135deg, ${teal}30, ${tealLight}20)`,
-                                                        border: pending
-                                                            ? "1px solid rgba(242,215,181,0.80)"
-                                                            : "1px solid rgba(146,199,207,0.30)",
-                                                        opacity: pending ? 0.75 : 1,
-                                                    }}
-                                                >
-                                                    <ArrowRightLeft size={13} />
-                                                    {pending ? `Pending: ${pending.requested_booth_code || `#${pending.requested_booth_id}`}` : "Request Booth Change"}
-                                                </button>
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <button
+                                                        onClick={() => {
+                                                            if (!pending) setRequesting(rec);
+                                                        }}
+                                                        disabled={!!pending}
+                                                        title={pending ? "This device has a pending booth change request." : undefined}
+                                                        className="group inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium text-gray-700 transition-all duration-200 hover:scale-[1.03] active:scale-[0.97] disabled:cursor-not-allowed disabled:hover:scale-100 disabled:active:scale-100"
+                                                        style={{
+                                                            background: pending
+                                                                ? "rgba(242,215,181,0.60)"
+                                                                : `linear-gradient(135deg, ${teal}30, ${tealLight}20)`,
+                                                            border: pending
+                                                                ? "1px solid rgba(242,215,181,0.80)"
+                                                                : "1px solid rgba(146,199,207,0.30)",
+                                                            opacity: pending ? 0.75 : 1,
+                                                        }}
+                                                    >
+                                                        <ArrowRightLeft size={13} />
+                                                        {pending ? `Pending: ${pending.requested_booth_code || `#${pending.requested_booth_id}`}` : "Request Booth Change"}
+                                                    </button>
+                                                    {myParentOperatorId == null && (
+                                                        <button
+                                                            onClick={() => setAssigning(rec)}
+                                                            disabled={!!pending}
+                                                            title={pending ? "This device has a pending request." : undefined}
+                                                            className="group inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium text-gray-700 transition-all duration-200 hover:scale-[1.03] active:scale-[0.97] disabled:cursor-not-allowed disabled:hover:scale-100 disabled:active:scale-100"
+                                                            style={{
+                                                                background: `linear-gradient(135deg, ${teal}30, ${tealLight}20)`,
+                                                                border: "1px solid rgba(146,199,207,0.30)",
+                                                                opacity: pending ? 0.75 : 1,
+                                                            }}
+                                                        >
+                                                            <UserCog size={13} />
+                                                            Assign to Sub Op
+                                                        </button>
+                                                    )}
+                                                </div>
                                             </td>
                                         </tr>
                                     );
@@ -434,6 +458,20 @@ export default function OperatorPosPage({ searchQuery: externalSearch = "", refr
                     setRequesting(null);
                     await refreshData();
                     showNotice("success", "Booth change request submitted successfully.");
+                }}
+                onError={(message) => showNotice("error", message)}
+            />
+
+            <AssignSubOperatorModal
+                open={!!assigning}
+                posRecord={assigning}
+                operators={allOperators}
+                currentOperatorId={myOperatorId}
+                onClose={() => setAssigning(null)}
+                onSubmitted={async () => {
+                    setAssigning(null);
+                    await refreshData();
+                    showNotice("success", "Sub-operator assignment request submitted successfully.");
                 }}
                 onError={(message) => showNotice("error", message)}
             />
