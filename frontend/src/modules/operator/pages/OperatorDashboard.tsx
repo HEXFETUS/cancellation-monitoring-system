@@ -196,6 +196,43 @@ export default function OperatorDashboard() {
 
     const combinedStats = useMemo(() => computeStats(allRecords), [allRecords]);
 
+    const operatorBreakdown = useMemo(() => {
+        if (!myOperator || isSubOperator) return [];
+
+        const counts = new Map<number, ReturnType<typeof computeStats>>();
+        const outletMap = new Map<number, BoothInfo[]>();
+        for (const op of [myOperator, ...operators.filter((op) => subOperatorIds.has(Number(op.id)))]) {
+            const opId = Number(op.id);
+            const opRecords = records.filter((r) => r.operator_id != null && Number(r.operator_id) === opId);
+            counts.set(opId, computeStats(opRecords));
+            outletMap.set(
+                opId,
+                booths
+                    .filter((b) => b.operator_id != null && Number(b.operator_id) === opId)
+                    .sort((a, b) => String(a.booth_code || "").localeCompare(String(b.booth_code || "")))
+            );
+        }
+
+        return [
+            {
+                id: Number(myOperator.id),
+                name: myOperator.operator || me?.operator_name || "My operator",
+                role: "main" as const,
+                stats: counts.get(Number(myOperator.id)) ?? { total: 0, active: 0, inactive: 0 },
+                outlets: outletMap.get(Number(myOperator.id)) ?? [],
+            },
+            ...operators
+                .filter((op) => subOperatorIds.has(Number(op.id)))
+                .map((op) => ({
+                    id: Number(op.id),
+                    name: op.operator,
+                    role: "sub" as const,
+                    stats: counts.get(Number(op.id)) ?? { total: 0, active: 0, inactive: 0 },
+                    outlets: outletMap.get(Number(op.id)) ?? [],
+                })),
+        ];
+    }, [booths, me?.operator_name, myOperator, isSubOperator, operators, records, subOperatorIds]);
+
     // Total outlets with area breakdown
     const { totalOutlets, cdoCount, misorCount } = useMemo(() => {
         const ownerIds = new Set<number>();
@@ -343,6 +380,94 @@ export default function OperatorDashboard() {
                         }
                     />
                 </div>
+
+                {!loading && operatorBreakdown.length > 1 && (
+                    <GlassCard className="mt-4">
+                        <div className="border-b border-white/40 bg-gradient-to-r from-[#92C7CF]/10 to-[#AAD7D9]/10 px-5 py-3">
+                            <div className="flex items-center justify-between gap-3">
+                                <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-800">
+                                    <UserCircle size={15} />
+                                    Devices & outlets by operator
+                                </h3>
+                                <span className="text-xs font-medium text-gray-500">
+                                    you + {operatorBreakdown.length - 1} sub{operatorBreakdown.length === 2 ? "" : "s"}
+                                </span>
+                            </div>
+                        </div>
+                        <div className={`overflow-x-auto ${operatorBreakdown.length > 10 ? "max-h-[520px] overflow-y-auto" : ""}`}>
+                            <table className="w-full text-left text-sm">
+                                <thead className={operatorBreakdown.length > 10 ? "sticky top-0 z-10" : ""}>
+                                    <tr className="border-b border-white/50 bg-white">
+                                        <th className="whitespace-nowrap px-5 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
+                                            Operator
+                                        </th>
+                                        <th className="min-w-[220px] px-5 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
+                                            Outlets
+                                        </th>
+                                        <th className="whitespace-nowrap px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">
+                                            Total Outlets
+                                        </th>
+                                        <th className="whitespace-nowrap px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">
+                                            Devices
+                                        </th>
+                                        <th className="whitespace-nowrap px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">
+                                            Active
+                                        </th>
+                                        <th className="whitespace-nowrap px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">
+                                            Inactive
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {operatorBreakdown.map((row) => (
+                                        <tr key={row.id} className="border-b border-white/40 last:border-0">
+                                            <td className="px-5 py-3">
+                                                <div className="flex min-w-0 items-center gap-2">
+                                                    <span className="truncate font-medium text-gray-800">{row.name}</span>
+                                                    <span
+                                                        className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                                                        style={{
+                                                            background: row.role === "main" ? "rgba(255,255,255,0.65)" : `${teal}25`,
+                                                            color: row.role === "main" ? "#6B7280" : teal,
+                                                        }}
+                                                    >
+                                                        {row.role}
+                                                    </span>
+                                                </div>
+                                            </td>
+                                            <td className="px-5 py-3">
+                                                {row.outlets.length === 0 ? (
+                                                    <span className="text-xs text-gray-400">No outlets assigned</span>
+                                                ) : (
+                                                    <div className="flex max-w-xl flex-wrap gap-1.5">
+                                                        {row.outlets.slice(0, 5).map((outlet) => (
+                                                            <span
+                                                                key={outlet.id}
+                                                                className="inline-flex max-w-[150px] items-center rounded-full bg-white/55 px-2 py-1 font-mono text-[11px] font-medium text-gray-700 ring-1 ring-white/60"
+                                                                title={[outlet.booth_code, outlet.booth_location].filter(Boolean).join(" - ")}
+                                                            >
+                                                                <span className="truncate">{outlet.booth_code || `Booth #${outlet.id}`}</span>
+                                                            </span>
+                                                        ))}
+                                                        {row.outlets.length > 5 && (
+                                                            <span className="inline-flex items-center rounded-full px-2 py-1 text-[11px] font-semibold text-gray-500 ring-1 ring-white/60">
+                                                                +{row.outlets.length - 5} more
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </td>
+                                            <td className="px-5 py-3 text-right font-semibold text-gray-800">{row.outlets.length}</td>
+                                            <td className="px-5 py-3 text-right font-semibold text-gray-800">{row.stats.total}</td>
+                                            <td className="px-5 py-3 text-right text-gray-600">{row.stats.active}</td>
+                                            <td className="px-5 py-3 text-right text-gray-600">{row.stats.inactive}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </GlassCard>
+                )}
             </div>
 
             {/* ── Recent Requests section — only rendered when at least one card is visible ── */}

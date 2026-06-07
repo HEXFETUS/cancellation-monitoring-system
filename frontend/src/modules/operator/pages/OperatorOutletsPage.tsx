@@ -20,6 +20,7 @@ import {
 } from "../../requests/services/boothOperatorChangeRequests";
 import ConfirmationModal from "../../pos/components/ConfirmationModal";
 import EditModal from "../../pos/components/EditModal";
+import AssignBoothToSubOperatorModal from "../components/AssignBoothToSubOperatorModal";
 
 const OUTLETS_PER_PAGE = 10;
 
@@ -71,6 +72,10 @@ export default function OperatorOutletsPage() {
     const [submitting, setSubmitting] = useState(false);
     const [showConfirm, setShowConfirm] = useState(false);
     const [reason, setReason] = useState("");
+
+    // Assign to Sub-Operator modal state
+    const [showAssignSubOpModal, setShowAssignSubOpModal] = useState(false);
+    const [selectedBoothForAssign, setSelectedBoothForAssign] = useState<BoothInfo | null>(null);
 
     // Toast state (inline in toolbar)
     const [toastOpen, setToastOpen] = useState(false);
@@ -450,16 +455,17 @@ export default function OperatorOutletsPage() {
                                 <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Area</th>
                                 <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Coordinate</th>
                                 <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Location</th>
+                                <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500 text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             {loading ? (
                                 <tr>
-                                    <td colSpan={5} className="px-4 py-10 text-center text-gray-500">Loading...</td>
+                                    <td colSpan={6} className="px-4 py-10 text-center text-gray-500">Loading...</td>
                                 </tr>
                             ) : filteredBooths.length === 0 ? (
                                 <tr>
-                                    <td colSpan={5} className="px-4 py-10 text-center text-gray-500">No outlets assigned to you.</td>
+                                    <td colSpan={6} className="px-4 py-10 text-center text-gray-500">No outlets assigned to you.</td>
                                 </tr>
                             ) : (
                                 paginatedBooths.map((booth) => {
@@ -472,6 +478,29 @@ export default function OperatorOutletsPage() {
                                             <td className="whitespace-nowrap px-4 py-3 text-gray-700">{area}</td>
                                             <td className="whitespace-nowrap px-4 py-3 text-gray-500">{booth.coordinate || "\u2014"}</td>
                                             <td className="whitespace-nowrap px-4 py-3 text-gray-700">{booth.booth_location || "\u2014"}</td>
+                                            <td className="whitespace-nowrap px-4 py-3 text-right">
+                                                {isMainOperator && subOperatorIds.size > 0 && (
+                                                    <button
+                                                        onClick={() => {
+                                                            setSelectedBoothForAssign(booth);
+                                                            setShowAssignSubOpModal(true);
+                                                        }}
+                                                        className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium transition hover:opacity-90"
+                                                        style={{
+                                                            background: "linear-gradient(135deg, #92C7CF, #AAD7D9)",
+                                                            color: "white",
+                                                        }}
+                                                    >
+                                                        Assign to Sub-Op
+                                                    </button>
+                                                )}
+                                                {isMainOperator && subOperatorIds.size === 0 && (
+                                                    <span className="text-xs text-gray-400">\u2014</span>
+                                                )}
+                                                {!isMainOperator && (
+                                                    <span className="text-xs text-gray-400">\u2014</span>
+                                                )}
+                                            </td>
                                         </tr>
                                     );
                                 })
@@ -721,6 +750,30 @@ export default function OperatorOutletsPage() {
                     )}
                 </div>
             </EditModal>
+
+            <AssignBoothToSubOperatorModal
+                open={showAssignSubOpModal}
+                booth={selectedBoothForAssign}
+                operators={operators}
+                currentOperatorId={myOperator?.id ?? null}
+                onClose={() => {
+                    setShowAssignSubOpModal(false);
+                    setSelectedBoothForAssign(null);
+                }}
+                onSubmitted={async () => {
+                    setShowAssignSubOpModal(false);
+                    setSelectedBoothForAssign(null);
+                    setToastType("success");
+                    setToastMessage("Outlet assign request submitted successfully.");
+                    setToastOpen(true);
+                    await loadData();
+                }}
+                onError={(msg) => {
+                    setToastType("error");
+                    setToastMessage(msg);
+                    setToastOpen(true);
+                }}
+            />
         </div>
     );
 }

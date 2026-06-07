@@ -171,21 +171,25 @@ async function initDatabase() {
         await client.query("ALTER TABLE pos_records ADD COLUMN IF NOT EXISTS sticker BOOLEAN DEFAULT false");
 
         /* =========================
-           booth_change_logs
-           The table was originally created with legacy columns (from_booth, to_booth, changed_at).
-           We now use pos_record_id, old_booth_code, new_booth_code, changed_by, created_at.
-           Migration steps keep it backward-compatible.
+           operator_booth_requests
         ========================= */
         await client.query(`
-            CREATE TABLE IF NOT EXISTS booth_change_logs (
+            CREATE TABLE IF NOT EXISTS operator_booth_requests (
                 id SERIAL PRIMARY KEY,
-                pos_record_id INTEGER REFERENCES pos_records(id) ON DELETE CASCADE,
-                old_booth_code VARCHAR(255),
-                new_booth_code VARCHAR(255),
-                changed_by VARCHAR(255),
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                booth_info_id INTEGER NOT NULL REFERENCES booth_info(id) ON DELETE CASCADE,
+                status VARCHAR(20) NOT NULL DEFAULT 'pending'
+                    CHECK (status IN ('pending', 'approved', 'rejected', 'cancelled')),
+                reason TEXT,
+                old_operator VARCHAR(255),
+                decided_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                decided_at TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         `);
+        await client.query("ALTER TABLE operator_booth_requests ADD COLUMN IF NOT EXISTS reason TEXT");
+        await client.query("ALTER TABLE operator_booth_requests ADD COLUMN IF NOT EXISTS old_operator VARCHAR(255)");
 
         // Migrate: add new columns if they don't exist (safe for repeated runs)
         await client.query("ALTER TABLE booth_change_logs ADD COLUMN IF NOT EXISTS old_booth_code VARCHAR(255)");

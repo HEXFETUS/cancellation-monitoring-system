@@ -7,6 +7,8 @@ export interface BoothOperatorChangeRequest {
     user_id: number;
     booth_info_id: number;
     status: BoothOperatorRequestStatus;
+    reason: string | null;
+    old_operator: string | null;
     decided_by_user_id: number | null;
     decided_at: string | null;
     admin_notes: string | null;
@@ -57,6 +59,8 @@ export async function listBoothOperatorChangeRequests(params: {
 export async function createBoothOperatorChangeRequest(input: {
     user_id: number;
     booth_id: number;
+    reason?: string;
+    old_operator?: string | null;
     status?: BoothOperatorRequestStatus;
 }): Promise<BoothOperatorChangeRequest> {
     // New requests are always created with status "pending" so the admin
