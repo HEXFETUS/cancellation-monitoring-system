@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { X } from "lucide-react";
 
 interface Option {
     value: number;
@@ -25,102 +25,148 @@ export default function Dropdown({
 }: DropdownProps) {
     const [open, setOpen] = useState(false);
     const [highlight, setHighlight] = useState(0);
+    const [query, setQuery] = useState("");
     const containerRef = useRef<HTMLDivElement>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
 
     const selected = options.find((o) => o.value === value) ?? null;
 
-    // Close when clicking outside the component.
+    const q = query.trim().toLowerCase();
+    const filtered = q
+        ? options.filter((o) => o.label.toLowerCase().includes(q))
+        : [];
+
+    const showOptions = open && q.length > 0 && filtered.length > 0;
+    const showEmpty = open && (options.length === 0 || (q.length > 0 && filtered.length === 0));
+    const showDropdown = showOptions || showEmpty;
+
+    // Close when clicking outside
     useEffect(() => {
-        if (!open) return;
         const handlePointerDown = (e: MouseEvent) => {
             if (
                 containerRef.current &&
                 !containerRef.current.contains(e.target as Node)
             ) {
                 setOpen(false);
+                setQuery("");
             }
         };
-        // Capture phase so this runs before any option click handler.
         document.addEventListener("pointerdown", handlePointerDown, true);
         return () =>
             document.removeEventListener("pointerdown", handlePointerDown, true);
-    }, [open]);
+    }, []);
 
-    // Reset highlight to the current value (or first option) whenever opened.
+    // Reset highlight when filtered list changes
     useEffect(() => {
-        if (open) {
-            const idx = options.findIndex((o) => o.value === value);
-            setHighlight(idx >= 0 ? idx : 0);
-        }
-    }, [open, options, value]);
+        setHighlight(0);
+    }, [filtered.length]);
+
+    // Scroll the highlighted item into view
+    useEffect(() => {
+        if (!showOptions) return;
+        const list = containerRef.current?.querySelector("[role='listbox']");
+        const item = list?.querySelector(`[data-index="${highlight}"]`);
+        item?.scrollIntoView({ block: "nearest" });
+    }, [highlight, showOptions]);
 
     const selectOption = (v: number) => {
         onChange(v);
         setOpen(false);
+        setQuery("");
     };
 
-    const handleKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
-        if (!open) {
-            if (e.key === "Enter" || e.key === " " || e.key === "ArrowDown") {
-                e.preventDefault();
-                setOpen(true);
-            }
-            return;
-        }
+    const clearSelection = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        onChange(null);
+        setQuery("");
+        setOpen(true);
+        setTimeout(() => inputRef.current?.focus(), 0);
+    };
+
+    const handleFocus = () => {
+        setOpen(true);
+        setQuery("");
+    };
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setQuery(e.target.value);
+        if (!open) setOpen(true);
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
         if (e.key === "Escape") {
             setOpen(false);
+            setQuery("");
         } else if (e.key === "ArrowDown") {
             e.preventDefault();
-            setHighlight((h) => (h + 1) % Math.max(options.length, 1));
+            if (showOptions) {
+                setHighlight((h) => (h + 1) % filtered.length);
+            }
         } else if (e.key === "ArrowUp") {
             e.preventDefault();
-            setHighlight((h) => (h - 1 + options.length) % Math.max(options.length, 1));
+            if (showOptions) {
+                setHighlight((h) => (h - 1 + filtered.length) % filtered.length);
+            }
         } else if (e.key === "Enter") {
             e.preventDefault();
-            const opt = options[highlight];
-            if (opt) selectOption(opt.value);
+            if (showOptions && filtered[highlight]) {
+                selectOption(filtered[highlight].value);
+            }
         }
     };
+
+    // Show the selected label or query in the input
+    const displayValue = open ? query : (selected?.label ?? "");
 
     return (
         <div ref={containerRef} className={`relative ${className}`}>
-            <button
-                type="button"
-                onClick={() => setOpen((o) => !o)}
-                onKeyDown={handleKeyDown}
-                aria-haspopup="listbox"
-                aria-expanded={open}
-                className="flex w-full items-center justify-between rounded-lg border border-warm bg-card px-3 py-2 text-left text-sm text-ink focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal"
-            >
-                <span className={selected ? "text-ink" : "text-ink-subtle"}>
-                    {selected ? selected.label : placeholder}
-                </span>
-                <ChevronDown
-                    size={16}
-                    className={`text-ink-subtle transition-transform ${open ? "rotate-180" : ""}`}
+            <div className="relative">
+                <input
+                    ref={inputRef}
+                    type="text"
+                    autoComplete="off"
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    spellCheck={false}
+                    value={displayValue}
+                    placeholder={placeholder}
+                    onChange={handleChange}
+                    onFocus={handleFocus}
+                    onKeyDown={handleKeyDown}
+                    aria-haspopup="listbox"
+                    aria-expanded={showDropdown}
+                    className="w-full rounded-lg border border-warm bg-card px-3 py-2 pr-8 text-sm text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal"
                 />
-            </button>
+                {selected && !open && (
+                    <button
+                        type="button"
+                        onClick={clearSelection}
+                        className="absolute right-7 top-1/2 -translate-y-1/2 text-ink-subtle transition hover:text-ink"
+                        tabIndex={-1}
+                    >
+                        <X size={14} />
+                    </button>
+                )}
+            </div>
 
-            {open && (
+            {showDropdown && (
                 <ul
                     role="listbox"
                     className="absolute left-0 right-0 top-full z-50 mt-1 max-h-60 overflow-y-auto rounded-lg border border-warm bg-card shadow-lg"
                 >
-                    {options.length === 0 ? (
-                        <li className="px-3 py-2 text-sm text-ink-subtle">
+                    {showEmpty ? (
+                        <li className="px-3 py-2 text-sm text-ink-muted">
                             {emptyMessage}
                         </li>
                     ) : (
-                        options.map((opt, idx) => (
+                        filtered.map((opt, idx) => (
                             <li
                                 key={opt.value}
+                                data-index={idx}
                                 role="option"
                                 aria-selected={opt.value === value}
                                 onMouseEnter={() => setHighlight(idx)}
                                 onMouseDown={(e) => {
-                                    // Fire selection on mousedown so it happens
-                                    // before any blur/focus side effects from
-                                    // the document-level pointerdown listener.
                                     e.preventDefault();
                                     selectOption(opt.value);
                                 }}
@@ -128,7 +174,7 @@ export default function Dropdown({
                                     idx === highlight
                                         ? "bg-teal/10 text-ink dark:bg-teal/30 dark:text-white"
                                         : "text-ink hover:bg-cream dark:text-gray-300 dark:hover:bg-gray-700"
-                                }`}
+                                } ${opt.value === value ? "font-semibold" : ""}`}
                             >
                                 {opt.label}
                             </li>

@@ -2,21 +2,23 @@ import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Monitor, Send, Search, RefreshCw } from "lucide-react";
 import OperatorPosPage from "./OperatorPosPage";
-import RequestPosPage from "./RequestPosPage";
+import RequestPosPage from "../components/RequestPosPage";
 import { useAuth } from "../../../context/AuthContext";
 import { listOperatorChangeRequests } from "../../requests/services/operatorChangeRequests";
 import { TopTabs } from "../../../shared/components";
 
-type TabId = "my-pos" | "request-pos";
+const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 
-const tabs: { id: TabId; label: string; icon: typeof Monitor }[] = [
-    { id: "my-pos", label: "My POS", icon: Monitor },
-    { id: "request-pos", label: "Add POS", icon: Send },
-];
+type TabId = "my-pos" | "request-pos";
 
 function getValidTab(raw: string | null): TabId {
     if (raw === "my-pos" || raw === "request-pos") return raw;
     return "my-pos";
+}
+
+interface Me {
+    id: number;
+    parent_operator_id: number | null;
 }
 
 export default function OperatorTabbedPage() {
@@ -29,6 +31,29 @@ export default function OperatorTabbedPage() {
     const [darkMode, setDarkMode] = useState(() => {
         return document.documentElement.classList.contains("dark") || localStorage.getItem("theme") === "dark";
     });
+    const [me, setMe] = useState<Me | null>(null);
+
+    // Fetch /api/users/me to determine if the user is a sub-operator
+    useEffect(() => {
+        if (!user?.id) return;
+        fetch(`${API_BASE_URL}/api/users/me?id=${user.id}`)
+            .then((res) => (res.ok ? res.json() : null))
+            .then((data) => {
+                setMe(
+                    data
+                        ? { id: data.id, parent_operator_id: data.parent_operator_id ?? null }
+                        : null
+                );
+            })
+            .catch(() => setMe(null));
+    }, [user]);
+
+    const isSubOperator = me?.parent_operator_id != null;
+
+    const tabs: { id: TabId; label: string; icon: typeof Monitor }[] = [
+        { id: "my-pos", label: "My POS", icon: Monitor },
+        ...(!isSubOperator ? [{ id: "request-pos" as const, label: "Assign POS", icon: Send as typeof Monitor }] : []),
+    ];
 
     useEffect(() => {
         const syncTheme = () => {

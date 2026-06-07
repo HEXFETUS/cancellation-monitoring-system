@@ -9,6 +9,7 @@ export interface BoothOperatorChangeRequest {
     status: BoothOperatorRequestStatus;
     decided_by_user_id: number | null;
     decided_at: string | null;
+    admin_notes: string | null;
     created_at: string;
     updated_at: string;
     // Joined fields for display
@@ -89,7 +90,7 @@ export async function cancelBoothOperatorChangeRequest(
 
 export async function approveBoothOperatorChangeRequest(
     id: number,
-    input: { admin_user_id?: number | null }
+    input: { admin_user_id?: number | null; admin_notes?: string }
 ): Promise<BoothOperatorChangeRequest> {
     const res = await fetch(apiUrl(`/api/booth-operator-change-requests/${id}/approve`), {
         method: "POST",
@@ -102,7 +103,7 @@ export async function approveBoothOperatorChangeRequest(
 
 export async function rejectBoothOperatorChangeRequest(
     id: number,
-    input: { admin_user_id?: number | null }
+    input: { admin_user_id?: number | null; admin_notes?: string }
 ): Promise<BoothOperatorChangeRequest> {
     const res = await fetch(apiUrl(`/api/booth-operator-change-requests/${id}/reject`), {
         method: "POST",
