@@ -124,12 +124,16 @@ export default function AssignOutletPage() {
     const confirmApprove = async () => {
         const req = approveTarget;
         if (!req || !user?.id) return;
+        const isLastPending = statusFilter === "pending" && counts.pending === 1;
         setBusyId(req.id);
         setApproveTarget(null);
         try {
             await approveBoothOperatorChangeRequest(req.id, { admin_user_id: user.id });
             showToast("success", `Approved request for outlet ${req.booth_code || `#${req.booth_info_id}`}.`);
             await load();
+            if (isLastPending) {
+                setStatusFilter("approved");
+            }
         } catch (e) {
             showToast("error", e instanceof Error ? e.message : "Failed to approve request");
         } finally {
@@ -140,6 +144,7 @@ export default function AssignOutletPage() {
     const submitReject = async () => {
         const req = rejectNoteTarget;
         if (!req || !user?.id) return;
+        const isLastPending = statusFilter === "pending" && counts.pending === 1;
         setBusyId(req.id);
         setRejectNoteTarget(null);
         setRejectNote("");
@@ -147,6 +152,9 @@ export default function AssignOutletPage() {
             await rejectBoothOperatorChangeRequest(req.id, { admin_user_id: user.id });
             showToast("info", `Rejected request for outlet ${req.booth_code || `#${req.booth_info_id}`}.`);
             await load();
+            if (isLastPending) {
+                setStatusFilter("rejected");
+            }
         } catch (e) {
             showToast("error", e instanceof Error ? e.message : "Failed to reject request");
         } finally {

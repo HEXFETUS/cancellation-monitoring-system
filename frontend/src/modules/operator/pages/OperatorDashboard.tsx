@@ -626,7 +626,7 @@ export default function OperatorDashboard() {
                                                         <BoothStatusPill status={r.status} />
                                                     </div>
                                                     <p className="mt-0.5 text-xs text-gray-500 truncate">
-                                                        <span className="font-mono">{r.current_booth_code || "—"}</span>
+                                                        <span className="font-mono">{r.old_booth_code || r.current_booth_code || "—"}</span>
                                                         <span className="mx-1 text-gray-300">→</span>
                                                         <span className="font-mono" style={{ color: teal }}>
                                                             {r.requested_booth_code || `#${r.requested_booth_id}`}

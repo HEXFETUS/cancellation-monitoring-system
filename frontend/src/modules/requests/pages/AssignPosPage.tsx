@@ -124,12 +124,16 @@ export default function AssignPosPage() {
     const confirmApprove = async () => {
         const req = approveTarget;
         if (!req || !user?.id) return;
+        const isLastPending = statusFilter === "pending" && counts.pending === 1;
         setBusyId(req.id);
         setApproveTarget(null);
         try {
             await approveOperatorChangeRequest(req.id, { admin_user_id: user.id });
             showToast("success", `Approved request for ${req.device_no || `POS #${req.pos_record_id}`}.`);
             await load();
+            if (isLastPending) {
+                setStatusFilter("approved");
+            }
         } catch (e) {
             showToast("error", e instanceof Error ? e.message : "Failed to approve request");
         } finally {
@@ -145,6 +149,7 @@ export default function AssignPosPage() {
             showToast("error", "Please add a rejection note before saving.");
             return;
         }
+        const isLastPending = statusFilter === "pending" && counts.pending === 1;
         setBusyId(req.id);
         setRejectNoteTarget(null);
         setRejectNote("");
@@ -152,6 +157,9 @@ export default function AssignPosPage() {
             await rejectOperatorChangeRequest(req.id, { admin_user_id: user.id, admin_notes: note });
             showToast("info", `Rejected request for ${req.device_no || `POS #${req.pos_record_id}`}.`);
             await load();
+            if (isLastPending) {
+                setStatusFilter("rejected");
+            }
         } catch (e) {
             showToast("error", e instanceof Error ? e.message : "Failed to reject request");
         } finally {
@@ -314,16 +322,29 @@ export default function AssignPosPage() {
                                             {r.requested_by_name && <span className="block text-xs font-normal text-gray-500"></span>}
                                         </div>
                                     </div>
-                                    <div>
-                                        <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Reason</div>
-                                        <div className="text-sm text-gray-700">
-                                            {r.reason ? (
-                                                <span className="line-clamp-2" title={r.reason}>{r.reason}</span>
-                                            ) : (
-                                                <span className="text-gray-400 italic">No reason provided</span>
-                                            )}
+                                    {statusFilter !== "rejected" ? (
+                                        <div>
+                                            <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Reason</div>
+                                            <div className="text-sm text-gray-700">
+                                                {r.reason ? (
+                                                    <span className="line-clamp-2" title={r.reason}>{r.reason}</span>
+                                                ) : (
+                                                    <span className="text-gray-400 italic">No reason provided</span>
+                                                )}
+                                            </div>
                                         </div>
-                                    </div>
+                                    ) : (
+                                        <div>
+                                            <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Admin note</div>
+                                            <div className="text-sm text-gray-700">
+                                                {r.admin_notes ? (
+                                                    <span className="line-clamp-2" title={r.admin_notes}>{r.admin_notes}</span>
+                                                ) : (
+                                                    <span className="text-gray-400 italic">No admin note provided</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {(statusFilter === "approved" || statusFilter === "rejected") && (

@@ -100,7 +100,7 @@ export default function BoothChangeRequestHistory({
                                             {r.serial_number || "—"}
                                         </div>
                                     </td>
-                                    <td className="whitespace-nowrap px-4 py-3 text-gray-500">{r.current_booth_code || "-"}</td>
+                                    <td className="whitespace-nowrap px-4 py-3 text-gray-500">{r.old_booth_code || r.current_booth_code || "-"}</td>
                                     <td className="whitespace-nowrap px-4 py-3 text-gray-700">{r.requested_booth_code || `#${r.requested_booth_id}`}</td>
                                     <td className="px-4 py-3 text-gray-500">{r.reason || "-"}</td>
                                     <td className="whitespace-nowrap px-4 py-3"><StatusPill status={r.status} /></td>
@@ -158,7 +158,7 @@ export default function BoothChangeRequestHistory({
                         </div>
                         <div className="flex items-center justify-between">
                             <span className="font-semibold">From</span>
-                            <span>{cancelTarget.current_booth_code || "-"}</span>
+                            <span>{cancelTarget.old_booth_code || cancelTarget.current_booth_code || "-"}</span>
                         </div>
                         <div className="flex items-center justify-between">
                             <span className="font-semibold">To</span>
