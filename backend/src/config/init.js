@@ -593,6 +593,13 @@ async function initDatabase() {
         await client.query(
             "CREATE INDEX IF NOT EXISTS idx_bcr_user ON booth_change_requests(requested_by_user_id)"
         );
+        // old_booth_code captures the booth the device was in at the time the
+        // request was submitted so the "Move from" value is preserved even after
+        // the device moves to a different booth (approval) or the device's
+        // current_booth_id changes for other reasons.
+        await client.query(
+            "ALTER TABLE booth_change_requests ADD COLUMN IF NOT EXISTS old_booth_code VARCHAR(255)"
+        );
 
         /* =========================
            operator_change_requests — operators ask admins to re-assign
