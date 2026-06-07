@@ -35,7 +35,7 @@ function validate(body) {
 router.get("/", async (_req, res) => {
     try {
         const result = await pool.query(
-            `SELECT ${COLUMNS} FROM asset_coding ORDER BY id DESC`
+            `SELECT ${COLUMNS} FROM asset_coding WHERE is_current = TRUE ORDER BY id DESC`
         );
         res.json(result.rows);
     } catch (err) {
