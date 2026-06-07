@@ -900,9 +900,15 @@ function sheetAssetCodeToDbRow(row) {
  * row. The fields we DO include must be canonicalised (lowercased,
  * trimmed) so cosmetic edits don't trip the hash either.
  */
-function computeAssetRowHash(asset) {
+function computeAssetRowHash(asset, rawRow) {
     const norm = (v) => String(v ?? "").trim().toLowerCase();
     const parts = [
+        // The sheet's "ID" column is a row-level identifier that makes the
+        // hash unique per spreadsheet row. Without it, two rows describing
+        // different assets but sharing the same content fields (e.g. two
+        // "Office Chair" units with blank serial numbers) would hash to the
+        // same value and the second one would be silently dropped.
+        norm(rawRow?.id),
         norm(asset.location),
         norm(asset.item_description),
         norm(asset.serial_number),
@@ -920,9 +926,10 @@ function computeAssetRowHash(asset) {
  * including it (plus description as a tie-breaker for blank ASSET IDs)
  * is enough.
  */
-function computeAssetCodeRowHash(assetCode) {
+function computeAssetCodeRowHash(assetCode, rawRow) {
     const norm = (v) => String(v ?? "").trim().toLowerCase();
     const parts = [
+        norm(rawRow?.id),
         norm(assetCode.item_code),
         norm(assetCode.description),
         norm(assetCode.department),
@@ -969,7 +976,7 @@ async function importAssetFromSheet(client, row) {
         return { skipped: true, reason: "All columns are empty", hash: null };
     }
 
-    const hash = computeAssetRowHash(asset);
+    const hash = computeAssetRowHash(asset, row);
 
     // Already imported? Bail before doing any FK lookups so concurrent
     // syncs don't waste DB round-trips.
@@ -1057,7 +1064,7 @@ async function importAssetCodeFromSheet(client, row) {
         return { skipped: true, reason: "All columns are empty", hash: null };
     }
 
-    const hash = computeAssetCodeRowHash(assetCode);
+    const hash = computeAssetCodeRowHash(assetCode, row);
 
     const existing = await client.query(
         `SELECT id FROM asset_coding WHERE sheet_row_hash = $1 LIMIT 1`,
