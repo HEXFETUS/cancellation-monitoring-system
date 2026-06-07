@@ -207,6 +207,19 @@ function parseCsv(text) {
     return rows.filter((values) => values.some((item) => String(item || "").trim()));
 }
 
+function toObjects(csvRows) {
+    if (csvRows.length === 0) return [];
+
+    const headers = csvRows[0].map(normalizeHeader);
+    return csvRows.slice(1).map((values) => {
+        const row = {};
+        headers.forEach((header, index) => {
+            if (header) row[header] = values[index] ?? "";
+        });
+        return row;
+    });
+}
+
 function normalizeObjectRows(rows) {
     if (!Array.isArray(rows)) return [];
 
@@ -255,6 +268,11 @@ function parseNumber(value, fallback = 0) {
 
 function parseInteger(value, fallback = 0) {
     return Math.floor(parseNumber(value, fallback));
+}
+
+function parseId(value) {
+    const id = parseInteger(value, 0);
+    return id > 0 ? id : null;
 }
 
 function parseDateOrNull(value) {
@@ -308,19 +326,30 @@ async function fetchSheetRowsByName(sheetName) {
         }
     }
 
-    // If GAS Web App returned rows, trust them. The Apps Script uses an
-    // explicit HEADER_ROW_BY_SHEET map and reads only the data rows beneath
-    // the header, so it's the most reliable path for both tabs. The CSV
-    // export below is kept only as a fallback when the Web App is
-    // unreachable (cold start, Google outage, etc.).
+    // If GAS Web App returned rows, decide per-tab whether to trust them.
+    // The "Inventory - Asset" tab is always routed to the CSV export because
+    // Google Apps Script Web Apps have unreliable row limits that shift based
+    // on cell content, execution time, and memory. The CSV export (below) has
+    // no row limit and handles the full dataset reliably regardless of size.
+    // Other tabs (e.g. "Assets Coding") work fine through the Web App and
+    // benefit from its bidirectional sync support.
     if (rows.length > 0) {
-        return rows;
+        if (sheetName === ASSET_SHEET_NAMES.assets) {
+            console.warn(
+                `Forcing CSV export for "${sheetName}" — Web App returned ${rows.length} rows ` +
+                `but may be truncated. CSV export has no row limit.`
+            );
+            rows = []; // Clear rows to force CSV fallback below
+        } else {
+            return rows; // All other tabs — use Web App result as-is
+        }
     }
 
-    // Fallback: CSV export. Only kicks in when the Web App returned nothing.
+    // Second try (or fallback after truncation): CSV export
     for (const csvUrl of [
         `https://docs.google.com/spreadsheets/d/${ASSET_SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}`,
         `https://docs.google.com/spreadsheets/d/${ASSET_SPREADSHEET_ID}/export?format=csv&sheet=${encodeURIComponent(sheetName)}`,
+        `https://docs.google.com/spreadsheets/d/${ASSET_SPREADSHEET_ID}/export?gid=0&format=csv`,
     ]) {
         try {
             const response = await fetch(csvUrl);
@@ -476,11 +505,21 @@ async function findOfficeDepartmentId(client, department) {
     return result.rows[0]?.id || null;
 }
 
-async function syncSerialSequence(_client, _tableName) {
-    // Retired. The asset sync now uses TRUNCATE … RESTART IDENTITY which
-    // already resets the sequence, and no caller relies on this helper any
-    // more. Kept as a no-op for one release in case a downstream import
-    // still references it; safe to delete on the next clean-up pass.
+async function syncSerialSequence(client, tableName) {
+    if (!["asset_inv", "asset_coding"].includes(tableName)) {
+        throw new Error(`Cannot sync unknown asset table sequence: ${tableName}`);
+    }
+
+    await client.query(
+        `
+        SELECT setval(
+            pg_get_serial_sequence($1, 'id'),
+            COALESCE((SELECT MAX(id) FROM ${tableName}), 0) + 1,
+            false
+        )
+        `,
+        [tableName]
+    );
 }
 
 export function mapAssetToSheetRow(row) {
@@ -691,10 +730,9 @@ function sheetAssetToDbRow(row) {
             : parseNumber(pick(row, ["Asset Value", "Value"]), 0);
 
     return {
-        // Sheet's "ID"/"NO." columns are row counters for humans, not FKs.
-        // The new sync TRUNCATEs both tables and inserts every row fresh,
-        // so this field is unused — but kept on the row object so any future
-        // consumer that wants to remember the sheet's NO. can grab it here.
+        // Don't trust the sheet to assign DB primary keys. Sheet's "ID"/"NO."
+        // columns are row counters for humans, not foreign keys. Existing rows
+        // are matched downstream by serial_number or (location, item_description).
         id: null,
         location,
         // Truncate text fields to DB column widths so long sheet values don't
@@ -747,7 +785,7 @@ function sheetAssetCodeToDbRow(row) {
 
     return {
         // asset_id (FK to asset_inv) is resolved later via description match
-        // inside insertAssetCodeFromSheet. Never read it from the sheet.
+        // inside upsertAssetCodeFromSheet. Never read it from the sheet.
         item_code: itemCode,
         description,
         type: pick(row, ["Type", "Category"]) || null,
@@ -758,11 +796,12 @@ function sheetAssetCodeToDbRow(row) {
     };
 }
 
-async function insertAssetFromSheet(client, row) {
+async function upsertAssetFromSheet(client, row) {
     const asset = sheetAssetToDbRow(row);
 
-    // Skip only if every column is empty. A single non-empty field (even
-    // just TYPE or SPACE) is enough to keep the row.
+    // Skip only if every column is empty — matches how upsertAssetCodeFromSheet
+    // works. A single non-empty field (even just TYPE or SPACE) is enough to
+    // keep the row so nothing useful is lost.
     if (
         !asset.item_description &&
         !asset.type &&
@@ -771,21 +810,104 @@ async function insertAssetFromSheet(client, row) {
         !asset.space &&
         !asset.purchase_price &&
         !asset.warranty_date &&
+        !asset.quantity &&
         !asset.discount &&
         !asset.asset_value &&
         !asset.color &&
         !asset.remarks &&
         !asset.vendor
     ) {
+        // Log the raw sheet row keys and values so you can see which rows
+        // are being dropped and why — helps debug blank-row truncation.
+        const rawKeys = Object.keys(row || {});
+        const rawSample = rawKeys.slice(0, 5).map((k) => `${k}=${JSON.stringify(row[k])}`).join("; ");
+        console.warn(
+            `SKIPPED row — all columns empty after parse` +
+            (rawKeys.length > 0 ? `. Raw row keys: [${rawKeys.join(", ")}]. Sample: ${rawSample}` : "")
+        );
         return { skipped: true, reason: "All columns are empty" };
     }
 
-    // Sheet is the source of truth — there's no stable per-row identifier
-    // (Serial No. has many "N/A" duplicates, NO. has gaps and repeats). The
-    // sync wraps this in a TRUNCATE + INSERT so each call rebuilds the table
-    // exactly. This function therefore always inserts; no dedup, no upsert.
     const payoutStationId = await findPayoutStationId(client, asset.payout_station);
     const officeDepartmentId = await findOfficeDepartmentId(client, asset.office_department);
+
+    if (!asset.id && asset.serial_number) {
+        const existing = await client.query(
+            `
+            SELECT id
+            FROM asset_inv
+            WHERE LOWER(serial_no) = LOWER($1)
+            LIMIT 1
+            `,
+            [asset.serial_number]
+        );
+        asset.id = existing.rows[0]?.id || null;
+    }
+
+    // NOTE: The (location, item_description) dedup block was removed because
+    // many rows legitimately share the same description (e.g. multiple "Office
+    // Chair" units). Matching by description alone caused all such rows to
+    // UPDATE the same record instead of inserting as separate rows. Only the
+    // serial_number match above (which is truly unique per asset) is kept.
+
+    if (asset.id) {
+        const result = await client.query(
+            `
+            INSERT INTO asset_inv (
+                id, location, item_description, type, serial_no, department, space,
+                date_purchase, vendor, purchase_price_per_item, warranty_date, quantity,
+                discount, asset_value, asset_total, color, remarks, payout_station_id,
+                office_department_id
+            ) VALUES (
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19
+            )
+            ON CONFLICT (id) DO UPDATE
+            SET location = EXCLUDED.location,
+                item_description = EXCLUDED.item_description,
+                type = EXCLUDED.type,
+                serial_no = EXCLUDED.serial_no,
+                department = EXCLUDED.department,
+                space = EXCLUDED.space,
+                date_purchase = EXCLUDED.date_purchase,
+                vendor = EXCLUDED.vendor,
+                purchase_price_per_item = EXCLUDED.purchase_price_per_item,
+                warranty_date = EXCLUDED.warranty_date,
+                quantity = EXCLUDED.quantity,
+                discount = EXCLUDED.discount,
+                asset_value = EXCLUDED.asset_value,
+                asset_total = EXCLUDED.asset_total,
+                color = EXCLUDED.color,
+                remarks = EXCLUDED.remarks,
+                payout_station_id = EXCLUDED.payout_station_id,
+                office_department_id = EXCLUDED.office_department_id,
+                updated_at = CURRENT_TIMESTAMP
+            RETURNING (xmax = 0) AS inserted
+            `,
+            [
+                asset.id,
+                asset.location,
+                asset.item_description,
+                asset.type,
+                asset.serial_number,
+                asset.department,
+                asset.space,
+                asset.date_purchase,
+                asset.vendor,
+                asset.purchase_price,
+                asset.warranty_date,
+                asset.quantity,
+                asset.discount,
+                asset.asset_value,
+                asset.total_value,
+                asset.color,
+                asset.remarks,
+                payoutStationId,
+                officeDepartmentId,
+            ]
+        );
+
+        return result.rows[0]?.inserted ? { inserted: true } : { updated: true };
+    }
 
     await client.query(
         `
@@ -834,7 +956,7 @@ async function findAssetIdByDescription(client, description) {
     return result.rows[0]?.id || null;
 }
 
-async function insertAssetCodeFromSheet(client, row) {
+async function upsertAssetCodeFromSheet(client, row) {
     const assetCode = sheetAssetCodeToDbRow(row);
 
     // If every column in the row is empty there's nothing useful to import,
@@ -857,10 +979,65 @@ async function insertAssetCodeFromSheet(client, row) {
         ? await findAssetIdByDescription(client, assetCode.description)
         : null;
 
-    // Sheet is the source of truth — the sync wraps this in a TRUNCATE +
-    // INSERT loop so each call rebuilds the table exactly. No upsert, no
-    // ON CONFLICT. A duplicate item_code in the sheet becomes a duplicate
-    // row here too; data quality is the sheet owner's responsibility.
+    if (assetCode.item_code) {
+        // Row has an item_code — manually check if it exists first, then
+        // INSERT or UPDATE (no UNIQUE constraint on item_code any more since
+        // the column was made nullable, so ON CONFLICT won't work).
+        const existing = await client.query(
+            `SELECT id FROM asset_coding WHERE item_code = $1 LIMIT 1`,
+            [assetCode.item_code]
+        );
+
+        if (existing.rows.length > 0) {
+            await client.query(
+                `
+                UPDATE asset_coding
+                SET description = $1,
+                    type = $2,
+                    department = $3,
+                    care_of = $4,
+                    space = $5,
+                    asset_id = $6,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = $7
+                `,
+                [
+                    assetCode.description,
+                    assetCode.type,
+                    assetCode.department,
+                    assetCode.care_of,
+                    assetCode.space,
+                    assetCode.asset_id,
+                    existing.rows[0].id,
+                ]
+            );
+            return { updated: true };
+        }
+
+        await client.query(
+            `
+            INSERT INTO asset_coding (
+                item_code, description, type, department, care_of, space, asset_id
+            ) VALUES (
+                $1, $2, $3, $4, $5, $6, $7
+            )
+            `,
+            [
+                assetCode.item_code,
+                assetCode.description,
+                assetCode.type,
+                assetCode.department,
+                assetCode.care_of,
+                assetCode.space,
+                assetCode.asset_id,
+            ]
+        );
+
+        return { inserted: true };
+    }
+
+    // Row has no item_code (ASSET ID is empty) but has description — do a plain
+    // INSERT without ON CONFLICT since the UNIQUE constraint doesn't apply to NULL.
     await client.query(
         `
         INSERT INTO asset_coding (
@@ -870,7 +1047,7 @@ async function insertAssetCodeFromSheet(client, row) {
         )
         `,
         [
-            assetCode.item_code || null,
+            null,
             assetCode.description,
             assetCode.type,
             assetCode.department,
@@ -894,18 +1071,6 @@ export async function syncAssetInventoryFromGoogleSheets() {
         fetchSheetRowsByName(ASSET_SHEET_NAMES.assets),
         fetchSheetRowsByName(ASSET_SHEET_NAMES.assetCodes),
     ]);
-
-    // Safety: if both tabs came back empty, the sheet is the source of truth
-    // and TRUNCATE would wipe the entire DB based on a transient fetch
-    // failure (Google outage, expired token, etc.). Refuse to proceed.
-    if (assetSheetRows.length === 0 && assetCodeSheetRows.length === 0) {
-        throw new Error(
-            "Refusing to sync: both Inventory and Asset Coding tabs returned 0 rows. " +
-            "This is almost certainly a Google Sheets fetch failure rather than an " +
-            "intentional empty sheet. Check ASSET_INVENTORY_SHEET_URL/TOKEN and the " +
-            "spreadsheet's sharing settings, then retry."
-        );
-    }
 
     const client = await pool.connect();
     const summary = {
@@ -931,22 +1096,11 @@ export async function syncAssetInventoryFromGoogleSheets() {
     try {
         await client.query("BEGIN");
 
-        // Sheet-as-source-of-truth: wipe both tables and rebuild from the
-        // sheet rows. The CASCADE on asset_coding clears its FKs to asset_inv.
-        // Both TRUNCATEs run inside the same transaction so concurrent reads
-        // see the old data until COMMIT, and any failure rolls back to the
-        // pre-sync state automatically. asset_media references asset_inv with
-        // ON DELETE CASCADE — uploaded photos/videos are wiped here.
-        await client.query("TRUNCATE TABLE asset_coding RESTART IDENTITY CASCADE");
-        await client.query("TRUNCATE TABLE asset_inv RESTART IDENTITY CASCADE");
-
-        // Order matters: asset_inv first so insertAssetCodeFromSheet's
-        // findAssetIdByDescription can populate asset_id FKs in the same run.
         for (const row of assetSheetRows) {
             try {
                 addOutcome(
                     summary.tabs[ASSET_SHEET_NAMES.assets],
-                    await insertAssetFromSheet(client, row)
+                    await upsertAssetFromSheet(client, row)
                 );
             } catch (rowErr) {
                 summary.tabs[ASSET_SHEET_NAMES.assets].errors += 1;
@@ -956,11 +1110,13 @@ export async function syncAssetInventoryFromGoogleSheets() {
             }
         }
 
+        await syncSerialSequence(client, "asset_inv");
+
         for (const row of assetCodeSheetRows) {
             try {
                 addOutcome(
                     summary.tabs[ASSET_SHEET_NAMES.assetCodes],
-                    await insertAssetCodeFromSheet(client, row)
+                    await upsertAssetCodeFromSheet(client, row)
                 );
             } catch (rowErr) {
                 summary.tabs[ASSET_SHEET_NAMES.assetCodes].errors += 1;
@@ -970,6 +1126,7 @@ export async function syncAssetInventoryFromGoogleSheets() {
             }
         }
 
+        await syncSerialSequence(client, "asset_coding");
         await client.query("COMMIT");
 
         return summary;
