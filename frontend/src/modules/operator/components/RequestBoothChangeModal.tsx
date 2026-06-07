@@ -107,6 +107,10 @@ export default function RequestBoothChangeModal({
             setError("Pick a target booth");
             return;
         }
+        if (!reason.trim()) {
+            setError("Reason is required");
+            return;
+        }
         setSaving(true);
         setError("");
         try {
@@ -114,7 +118,7 @@ export default function RequestBoothChangeModal({
                 pos_record_id: posRecord.id,
                 requested_booth_id: boothId,
                 requested_by_user_id: user?.id ?? null,
-                reason: reason.trim() || undefined,
+                reason: reason.trim(),
             });
             await onSubmitted();
         } catch (e) {
@@ -127,20 +131,28 @@ export default function RequestBoothChangeModal({
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 pt-16 sm:pt-24">
-            <div className="w-full max-w-md rounded-2xl border border-warm bg-card shadow-xl">
-                <div className="flex items-center justify-between border-b border-warm px-6 py-4">
-                    <h3 className="text-lg font-semibold text-ink">Request Booth Change</h3>
-                    <button
-                        onClick={onClose}
-                        className="rounded-lg p-1 text-ink-subtle transition hover:bg-cream hover:text-ink"
-                        disabled={saving}
-                    >
-                        <X size={20} />
-                    </button>
-                </div>
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 backdrop-blur-sm pt-16 px-4">
+            <div className="relative w-full max-w-lg animate-in fade-in zoom-in-95 duration-200 rounded-2xl bg-white shadow-2xl border border-warm overflow-hidden">
+                {/* Header accent bar */}
+                <div className="h-2 bg-gradient-to-r from-teal to-teal-dark" />
 
-                <div className="space-y-4 px-6 py-5">
+                <div className="p-6">
+                    {/* Header */}
+                    <div className="flex items-center justify-between mb-6">
+                        <div>
+                            <h2 className="text-lg font-bold text-ink">Request Booth Change</h2>
+                            <p className="text-sm text-ink-muted mt-0.5">Submit a request to move your device to a different booth</p>
+                        </div>
+                        <button
+                            onClick={onClose}
+                            className="rounded-lg p-1.5 hover:bg-gray-100 transition-colors"
+                            disabled={saving}
+                        >
+                            <X className="h-5 w-5 text-gray-400" />
+                        </button>
+                    </div>
+
+                    <div className="space-y-4">
                     {hasPendingRequest && (
                         <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
                             This device already has a pending booth change request. Please wait for it to be processed.
@@ -168,7 +180,7 @@ export default function RequestBoothChangeModal({
 
                     <label className="block">
                         <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-muted">
-                            Move to Booth *
+                            Move to Booth <span className="text-red-500">*</span>
                         </span>
                         <Dropdown
                             value={boothId}
@@ -184,35 +196,35 @@ export default function RequestBoothChangeModal({
 
                     <label className="block">
                         <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-muted">
-                            Reason
+                            Reason <span className="text-red-500">*</span>
                         </span>
                         <textarea
                             value={reason}
                             onChange={(e) => setReason(e.target.value)}
                             rows={3}
-                            placeholder="Optional. Explain why you need this change."
+                            placeholder="Explain why you need this change."
                             className="w-full rounded-lg border border-warm bg-card px-3 py-2 text-sm text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal"
                         />
                     </label>
-                </div>
-
-                <div className="flex justify-end gap-3 border-t border-warm bg-cream px-6 py-4">
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        disabled={saving}
-                        className="rounded-lg border border-warm bg-card px-4 py-2 text-sm font-medium text-ink transition hover:bg-warm/40 disabled:opacity-50"
-                    >
-                        Cancel
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setShowConfirm(true)}
-                        disabled={saving || !boothId || hasPendingRequest}
-                        className="rounded-lg bg-teal px-4 py-2 text-sm font-semibold text-ink transition hover:bg-teal-dark disabled:opacity-50"
-                    >
-                        {saving ? "Submitting..." : "Submit Request"}
-                    </button>
+                    <div className="flex justify-end gap-3 pt-4">
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            disabled={saving}
+                            className="rounded-lg border border-warm bg-card px-4 py-2 text-sm font-medium text-ink transition hover:bg-warm/40 disabled:opacity-50"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setShowConfirm(true)}
+                            disabled={saving || !boothId || !reason.trim() || hasPendingRequest}
+                            className="rounded-lg bg-teal px-4 py-2 text-sm font-semibold text-ink transition hover:bg-teal-dark disabled:opacity-50"
+                        >
+                            {saving ? "Submitting..." : "Submit Request"}
+                        </button>
+                    </div>
+                    </div>
                 </div>
             </div>
 

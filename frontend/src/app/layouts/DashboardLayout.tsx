@@ -90,6 +90,8 @@ export default function DashboardLayout() {
     });
     const [bulletinUnread, setBulletinUnread] = useState(0);
     const [pendingBoothRequests, setPendingBoothRequests] = useState(0);
+    const [pendingOperatorChangeCount, setPendingOperatorChangeCount] = useState(0);
+    const [pendingBoothOperatorChangeCount, setPendingBoothOperatorChangeCount] = useState(0);
     const [forCheckingRepairCount, setForCheckingRepairCount] = useState(0);
 
     // Sync dark mode class on document root and on mount
@@ -187,6 +189,78 @@ export default function DashboardLayout() {
         const interval = window.setInterval(fetchPendingBoothRequests, 8000);
         const onVisibility = () => {
             if (document.visibilityState === "visible") fetchPendingBoothRequests();
+        };
+        document.addEventListener("visibilitychange", onVisibility);
+
+        return () => {
+            cancelled = true;
+            window.clearInterval(interval);
+            document.removeEventListener("visibilitychange", onVisibility);
+        };
+    }, [authUser?.id, location.pathname]);
+
+    // Poll pending operator change requests (Assign POS tab)
+    useEffect(() => {
+        if (!authUser?.id) {
+            setPendingOperatorChangeCount(0);
+            return;
+        }
+        let cancelled = false;
+
+        const fetchPendingOperatorChanges = async () => {
+            if (cancelled) return;
+            try {
+                const res = await fetch(`${API_BASE_URL}/api/operator-change-requests?status=pending`);
+                if (!res.ok) return;
+                const data = await res.json();
+                if (!cancelled) {
+                    setPendingOperatorChangeCount(Array.isArray(data) ? data.length : 0);
+                }
+            } catch {
+                // Non-fatal — badge just stays at its previous value.
+            }
+        };
+
+        fetchPendingOperatorChanges();
+        const interval = window.setInterval(fetchPendingOperatorChanges, 8000);
+        const onVisibility = () => {
+            if (document.visibilityState === "visible") fetchPendingOperatorChanges();
+        };
+        document.addEventListener("visibilitychange", onVisibility);
+
+        return () => {
+            cancelled = true;
+            window.clearInterval(interval);
+            document.removeEventListener("visibilitychange", onVisibility);
+        };
+    }, [authUser?.id, location.pathname]);
+
+    // Poll pending booth operator change requests (Assign Outlet tab)
+    useEffect(() => {
+        if (!authUser?.id) {
+            setPendingBoothOperatorChangeCount(0);
+            return;
+        }
+        let cancelled = false;
+
+        const fetchPendingBoothOperatorChanges = async () => {
+            if (cancelled) return;
+            try {
+                const res = await fetch(`${API_BASE_URL}/api/booth-operator-change-requests?status=pending`);
+                if (!res.ok) return;
+                const data = await res.json();
+                if (!cancelled) {
+                    setPendingBoothOperatorChangeCount(Array.isArray(data) ? data.length : 0);
+                }
+            } catch {
+                // Non-fatal — badge just stays at its previous value.
+            }
+        };
+
+        fetchPendingBoothOperatorChanges();
+        const interval = window.setInterval(fetchPendingBoothOperatorChanges, 8000);
+        const onVisibility = () => {
+            if (document.visibilityState === "visible") fetchPendingBoothOperatorChanges();
         };
         document.addEventListener("visibilitychange", onVisibility);
 
@@ -315,6 +389,11 @@ export default function DashboardLayout() {
         <>
             {/* Global dark-mode overrides for child page content */}
             <style>{`
+                @keyframes blink {
+                    0%, 100% { opacity: 1; }
+                    50% { opacity: 0.3; }
+                }
+
                 .dark .main-content-area {
                     color-scheme: dark;
                 }
@@ -667,12 +746,13 @@ export default function DashboardLayout() {
                                         </span>
                                     )}
 
-                                    {item.name === "POS" && pendingBoothRequests > 0 && (
+                                    {item.name === "Requests" && (pendingBoothRequests > 0 || pendingOperatorChangeCount > 0 || pendingBoothOperatorChangeCount > 0) && (
                                         <span
-                                            className="ml-auto h-2 w-2 rounded-full"
+                                            className="ml-auto h-2 w-2 rounded-full animate-pulse"
                                             style={{
                                                 background: "#EF4444",
                                                 boxShadow: "0 0 8px rgba(239,68,68,0.85)",
+                                                animation: "blink 1s ease-in-out infinite",
                                             }}
                                         />
                                     )}
@@ -690,7 +770,7 @@ export default function DashboardLayout() {
                                     {/* Active dot */}
                                     {isActive &&
                                         item.name !== "Bulletin Board" &&
-                                        !(item.name === "POS" && pendingBoothRequests > 0) &&
+                                        !(item.name === "Requests" && (pendingBoothRequests > 0 || pendingOperatorChangeCount > 0 || pendingBoothOperatorChangeCount > 0)) &&
                                         !(item.name === "POS Repair" && forCheckingRepairCount > 0) && (
                                         <span
                                             className="ml-auto w-1.5 h-1.5 rounded-full"

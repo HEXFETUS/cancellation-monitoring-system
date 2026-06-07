@@ -10,6 +10,7 @@ const SELECT_COLUMNS = `
         ocr.pos_record_id,
         ocr.status,
         ocr.reason,
+        ocr.old_operator,
         ocr.decided_by_user_id,
         ocr.decided_at,
         ocr.created_at,
@@ -21,8 +22,9 @@ const SELECT_COLUMNS = `
         p.operator_id AS current_operator_id,
         cb.booth_code AS current_booth_code,
         ob.booth_code AS requested_booth_code,
-        -- Operator the device is currently stored under
-        current_op.operator AS from_operator,
+        -- Snapshot the previous operator once approved; before approval,
+        -- fall back to the device's current operator.
+        COALESCE(ocr.old_operator, current_op.operator) AS from_operator,
         -- Operator that's submitting the request (snapshot of their operator at
         -- request time, but we also fall back to the live operator lookup so
         -- a renamed operator stays in sync)
@@ -219,6 +221,20 @@ router.post("/:id/approve", async (req, res) => {
         }
         const newOperatorId = Number(opRes.rows[0].id);
 
+        const posCurrent = await client.query(
+            `SELECT p.id, p.operator_id, o.operator
+             FROM pos_records p
+             LEFT JOIN operator_list o ON p.operator_id = o.id
+             WHERE p.id = $1::int
+             FOR UPDATE OF p`,
+            [reqRow.pos_record_id]
+        );
+        if (posCurrent.rows.length === 0) {
+            await client.query("ROLLBACK");
+            return res.status(400).json({ error: "POS device no longer exists" });
+        }
+        const oldOperator = posCurrent.rows[0].operator ?? null;
+
         // Update the POS device's operator
         const posUpdate = await client.query(
             `UPDATE pos_records
@@ -237,11 +253,13 @@ router.post("/:id/approve", async (req, res) => {
         await client.query(
             `UPDATE operator_change_requests
              SET status = 'approved',
-                 decided_by_user_id = $1,
+                 old_operator = $1,
+                 decided_by_user_id = $2,
                  decided_at = CURRENT_TIMESTAMP,
                  updated_at = CURRENT_TIMESTAMP
-             WHERE id = $2::int`,
+             WHERE id = $3::int`,
             [
+                oldOperator,
                 admin_user_id ? Number(admin_user_id) : null,
                 id,
             ]

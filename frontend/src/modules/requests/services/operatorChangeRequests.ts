@@ -8,8 +8,10 @@ export interface OperatorChangeRequest {
     pos_record_id: number;
     status: OperatorRequestStatus;
     reason: string | null;
+    old_operator: string | null;
     decided_by_user_id: number | null;
     decided_at: string | null;
+    admin_notes: string | null;
     created_at: string;
     updated_at: string;
     // Joined fields for display

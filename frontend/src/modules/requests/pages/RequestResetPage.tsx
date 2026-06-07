@@ -13,6 +13,8 @@ import { Toast, type ToastType } from "../../../shared/components";
 
 const teal = "#92C7CF";
 
+const getRequestedBoothIdLabel = (request: BoothChangeRequest) => request.requested_booth_code || `#${request.requested_booth_id}`;
+
 export default function RequestResetPage() {
     const { user } = useAuth();
     const [requests, setRequests] = useState<BoothChangeRequest[]>([]);
@@ -312,47 +314,58 @@ export default function RequestResetPage() {
                                     )}
                                 </div>
 
-                                <div className="mt-3 grid gap-2 rounded-lg bg-gray-50 p-3 text-sm sm:grid-cols-3">
+                                <div className="mt-3 grid gap-2 rounded-lg bg-gray-50 p-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
                                     <div>
                                         <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Serial</div>
                                         <div className="text-sm text-gray-700">{req.serial_number || "—"}</div>
                                     </div>
                                     <div>
                                         <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Move from</div>
-                                        <div className="text-sm text-gray-700">{req.current_booth_code || "—"}</div>
+                                        <div className="text-sm text-gray-700">{getRequestedBoothIdLabel(req)}</div>
                                     </div>
                                     <div>
                                         <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Move to</div>
                                         <div className="text-sm font-medium" style={{ color: teal }}>
                                             {req.requested_booth_code || `#${req.requested_booth_id}`}
-                                            {req.requested_by_name && <span className="block text-xs font-normal text-gray-500">by {req.requested_by_name}</span>}
+                                            {req.requested_by_name && <span className="block text-xs font-normal text-gray-500"></span>}
                                         </div>
                                     </div>
+                                    {req.status !== "rejected" && (
+                                        <div>
+                                            <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Reason</div>
+                                            <div className="text-sm text-gray-700">
+                                                {req.reason ? (
+                                                    <span className="line-clamp-2" title={req.reason}>{req.reason}</span>
+                                                ) : (
+                                                    <span className="text-gray-400 italic">No reason provided</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                    {req.status === "rejected" && (
+                                        <div>
+                                            <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Admin note</div>
+                                            <div className="text-sm text-gray-700">
+                                                {req.admin_notes ? (
+                                                    <span className="line-clamp-2" title={req.admin_notes}>{req.admin_notes}</span>
+                                                ) : (
+                                                    <span className="text-gray-400 italic">No admin note provided</span>
+                                                )}
+                                                {req.admin_notes && req.admin_name && (
+                                                    <span className="block text-xs font-normal text-gray-500"></span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
-
-                                {req.reason && (
-                                    <p className="mt-3 rounded-lg border px-3 py-2 text-sm"
-                                        style={{
-                                            background: darkMode ? "rgba(55,65,81,0.50)" : "rgba(0,0,0,0.03)",
-                                            borderColor: darkMode ? "rgba(75,85,99,0.40)" : "rgba(0,0,0,0.08)",
-                                            color: darkMode ? "#F3F4F6" : "#374151",
-                                        }}
-                                    >
-                                        <span className="text-xs font-semibold uppercase tracking-wide"
-                                            style={{ color: darkMode ? "#9CA3AF" : "#6B7280" }}>
-                                            Reason
+                                {(req.status === "approved" || req.status === "rejected") && (
+                                    <div className="mt-2 text-xs" style={{ color: darkMode ? "#9CA3AF" : "#6B7280" }}>
+                                        {req.status === "approved" ? "Approved by:" : "Rejected by:"}{" "}
+                                        <span className="font-semibold" style={{ color: darkMode ? "#F3F4F6" : "#1F2937" }}>
+                                            {req.admin_name || "—"}
                                         </span>
-                                        <br />
-                                        {req.reason}
-                                    </p>
-                                )}
-
-                                {req.admin_notes && (
-                                    <p className="mt-2 text-xs" style={{ color: darkMode ? "#9CA3AF" : "#6B7280" }}>
-                                        <span className="font-semibold" style={{ color: darkMode ? "#F3F4F6" : "#1F2937" }}>Admin note:</span>{" "}
-                                        {req.admin_notes}
-                                        {req.admin_name && <> — {req.admin_name}</>}
-                                    </p>
+                                        {req.decided_at && <> · {new Date(req.decided_at).toLocaleString()}</>}
+                                    </div>
                                 )}
                             </div>
                         );
@@ -390,7 +403,7 @@ export default function RequestResetPage() {
                             </div>
                             <div className="flex items-center justify-between">
                                 <span className="text-xs font-medium text-gray-500">From</span>
-                                <span className="text-gray-700">{rejectTarget.current_booth_code || "—"}</span>
+                                <span className="text-gray-700">{getRequestedBoothIdLabel(rejectTarget)}</span>
                             </div>
                             <div className="flex items-center justify-between">
                                 <span className="text-xs font-medium text-gray-500">To</span>

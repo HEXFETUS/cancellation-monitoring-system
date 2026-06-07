@@ -22,6 +22,8 @@ const STATUS_OPTIONS: { id: StatusFilter; label: string }[] = [
     { id: "cancelled", label: "Cancelled" },
 ];
 
+const getFromOperator = (request: OperatorChangeRequest) => request.old_operator || request.from_operator || "Unassigned";
+
 export default function AssignPosPage() {
     const { user } = useAuth();
     const [darkMode, setDarkMode] = useState(() => document.documentElement.classList.contains("dark") || localStorage.getItem("theme") === "dark");
@@ -70,6 +72,7 @@ export default function AssignPosPage() {
             if (!q) return true;
             return (r.device_no || "").toLowerCase().includes(q) ||
                 (r.serial_number || "").toLowerCase().includes(q) ||
+                (r.old_operator || "").toLowerCase().includes(q) ||
                 (r.from_operator || "").toLowerCase().includes(q) ||
                 (r.to_operator || "").toLowerCase().includes(q) ||
                 (r.requested_by_name || "").toLowerCase().includes(q) ||
@@ -301,14 +304,14 @@ export default function AssignPosPage() {
                                     <div>
                                         <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">From</div>
                                         <div className="text-sm text-gray-700">
-                                            {r.from_operator || "Unassigned"}
+                                            {getFromOperator(r)}
                                         </div>
                                     </div>
                                     <div>
                                         <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">To</div>
                                         <div className="text-sm font-medium" style={{ color: teal }}>
                                             {r.to_operator || "—"}
-                                            {r.requested_by_name && <span className="block text-xs font-normal text-gray-500">by {r.requested_by_name}</span>}
+                                            {r.requested_by_name && <span className="block text-xs font-normal text-gray-500"></span>}
                                         </div>
                                     </div>
                                     <div>
@@ -323,35 +326,12 @@ export default function AssignPosPage() {
                                     </div>
                                 </div>
 
-                                {statusFilter === "rejected" && (
-                                    <div className="mt-2 text-xs">
-                                        {r.reason && (
-                                            <p className="rounded-lg border px-3 py-2 text-sm mb-2"
-                                                style={{
-                                                    background: darkMode ? "rgba(55,65,81,0.50)" : "rgba(0,0,0,0.03)",
-                                                    borderColor: darkMode ? "rgba(75,85,99,0.40)" : "rgba(0,0,0,0.08)",
-                                                    color: darkMode ? "#F3F4F6" : "#374151",
-                                                }}
-                                            >
-                                                <span className="text-xs font-semibold uppercase tracking-wide"
-                                                    style={{ color: darkMode ? "#9CA3AF" : "#6B7280" }}>
-                                                    Reason
-                                                </span>
-                                                <br />
-                                                {r.reason}
-                                            </p>
-                                        )}
-                                        <div style={{ color: darkMode ? "#9CA3AF" : "#6B7280" }}>
-                                            <span className="font-semibold" style={{ color: darkMode ? "#F3F4F6" : "#1F2937" }}>Decided by:</span>{" "}
-                                            {r.decided_by_name || "—"}
-                                            {r.decided_at && <> · {new Date(r.decided_at).toLocaleString()}</>}
-                                        </div>
-                                    </div>
-                                )}
-                                {statusFilter === "approved" && r.decided_by_name && (
+                                {(statusFilter === "approved" || statusFilter === "rejected") && (
                                     <div className="mt-2 text-xs" style={{ color: darkMode ? "#9CA3AF" : "#6B7280" }}>
-                                        <span className="font-semibold" style={{ color: darkMode ? "#F3F4F6" : "#1F2937" }}>Approved by:</span>{" "}
-                                        {r.decided_by_name}
+                                        {statusFilter === "approved" ? "Approved by:" : "Rejected by:"}{" "}
+                                        <span className="font-semibold" style={{ color: darkMode ? "#F3F4F6" : "#1F2937" }}>
+                                            {r.decided_by_name || "—"}
+                                        </span>
                                         {r.decided_at && <> · {new Date(r.decided_at).toLocaleString()}</>}
                                     </div>
                                 )}
@@ -371,7 +351,7 @@ export default function AssignPosPage() {
                 title="Approve Operator Change"
                 message={
                     approveTarget
-                        ? `Are you sure you want to approve the operator change for ${approveTarget.device_no || `POS #${approveTarget.pos_record_id}`} (${approveTarget.from_operator || "Unassigned"} → ${approveTarget.to_operator || "—"})?`
+                        ? `Are you sure you want to approve the operator change for ${approveTarget.device_no || `POS #${approveTarget.pos_record_id}`} (${getFromOperator(approveTarget)} → ${approveTarget.to_operator || "—"})?`
                         : ""
                 }
                 confirmLabel="Approve"
@@ -399,7 +379,7 @@ export default function AssignPosPage() {
                             </div>
                             <div className="flex items-center justify-between">
                                 <span className="text-xs font-medium text-gray-500">From</span>
-                                <span className="text-gray-700">{rejectNoteTarget.from_operator || "Unassigned"}</span>
+                                <span className="text-gray-700">{getFromOperator(rejectNoteTarget)}</span>
                             </div>
                             <div className="flex items-center justify-between">
                                 <span className="text-xs font-medium text-gray-500">To</span>
