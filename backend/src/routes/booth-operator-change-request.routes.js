@@ -15,6 +15,7 @@ const SELECT_COLUMNS = `
         obr.updated_at,
         obr.reason,
         obr.old_operator,
+        obr.admin_notes,
         b.booth_code,
         b.coordinate,
         b.location AS booth_location,
@@ -143,7 +144,7 @@ router.post("/", async (req, res) => {
             [
                 Number(user_id),
                 Number(booth_id),
-                reason || null,
+                typeof reason === "string" && reason.trim() ? reason.trim() : null,
                 old_operator || null,
             ]
         );
@@ -169,7 +170,7 @@ router.post("/:id/approve", async (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isFinite(id)) return res.status(400).json({ error: "Invalid id" });
 
-    const { admin_user_id } = req.body ?? {};
+    const { admin_user_id, admin_notes } = req.body ?? {};
 
     const client = await pool.connect();
     try {
@@ -264,12 +265,14 @@ router.post("/:id/reject", async (req, res) => {
             `UPDATE operator_booth_requests
              SET status = 'rejected',
                  decided_by_user_id = $1,
+                 admin_notes = $2,
                  decided_at = CURRENT_TIMESTAMP,
                  updated_at = CURRENT_TIMESTAMP
-             WHERE id = $2::int AND status = 'pending'
+             WHERE id = $3::int AND status = 'pending'
              RETURNING id`,
             [
                 admin_user_id ? Number(admin_user_id) : null,
+                typeof admin_notes === "string" && admin_notes.trim() ? admin_notes.trim() : null,
                 id,
             ]
         );

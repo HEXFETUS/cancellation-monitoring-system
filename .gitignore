@@ -10,3 +10,4 @@ frontend/.vite-cache/
 *.md
 *.sql
 !README.md
+.continue/
