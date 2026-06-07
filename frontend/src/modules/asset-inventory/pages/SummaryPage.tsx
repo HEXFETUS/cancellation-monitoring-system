@@ -154,17 +154,17 @@ export default function SummaryPage() {
                 (acc, tab) => ({
                     scanned: acc.scanned + tab.scanned,
                     inserted: acc.inserted + tab.inserted,
-                    updated: acc.updated + tab.updated,
+                    unchanged: acc.unchanged + (tab.unchanged ?? 0),
                     skipped: acc.skipped + tab.skipped,
                 }),
-                { scanned: 0, inserted: 0, updated: 0, skipped: 0 }
+                { scanned: 0, inserted: 0, unchanged: 0, skipped: 0 }
             );
 
             await loadAssets();
             // Sync is read-only for now; backend always returns
             // write_configured=false. The banner just summarises the import.
             setSyncMessage(
-                `Synced ${tabTotals.scanned} sheet rows into the database: ${tabTotals.inserted} new, ${tabTotals.updated} updated, ${tabTotals.skipped} skipped. Write-back is disabled.`
+                `Synced ${tabTotals.scanned} sheet rows: ${tabTotals.inserted} new, ${tabTotals.unchanged} unchanged, ${tabTotals.skipped} skipped.`
             );
         } catch (err) {
             setError(err instanceof Error ? err.message : "Could not sync Google Sheets");
