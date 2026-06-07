@@ -95,7 +95,6 @@ const OPERATOR_SELECT = `
 `;
 
 const SERIAL_TABLES = new Set([
-    "booth_change_logs",
     "pos_convert_histories",
     "area_logs",
     "status_logs",
@@ -1030,12 +1029,6 @@ router.post("/:id/change-booth", async (req, res) => {
             [booth_id, operatorToSet, id]
         );
 
-        await pool.query(
-            `INSERT INTO booth_change_logs (pos_record_id, old_booth_code, new_booth_code, changed_by)
-             VALUES ($1, $2, $3, $4)`,
-            [record.device_no, oldBoothCode, booth_code.trim(), changed_by || null]
-        );
-
         const result = await pool.query(`${POS_SELECT} WHERE p.id = $1::int`, [id]);
         res.json(result.rows[0]);
 
@@ -1111,29 +1104,6 @@ router.post("/:id/convert-area", async (req, res) => {
         res.status(500).json({ error: "Failed to convert area" });
     } finally {
         client.release();
-    }
-});
-
-/* =========================
-   GET booth_change_logs
-========================= */
-router.get("/booth-change-logs", async (_req, res) => {
-    try {
-        const result = await pool.query(`
-            SELECT
-                id,
-                pos_record_id,
-                old_booth_code,
-                new_booth_code,
-                changed_by,
-                created_at AS date_changed
-            FROM booth_change_logs
-            ORDER BY created_at DESC
-        `);
-        res.json(result.rows);
-    } catch (err) {
-        console.error("GET booth_change_logs error:", err.message);
-        res.status(500).json({ error: "Failed to fetch booth change logs" });
     }
 });
 
