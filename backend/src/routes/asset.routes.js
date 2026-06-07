@@ -159,10 +159,10 @@ router.get("/", async (req, res) => {
 
         const result = location
             ? await pool.query(
-                    `SELECT ${ASSET_COLUMNS} FROM asset_inv WHERE location = $1 ORDER BY id DESC`,
+                    `SELECT ${ASSET_COLUMNS} FROM asset_inv WHERE location = $1 AND is_current = TRUE ORDER BY id DESC`,
                 [location]
             )
-                : await pool.query(`SELECT ${ASSET_COLUMNS} FROM asset_inv ORDER BY id DESC`);
+                : await pool.query(`SELECT ${ASSET_COLUMNS} FROM asset_inv WHERE is_current = TRUE ORDER BY id DESC`);
 
         res.json(result.rows);
     } catch (err) {
@@ -228,9 +228,11 @@ router.post("/", async (req, res) => {
 });
 
 // POST /api/assets/sync-google-sheets
-// One-way sync: pull from Google Sheets into the database. Write-back is
-// disabled while the sheet's column shape and the system enum are still
-// being aligned (Apps Script also returns WRITEBACK_DISABLED on POST).
+// Pull-only sync. The sheet is treated as a stream of additions: every
+// sheet row is hashed, and only NEW hashes get inserted. Existing DB rows
+// are never UPDATEd or DELETEd; a row whose hash didn't appear in this
+// run is simply marked is_current = false so the UI hides it without
+// losing it. Wrapped in a transaction; failure rolls back.
 router.post("/sync-google-sheets", async (req, res) => {
     try {
         const fromGoogleSheets = await syncAssetInventoryFromGoogleSheets();
@@ -245,8 +247,11 @@ router.post("/sync-google-sheets", async (req, res) => {
         // keep the same envelope so we don't need to ship a UI change.
         res.json({
             spreadsheet_id: fromGoogleSheets.spreadsheet_id,
-            mode: "read-only",
-            rule: "Google Sheet rows are imported into the database. Write-back is disabled while shapes are aligned.",
+            mode: "append-only",
+            rule:
+                "Sheet rows are hashed and only new hashes get inserted. Existing " +
+                "DB rows are never updated or deleted. Stale hashes are flagged " +
+                "is_current = false; UI hides them but the data is preserved.",
             from_google_sheets: fromGoogleSheets,
             to_google_sheets: null,
             write_configured: false,
