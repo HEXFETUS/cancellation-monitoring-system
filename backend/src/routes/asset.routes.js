@@ -228,9 +228,11 @@ router.post("/", async (req, res) => {
 });
 
 // POST /api/assets/sync-google-sheets
-// One-way sync: pull from Google Sheets into the database. Write-back is
-// disabled while the sheet's column shape and the system enum are still
-// being aligned (Apps Script also returns WRITEBACK_DISABLED on POST).
+// One-way sync: the Google Sheet is the source of truth, so each call
+// TRUNCATEs `asset_inv` + `asset_coding` and re-inserts every row from the
+// sheet. Wrapped in a transaction so failures roll back to the pre-sync
+// state. Write-back is disabled (the Apps Script doPost returns
+// WRITEBACK_DISABLED).
 router.post("/sync-google-sheets", async (req, res) => {
     try {
         const fromGoogleSheets = await syncAssetInventoryFromGoogleSheets();
@@ -245,8 +247,10 @@ router.post("/sync-google-sheets", async (req, res) => {
         // keep the same envelope so we don't need to ship a UI change.
         res.json({
             spreadsheet_id: fromGoogleSheets.spreadsheet_id,
-            mode: "read-only",
-            rule: "Google Sheet rows are imported into the database. Write-back is disabled while shapes are aligned.",
+            mode: "rebuild",
+            rule:
+                "Sheet is the source of truth. asset_inv and asset_coding are " +
+                "truncated and rebuilt on every sync.",
             from_google_sheets: fromGoogleSheets,
             to_google_sheets: null,
             write_configured: false,
