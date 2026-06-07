@@ -571,6 +571,7 @@ async function initDatabase() {
                 status VARCHAR(20) NOT NULL DEFAULT 'pending'
                     CHECK (status IN ('pending', 'approved', 'rejected', 'cancelled')),
                 reason TEXT,
+                old_operator VARCHAR(255),
                 decided_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
                 decided_at TIMESTAMP,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -587,6 +588,7 @@ async function initDatabase() {
             "ALTER TABLE operator_change_requests ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'pending'"
         );
         await client.query("ALTER TABLE operator_change_requests ADD COLUMN IF NOT EXISTS reason TEXT");
+        await client.query("ALTER TABLE operator_change_requests ADD COLUMN IF NOT EXISTS old_operator VARCHAR(255)");
         await client.query(
             "ALTER TABLE operator_change_requests ADD COLUMN IF NOT EXISTS decided_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL"
         );
