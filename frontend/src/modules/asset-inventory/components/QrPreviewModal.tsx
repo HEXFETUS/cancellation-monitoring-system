@@ -1,7 +1,12 @@
 import { useRef } from "react";
 import { Download, Printer, X } from "lucide-react";
+// Lazy-load qrcode.react (~50 kB) the first time the preview is rendered.
+// The runtime is only needed when the user opens the QR preview modal,
+// so keeping it out of the static import graph keeps it out of the
+// Asset Coding chunk until then.
 import { QRCodeSVG } from "qrcode.react";
 import type { AssetCode } from "../services/assetCodes";
+
 
 interface Props {
     open: boolean;

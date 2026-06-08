@@ -1,55 +1,159 @@
+import { lazy, Suspense } from "react";
 import { createBrowserRouter } from "react-router-dom";
 
 import ProtectedRoute from "../../components/ProtectedRoute";
 import RoleGuard from "../../components/RoleGuard";
-import LandingPage from "../../pages/LandingPage";
-import DashboardLayout from "../../app/layouts/DashboardLayout";
-import DashboardHome from "../../pages/dashboard/DashboardHome";
 
-import PosInventoryTabbedPage from "../../modules/pos/pages/PosInventoryTabbedPage";
-import PosRepairTabbedPage from "../../modules/pos-repair/pages/PosRepairTabbedPage";
+// ---------------------------------------------------------------------------
+// Route-level code splitting.
+//
+// Every page module is loaded on demand so the initial bundle only ships the
+// landing page, auth/guard wrappers, and the dashboard shell. Role-specific
+// sections (pos, pos-repair, csr, asset-inventory, etc.) are downloaded
+// the first time the user navigates into them. This brings the main chunk
+// well under Vite's 500 kB warning limit and keeps unused roles from
+// weighing down users who never see them.
+// ---------------------------------------------------------------------------
 
-import CancellationTabbedPage from "../../modules/cancellation/pages/CancellationTabbedPage";
-import AssetInventoryTabbedPage from "../../modules/asset-inventory/pages/AssetInventoryTabbedPage";
-import AssetSummaryPage from "../../modules/asset-inventory/pages/SummaryPage";
-import AssetOfficePage from "../../modules/asset-inventory/pages/OfficePage";
-import AssetPayoutPage from "../../modules/asset-inventory/pages/PayoutPage";
-import AssetDrawcourtPage from "../../modules/asset-inventory/pages/DrawcourtPage";
-import AssetObsPage from "../../modules/asset-inventory/pages/ObsPage";
-import AssetCodingPage from "../../modules/asset-inventory/pages/AssetCodingPage";
+const LandingPage = lazy(() => import("../../pages/LandingPage"));
+const DashboardLayout = lazy(() => import("../../app/layouts/DashboardLayout"));
+const DashboardHome = lazy(() => import("../../pages/dashboard/DashboardHome"));
 
-import SettingsPage from "../../modules/settings/pages/SettingsPage";
-import RequestsTabbedPage from "../../modules/requests/pages/RequestsTabbedPage";
-import AssignPosPage from "../../modules/requests/pages/AssignPosPage";
-import AssignOutletPage from "../../modules/requests/pages/AssignOutletPage";
-import RequestResetPage from "../../modules/requests/pages/RequestResetPage";
-import BulletinBoardPage from "../../modules/bulletin/pages/BulletinBoardPage";
-import OperatorTabbedPage from "../../modules/operator/pages/OperatorTabbedPage";
-import OperatorOutletsPage from "../../modules/operator/pages/OperatorOutletsPage";
-import CsrTabbedPage from "../../modules/csr/pages/CsrTabbedPage";
-import CsrRepairRequestPage from "../../modules/csr/pages/CsrRepairRequestPage";
-import CsrRepairManagementPage from "../../modules/csr/pages/CsrRepairManagementPage";
-import CsrRepairLogPage from "../../modules/csr/pages/CsrRepairLogPage";
-import CsrReleasedLogPage from "../../modules/csr/pages/CsrReleasedLogPage";
-import CsrDiagnosisListPage from "../../modules/csr/pages/CsrDiagnosisListPage";
-import PosDiagnosisListPage from "../../modules/pos-repair/pages/DiagnosisListPage";
-import CsrPostsTabbedPage from "../../modules/csr/pages/CsrPostsTabbedPage";
+const PosInventoryTabbedPage = lazy(
+    () => import("../../modules/pos/pages/PosInventoryTabbedPage")
+);
+const PosRepairTabbedPage = lazy(
+    () => import("../../modules/pos-repair/pages/PosRepairTabbedPage")
+);
 
+const CancellationTabbedPage = lazy(
+    () => import("../../modules/cancellation/pages/CancellationTabbedPage")
+);
+const AssetInventoryTabbedPage = lazy(
+    () => import("../../modules/asset-inventory/pages/AssetInventoryTabbedPage")
+);
+const AssetSummaryPage = lazy(
+    () => import("../../modules/asset-inventory/pages/SummaryPage")
+);
+const AssetOfficePage = lazy(
+    () => import("../../modules/asset-inventory/pages/OfficePage")
+);
+const AssetPayoutPage = lazy(
+    () => import("../../modules/asset-inventory/pages/PayoutPage")
+);
+const AssetDrawcourtPage = lazy(
+    () => import("../../modules/asset-inventory/pages/DrawcourtPage")
+);
+const AssetObsPage = lazy(
+    () => import("../../modules/asset-inventory/pages/ObsPage")
+);
+const AssetCodingPage = lazy(
+    () => import("../../modules/asset-inventory/pages/AssetCodingPage")
+);
+
+const SettingsPage = lazy(() => import("../../modules/settings/pages/SettingsPage"));
+const RequestsTabbedPage = lazy(
+    () => import("../../modules/requests/pages/RequestsTabbedPage")
+);
+const AssignPosPage = lazy(
+    () => import("../../modules/requests/pages/AssignPosPage")
+);
+const AssignOutletPage = lazy(
+    () => import("../../modules/requests/pages/AssignOutletPage")
+);
+const RequestResetPage = lazy(
+    () => import("../../modules/requests/pages/RequestResetPage")
+);
+const BulletinBoardPage = lazy(
+    () => import("../../modules/bulletin/pages/BulletinBoardPage")
+);
+const OperatorTabbedPage = lazy(
+    () => import("../../modules/operator/pages/OperatorTabbedPage")
+);
+const OperatorOutletsPage = lazy(
+    () => import("../../modules/operator/pages/OperatorOutletsPage")
+);
+const CsrTabbedPage = lazy(() => import("../../modules/csr/pages/CsrTabbedPage"));
+const CsrRepairRequestPage = lazy(
+    () => import("../../modules/csr/pages/CsrRepairRequestPage")
+);
+const CsrRepairManagementPage = lazy(
+    () => import("../../modules/csr/pages/CsrRepairManagementPage")
+);
+const CsrRepairLogPage = lazy(
+    () => import("../../modules/csr/pages/CsrRepairLogPage")
+);
+const CsrReleasedLogPage = lazy(
+    () => import("../../modules/csr/pages/CsrReleasedLogPage")
+);
+const CsrDiagnosisListPage = lazy(
+    () => import("../../modules/csr/pages/CsrDiagnosisListPage")
+);
+const PosDiagnosisListPage = lazy(
+    () => import("../../modules/pos-repair/pages/DiagnosisListPage")
+);
+const CsrPostsTabbedPage = lazy(
+    () => import("../../modules/csr/pages/CsrPostsTabbedPage")
+);
+
+// Full-page loading shell shown while any of the lazy route modules is being
+// fetched. Kept dependency-free (no lucide, no router hooks) so it can render
+// the instant the bundle is parsed.
+function RouteFallback() {
+    return (
+        <div
+            style={{
+                minHeight: "100vh",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background: "linear-gradient(135deg, #FBF9F1 0%, #E5E1DA 100%)",
+            }}
+        >
+            <div
+                style={{
+                    width: 40,
+                    height: 40,
+                    border: "3px solid rgba(146,199,207,0.25)",
+                    borderTopColor: "#92C7CF",
+                    borderRadius: "50%",
+                    animation: "cm-suspense-spin 0.8s linear infinite",
+                }}
+            />
+            <style>{`@keyframes cm-suspense-spin { to { transform: rotate(360deg); } }`}</style>
+        </div>
+    );
+}
+
+// Wrap a lazy element in a Suspense boundary so individual routes get their
+// own fallback instead of unmounting the parent layout. react-router-dom
+// already handles the outlet rendering — Suspense just gates the children.
+function lazyRoute(node: React.ReactNode) {
+    return <Suspense fallback={<RouteFallback />}>{node}</Suspense>;
+}
 
 export const router = createBrowserRouter([
     {
         path: "/",
-        element: <LandingPage />,
+        element: lazyRoute(<LandingPage />),
     },
     {
         path: "/app",
-        element: <ProtectedRoute><DashboardLayout /></ProtectedRoute>,
+        element: (
+            <ProtectedRoute>
+                <Suspense fallback={<RouteFallback />}>
+                    <DashboardLayout />
+                </Suspense>
+            </ProtectedRoute>
+        ),
         children: [
             {
                 path: "dashboard",
                 element: (
                     <RoleGuard allow={["admin", "csr", "operator"]} fallback="/app/asset-inventory/summary">
-                        <DashboardHome />
+                        <Suspense fallback={<RouteFallback />}>
+                            <DashboardHome />
+                        </Suspense>
                     </RoleGuard>
                 ),
             },
@@ -57,7 +161,9 @@ export const router = createBrowserRouter([
                 path: "my-pos",
                 element: (
                     <RoleGuard allow={["operator"]}>
-                        <OperatorTabbedPage />
+                        <Suspense fallback={<RouteFallback />}>
+                            <OperatorTabbedPage />
+                        </Suspense>
                     </RoleGuard>
                 ),
             },
@@ -65,7 +171,9 @@ export const router = createBrowserRouter([
                 path: "request-pos",
                 element: (
                     <RoleGuard allow={["operator"]}>
-                        <OperatorTabbedPage />
+                        <Suspense fallback={<RouteFallback />}>
+                            <OperatorTabbedPage />
+                        </Suspense>
                     </RoleGuard>
                 ),
             },
@@ -73,7 +181,9 @@ export const router = createBrowserRouter([
                 path: "my-outlets",
                 element: (
                     <RoleGuard allow={["operator"]}>
-                        <OperatorOutletsPage />
+                        <Suspense fallback={<RouteFallback />}>
+                            <OperatorOutletsPage />
+                        </Suspense>
                     </RoleGuard>
                 ),
             },
@@ -81,7 +191,9 @@ export const router = createBrowserRouter([
                 path: "pos",
                 element: (
                     <RoleGuard allow={["admin"]}>
-                        <PosInventoryTabbedPage />
+                        <Suspense fallback={<RouteFallback />}>
+                            <PosInventoryTabbedPage />
+                        </Suspense>
                     </RoleGuard>
                 ),
             },
@@ -90,7 +202,9 @@ export const router = createBrowserRouter([
                 path: "pos-repair",
                 element: (
                     <RoleGuard allow={["admin", "csr"]}>
-                        <PosRepairTabbedPage />
+                        <Suspense fallback={<RouteFallback />}>
+                            <PosRepairTabbedPage />
+                        </Suspense>
                     </RoleGuard>
                 ),
             },
@@ -98,7 +212,9 @@ export const router = createBrowserRouter([
                 path: "pos-repair/diagnosis-list",
                 element: (
                     <RoleGuard allow={["admin", "csr"]}>
-                        <PosDiagnosisListPage />
+                        <Suspense fallback={<RouteFallback />}>
+                            <PosDiagnosisListPage />
+                        </Suspense>
                     </RoleGuard>
                 ),
             },
@@ -107,7 +223,9 @@ export const router = createBrowserRouter([
                 path: "csr-pos-repair",
                 element: (
                     <RoleGuard allow={["csr"]} fallback="/app/dashboard">
-                        <CsrTabbedPage />
+                        <Suspense fallback={<RouteFallback />}>
+                            <CsrTabbedPage />
+                        </Suspense>
                     </RoleGuard>
                 ),
             },
@@ -119,7 +237,9 @@ export const router = createBrowserRouter([
                 path: "csr-pos-repair/repair-request",
                 element: (
                     <RoleGuard allow={["csr"]} fallback="/app/dashboard">
-                        <CsrRepairRequestPage />
+                        <Suspense fallback={<RouteFallback />}>
+                            <CsrRepairRequestPage />
+                        </Suspense>
                     </RoleGuard>
                 ),
             },
@@ -127,7 +247,9 @@ export const router = createBrowserRouter([
                 path: "csr-pos-repair/repair-management",
                 element: (
                     <RoleGuard allow={["csr"]} fallback="/app/dashboard">
-                        <CsrRepairManagementPage />
+                        <Suspense fallback={<RouteFallback />}>
+                            <CsrRepairManagementPage />
+                        </Suspense>
                     </RoleGuard>
                 ),
             },
@@ -135,7 +257,9 @@ export const router = createBrowserRouter([
                 path: "csr-pos-repair/repair-log",
                 element: (
                     <RoleGuard allow={["csr"]} fallback="/app/dashboard">
-                        <CsrRepairLogPage />
+                        <Suspense fallback={<RouteFallback />}>
+                            <CsrRepairLogPage />
+                        </Suspense>
                     </RoleGuard>
                 ),
             },
@@ -143,7 +267,9 @@ export const router = createBrowserRouter([
                 path: "csr-pos-repair/released-log",
                 element: (
                     <RoleGuard allow={["csr"]} fallback="/app/dashboard">
-                        <CsrReleasedLogPage />
+                        <Suspense fallback={<RouteFallback />}>
+                            <CsrReleasedLogPage />
+                        </Suspense>
                     </RoleGuard>
                 ),
             },
@@ -151,7 +277,9 @@ export const router = createBrowserRouter([
                 path: "csr-pos-repair/diagnosis-list",
                 element: (
                     <RoleGuard allow={["csr"]} fallback="/app/dashboard">
-                        <CsrDiagnosisListPage />
+                        <Suspense fallback={<RouteFallback />}>
+                            <CsrDiagnosisListPage />
+                        </Suspense>
                     </RoleGuard>
                 ),
             },
@@ -159,7 +287,9 @@ export const router = createBrowserRouter([
                 path: "csr-pos-repair/posts",
                 element: (
                     <RoleGuard allow={["csr"]} fallback="/app/dashboard">
-                        <CsrPostsTabbedPage />
+                        <Suspense fallback={<RouteFallback />}>
+                            <CsrPostsTabbedPage />
+                        </Suspense>
                     </RoleGuard>
                 ),
             },
@@ -168,7 +298,9 @@ export const router = createBrowserRouter([
                 path: "cancellation",
                 element: (
                     <RoleGuard allow={["admin"]}>
-                        <CancellationTabbedPage />
+                        <Suspense fallback={<RouteFallback />}>
+                            <CancellationTabbedPage />
+                        </Suspense>
                     </RoleGuard>
                 ),
             },
@@ -177,7 +309,9 @@ export const router = createBrowserRouter([
                 path: "asset-inventory",
                 element: (
                     <RoleGuard allow={["admin", "purchaser"]}>
-                        <AssetInventoryTabbedPage />
+                        <Suspense fallback={<RouteFallback />}>
+                            <AssetInventoryTabbedPage />
+                        </Suspense>
                     </RoleGuard>
                 ),
             },
@@ -189,7 +323,9 @@ export const router = createBrowserRouter([
                 path: "asset-inventory/summary",
                 element: (
                     <RoleGuard allow={["admin", "purchaser"]}>
-                        <AssetSummaryPage />
+                        <Suspense fallback={<RouteFallback />}>
+                            <AssetSummaryPage />
+                        </Suspense>
                     </RoleGuard>
                 ),
             },
@@ -197,7 +333,9 @@ export const router = createBrowserRouter([
                 path: "asset-inventory/office",
                 element: (
                     <RoleGuard allow={["admin", "purchaser"]}>
-                        <AssetOfficePage />
+                        <Suspense fallback={<RouteFallback />}>
+                            <AssetOfficePage />
+                        </Suspense>
                     </RoleGuard>
                 ),
             },
@@ -205,7 +343,9 @@ export const router = createBrowserRouter([
                 path: "asset-inventory/payout",
                 element: (
                     <RoleGuard allow={["admin", "purchaser"]}>
-                        <AssetPayoutPage />
+                        <Suspense fallback={<RouteFallback />}>
+                            <AssetPayoutPage />
+                        </Suspense>
                     </RoleGuard>
                 ),
             },
@@ -213,7 +353,9 @@ export const router = createBrowserRouter([
                 path: "asset-inventory/drawcourt",
                 element: (
                     <RoleGuard allow={["admin", "purchaser"]}>
-                        <AssetDrawcourtPage />
+                        <Suspense fallback={<RouteFallback />}>
+                            <AssetDrawcourtPage />
+                        </Suspense>
                     </RoleGuard>
                 ),
             },
@@ -221,7 +363,9 @@ export const router = createBrowserRouter([
                 path: "asset-inventory/obs",
                 element: (
                     <RoleGuard allow={["admin", "purchaser"]}>
-                        <AssetObsPage />
+                        <Suspense fallback={<RouteFallback />}>
+                            <AssetObsPage />
+                        </Suspense>
                     </RoleGuard>
                 ),
             },
@@ -229,7 +373,9 @@ export const router = createBrowserRouter([
                 path: "asset-inventory/asset-coding",
                 element: (
                     <RoleGuard allow={["admin", "purchaser"]}>
-                        <AssetCodingPage />
+                        <Suspense fallback={<RouteFallback />}>
+                            <AssetCodingPage />
+                        </Suspense>
                     </RoleGuard>
                 ),
             },
@@ -238,7 +384,9 @@ export const router = createBrowserRouter([
                 path: "requests",
                 element: (
                     <RoleGuard allow={["admin"]}>
-                        <RequestsTabbedPage />
+                        <Suspense fallback={<RouteFallback />}>
+                            <RequestsTabbedPage />
+                        </Suspense>
                     </RoleGuard>
                 ),
             },
@@ -246,7 +394,9 @@ export const router = createBrowserRouter([
                 path: "requests/assign-pos",
                 element: (
                     <RoleGuard allow={["admin"]}>
-                        <AssignPosPage />
+                        <Suspense fallback={<RouteFallback />}>
+                            <AssignPosPage />
+                        </Suspense>
                     </RoleGuard>
                 ),
             },
@@ -254,7 +404,9 @@ export const router = createBrowserRouter([
                 path: "requests/assign-outlet",
                 element: (
                     <RoleGuard allow={["admin"]}>
-                        <AssignOutletPage />
+                        <Suspense fallback={<RouteFallback />}>
+                            <AssignOutletPage />
+                        </Suspense>
                     </RoleGuard>
                 ),
             },
@@ -262,21 +414,29 @@ export const router = createBrowserRouter([
                 path: "requests/request-reset",
                 element: (
                     <RoleGuard allow={["admin"]}>
-                        <RequestResetPage />
+                        <Suspense fallback={<RouteFallback />}>
+                            <RequestResetPage />
+                        </Suspense>
                     </RoleGuard>
                 ),
             },
 
             {
                 path: "settings",
-                element: <SettingsPage />,
+                element: (
+                    <Suspense fallback={<RouteFallback />}>
+                        <SettingsPage />
+                    </Suspense>
+                ),
             },
 
             {
                 path: "bulletin-board",
                 element: (
                     <RoleGuard allow={["admin", "csr", "operator", "purchaser"]}>
-                        <BulletinBoardPage />
+                        <Suspense fallback={<RouteFallback />}>
+                            <BulletinBoardPage />
+                        </Suspense>
                     </RoleGuard>
                 ),
             },

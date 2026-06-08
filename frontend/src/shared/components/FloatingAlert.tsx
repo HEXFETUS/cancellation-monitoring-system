@@ -6,7 +6,11 @@ type FloatingAlertProps = {
     count?: number;
 };
 
-export default function FloatingAlert({ message, count }: FloatingAlertProps) {
+export default function FloatingAlert({ message }: FloatingAlertProps) {
+    // `count` is accepted on the prop type for API compatibility with
+    // future callers that may want to surface a numeric badge inside the
+    // alert body. The current rendering is text-only via `message`, so
+    // the prop is intentionally not destructured here.
     const [dismissed, setDismissed] = useState(false);
 
     if (dismissed) return null;

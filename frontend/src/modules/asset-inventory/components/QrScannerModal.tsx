@@ -9,8 +9,13 @@ import {
     Trash2,
     X,
 } from "lucide-react";
-import { Html5Qrcode, Html5QrcodeScannerState } from "html5-qrcode";
+// Type-only import keeps the ~250 kB html5-qrcode runtime out of the
+// scanner's static graph. The actual `Html5Qrcode` class is loaded on
+// demand via `loadHtml5Qrcode` below, which Vite/Rolldown splits into
+// its own chunk.
+import type { Html5Qrcode as Html5QrcodeType } from "html5-qrcode";
 import type { AssetCode } from "../services/assetCodes";
+
 import {
     type AssetMedia,
     deleteAssetMedia,
@@ -27,6 +32,18 @@ const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 const ACCEPTED_MIME = /^(image\/(jpe?g|png)|video\/mp4)$/i;
 const ACCEPTED_EXT = /\.(jpe?g|png|mp4)$/i;
 const MAX_FILE_BYTES = 25 * 1024 * 1024;
+
+// Cache the module promise so repeated lookups (e.g. close + reopen, or
+// switching between camera and file-fallback) don't re-download the
+// ~250 kB html5-qrcode runtime.
+let html5QrcodeModulePromise: Promise<typeof import("html5-qrcode")> | null =
+    null;
+function loadHtml5Qrcode() {
+    if (!html5QrcodeModulePromise) {
+        html5QrcodeModulePromise = import("html5-qrcode");
+    }
+    return html5QrcodeModulePromise;
+}
 
 // QR stickers now encode the item_code directly (e.g. "1", "2", "ITEM-A")
 // rather than a separate qr_payload string. We do basic shape validation so
@@ -115,7 +132,12 @@ interface Props {
 const SCANNER_REGION_ID = "qr-scanner-region";
 
 export default function QrScannerModal({ open, onClose }: Props) {
-    const scannerRef = useRef<Html5Qrcode | null>(null);
+    const scannerRef = useRef<Html5QrcodeType | null>(null);
+    // We compare state by numeric value instead of importing the enum,
+    // so the html5-qrcode runtime only needs to be loaded once (inside
+    // `start`) and we don't need a separate type-only import for the
+    // enum shape.
+    const scannerStateRef = useRef<number | null>(null);
     const [scanning, setScanning] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [result, setResult] = useState<ScanResult | null>(null);
@@ -129,18 +151,25 @@ export default function QrScannerModal({ open, onClose }: Props) {
 
         const start = async () => {
             try {
+                const mod = await loadHtml5Qrcode();
+                if (cancelled) return;
+                const { Html5Qrcode, Html5QrcodeScannerState } = mod;
+                // Persist the SCANNING enum value so `stopScanner` (which
+                // can be called after `start` resolves) can compare state
+                // without needing the enum to be re-imported.
+                scannerStateRef.current = Html5QrcodeScannerState.SCANNING as unknown as number;
                 const instance = new Html5Qrcode(SCANNER_REGION_ID, { verbose: false });
                 scannerRef.current = instance;
                 await instance.start(
                     { facingMode: "environment" },
                     {
                         fps: 10,
-                        qrbox: (viewW, viewH) => {
+                        qrbox: (viewW: number, viewH: number) => {
                             const size = Math.floor(Math.min(viewW, viewH) * 0.7);
                             return { width: size, height: size };
                         },
                     },
-                    async (decodedText) => {
+                    async (decodedText: string) => {
                         if (cancelled) return;
                         await stopScanner();
                         await lookup(decodedText.trim());
@@ -173,9 +202,10 @@ export default function QrScannerModal({ open, onClose }: Props) {
     const stopScanner = async () => {
         const instance = scannerRef.current;
         if (!instance) return;
+        const scanningValue = scannerStateRef.current;
         try {
-            const state = instance.getState?.();
-            if (state === Html5QrcodeScannerState.SCANNING) {
+            const state = (instance as unknown as { getState?: () => unknown }).getState?.();
+            if (scanningValue !== null && Number(state) === scanningValue) {
                 await instance.stop();
             }
             await instance.clear();
@@ -339,6 +369,10 @@ function ScannerPanel({
             host.style.display = "none";
             document.body.appendChild(host);
             try {
+                // Loaded on demand here as well so the file-only fallback
+                // works even if the parent never started the camera
+                // scanner (and therefore never triggered the module load).
+                const { Html5Qrcode } = await loadHtml5Qrcode();
                 const reader = new Html5Qrcode(host.id, { verbose: false });
                 const decoded = await reader.scanFile(file, false);
                 window.dispatchEvent(
@@ -732,7 +766,7 @@ function AssetEditPanel({
                     {/* Media uploader */}
                     <section className="rounded-xl border border-warm bg-card p-4">
                         <h5 className="mb-2 text-sm font-semibold text-ink">
-                            Photos &amp; Videos
+                            Photos & Videos
                         </h5>
 
                         <div className="flex flex-wrap items-center gap-2">
@@ -878,6 +912,7 @@ function AssetEditPanel({
             </div>
 
             {/* Lightbox */}
+
             {lightbox && (
                 <div
                     className="fixed inset-0 z-[80] flex items-center justify-center bg-black/85 p-4"

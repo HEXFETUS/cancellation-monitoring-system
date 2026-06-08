@@ -26,7 +26,7 @@ import {
     Star,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FloatingAlert } from "../../shared/components";
 
 const teal = "#92C7CF";
@@ -94,7 +94,17 @@ export default function DashboardLayout() {
     const [pendingOperatorChangeCount, setPendingOperatorChangeCount] = useState(0);
     const [pendingBoothOperatorChangeCount, setPendingBoothOperatorChangeCount] = useState(0);
     const [forCheckingRepairCount, setForCheckingRepairCount] = useState(0);
-    const [operatorApprovedRejectedCount, setOperatorApprovedRejectedCount] = useState(0);
+    // Count of the operator's booth-change requests that have been
+    // approved or rejected. These relate to the "My POS" page.
+    const [operatorPosApprovedRejectedCount, setOperatorPosApprovedRejectedCount] = useState(0);
+    // Count of the operator's booth-operator-change requests that have
+    // been approved or rejected. These relate to the "My Outlets" page.
+    const [operatorOutletApprovedRejectedCount, setOperatorOutletApprovedRejectedCount] = useState(0);
+    // "Seen" markers per nav. They are stored in localStorage so the red
+    // dot stays dismissed across reloads, but we ALSO track a "session
+    // initialized" flag in sessionStorage so that the first load of a
+    // fresh session does not surface a floating alert for requests that
+    // were approved/rejected on a previous day.
     const [operatorSeenMyPos, setOperatorSeenMyPos] = useState(() => {
         try {
             return Number(localStorage.getItem(`operator_seen_mypos_${authUser?.id}`) ?? 0);
@@ -109,7 +119,16 @@ export default function DashboardLayout() {
             return 0;
         }
     });
-
+    // True once we've captured the operator's request counts on the
+    // current session/login. Used to suppress the floating alert for
+    // pre-existing approved/rejected requests from a previous day.
+    const [operatorSessionInitialized, setOperatorSessionInitialized] = useState(() => {
+        try {
+            return sessionStorage.getItem(`operator_session_initialized_${authUser?.id}`) === "1";
+        } catch {
+            return false;
+        }
+    });
     // Sync dark mode class on document root and on mount
     useEffect(() => {
         document.documentElement.classList.toggle("dark", darkMode);
@@ -330,41 +349,83 @@ export default function DashboardLayout() {
     const isOperator = (sidebarUser?.usertype ?? authUser?.usertype) === "operator";
     const isPurchaser = (sidebarUser?.usertype ?? authUser?.usertype) === "purchaser";
     const isCsr = (sidebarUser?.usertype ?? authUser?.usertype) === "csr";
+    // The pending-requests floating alert is restricted to the IT department.
+    // Department is case-insensitive and trimmed to handle small data-entry
+    // variations like "it", "IT", or "It " across the system.
+    const isITDepartment =
+        (sidebarUser?.department ?? authUser?.department ?? "").trim().toLowerCase() === "it";
 
-    // Poll operator's booth change requests for approved/rejected status
+    // Poll the operator's booth-change requests ("My POS") and
+    // booth-operator-change requests ("My Outlets") for approved/rejected
+    // status. Each section tracks its own count so the red dot only shows
+    // up on the nav where the operator actually has a freshly decided
+    // request, never on both at the same time. On the first successful
+    // poll of a fresh session we capture the current counts as "seen"
+    // so that pre-existing approved/rejected requests from a previous
+    // day do not pop a floating toast on login.
+    const operatorFirstPollDoneRef = useRef(false);
     useEffect(() => {
         if (!authUser?.id || !isOperator) {
-            setOperatorApprovedRejectedCount(0);
+            setOperatorPosApprovedRejectedCount(0);
+            setOperatorOutletApprovedRejectedCount(0);
             return;
         }
         let cancelled = false;
 
-        const fetchOperatorRequests = async () => {
+        const fetchOperatorRequestCounts = async () => {
             if (cancelled) return;
             try {
-                const res = await fetch(
-                    `${API_BASE_URL}/api/booth-change-requests?userId=${authUser.id}`
-                );
-                if (!res.ok) return;
-                const data = await res.json();
-                const requests = Array.isArray(data) ? data : [];
-                if (!cancelled) {
-                    setOperatorApprovedRejectedCount(
-                        requests.filter(
-                            (r: { status?: string }) =>
-                                r.status === "approved" || r.status === "rejected"
-                        ).length
-                    );
+                const [posRes, outletRes] = await Promise.all([
+                    fetch(
+                        `${API_BASE_URL}/api/booth-change-requests?userId=${authUser.id}`
+                    ),
+                    fetch(
+                        `${API_BASE_URL}/api/booth-operator-change-requests?userId=${authUser.id}`
+                    ),
+                ]);
+                const posData = posRes.ok ? await posRes.json() : [];
+                const outletData = outletRes.ok ? await outletRes.json() : [];
+                if (cancelled) return;
+                const posCount = Array.isArray(posData)
+                    ? posData.filter(
+                          (r: { status?: string }) =>
+                              r.status === "approved" || r.status === "rejected"
+                      ).length
+                    : 0;
+                const outletCount = Array.isArray(outletData)
+                    ? outletData.filter(
+                          (r: { status?: string }) =>
+                              r.status === "approved" || r.status === "rejected"
+                      ).length
+                    : 0;
+                setOperatorPosApprovedRejectedCount(posCount);
+                setOperatorOutletApprovedRejectedCount(outletCount);
+
+                // First successful poll of a fresh session: capture the
+                // current counts as "seen" so that the operator is not
+                // re-prompted for requests that were already approved or
+                // rejected before they logged in. This runs exactly once
+                // per mount of the operator section.
+                if (!operatorFirstPollDoneRef.current) {
+                    operatorFirstPollDoneRef.current = true;
+                    setOperatorSeenMyPos(posCount);
+                    setOperatorSeenMyOutlets(outletCount);
+                    try {
+                        localStorage.setItem(`operator_seen_mypos_${authUser.id}`, String(posCount));
+                        localStorage.setItem(`operator_seen_myoutlets_${authUser.id}`, String(outletCount));
+                        sessionStorage.setItem(`operator_session_initialized_${authUser.id}`, "1");
+                    } catch { /* storage unavailable */ }
+                    setOperatorSessionInitialized(true);
                 }
             } catch {
-                // Non-fatal
+                // Non-fatal — badges just stay at their previous value.
             }
         };
 
-        fetchOperatorRequests();
-        const interval = window.setInterval(fetchOperatorRequests, 8000);
+        fetchOperatorRequestCounts();
+        const interval = window.setInterval(fetchOperatorRequestCounts, 8000);
         const onVisibility = () => {
-            if (document.visibilityState === "visible") fetchOperatorRequests();
+            if (document.visibilityState === "visible") fetchOperatorRequestCounts();
         };
         document.addEventListener("visibilitychange", onVisibility);
 
@@ -375,23 +436,30 @@ export default function DashboardLayout() {
         };
     }, [authUser?.id, isOperator, location.pathname]);
 
-    const operatorMyPosHasNew = isOperator && operatorApprovedRejectedCount > operatorSeenMyPos;
-    const operatorMyOutletsHasNew = isOperator && operatorApprovedRejectedCount > operatorSeenMyOutlets;
+    // Red dot for each nav only triggers when the *corresponding* request
+    // type has a fresh approval/rejection that the operator hasn't
+    // acknowledged. Using separate counts means a decision on a "My POS"
+    // request never causes the "My Outlets" entry to glow.
+    const operatorMyPosHasNew =
+        isOperator && operatorSessionInitialized && operatorPosApprovedRejectedCount > operatorSeenMyPos;
+    const operatorMyOutletsHasNew =
+        isOperator && operatorSessionInitialized && operatorOutletApprovedRejectedCount > operatorSeenMyOutlets;
 
     const handleMarkMyPosSeen = () => {
-        setOperatorSeenMyPos(operatorApprovedRejectedCount);
+        const posCount = operatorPosApprovedRejectedCount;
+        setOperatorSeenMyPos(posCount);
         try {
-            localStorage.setItem(`operator_seen_mypos_${authUser?.id}`, String(operatorApprovedRejectedCount));
+            localStorage.setItem(`operator_seen_mypos_${authUser?.id}`, String(posCount));
         } catch { /* localStorage unavailable */ }
     };
 
     const handleMarkMyOutletsSeen = () => {
-        setOperatorSeenMyOutlets(operatorApprovedRejectedCount);
+        const outletCount = operatorOutletApprovedRejectedCount;
+        setOperatorSeenMyOutlets(outletCount);
         try {
-            localStorage.setItem(`operator_seen_myoutlets_${authUser?.id}`, String(operatorApprovedRejectedCount));
+            localStorage.setItem(`operator_seen_myoutlets_${authUser?.id}`, String(outletCount));
         } catch { /* localStorage unavailable */ }
     };
-
     const displayName = sidebarUser?.name?.trim() || authUser?.name?.trim() || "User";
     const displayDepartment = sidebarUser?.department?.trim() || authUser?.department?.trim();
     let sidebarDisplayName = displayDepartment
@@ -1060,22 +1128,58 @@ export default function DashboardLayout() {
                     />
                 )}
 
-                {/* Global floating alert for pending requests */}
-                {(pendingBoothRequests > 0 || pendingOperatorChangeCount > 0 || pendingBoothOperatorChangeCount > 0) && (
+                {/* Global floating alert for pending requests — restricted to IT department only */}
+                {isITDepartment && (pendingBoothRequests > 0 || pendingOperatorChangeCount > 0 || pendingBoothOperatorChangeCount > 0) && (
                     <FloatingAlert
                         key={`requests-${pendingBoothRequests}-${pendingOperatorChangeCount}-${pendingBoothOperatorChangeCount}`}
                         message={`There ${(pendingBoothRequests + pendingOperatorChangeCount + pendingBoothOperatorChangeCount) === 1 ? "is" : "are"} ${pendingBoothRequests + pendingOperatorChangeCount + pendingBoothOperatorChangeCount} pending request${(pendingBoothRequests + pendingOperatorChangeCount + pendingBoothOperatorChangeCount) !== 1 ? "s" : ""} awaiting your action. Please review and process accordingly.`}
                     />
                 )}
 
-                {/* Global floating alert for operator approved/rejected requests (only shown when new/unseen) */}
-                {isOperator && operatorApprovedRejectedCount > Math.min(operatorSeenMyPos, operatorSeenMyOutlets) && (
-                    <FloatingAlert
-                        key={`operator-approved-${operatorApprovedRejectedCount}`}
-                        message={`You have ${operatorApprovedRejectedCount} booth change request${operatorApprovedRejectedCount !== 1 ? "s" : ""} that ha${operatorApprovedRejectedCount === 1 ? "s" : "ve"} been ${operatorApprovedRejectedCount === 1 ? "approved or rejected" : "approved or rejected"}. Please check your request history.`}
-                    />
-                )}
-
+                {/* Global floating alert for operator approved/rejected requests.
+                    Only surfaces for requests that the operator has not yet
+                    acknowledged (per-section "seen" markers), AND only after
+                    the session has been initialized for this login. The
+                    initialization useEffect captures the current counts as
+                    "seen" on first load, so any approvals/rejections from
+                    previous days are silently absorbed and do not pop a
+                    toast when the operator signs in. */}
+                {isOperator &&
+                    operatorSessionInitialized &&
+                    (operatorPosApprovedRejectedCount > operatorSeenMyPos ||
+                        operatorOutletApprovedRejectedCount > operatorSeenMyOutlets) &&
+                    (() => {
+                        const posUnseen = Math.max(
+                            0,
+                            operatorPosApprovedRejectedCount - operatorSeenMyPos
+                        );
+                        const outletUnseen = Math.max(
+                            0,
+                            operatorOutletApprovedRejectedCount - operatorSeenMyOutlets
+                        );
+                        const totalUnseen = posUnseen + outletUnseen;
+                        if (totalUnseen <= 0) return null;
+                        const parts: string[] = [];
+                        if (posUnseen > 0) {
+                            parts.push(
+                                `${posUnseen} POS booth change request${posUnseen !== 1 ? "s" : ""}`
+                            );
+                        }
+                        if (outletUnseen > 0) {
+                            parts.push(
+                                `${outletUnseen} outlet request${outletUnseen !== 1 ? "s" : ""}`
+                            );
+                        }
+                        const detail = parts.length > 1
+                            ? `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}`
+                            : parts[0];
+                        return (
+                            <FloatingAlert
+                                key={`operator-approved-${operatorPosApprovedRejectedCount}-${operatorOutletApprovedRejectedCount}`}
+                                message={`You have ${detail} that ha${totalUnseen === 1 ? "s" : "ve"} been approved or rejected. Please check your request history.`}
+                            />
+                        );
+                    })()}
                 {/* Main Content */}
                 <main className="flex-1 overflow-auto pt-16 lg:pt-0">
                     <div
