@@ -110,7 +110,7 @@ export interface GoogleSheetsSyncSummary {
             {
                 scanned: number;
                 inserted: number;
-                updated: number;
+                unchanged: number;
                 skipped: number;
             }
         >;
