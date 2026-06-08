@@ -244,8 +244,7 @@ router.post("/", async (req, res) => {
  * POST /api/booth-change-requests/:id/approve
  * Body: { admin_user_id, admin_notes? }
  * Marks the request approved AND swaps the POS device's booth in one transaction.
- * Mirrors the logic in PATCH /api/pos/:id/booth-id including operator validation
- * and writing a row to booth_change_logs.
+ * Mirrors the logic in PATCH /api/pos/:id/booth-id including operator validation.
  */
 router.post("/:id/approve", async (req, res) => {
     const id = Number(req.params.id);
@@ -339,17 +338,6 @@ router.post("/:id/approve", async (req, res) => {
                  WHERE id = $1::int`,
                 [row.id]
             );
-            // Also write to booth_change_logs so the inactivation is auditable.
-            await client.query(
-                `INSERT INTO booth_change_logs
-                    (pos_record_id, old_booth_code, new_booth_code, changed_by, created_at)
-                 VALUES ($1, $2, NULL, $3, CURRENT_TIMESTAMP)`,
-                [
-                    row.id,
-                    newBooth.booth_code,
-                    admin_user_id ? `user:${admin_user_id} (auto-displaced)` : "system (auto-displaced)",
-                ]
-            );
         }
 
         // Capture old booth_code for the log row
@@ -372,18 +360,6 @@ router.post("/:id/approve", async (req, res) => {
             [newBooth.id, operatorToSet, pos.id]
         );
 
-        // Audit log (mirrors the manual-change route)
-        await client.query(
-            `INSERT INTO booth_change_logs
-                (pos_record_id, old_booth_code, new_booth_code, changed_by, created_at)
-             VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)`,
-            [
-                pos.id,
-                oldBoothCode,
-                newBooth.booth_code,
-                admin_user_id ? `user:${admin_user_id}` : "system",
-            ]
-        );
 
         // Mark request approved
         await client.query(

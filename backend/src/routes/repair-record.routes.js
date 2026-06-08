@@ -246,7 +246,7 @@ router.get("/pos/:posRecordId/request-eligibility", async (req, res) => {
 
         if (latestRepairRecord.rows.length > 0) {
             const latest = latestRepairRecord.rows[0];
-            if (latest.forwarded !== false || latest.released !== true) {
+            if (latest.forwarded === true) {
                 return res.json({ eligible: false, error: "The POS is already being repaired" });
             }
         }
@@ -974,6 +974,7 @@ router.patch("/:id/clear", async (req, res) => {
             UPDATE repair_records SET
                 delivered_by = NULL,
                 status = NULL,
+                forwarded = false,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = $1::int
             RETURNING *

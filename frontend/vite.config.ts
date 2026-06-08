@@ -34,4 +34,30 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    // Bump the warning threshold slightly so that a single, well-justified
+    // ~700 kB vendor chunk (mostly react + react-dom + react-router-dom)
+    // doesn't trip the alarm. Anything noticeably bigger will still warn
+    // and surface the real offenders (e.g. html5-qrcode, qrcode.react).
+    chunkSizeWarningLimit: 800,
+    // Split long-lived vendor code into its own chunks so it can be cached
+    // independently of the app code. The page/route code is already
+    // lazy-loaded via React.lazy in the router.
+    rolldownOptions: {
+      output: {
+        manualChunks: (id) => {
+          // Anything in node_modules goes into a vendor chunk.
+          if (id.includes('node_modules')) {
+            // Keep large specialty libraries in their own chunks so the
+            // main vendor file stays small and they can be lazy-loaded.
+            if (id.includes('html5-qrcode')) return 'vendor-qr-scanner';
+            if (id.includes('qrcode.react') || id.includes('qr.js')) return 'vendor-qrcode';
+            if (id.includes('react-router')) return 'vendor-router';
+            if (id.includes('lucide-react')) return 'vendor-lucide';
+            return 'vendor';
+          }
+        },
+      },
+    },
+  },
 })
