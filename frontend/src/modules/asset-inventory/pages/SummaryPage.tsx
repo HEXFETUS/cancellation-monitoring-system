@@ -191,7 +191,7 @@ export default function SummaryPage() {
             {/* Page header */}
             <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold text-ink">Asset Inventory Summary</h1>
+                    <h1 className="text-2xl font-bold text-ink">Asset Inventory Dashboard</h1>
                     <p className="mt-1 text-sm text-ink-muted">
                         Live counts and total value across every asset location.
                     </p>

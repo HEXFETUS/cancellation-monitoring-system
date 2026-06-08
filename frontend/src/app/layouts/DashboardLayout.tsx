@@ -24,6 +24,8 @@ import {
     Sun,
     Moon,
     Star,
+    Home,
+    Car,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useEffect, useState } from "react";
@@ -61,12 +63,14 @@ const iconMap: Record<string, LucideIcon> = {
     "POS Repair": Wrench,
     Cancellation: FileText,
     "Asset Inventory": Package,
-    Summary: LayoutDashboard,
     Office: Building2,
     Payout: MapPin,
+    Summary: FileText,
     Drawcourt: Monitor,
     OBS: Eye,
     "Asset Coding": Code,
+    Staffhouse: Home,
+    Vehicle: Car,
     "Repair Request": ClipboardList,
     "Repair Management": Wrench,
     "Repair Log": FileText,
@@ -98,8 +102,6 @@ export default function DashboardLayout() {
     }, [darkMode]);
 
     useEffect(() => {
-        setSidebarUser(authUser);
-
         if (!authUser?.id) return;
 
         let ignored = false;
@@ -128,10 +130,8 @@ export default function DashboardLayout() {
     // current. Cheap O(1) query on the backend; 8s cadence is enough — the
     // badge isn't time-sensitive and the chat page itself polls faster.
     useEffect(() => {
-        if (!authUser?.id) {
-            setBulletinUnread(0);
-            return;
-        }
+        if (!authUser?.id) return;
+
         let cancelled = false;
 
         const fetchUnread = async () => {
@@ -163,10 +163,6 @@ export default function DashboardLayout() {
     }, [authUser?.id, location.pathname]);
 
     useEffect(() => {
-        if (!authUser?.id) {
-            setPendingBoothRequests(0);
-            return;
-        }
         let cancelled = false;
 
         const fetchPendingBoothRequests = async () => {
@@ -198,10 +194,6 @@ export default function DashboardLayout() {
     }, [authUser?.id, location.pathname]);
 
     useEffect(() => {
-        if (!authUser?.id) {
-            setForCheckingRepairCount(0);
-            return;
-        }
         let cancelled = false;
 
         const fetchForCheckingRepairCount = async () => {
@@ -277,11 +269,14 @@ export default function DashboardLayout() {
         ]
         : isPurchaser
             ? [
-                { name: "Summary", path: "/app/asset-inventory/summary" },
+                { name: "Dashboard", path: "/app/asset-inventory/summary" },
+                { name: "Summary", path: "/app/asset-inventory/summary-report" },
                 { name: "Office", path: "/app/asset-inventory/office" },
                 { name: "Payout", path: "/app/asset-inventory/payout" },
                 { name: "Drawcourt", path: "/app/asset-inventory/drawcourt" },
                 { name: "OBS", path: "/app/asset-inventory/obs" },
+                { name: "Staffhouse", path: "/app/asset-inventory/staffhouse" },
+                { name: "Vehicle", path: "/app/asset-inventory/vehicle" },
                 { name: "Asset Coding", path: "/app/asset-inventory/asset-coding" },
                 { name: "Bulletin Board", path: "/app/bulletin-board" },
                 { name: "Settings", path: "/app/settings" },
@@ -657,7 +652,7 @@ export default function DashboardLayout() {
                                     {/* Unread badge for the Bulletin Board entry */}
                                     {item.name === "Bulletin Board" && bulletinUnread > 0 && (
                                         <span
-                                            className="ml-auto inline-flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-[10px] font-bold text-white"
+                                            className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-bold text-white"
                                             style={{
                                                 background: "linear-gradient(135deg, #EF4444, #F97316)",
                                                 boxShadow: "0 2px 6px rgba(239,68,68,0.35)",
@@ -851,12 +846,12 @@ export default function DashboardLayout() {
                             >
                                 <Moon className="h-3.5 w-3.5 text-white" style={{ filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.4))" }} />
                                 <Star
-                                    className="absolute -top-0.5 right-[-6px] h-1.5 w-1.5 text-white"
+                                    className="absolute -top-0.5 -right-1.5 h-1.5 w-1.5 text-white"
                                     fill="white"
                                     style={{ filter: "drop-shadow(0 0 2px rgba(255,255,255,0.6))" }}
                                 />
                                 <Star
-                                    className="absolute top-1.5 right-[-10px] h-1 w-1 text-white"
+                                    className="absolute top-1.5 -right-2.5 h-1 w-1 text-white"
                                     fill="white"
                                     style={{ filter: "drop-shadow(0 0 2px rgba(255,255,255,0.6))" }}
                                 />

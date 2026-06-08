@@ -17,6 +17,9 @@ import AssetPayoutPage from "../../modules/asset-inventory/pages/PayoutPage";
 import AssetDrawcourtPage from "../../modules/asset-inventory/pages/DrawcourtPage";
 import AssetObsPage from "../../modules/asset-inventory/pages/ObsPage";
 import AssetCodingPage from "../../modules/asset-inventory/pages/AssetCodingPage";
+import AssetStaffhousePage from "../../modules/asset-inventory/pages/StaffhousePage";
+import AssetVehiclePage from "../../modules/asset-inventory/pages/VehiclePage";
+import AssetSummaryReportPage from "../../modules/asset-inventory/pages/SummaryReportPage";
 
 import SettingsPage from "../../modules/settings/pages/SettingsPage";
 import RequestsTabbedPage from "../../modules/requests/pages/RequestsTabbedPage";
@@ -194,6 +197,14 @@ export const router = createBrowserRouter([
                 ),
             },
             {
+                path: "asset-inventory/summary-report",
+                element: (
+                    <RoleGuard allow={["admin", "purchaser"]}>
+                        <AssetSummaryReportPage />
+                    </RoleGuard>
+                ),
+            },
+            {
                 path: "asset-inventory/office",
                 element: (
                     <RoleGuard allow={["admin", "purchaser"]}>
@@ -230,6 +241,22 @@ export const router = createBrowserRouter([
                 element: (
                     <RoleGuard allow={["admin", "purchaser"]}>
                         <AssetCodingPage />
+                    </RoleGuard>
+                ),
+            },
+            {
+                path: "asset-inventory/staffhouse",
+                element: (
+                    <RoleGuard allow={["admin", "purchaser"]}>
+                        <AssetStaffhousePage />
+                    </RoleGuard>
+                ),
+            },
+            {
+                path: "asset-inventory/vehicle",
+                element: (
+                    <RoleGuard allow={["admin", "purchaser"]}>
+                        <AssetVehiclePage />
                     </RoleGuard>
                 ),
             },
