@@ -174,7 +174,7 @@ function parseCsv(text) {
     // Multi-line cell post-processor: if a row has fewer non-empty columns
     // than the header row (first data row), it's likely a continuation of
     // the previous row's multi-line cell content rather than a new record.
-    // Merge it back into the previous row's corresponding cell.
+    // Merge it back into the previous row's corresponding cell. checkcells
     if (rows.length >= 2) {
         const headerColCount = rows[0].length;
         const merged = [rows[0]];
