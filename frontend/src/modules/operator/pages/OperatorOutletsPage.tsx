@@ -19,6 +19,8 @@ import {
     type BoothOperatorChangeRequest,
 } from "../../requests/services/boothOperatorChangeRequests";
 import ConfirmationModal from "../../pos/components/ConfirmationModal";
+import EditModal from "../../pos/components/EditModal";
+import AssignBoothToSubOperatorModal from "../components/AssignBoothToSubOperatorModal";
 
 const OUTLETS_PER_PAGE = 10;
 
@@ -61,7 +63,7 @@ export default function OperatorOutletsPage() {
     const [searchQuery, setSearchQuery] = useState("");
     const [outletPage, setOutletPage] = useState(1);
 
-    // Add Outlet modal state
+    // Assign Outlet modal state
     const [showAddModal, setShowAddModal] = useState(false);
     const [typedQuery, setTypedQuery] = useState("");
     const [matchedBooth, setMatchedBooth] = useState<BoothInfo | null>(null);
@@ -69,6 +71,11 @@ export default function OperatorOutletsPage() {
     const [matchError, setMatchError] = useState("");
     const [submitting, setSubmitting] = useState(false);
     const [showConfirm, setShowConfirm] = useState(false);
+    const [reason, setReason] = useState("");
+
+    // Assign to Sub-Operator modal state
+    const [showAssignSubOpModal, setShowAssignSubOpModal] = useState(false);
+    const [selectedBoothForAssign, setSelectedBoothForAssign] = useState<BoothInfo | null>(null);
 
     // Toast state (inline in toolbar)
     const [toastOpen, setToastOpen] = useState(false);
@@ -179,6 +186,7 @@ export default function OperatorOutletsPage() {
     }, [loadData]);
 
     const isMainOperator = myOperator !== null && myOperator.parent_operator_id == null;
+    const isSubOperator = myOperator !== null && myOperator.parent_operator_id != null;
 
     const subOperatorIds = useMemo(() => {
         if (!isMainOperator || !myOperator) return new Set<number>();
@@ -230,13 +238,14 @@ export default function OperatorOutletsPage() {
         return filteredBooths.slice(start, start + OUTLETS_PER_PAGE);
     }, [filteredBooths, outletPage]);
 
-    // ---- Add Outlet modal logic ----
+    // ---- Assign Outlet modal logic ----
     const openAddModal = useCallback(() => {
         setTypedQuery("");
         setMatchedBooth(null);
         setMatchedOperator(null);
         setMatchError("");
         setShowConfirm(false);
+        setReason("");
         setShowAddModal(true);
     }, []);
 
@@ -248,6 +257,19 @@ export default function OperatorOutletsPage() {
     const closeAddModal = () => {
         if (submitting) return;
         setShowAddModal(false);
+        setTypedQuery("");
+        setMatchedBooth(null);
+        setMatchedOperator(null);
+        setMatchError("");
+        setReason("");
+    };
+
+    const clearSearch = () => {
+        setTypedQuery("");
+        setMatchedBooth(null);
+        setMatchedOperator(null);
+        setMatchError("");
+        setReason("");
     };
 
     const lookupBooth = (raw: string) => {
@@ -292,7 +314,7 @@ export default function OperatorOutletsPage() {
         );
 
     const handleSubmit = async () => {
-        if (!matchedBooth || !user?.id) return;
+        if (!matchedBooth || !user?.id || !reason.trim()) return;
         setSubmitting(true);
         try {
             await createBoothOperatorChangeRequest({
@@ -310,6 +332,7 @@ export default function OperatorOutletsPage() {
             setMatchedBooth(null);
             setMatchedOperator(null);
             setMatchError("");
+            setReason("");
             await loadData();
         } catch (e) {
             setShowConfirm(false);
@@ -399,15 +422,17 @@ export default function OperatorOutletsPage() {
                             style={inputStyle}
                         />
                     </div>
-                    <button
-                        type="button"
-                        onClick={openAddModal}
-                        className="inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold text-white shadow-sm transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-[#92C7CF]/50"
-                        style={{ background: "linear-gradient(135deg, #92C7CF, #AAD7D9)" }}
-                    >
-                        <Plus size={15} />
-                        Add Outlet
-                    </button>
+                    {!isSubOperator && (
+                        <button
+                            type="button"
+                            onClick={openAddModal}
+                            className="inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold text-white shadow-sm transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-[#92C7CF]/50"
+                            style={{ background: "linear-gradient(135deg, #92C7CF, #AAD7D9)" }}
+                        >
+                            <Plus size={15} />
+                            Assign Outlet
+                        </button>
+                    )}
                     <button
                         type="button"
                         onClick={() => loadData()}
@@ -430,16 +455,17 @@ export default function OperatorOutletsPage() {
                                 <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Area</th>
                                 <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Coordinate</th>
                                 <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Location</th>
+                                <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500 text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             {loading ? (
                                 <tr>
-                                    <td colSpan={5} className="px-4 py-10 text-center text-gray-500">Loading...</td>
+                                    <td colSpan={6} className="px-4 py-10 text-center text-gray-500">Loading...</td>
                                 </tr>
                             ) : filteredBooths.length === 0 ? (
                                 <tr>
-                                    <td colSpan={5} className="px-4 py-10 text-center text-gray-500">No outlets assigned to you.</td>
+                                    <td colSpan={6} className="px-4 py-10 text-center text-gray-500">No outlets assigned to you.</td>
                                 </tr>
                             ) : (
                                 paginatedBooths.map((booth) => {
@@ -452,6 +478,29 @@ export default function OperatorOutletsPage() {
                                             <td className="whitespace-nowrap px-4 py-3 text-gray-700">{area}</td>
                                             <td className="whitespace-nowrap px-4 py-3 text-gray-500">{booth.coordinate || "\u2014"}</td>
                                             <td className="whitespace-nowrap px-4 py-3 text-gray-700">{booth.booth_location || "\u2014"}</td>
+                                            <td className="whitespace-nowrap px-4 py-3 text-right">
+                                                {isMainOperator && subOperatorIds.size > 0 && (
+                                                    <button
+                                                        onClick={() => {
+                                                            setSelectedBoothForAssign(booth);
+                                                            setShowAssignSubOpModal(true);
+                                                        }}
+                                                        className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium transition hover:opacity-90"
+                                                        style={{
+                                                            background: "linear-gradient(135deg, #92C7CF, #AAD7D9)",
+                                                            color: "white",
+                                                        }}
+                                                    >
+                                                        Assign to Sub-Op
+                                                    </button>
+                                                )}
+                                                {isMainOperator && subOperatorIds.size === 0 && (
+                                                    <span className="text-xs text-gray-400">\u2014</span>
+                                                )}
+                                                {!isMainOperator && (
+                                                    <span className="text-xs text-gray-400">\u2014</span>
+                                                )}
+                                            </td>
                                         </tr>
                                     );
                                 })
@@ -470,71 +519,75 @@ export default function OperatorOutletsPage() {
                 )}
             </div>
 
-            {/* My Request Outlet History (below the outlets table) */}
-            <div className="relative rounded-2xl border border-white/50 backdrop-blur-xl bg-white/25 shadow-lg overflow-hidden">
-                <div className="flex items-center gap-2 border-b border-white/40 px-5 py-3">
-                    <History size={16} />
-                    <h2 className="text-sm font-semibold text-gray-800">
-                        Request Outlet History
-                    </h2>
-                </div>
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm">
-                        <thead>
-                            <tr className="border-b border-white/40 bg-gradient-to-r from-[#92C7CF]/10 to-[#AAD7D9]/10">
-                                <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Booth</th>
-                                <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Area</th>
-                                <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">From</th>
-                                <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">To</th>
-                                <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Status</th>
-                                <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Submitted</th>
-                                <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500 text-right">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {requests.length === 0 ? (
-                                <tr>
-                                    <td colSpan={7} className="px-4 py-10 text-center text-gray-500">No request outlet history yet.</td>
+            {/* My Request Outlet History (below the outlets table) — hidden for sub-operators */}
+            {!isSubOperator && (
+                <div className="relative rounded-2xl border border-white/50 backdrop-blur-xl bg-white/25 shadow-lg overflow-hidden">
+                    <div className="flex items-center gap-2 border-b border-white/40 px-5 py-3">
+                        <History size={16} />
+                        <h2 className="text-sm font-semibold text-gray-800">
+                            Request Outlet History
+                        </h2>
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left text-sm">
+                            <thead>
+                                <tr className="border-b border-white/40 bg-gradient-to-r from-[#92C7CF]/10 to-[#AAD7D9]/10">
+                                    <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Booth</th>
+                                    <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Area</th>
+                                    <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">From</th>
+                                    <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">To</th>
+                                    <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Status</th>
+                                    <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Submitted</th>
+                                    <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Admin Note</th>
+                                    <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500 text-right">Actions</th>
                                 </tr>
-                            ) : requests.map((r) => (
-                                <tr key={r.id} className="border-b border-white/30 transition hover:bg-[#92C7CF]/8">
-                                    <td className="whitespace-nowrap px-4 py-3 font-medium text-gray-800">
-                                        <div className="flex flex-col">
-                                            <span className="font-mono" style={{ color: teal }}>{r.booth_code || `Booth #${r.booth_info_id}`}</span>
-                                            <span className="text-xs text-gray-500">{r.booth_location || "\u2014"}</span>
-                                        </div>
-                                    </td>
-                                    <td className="whitespace-nowrap px-4 py-3 text-gray-700">{deriveArea(r.booth_code)}</td>
-                                    <td className="whitespace-nowrap px-4 py-3 text-gray-700">{r.current_operator || "Unassigned"}</td>
-                                    <td className="whitespace-nowrap px-4 py-3 font-medium" style={{ color: teal }}>{r.to_operator || "\u2014"}</td>
-                                    <td className="whitespace-nowrap px-4 py-3">
-                                        <span
-                                            className="inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide"
-                                            style={getStatusBadgeStyle(r.status)}
-                                        >
-                                            {r.status}
-                                        </span>
-                                    </td>
-                                    <td className="whitespace-nowrap px-4 py-3 text-gray-500">{r.created_at ? new Date(r.created_at).toLocaleString() : "\u2014"}</td>
-                                    <td className="whitespace-nowrap px-4 py-3 text-right">
-                                        {r.status === "pending" ? (
-                                            <button
-                                                onClick={() => handleCancelRequest(r.id)}
-                                                className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium text-red-700"
-                                                style={{ background: "rgba(232,180,184,0.40)", border: "1px solid rgba(232,180,184,0.80)" }}
+                            </thead>
+                            <tbody>
+                                {requests.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={8} className="px-4 py-10 text-center text-gray-500">No request outlet history yet.</td>
+                                    </tr>
+                                ) : requests.map((r) => (
+                                    <tr key={r.id} className="border-b border-white/30 transition hover:bg-[#92C7CF]/8">
+                                        <td className="whitespace-nowrap px-4 py-3 font-medium text-gray-800">
+                                            <div className="flex flex-col">
+                                                <span className="font-mono" style={{ color: teal }}>{r.booth_code || `Booth #${r.booth_info_id}`}</span>
+                                                <span className="text-xs text-gray-500">{r.booth_location || "\u2014"}</span>
+                                            </div>
+                                        </td>
+                                        <td className="whitespace-nowrap px-4 py-3 text-gray-700">{deriveArea(r.booth_code)}</td>
+                                        <td className="whitespace-nowrap px-4 py-3 text-gray-700">{r.current_operator || "Unassigned"}</td>
+                                        <td className="whitespace-nowrap px-4 py-3 font-medium" style={{ color: teal }}>{r.to_operator || "\u2014"}</td>
+                                        <td className="whitespace-nowrap px-4 py-3">
+                                            <span
+                                                className="inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide"
+                                                style={getStatusBadgeStyle(r.status)}
                                             >
-                                                <XCircle size={13} /> Cancel
-                                            </button>
-                                        ) : (
-                                            <span className="text-xs text-gray-400">\u2014</span>
-                                        )}
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                                                {r.status}
+                                            </span>
+                                        </td>
+                                        <td className="whitespace-nowrap px-4 py-3 text-gray-500">{r.created_at ? new Date(r.created_at).toLocaleString() : "\u2014"}</td>
+                                        <td className="whitespace-nowrap px-4 py-3 text-gray-500 max-w-[200px] truncate" title={r.admin_notes || ""}>{r.admin_notes || "\u2014"}</td>
+                                        <td className="whitespace-nowrap px-4 py-3 text-right">
+                                            {r.status === "pending" ? (
+                                                <button
+                                                    onClick={() => handleCancelRequest(r.id)}
+                                                    className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium text-red-700"
+                                                    style={{ background: "rgba(232,180,184,0.40)", border: "1px solid rgba(232,180,184,0.80)" }}
+                                                >
+                                                    <XCircle size={13} /> Cancel
+                                                </button>
+                                            ) : (
+                                                <span className="text-xs text-gray-400">\u2014</span>
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
-            </div>
+            )}
 
             <ConfirmationModal
                 open={showConfirm && !!matchedBooth}
@@ -570,27 +623,157 @@ export default function OperatorOutletsPage() {
                 )}
             </ConfirmationModal>
 
-            {showAddModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={closeAddModal}>
-                    <div className={`relative w-full max-w-lg rounded-2xl border shadow-2xl p-6 space-y-4 ${darkMode ? "bg-gray-800/95 border-gray-700" : "bg-white/95"}`} onClick={(e) => e.stopPropagation()}>
-                        <button onClick={closeAddModal} className={`absolute top-4 right-4 ${darkMode ? "text-gray-400 hover:text-gray-200" : "text-gray-400 hover:text-gray-600"}`}><X size={18} /></button>
-                        <h2 className={`text-base font-bold ${darkMode ? "text-gray-100" : "text-gray-800"}`}>Add Outlet</h2>
-                        <p className={`text-xs ${darkMode ? "text-gray-400" : "text-gray-600"}`}>Search by booth code to request operator change.</p>
-                        <div className="flex gap-2">
-                            <input type="text" value={typedQuery} onChange={(e) => { setTypedQuery(e.target.value); setMatchedBooth(null); setMatchedOperator(null); setMatchError(""); }} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleLookup(); } }} placeholder="Type a booth code..." className="h-10 flex-1 rounded-xl px-3 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#92C7CF]/35" style={inputStyle} />
-                            <button onClick={handleLookup} disabled={!typedQuery.trim()} className="inline-flex h-10 items-center gap-1.5 rounded-xl px-4 text-sm font-semibold text-white disabled:opacity-50" style={{ background: `linear-gradient(135deg, ${teal}, ${tealLight})` }}><Search size={14} /> Look up</button>
-                        </div>
-                        {matchError && <div className="rounded-xl border border-red-200/60 bg-red-50/95 px-4 py-2.5 text-sm font-medium text-red-700">{matchError}</div>}
-                        {matchedBooth && !matchError && (
-                            <div className={`rounded-xl border p-4 space-y-2 ${darkMode ? "border-gray-700 bg-gray-800/50" : "border-white/40 bg-white/40"}`}>
-                                <p className={`text-sm ${darkMode ? "text-gray-200" : "text-gray-700"}`}><span className="font-semibold">Booth:</span> <span style={{ color: teal }} className="font-mono">{matchedBooth.booth_code}</span></p>
-                                <p className={`text-sm ${darkMode ? "text-gray-200" : "text-gray-700"}`}><span className="font-semibold">Current operator:</span> <span style={{ color: teal }}>{matchedOperator?.operator || "Unassigned"}</span></p>
-                                {isAlreadyMine ? <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">Already under you.</p> : hasPendingForBooth ? <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">Pending request exists.</p> : <button onClick={() => setShowConfirm(true)} disabled={submitting} className="inline-flex h-10 items-center gap-1.5 rounded-xl px-4 text-sm font-semibold text-white disabled:opacity-50" style={{ background: `linear-gradient(135deg, ${teal}, ${tealLight})` }}><Send size={14} /> Request</button>}
-                            </div>
-                        )}
+            <EditModal
+                open={showAddModal}
+                title="Assign Outlet"
+                subtitle="Search by booth code to request operator change."
+                accentColor="teal"
+                onClose={closeAddModal}
+            >
+                <div className="space-y-4">
+                    <div className="flex gap-2">
+                        <input
+                            type="text"
+                            value={typedQuery}
+                            onChange={(e) => {
+                                setTypedQuery(e.target.value);
+                                setMatchedBooth(null);
+                                setMatchedOperator(null);
+                                setMatchError("");
+                                setReason("");
+                            }}
+                            onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    handleLookup();
+                                }
+                            }}
+                            placeholder="Type a booth code..."
+                            className="h-10 flex-1 rounded-xl px-3 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#92C7CF]/35 transition-all duration-200 focus:border-[#92C7CF]/60 placeholder:text-gray-400 dark:placeholder:text-gray-400"
+                            style={inputStyle}
+                        />
+                        <button
+                            onClick={handleLookup}
+                            disabled={!typedQuery.trim()}
+                            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl px-4 text-sm font-semibold text-white transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
+                            style={{
+                                background: `linear-gradient(135deg, ${teal}, ${tealLight})`,
+                                boxShadow: "0 2px 8px rgba(146,199,207,0.30)",
+                            }}
+                        >
+                            <Search size={14} />
+                            Look up
+                        </button>
                     </div>
+
+                    {matchError && (
+                        <div className="rounded-xl border border-red-200/60 bg-red-50/95 backdrop-blur-xl px-4 py-3 text-sm font-medium text-red-700">
+                            {matchError}
+                        </div>
+                    )}
+
+                    {matchedBooth && !matchError && (
+                        <div className="rounded-xl border border-warm/60 backdrop-blur-xl p-4 space-y-3 bg-gradient-to-br from-cream to-amber-50/50">
+                            <p className="text-sm text-gray-700">
+                                <span className="font-semibold">Booth:</span>{" "}
+                                <span style={{ color: teal }} className="font-mono">
+                                    {matchedBooth.booth_code}
+                                </span>
+                            </p>
+                            <p className="text-sm text-gray-700">
+                                <span className="font-semibold">Current operator:</span>{" "}
+                                <span style={{ color: teal }}>
+                                    {matchedOperator?.operator || "Unassigned"}
+                                </span>
+                            </p>
+                            {myOperator && matchedOperator && (
+                                <p className="text-sm text-gray-700">
+                                    You are requesting this outlet be re-assigned under{" "}
+                                    <span className="font-semibold" style={{ color: teal }}>
+                                        {myOperator.operator}
+                                    </span>
+                                    . Do you want to proceed?
+                                </p>
+                            )}
+
+                            {isAlreadyMine ? (
+                                <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+                                    This outlet is already under you. No request needed.
+                                </p>
+                            ) : hasPendingForBooth ? (
+                                <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+                                    There is already a pending request for this outlet.
+                                </p>
+                            ) : (
+                                <>
+                                    <div>
+                                        <label className="block text-xs font-medium mb-1 text-gray-700">
+                                            Reason for request <span className="text-red-500">*</span>
+                                        </label>
+                                        <textarea
+                                            value={reason}
+                                            onChange={(e) => setReason(e.target.value)}
+                                            placeholder="Enter your reason for requesting this outlet..."
+                                            rows={3}
+                                            className="w-full rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#92C7CF]/35 transition-all duration-200 focus:border-[#92C7CF]/60 placeholder:text-gray-400 bg-white/70 text-gray-800 border border-gray-200 resize-none"
+                                            style={{ backdropFilter: "blur(8px)" }}
+                                        />
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={() => setShowConfirm(true)}
+                                            disabled={submitting || !reason.trim()}
+                                            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl px-4 text-sm font-semibold text-white transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
+                                            style={{
+                                                background: `linear-gradient(135deg, ${teal}, ${tealLight})`,
+                                                boxShadow: "0 2px 8px rgba(146,199,207,0.30)",
+                                            }}
+                                        >
+                                            <Send size={14} />
+                                            {submitting ? "Submitting..." : "Request"}
+                                        </button>
+                                        <button
+                                            onClick={clearSearch}
+                                            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl px-3 text-sm font-medium text-gray-600 transition-all duration-200 hover:bg-white/50"
+                                            style={{
+                                                border: "1px solid rgba(146,199,207,0.20)",
+                                                background: "rgba(255,255,255,0.25)",
+                                            }}
+                                        >
+                                            <X size={14} />
+                                            Clear
+                                        </button>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    )}
                 </div>
-            )}
+            </EditModal>
+
+            <AssignBoothToSubOperatorModal
+                open={showAssignSubOpModal}
+                booth={selectedBoothForAssign}
+                operators={operators}
+                currentOperatorId={myOperator?.id ?? null}
+                onClose={() => {
+                    setShowAssignSubOpModal(false);
+                    setSelectedBoothForAssign(null);
+                }}
+                onSubmitted={async () => {
+                    setShowAssignSubOpModal(false);
+                    setSelectedBoothForAssign(null);
+                    setToastType("success");
+                    setToastMessage("Outlet assign request submitted successfully.");
+                    setToastOpen(true);
+                    await loadData();
+                }}
+                onError={(msg) => {
+                    setToastType("error");
+                    setToastMessage(msg);
+                    setToastOpen(true);
+                }}
+            />
         </div>
     );
 }

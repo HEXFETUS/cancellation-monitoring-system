@@ -40,6 +40,7 @@ export default function RequestPosPage() {
     const [matchedRecord, setMatchedRecord] = useState<PosRecord | null>(null);
     const [matchedOperator, setMatchedOperator] = useState<OperatorInfo | null>(null);
     const [matchError, setMatchError] = useState("");
+    const [reason, setReason] = useState("");
     const [submitting, setSubmitting] = useState(false);
     const [showConfirm, setShowConfirm] = useState(false);
 
@@ -205,6 +206,7 @@ export default function RequestPosPage() {
             await createOperatorChangeRequest({
                 user_id: user.id,
                 pos_record_id: matchedRecord.id,
+                reason: reason.trim() || undefined,
             });
             setShowConfirm(false);
             setToastType("success");
@@ -216,6 +218,7 @@ export default function RequestPosPage() {
             setMatchedRecord(null);
             setMatchedOperator(null);
             setMatchError("");
+            setReason("");
             await refresh();
         } catch (e) {
             setShowConfirm(false);
@@ -382,6 +385,19 @@ export default function RequestPosPage() {
                                 . Do you want to proceed?
                             </p>
                         )}
+                        <div className="mt-3">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Reason <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                                type="text"
+                                value={reason}
+                                onChange={(e) => setReason(e.target.value)}
+                                placeholder="Enter reason for this request…"
+                                className="w-full rounded-xl px-3 py-2 text-sm outline-none transition-all duration-200 focus:border-[#92C7CF]/60 focus:ring-2 focus:ring-[#92C7CF]/35 placeholder:text-gray-400 dark:placeholder:text-gray-400"
+                                style={inputStyle}
+                            />
+                        </div>
 
                         {isAlreadyMine ? (
                             <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
@@ -395,12 +411,13 @@ export default function RequestPosPage() {
                             <div className="mt-3 flex items-center gap-2">
                                 <button
                                     onClick={() => setShowConfirm(true)}
-                                    disabled={submitting}
+                                    disabled={submitting || !reason.trim()}
                                     className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl px-4 text-sm font-semibold text-white transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
                                     style={{
                                         background: `linear-gradient(135deg, ${teal}, ${tealLight})`,
                                         boxShadow: "0 2px 8px rgba(146,199,207,0.30)",
                                     }}
+                                    title={!reason.trim() ? "Please enter a reason" : ""}
                                 >
                                     <Send size={14} />
                                     {submitting ? "Submitting..." : "Request"}
@@ -468,6 +485,9 @@ export default function RequestPosPage() {
                                 <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
                                     Submitted
                                 </th>
+                                <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
+                                    Admin Note
+                                </th>
                                 <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500 text-right">
                                     Actions
                                 </th>
@@ -477,7 +497,7 @@ export default function RequestPosPage() {
                             {loading ? (
                                 <tr>
                                     <td
-                                        colSpan={6}
+                                        colSpan={7}
                                         className="px-4 py-10 text-center text-gray-500"
                                     >
                                         Loading…
@@ -486,7 +506,7 @@ export default function RequestPosPage() {
                             ) : filteredRequests.length === 0 ? (
                                 <tr>
                                     <td
-                                        colSpan={6}
+                                        colSpan={7}
                                         className="px-4 py-10 text-center text-gray-500"
                                     >
                                         No request POS history yet.
@@ -525,6 +545,7 @@ export default function RequestPosPage() {
                                                 ? new Date(r.created_at).toLocaleString()
                                                 : "—"}
                                         </td>
+                                        <td className="whitespace-nowrap px-4 py-3 text-gray-500 max-w-[200px] truncate" title={r.admin_notes || ""}>{r.admin_notes || "—"}</td>
                                         <td className="whitespace-nowrap px-4 py-3 text-right">
                                             {r.status === "pending" ? (
                                                 <button

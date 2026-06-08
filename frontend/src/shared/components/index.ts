@@ -5,3 +5,4 @@ export { default as ConfirmationModal } from "./ConfirmationModal";
 export type { ConfirmationVariant, ConfirmationModalProps } from "./ConfirmationModal";
 export { default as TopTabs } from "./TopTabs";
 export type { TopTabItem, TopTabsProps } from "./TopTabs";
+export { default as FloatingAlert } from "./FloatingAlert";

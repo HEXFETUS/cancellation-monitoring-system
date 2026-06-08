@@ -5,7 +5,6 @@ const SERIAL_TABLES = [
     "operator_list",
     "booth_info",
     "pos_records",
-    "booth_change_logs",
     "pos_convert_histories",
     "area_logs",
     "status_logs",
@@ -171,57 +170,25 @@ async function initDatabase() {
         await client.query("ALTER TABLE pos_records ADD COLUMN IF NOT EXISTS sticker BOOLEAN DEFAULT false");
 
         /* =========================
-           booth_change_logs
-           The table was originally created with legacy columns (from_booth, to_booth, changed_at).
-           We now use pos_record_id, old_booth_code, new_booth_code, changed_by, created_at.
-           Migration steps keep it backward-compatible.
+           operator_booth_requests
         ========================= */
         await client.query(`
-            CREATE TABLE IF NOT EXISTS booth_change_logs (
+            CREATE TABLE IF NOT EXISTS operator_booth_requests (
                 id SERIAL PRIMARY KEY,
-                pos_record_id INTEGER REFERENCES pos_records(id) ON DELETE CASCADE,
-                old_booth_code VARCHAR(255),
-                new_booth_code VARCHAR(255),
-                changed_by VARCHAR(255),
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                booth_info_id INTEGER NOT NULL REFERENCES booth_info(id) ON DELETE CASCADE,
+                status VARCHAR(20) NOT NULL DEFAULT 'pending'
+                    CHECK (status IN ('pending', 'approved', 'rejected', 'cancelled')),
+                reason TEXT,
+                old_operator VARCHAR(255),
+                decided_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                decided_at TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         `);
-
-        // Migrate: add new columns if they don't exist (safe for repeated runs)
-        await client.query("ALTER TABLE booth_change_logs ADD COLUMN IF NOT EXISTS old_booth_code VARCHAR(255)");
-        await client.query("ALTER TABLE booth_change_logs ADD COLUMN IF NOT EXISTS new_booth_code VARCHAR(255)");
-        await client.query("ALTER TABLE booth_change_logs ADD COLUMN IF NOT EXISTS changed_by VARCHAR(255)");
-        // created_at already exists as default, but we add it as an alias for changed_at if missing
-        await client.query("ALTER TABLE booth_change_logs ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
-        await client.query("ALTER TABLE booth_change_logs ALTER COLUMN pos_record_id DROP NOT NULL");
-        // old_booth_code / new_booth_code must be NULL-able: a freshly activated
-        // device has no old booth, and a device being kicked off its booth
-        // (auto-displaced during an approval) has no new booth. Some legacy
-        // databases created these columns as NOT NULL — relax the constraint
-        // here so the approval flow can write audit rows for the displaced case.
-        await client.query("ALTER TABLE booth_change_logs ALTER COLUMN old_booth_code DROP NOT NULL");
-        await client.query("ALTER TABLE booth_change_logs ALTER COLUMN new_booth_code DROP NOT NULL");
-
-        const boothChangeLogColumns = await getTableColumns(client, "booth_change_logs");
-
-        if (boothChangeLogColumns.has("from_booth") && boothChangeLogColumns.has("to_booth")) {
-            // Backfill old_booth_code / new_booth_code from legacy from_booth / to_booth.
-            await client.query(`
-                UPDATE booth_change_logs bcl
-                SET old_booth_code = COALESCE(bcl.old_booth_code, bcl.from_booth),
-                    new_booth_code = COALESCE(bcl.new_booth_code, bcl.to_booth)
-                WHERE bcl.old_booth_code IS NULL OR bcl.new_booth_code IS NULL
-            `);
-        }
-
-        if (boothChangeLogColumns.has("changed_at")) {
-            // Backfill created_at from legacy changed_at.
-            await client.query(`
-                UPDATE booth_change_logs bcl
-                SET created_at = COALESCE(bcl.created_at, bcl.changed_at)
-                WHERE bcl.created_at IS NULL
-            `);
-        }
+        await client.query("ALTER TABLE operator_booth_requests ADD COLUMN IF NOT EXISTS reason TEXT");
+        await client.query("ALTER TABLE operator_booth_requests ADD COLUMN IF NOT EXISTS old_operator VARCHAR(255)");
 
         /* =========================
            pos_convert_histories
@@ -380,6 +347,25 @@ async function initDatabase() {
             END $$;
         `);
 
+        // Sync identity + lifecycle flags (Google Sheets sync).
+        // sheet_row_hash is a SHA-256 of stable fields so each Google Sheet
+        // row maps to at most one DB row; re-syncing the same sheet is a
+        // no-op. is_current marks the most recent sheet snapshot of a row;
+        // readers filter on it so stale versions stay in the table for
+        // audit but don't show up in the UI. We never DELETE here.
+        await client.query(
+            "ALTER TABLE asset_inv ADD COLUMN IF NOT EXISTS sheet_row_hash VARCHAR(64)"
+        );
+        await client.query(
+            "ALTER TABLE asset_inv ADD COLUMN IF NOT EXISTS is_current BOOLEAN NOT NULL DEFAULT TRUE"
+        );
+        await client.query(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_asset_inv_sheet_row_hash ON asset_inv(sheet_row_hash) WHERE sheet_row_hash IS NOT NULL"
+        );
+        await client.query(
+            "CREATE INDEX IF NOT EXISTS idx_asset_inv_is_current ON asset_inv(is_current)"
+        );
+
         /* =========================
            asset_coding — the master "Asset Coding" registry.
            Each row gets a unique qr_payload that scanners decode.
@@ -402,6 +388,20 @@ async function initDatabase() {
         `);
         await client.query(
             "CREATE INDEX IF NOT EXISTS idx_asset_coding_item_code ON asset_coding(item_code)"
+        );
+
+        // Sync identity + lifecycle flags (matches asset_inv above).
+        await client.query(
+            "ALTER TABLE asset_coding ADD COLUMN IF NOT EXISTS sheet_row_hash VARCHAR(64)"
+        );
+        await client.query(
+            "ALTER TABLE asset_coding ADD COLUMN IF NOT EXISTS is_current BOOLEAN NOT NULL DEFAULT TRUE"
+        );
+        await client.query(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_asset_coding_sheet_row_hash ON asset_coding(sheet_row_hash) WHERE sheet_row_hash IS NOT NULL"
+        );
+        await client.query(
+            "CREATE INDEX IF NOT EXISTS idx_asset_coding_is_current ON asset_coding(is_current)"
         );
 
         /* =========================
@@ -508,7 +508,7 @@ async function initDatabase() {
            booth_change_requests — operators submit a request to swap their POS
            device to a different booth; admins approve or reject. Append-only
            for audit (no DELETE endpoint). When approved, we reuse the existing
-           booth-change machinery so the booth_change_logs trail still fires.
+           booth-change machinery so the approval trail still fires.
         ========================= */
         await client.query(`
             CREATE TABLE IF NOT EXISTS booth_change_requests (
@@ -556,6 +556,13 @@ async function initDatabase() {
         await client.query(
             "CREATE INDEX IF NOT EXISTS idx_bcr_user ON booth_change_requests(requested_by_user_id)"
         );
+        // old_booth_code captures the booth the device was in at the time the
+        // request was submitted so the "Move from" value is preserved even after
+        // the device moves to a different booth (approval) or the device's
+        // current_booth_id changes for other reasons.
+        await client.query(
+            "ALTER TABLE booth_change_requests ADD COLUMN IF NOT EXISTS old_booth_code VARCHAR(255)"
+        );
 
         /* =========================
            operator_change_requests — operators ask admins to re-assign
@@ -571,6 +578,7 @@ async function initDatabase() {
                 status VARCHAR(20) NOT NULL DEFAULT 'pending'
                     CHECK (status IN ('pending', 'approved', 'rejected', 'cancelled')),
                 reason TEXT,
+                old_operator VARCHAR(255),
                 decided_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
                 decided_at TIMESTAMP,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -587,6 +595,7 @@ async function initDatabase() {
             "ALTER TABLE operator_change_requests ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'pending'"
         );
         await client.query("ALTER TABLE operator_change_requests ADD COLUMN IF NOT EXISTS reason TEXT");
+        await client.query("ALTER TABLE operator_change_requests ADD COLUMN IF NOT EXISTS old_operator VARCHAR(255)");
         await client.query(
             "ALTER TABLE operator_change_requests ADD COLUMN IF NOT EXISTS decided_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL"
         );

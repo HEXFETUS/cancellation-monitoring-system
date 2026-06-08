@@ -14,6 +14,7 @@ export interface BoothChangeRequest {
     decided_at: string | null;
     created_at: string;
     updated_at: string;
+    old_booth_code: string | null;
     // Joined fields for display
     device_no: string | null;
     serial_number: string | null;

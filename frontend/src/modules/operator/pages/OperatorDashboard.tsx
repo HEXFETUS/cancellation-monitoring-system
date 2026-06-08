@@ -156,6 +156,10 @@ export default function OperatorDashboard() {
         return null;
     }, [me, operators, user?.id]);
 
+    const isSubOperator = useMemo(() => {
+        return myOperator !== null && myOperator.parent_operator_id != null;
+    }, [myOperator]);
+
     // IDs of sub-operators whose parent is the logged-in operator
     const subOperatorIds = useMemo(() => {
         if (!myOperator) return new Set<number>();
@@ -191,6 +195,43 @@ export default function OperatorDashboard() {
     }
 
     const combinedStats = useMemo(() => computeStats(allRecords), [allRecords]);
+
+    const operatorBreakdown = useMemo(() => {
+        if (!myOperator || isSubOperator) return [];
+
+        const counts = new Map<number, ReturnType<typeof computeStats>>();
+        const outletMap = new Map<number, BoothInfo[]>();
+        for (const op of [myOperator, ...operators.filter((op) => subOperatorIds.has(Number(op.id)))]) {
+            const opId = Number(op.id);
+            const opRecords = records.filter((r) => r.operator_id != null && Number(r.operator_id) === opId);
+            counts.set(opId, computeStats(opRecords));
+            outletMap.set(
+                opId,
+                booths
+                    .filter((b) => b.operator_id != null && Number(b.operator_id) === opId)
+                    .sort((a, b) => String(a.booth_code || "").localeCompare(String(b.booth_code || "")))
+            );
+        }
+
+        return [
+            {
+                id: Number(myOperator.id),
+                name: myOperator.operator || me?.operator_name || "My operator",
+                role: "main" as const,
+                stats: counts.get(Number(myOperator.id)) ?? { total: 0, active: 0, inactive: 0 },
+                outlets: outletMap.get(Number(myOperator.id)) ?? [],
+            },
+            ...operators
+                .filter((op) => subOperatorIds.has(Number(op.id)))
+                .map((op) => ({
+                    id: Number(op.id),
+                    name: op.operator,
+                    role: "sub" as const,
+                    stats: counts.get(Number(op.id)) ?? { total: 0, active: 0, inactive: 0 },
+                    outlets: outletMap.get(Number(op.id)) ?? [],
+                })),
+        ];
+    }, [booths, me?.operator_name, myOperator, isSubOperator, operators, records, subOperatorIds]);
 
     // Total outlets with area breakdown
     const { totalOutlets, cdoCount, misorCount } = useMemo(() => {
@@ -339,226 +380,310 @@ export default function OperatorDashboard() {
                         }
                     />
                 </div>
+
+                {!loading && operatorBreakdown.length > 1 && (
+                    <GlassCard className="mt-4">
+                        <div className="border-b border-white/40 bg-gradient-to-r from-[#92C7CF]/10 to-[#AAD7D9]/10 px-5 py-3">
+                            <div className="flex items-center justify-between gap-3">
+                                <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-800">
+                                    <UserCircle size={15} />
+                                    Devices & outlets by operator
+                                </h3>
+                                <span className="text-xs font-medium text-gray-500">
+                                    you + {operatorBreakdown.length - 1} sub{operatorBreakdown.length === 2 ? "" : "s"}
+                                </span>
+                            </div>
+                        </div>
+                        <div className={`overflow-x-auto ${operatorBreakdown.length > 10 ? "max-h-[520px] overflow-y-auto" : ""}`}>
+                            <table className="w-full text-left text-sm">
+                                <thead className={operatorBreakdown.length > 10 ? "sticky top-0 z-10" : ""}>
+                                    <tr className="border-b border-white/50 bg-white">
+                                        <th className="whitespace-nowrap px-5 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
+                                            Operator
+                                        </th>
+                                        <th className="min-w-[220px] px-5 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
+                                            Outlets
+                                        </th>
+                                        <th className="whitespace-nowrap px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">
+                                            Total Outlets
+                                        </th>
+                                        <th className="whitespace-nowrap px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">
+                                            Devices
+                                        </th>
+                                        <th className="whitespace-nowrap px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">
+                                            Active
+                                        </th>
+                                        <th className="whitespace-nowrap px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">
+                                            Inactive
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {operatorBreakdown.map((row) => (
+                                        <tr key={row.id} className="border-b border-white/40 last:border-0">
+                                            <td className="px-5 py-3">
+                                                <div className="flex min-w-0 items-center gap-2">
+                                                    <span className="truncate font-medium text-gray-800">{row.name}</span>
+                                                    <span
+                                                        className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                                                        style={{
+                                                            background: row.role === "main" ? "rgba(255,255,255,0.65)" : `${teal}25`,
+                                                            color: row.role === "main" ? "#6B7280" : teal,
+                                                        }}
+                                                    >
+                                                        {row.role}
+                                                    </span>
+                                                </div>
+                                            </td>
+                                            <td className="px-5 py-3">
+                                                {row.outlets.length === 0 ? (
+                                                    <span className="text-xs text-gray-400">No outlets assigned</span>
+                                                ) : (
+                                                    <div className="flex max-w-xl flex-wrap gap-1.5">
+                                                        {row.outlets.slice(0, 5).map((outlet) => (
+                                                            <span
+                                                                key={outlet.id}
+                                                                className="inline-flex max-w-[150px] items-center rounded-full bg-white/55 px-2 py-1 font-mono text-[11px] font-medium text-gray-700 ring-1 ring-white/60"
+                                                                title={[outlet.booth_code, outlet.booth_location].filter(Boolean).join(" - ")}
+                                                            >
+                                                                <span className="truncate">{outlet.booth_code || `Booth #${outlet.id}`}</span>
+                                                            </span>
+                                                        ))}
+                                                        {row.outlets.length > 5 && (
+                                                            <span className="inline-flex items-center rounded-full px-2 py-1 text-[11px] font-semibold text-gray-500 ring-1 ring-white/60">
+                                                                +{row.outlets.length - 5} more
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </td>
+                                            <td className="px-5 py-3 text-right font-semibold text-gray-800">{row.outlets.length}</td>
+                                            <td className="px-5 py-3 text-right font-semibold text-gray-800">{row.stats.total}</td>
+                                            <td className="px-5 py-3 text-right text-gray-600">{row.stats.active}</td>
+                                            <td className="px-5 py-3 text-right text-gray-600">{row.stats.inactive}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </GlassCard>
+                )}
             </div>
 
-            {/* ── Recent Requests section ── */}
-            <div>
-                <SectionHeader section="requests" />
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                    {/* Request POS History */}
-                    <GlassCard>
-                        <div className="border-b border-white/40 bg-gradient-to-r from-[#92C7CF]/10 to-[#AAD7D9]/10 px-5 py-3">
-                            <div className="flex items-center justify-between">
-                                <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-800">
-                                    <Send size={15} />
-                                    Request POS History
-                                </h3>
-                                <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-amber-100 px-1.5 text-[10px] font-bold text-amber-700">
-                                    {posRequests.length}
-                                </span>
-                            </div>
-                        </div>
-                        <div className="p-4">
-                            {loading ? (
-                                <div className="flex items-center justify-center py-6">
-                                    <RefreshCw size={18} className="animate-spin text-gray-400" />
+            {/* ── Recent Requests section — only rendered when at least one card is visible ── */}
+            {!loading && (
+                <div>
+                    <SectionHeader section="requests" />
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                        {/* Request POS History — hidden for sub-operators */}
+                        {!isSubOperator && (
+                            <GlassCard>
+                                <div className="border-b border-white/40 bg-gradient-to-r from-[#92C7CF]/10 to-[#AAD7D9]/10 px-5 py-3">
+                                    <div className="flex items-center justify-between">
+                                        <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-800">
+                                            <Send size={15} />
+                                            Request POS History
+                                        </h3>
+                                        <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-amber-100 px-1.5 text-[10px] font-bold text-amber-700">
+                                            {posRequests.length}
+                                        </span>
+                                    </div>
                                 </div>
-                            ) : recentPosRequests.length === 0 ? (
-                                <div className="rounded-xl border border-dashed border-[#92C7CF]/20 bg-white/30 px-4 py-6 text-center">
-                                    <Send size={28} className="mx-auto text-gray-300 mb-2" />
-                                    <p className="text-sm text-gray-500">No POS requests yet.</p>
+                                <div className="p-4">
+                                    {recentPosRequests.length === 0 ? (
+                                        <div className="rounded-xl border border-dashed border-[#92C7CF]/20 bg-white/30 px-4 py-6 text-center">
+                                            <Send size={28} className="mx-auto text-gray-300 mb-2" />
+                                            <p className="text-sm text-gray-500">No POS requests yet.</p>
+                                        </div>
+                                    ) : (
+                                        <ul className="divide-y divide-gray-100">
+                                            {recentPosRequests.map((r) => (
+                                                <li key={r.id} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <span className="text-sm font-semibold text-gray-800 truncate">
+                                                                {r.device_no || `POS #${r.pos_record_id}`}
+                                                            </span>
+                                                            <RequestStatusPill status={r.status} size="sm" />
+                                                        </div>
+                                                        <p className="mt-0.5 text-xs text-gray-500 truncate">
+                                                            {r.from_operator || "Unassigned"}
+                                                            <span className="mx-1 text-gray-300">→</span>
+                                                            <span style={{ color: teal }} className="font-medium">
+                                                                {r.to_operator || "—"}
+                                                            </span>
+                                                        </p>
+                                                        <p className="text-[11px] text-gray-400 mt-0.5">
+                                                            {r.created_at ? new Date(r.created_at).toLocaleDateString() : "—"}
+                                                        </p>
+                                                    </div>
+                                                </li>
+                                            ))}
+                                            <li className="pt-2">
+                                                <Link
+                                                    to="/app/my-pos"
+                                                    className="group inline-flex items-center gap-1 text-xs font-medium transition"
+                                                    style={{ color: teal }}
+                                                >
+                                                    View all
+                                                    <ChevronRight size={13} className="transition-transform group-hover:translate-x-0.5" />
+                                                </Link>
+                                            </li>
+                                        </ul>
+                                    )}
                                 </div>
-                            ) : (
-                                <ul className="divide-y divide-gray-100">
-                                    {recentPosRequests.map((r) => (
-                                        <li key={r.id} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
-                                            <div className="min-w-0 flex-1">
-                                                <div className="flex items-center gap-1.5">
-                                                    <span className="text-sm font-semibold text-gray-800 truncate">
-                                                        {r.device_no || `POS #${r.pos_record_id}`}
-                                                    </span>
-                                                    <RequestStatusPill status={r.status} size="sm" />
-                                                </div>
-                                                <p className="mt-0.5 text-xs text-gray-500 truncate">
-                                                    {r.from_operator || "Unassigned"}
-                                                    <span className="mx-1 text-gray-300">→</span>
-                                                    <span style={{ color: teal }} className="font-medium">
-                                                        {r.to_operator || "—"}
-                                                    </span>
-                                                </p>
-                                                <p className="text-[11px] text-gray-400 mt-0.5">
-                                                    {r.created_at ? new Date(r.created_at).toLocaleDateString() : "—"}
-                                                </p>
-                                            </div>
-                                        </li>
-                                    ))}
-                                    <li className="pt-2">
-                                        <Link
-                                            to="/app/my-pos"
-                                            className="group inline-flex items-center gap-1 text-xs font-medium transition"
-                                            style={{ color: teal }}
-                                        >
-                                            View all
-                                            <ChevronRight size={13} className="transition-transform group-hover:translate-x-0.5" />
-                                        </Link>
-                                    </li>
-                                </ul>
-                            )}
-                        </div>
-                    </GlassCard>
+                            </GlassCard>
+                        )}
 
-                    {/* Request Outlet History */}
-                    <GlassCard>
-                        <div className="border-b border-white/40 bg-gradient-to-r from-[#92C7CF]/10 to-[#AAD7D9]/10 px-5 py-3">
-                            <div className="flex items-center justify-between">
-                                <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-800">
-                                    <History size={15} />
-                                    Request Outlet History
-                                </h3>
-                                <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-amber-100 px-1.5 text-[10px] font-bold text-amber-700">
-                                    {outletRequests.length}
-                                </span>
-                            </div>
-                        </div>
-                        <div className="p-4">
-                            {loading ? (
-                                <div className="flex items-center justify-center py-6">
-                                    <RefreshCw size={18} className="animate-spin text-gray-400" />
+                        {/* Request Outlet History — hidden for sub-operators */}
+                        {!isSubOperator && (
+                            <GlassCard>
+                                <div className="border-b border-white/40 bg-gradient-to-r from-[#92C7CF]/10 to-[#AAD7D9]/10 px-5 py-3">
+                                    <div className="flex items-center justify-between">
+                                        <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-800">
+                                            <History size={15} />
+                                            Request Outlet History
+                                        </h3>
+                                        <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-amber-100 px-1.5 text-[10px] font-bold text-amber-700">
+                                            {outletRequests.length}
+                                        </span>
+                                    </div>
                                 </div>
-                            ) : recentOutletRequests.length === 0 ? (
-                                <div className="rounded-xl border border-dashed border-[#92C7CF]/20 bg-white/30 px-4 py-6 text-center">
-                                    <History size={28} className="mx-auto text-gray-300 mb-2" />
-                                    <p className="text-sm text-gray-500">No outlet requests yet.</p>
+                                <div className="p-4">
+                                    {recentOutletRequests.length === 0 ? (
+                                        <div className="rounded-xl border border-dashed border-[#92C7CF]/20 bg-white/30 px-4 py-6 text-center">
+                                            <History size={28} className="mx-auto text-gray-300 mb-2" />
+                                            <p className="text-sm text-gray-500">No outlet requests yet.</p>
+                                        </div>
+                                    ) : (
+                                        <ul className="divide-y divide-gray-100">
+                                            {recentOutletRequests.map((r) => (
+                                                <li key={r.id} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <span className="text-sm font-semibold text-gray-800 truncate">
+                                                                {r.booth_code || `Booth #${r.booth_info_id}`}
+                                                            </span>
+                                                            <RequestStatusPill status={r.status} size="sm" />
+                                                        </div>
+                                                        <p className="mt-0.5 text-xs text-gray-500 truncate">
+                                                            {r.current_operator || "Unassigned"}
+                                                            <span className="mx-1 text-gray-300">→</span>
+                                                            <span style={{ color: teal }} className="font-medium">
+                                                                {r.to_operator || "—"}
+                                                            </span>
+                                                        </p>
+                                                        <p className="text-[11px] text-gray-400 mt-0.5">
+                                                            {r.created_at ? new Date(r.created_at).toLocaleDateString() : "—"}
+                                                        </p>
+                                                    </div>
+                                                </li>
+                                            ))}
+                                            <li className="pt-2">
+                                                <Link
+                                                    to="/app/my-outlets"
+                                                    className="group inline-flex items-center gap-1 text-xs font-medium transition"
+                                                    style={{ color: teal }}
+                                                >
+                                                    View all
+                                                    <ChevronRight size={13} className="transition-transform group-hover:translate-x-0.5" />
+                                                </Link>
+                                            </li>
+                                        </ul>
+                                    )}
                                 </div>
-                            ) : (
-                                <ul className="divide-y divide-gray-100">
-                                    {recentOutletRequests.map((r) => (
-                                        <li key={r.id} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
-                                            <div className="min-w-0 flex-1">
-                                                <div className="flex items-center gap-1.5">
-                                                    <span className="text-sm font-semibold text-gray-800 truncate">
-                                                        {r.booth_code || `Booth #${r.booth_info_id}`}
-                                                    </span>
-                                                    <RequestStatusPill status={r.status} size="sm" />
-                                                </div>
-                                                <p className="mt-0.5 text-xs text-gray-500 truncate">
-                                                    {r.current_operator || "Unassigned"}
-                                                    <span className="mx-1 text-gray-300">→</span>
-                                                    <span style={{ color: teal }} className="font-medium">
-                                                        {r.to_operator || "—"}
-                                                    </span>
-                                                </p>
-                                                <p className="text-[11px] text-gray-400 mt-0.5">
-                                                    {r.created_at ? new Date(r.created_at).toLocaleDateString() : "—"}
-                                                </p>
-                                            </div>
-                                        </li>
-                                    ))}
-                                    <li className="pt-2">
-                                        <Link
-                                            to="/app/my-outlets"
-                                            className="group inline-flex items-center gap-1 text-xs font-medium transition"
-                                            style={{ color: teal }}
-                                        >
-                                            View all
-                                            <ChevronRight size={13} className="transition-transform group-hover:translate-x-0.5" />
-                                        </Link>
-                                    </li>
-                                </ul>
-                            )}
-                        </div>
-                    </GlassCard>
+                            </GlassCard>
+                        )}
 
-                    {/* Booth Change Requests */}
-                    <GlassCard>
-                        <div className="border-b border-white/40 bg-gradient-to-r from-[#92C7CF]/10 to-[#AAD7D9]/10 px-5 py-3">
-                            <div className="flex items-center justify-between">
-                                <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-800">
-                                    <ArrowRightLeft size={15} />
-                                    Booth Change Requests
-                                </h3>
-                                <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-amber-100 px-1.5 text-[10px] font-bold text-amber-700">
-                                    {requests.length}
-                                </span>
+                        {/* Booth Change Requests — always visible */}
+                        <GlassCard>
+                            <div className="border-b border-white/40 bg-gradient-to-r from-[#92C7CF]/10 to-[#AAD7D9]/10 px-5 py-3">
+                                <div className="flex items-center justify-between">
+                                    <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-800">
+                                        <ArrowRightLeft size={15} />
+                                        Booth Change Requests
+                                    </h3>
+                                    <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-amber-100 px-1.5 text-[10px] font-bold text-amber-700">
+                                        {requests.length}
+                                    </span>
+                                </div>
                             </div>
-                        </div>
-                        <div className="p-4">
-                            {loading ? (
-                                <div className="flex items-center justify-center py-6">
-                                    <RefreshCw size={18} className="animate-spin text-gray-400" />
-                                </div>
-                            ) : recentBoothRequests.length === 0 ? (
-                                <div className="rounded-xl border border-dashed border-[#92C7CF]/20 bg-white/30 px-4 py-6 text-center">
-                                    <ArrowRightLeft size={28} className="mx-auto text-gray-300 mb-2" />
-                                    <p className="text-sm text-gray-500">No booth change requests yet.</p>
-                                </div>
-                            ) : (
-                                <ul className="divide-y divide-gray-100">
-                                    {recentBoothRequests.map((r) => (
-                                        <li key={r.id} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
-                                            <div className="min-w-0 flex-1">
-                                                <div className="flex items-center gap-1.5">
-                                                    <span className="text-sm font-semibold text-gray-800 truncate">
-                                                        {r.device_no || `POS #${r.pos_record_id}`}
-                                                    </span>
-                                                    <BoothStatusPill status={r.status} />
+                            <div className="p-4">
+                                {recentBoothRequests.length === 0 ? (
+                                    <div className="rounded-xl border border-dashed border-[#92C7CF]/20 bg-white/30 px-4 py-6 text-center">
+                                        <ArrowRightLeft size={28} className="mx-auto text-gray-300 mb-2" />
+                                        <p className="text-sm text-gray-500">No booth change requests yet.</p>
+                                    </div>
+                                ) : (
+                                    <ul className="divide-y divide-gray-100">
+                                        {recentBoothRequests.map((r) => (
+                                            <li key={r.id} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <span className="text-sm font-semibold text-gray-800 truncate">
+                                                            {r.device_no || `POS #${r.pos_record_id}`}
+                                                        </span>
+                                                        <BoothStatusPill status={r.status} />
+                                                    </div>
+                                                    <p className="mt-0.5 text-xs text-gray-500 truncate">
+                                                        <span className="font-mono">{r.old_booth_code || r.current_booth_code || "—"}</span>
+                                                        <span className="mx-1 text-gray-300">→</span>
+                                                        <span className="font-mono" style={{ color: teal }}>
+                                                            {r.requested_booth_code || `#${r.requested_booth_id}`}
+                                                        </span>
+                                                    </p>
+                                                    <p className="text-[11px] text-gray-400 mt-0.5">
+                                                        {new Date(r.created_at).toLocaleString()}
+                                                    </p>
                                                 </div>
-                                                <p className="mt-0.5 text-xs text-gray-500 truncate">
-                                                    <span className="font-mono">{r.current_booth_code || "—"}</span>
-                                                    <span className="mx-1 text-gray-300">→</span>
-                                                    <span className="font-mono" style={{ color: teal }}>
-                                                        {r.requested_booth_code || `#${r.requested_booth_id}`}
-                                                    </span>
-                                                </p>
-                                                <p className="text-[11px] text-gray-400 mt-0.5">
-                                                    {new Date(r.created_at).toLocaleString()}
-                                                </p>
-                                            </div>
+                                            </li>
+                                        ))}
+                                        <li className="pt-2">
+                                            <Link
+                                                to="/app/my-pos"
+                                                className="group inline-flex items-center gap-1 text-xs font-medium transition"
+                                                style={{ color: teal }}
+                                            >
+                                                View all
+                                                <ChevronRight size={13} className="transition-transform group-hover:translate-x-0.5" />
+                                            </Link>
                                         </li>
-                                    ))}
-                                    <li className="pt-2">
-                                        <Link
-                                            to="/app/my-pos"
-                                            className="group inline-flex items-center gap-1 text-xs font-medium transition"
-                                            style={{ color: teal }}
-                                        >
-                                            View all
-                                            <ChevronRight size={13} className="transition-transform group-hover:translate-x-0.5" />
-                                        </Link>
-                                    </li>
-                                </ul>
-                            )}
-                        </div>
-                    </GlassCard>
+                                    </ul>
+                                )}
+                            </div>
+                        </GlassCard>
+                    </div>
                 </div>
-            </div>
+            )}
 
-            {/* ── Quick action ── */}
-            <GlassCard>
-                <div className="p-5 flex flex-col items-center text-center">
-                    <span
-                        className="flex h-10 w-10 items-center justify-center rounded-xl mb-3"
-                        style={{ background: `${teal}20`, color: teal }}
-                    >
-                        <ArrowRightLeft size={18} />
-                    </span>
-                    <h3 className="text-base font-semibold text-gray-800">Quick action</h3>
-                    <p className="mt-1 text-sm text-gray-500">
-                        Need to request a new POS device under your account?
-                    </p>
-                    <Link
-                        to="/app/request-pos?tab=request-pos"
-                        className="mt-4 inline-flex w-full max-w-xs items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:opacity-90 active:scale-[0.98]"
-                        style={{
-                            background: `linear-gradient(135deg, ${teal}, ${tealLight})`,
-                            boxShadow: `0 2px 8px rgba(146,199,207,0.30)`,
-                        }}
-                    >
-                        <Send size={15} />
-                        Add POS
-                    </Link>
-                </div>
-            </GlassCard>
+            {/* ── Quick action — hidden for sub-operators */}
+            {!isSubOperator && (
+                <GlassCard>
+                    <div className="p-5 flex flex-col items-center text-center">
+                        <span
+                            className="flex h-10 w-10 items-center justify-center rounded-xl mb-3"
+                            style={{ background: `${teal}20`, color: teal }}
+                        >
+                            <ArrowRightLeft size={18} />
+                        </span>
+                        <h3 className="text-base font-semibold text-gray-800">Quick action</h3>
+                        <p className="mt-1 text-sm text-gray-500">
+                            Need to request a new POS device under your account?
+                        </p>
+                        <Link
+                            to="/app/request-pos?tab=request-pos"
+                            className="mt-4 inline-flex w-full max-w-xs items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:opacity-90 active:scale-[0.98]"
+                            style={{
+                                background: `linear-gradient(135deg, ${teal}, ${tealLight})`,
+                                boxShadow: `0 2px 8px rgba(146,199,207,0.30)`,
+                            }}
+                        >
+                            <Send size={15} />
+                            Assign POS
+                        </Link>
+                    </div>
+                </GlassCard>
+            )}
 
             <RequestBoothChangeModal
                 open={!!requesting}
