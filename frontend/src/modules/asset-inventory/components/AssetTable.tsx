@@ -206,7 +206,7 @@ export default function AssetTable({
                                     key={r.id}
                                     className="border-b border-warm/60 transition hover:bg-cream"
                                 >
-                                    <Td className="font-medium text-ink">{r.itemDescription}</Td>
+                                    <Td className="font-medium text-ink whitespace-normal max-w-[280px] break-words">{r.itemDescription}</Td>
                                     <Td>
                                         {r.type ? (
                                             <span className="inline-block rounded-full border border-teal/30 bg-teal-light/40 px-2.5 py-0.5 text-xs font-medium text-ink">

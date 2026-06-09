@@ -301,7 +301,7 @@ export default function BulkGenerateQrModal({
                                                 className="h-4 w-4 cursor-pointer accent-teal"
                                             />
                                             <span className="min-w-0 flex-1">
-                                                <span className="block truncate text-sm font-medium text-ink">
+                                                <span className="block break-words text-sm font-medium text-ink">
                                                     {a.itemDescription}
                                                 </span>
                                                 <span className="block truncate text-xs text-ink-muted">

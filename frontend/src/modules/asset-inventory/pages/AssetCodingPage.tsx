@@ -271,7 +271,7 @@ export default function AssetCodingPage() {
                                         </button>
                                     </Td>
                                     <Td className="font-medium text-ink">{row.itemCode}</Td>
-                                    <Td>{row.description}</Td>
+                                    <Td className="whitespace-normal max-w-xs">{row.description}</Td>
                                     <Td>
                                         {row.type ? (
                                             <span className="inline-block rounded-full border border-teal/30 bg-teal-light/40 px-2.5 py-0.5 text-xs font-medium text-ink">
