@@ -17,18 +17,20 @@ import {
 } from "../services/officeDepartments";
 
 interface AssetLocationPageProps {
-    location: AssetLocation;
+    location?: AssetLocation;
+    type?: string;
     title: string;
     description?: string;
 }
 
 export default function AssetLocationPage({
     location,
+    type,
     title,
     description,
 }: AssetLocationPageProps) {
     const { rows, loading, error, addAsset, updateAsset, deleteAsset, refresh } =
-        useAssets(location);
+        useAssets(location, type);
     const canDelete = useCanDelete();
 
     const isPayout = location === "payout";

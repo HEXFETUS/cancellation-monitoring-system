@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Pencil, Plus, Search, Trash2 } from "lucide-react";
 
 export interface AssetRow {
@@ -67,6 +67,8 @@ export default function AssetTable({
     departmentLabel = "Department",
 }: AssetTableProps) {
     const [search, setSearch] = useState("");
+    const [page, setPage] = useState(1);
+    const PAGE_SIZE = 20;
 
     const showActions = Boolean(onEdit || onDelete);
     const colCount = 15 + (showActions ? 1 : 0);
@@ -90,6 +92,18 @@ export default function AssetTable({
                 .includes(q)
         );
     }, [rows, search]);
+
+    // Reset to page 1 when search changes
+    useEffect(() => {
+        setPage(1);
+    }, [search]);
+
+    const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+    const safePage = Math.min(page, totalPages);
+    const paginated = useMemo(
+        () => filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
+        [filtered, safePage]
+    );
 
     const grandTotal = useMemo(
         () => filtered.reduce((sum, r) => sum + (r.totalValue || 0), 0),
@@ -143,7 +157,7 @@ export default function AssetTable({
 
             {/* Table */}
             <div className="overflow-x-auto rounded-xl border border-warm bg-card shadow-sm">
-                <table className="w-full min-w-[1800px] text-left text-sm">
+<table className="w-full min-w-450 text-left text-sm">
                     <thead>
                         <tr className="border-b border-warm bg-cream">
                             <Th>Item Description</Th>
@@ -187,7 +201,7 @@ export default function AssetTable({
                                 </td>
                             </tr>
                         ) : (
-                            filtered.map((r) => (
+                            paginated.map((r) => (
                                 <tr
                                     key={r.id}
                                     className="border-b border-warm/60 transition hover:bg-cream"
@@ -269,9 +283,48 @@ export default function AssetTable({
                 </table>
             </div>
 
-            <p className="mt-3 text-xs text-ink-subtle">
-                Showing {filtered.length} of {rows.length} assets
-            </p>
+            {/* Pagination Controls */}
+            {filtered.length > 0 && !loading && (
+                <div className="mt-4 flex items-center justify-between gap-3">
+                    <p className="text-xs text-ink-subtle">
+                        Page {safePage} of {totalPages} &middot; {filtered.length} result{filtered.length === 1 ? "" : "s"}
+                    </p>
+
+                    <div className="flex items-center gap-1">
+                        <button
+                            disabled={safePage <= 1}
+                            onClick={() => setPage((p) => Math.max(1, p - 1))}
+                            className="rounded-lg border border-warm bg-card px-3 py-1.5 text-xs font-medium text-ink transition hover:bg-warm/40 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                            Prev
+                        </button>
+                        {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                            const start = Math.max(1, safePage - 2);
+                            const pageNum = start + i;
+                            if (pageNum > totalPages) return null;
+                            return (
+                                <button
+                                    key={pageNum}
+                                    onClick={() => setPage(pageNum)}
+                                    className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${pageNum === safePage
+                                        ? "bg-teal text-ink"
+                                        : "border border-warm bg-card text-ink hover:bg-warm/40"
+                                    }`}
+                                >
+                                    {pageNum}
+                                </button>
+                            );
+                        })}
+                        <button
+                            disabled={safePage >= totalPages}
+                            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                            className="rounded-lg border border-warm bg-card px-3 py-1.5 text-xs font-medium text-ink transition hover:bg-warm/40 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                            Next
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

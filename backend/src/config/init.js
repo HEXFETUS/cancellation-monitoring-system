@@ -380,6 +380,18 @@ async function initDatabase() {
             END $$;
         `);
 
+        // Fix existing data: assets whose type is 'Vehicle' but location is
+        // not 'vehicle' (imported before the Type-column fallback was added).
+        // Idempotent — safe to re-run.
+        await client.query(`
+            UPDATE asset_inv
+            SET location = 'vehicle',
+                updated_at = CURRENT_TIMESTAMP
+            WHERE LOWER(type) = 'vehicle'
+              AND location != 'vehicle'
+              AND is_current = TRUE
+        `);
+
         // Sync identity + lifecycle flags (Google Sheets sync).
         // sheet_row_hash is a SHA-256 of stable fields so each Google Sheet
         // row maps to at most one DB row; re-syncing the same sheet is a

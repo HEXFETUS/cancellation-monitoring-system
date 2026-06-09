@@ -19,7 +19,7 @@ interface UseAssetsResult {
     deleteAsset: (id: number) => Promise<void>;
 }
 
-export function useAssets(location: AssetLocation): UseAssetsResult {
+export function useAssets(location?: AssetLocation, type?: string): UseAssetsResult {
     const [rows, setRows] = useState<AssetRow[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
@@ -28,14 +28,14 @@ export function useAssets(location: AssetLocation): UseAssetsResult {
         try {
             setLoading(true);
             setError("");
-            const data = await listAssets(location);
+            const data = await listAssets(location, type);
             setRows(data);
         } catch (err) {
             setError(err instanceof Error ? (err instanceof Error ? err.message : String(err)) : "Could not load assets");
         } finally {
             setLoading(false);
         }
-    }, [location]);
+    }, [location, type]);
 
     useEffect(() => {
         refresh();
@@ -43,7 +43,7 @@ export function useAssets(location: AssetLocation): UseAssetsResult {
 
     const addAsset = useCallback(
         async (input: Omit<AssetInput, "location">) => {
-            await createAsset({ ...input, location });
+            await createAsset({ ...input, location: location ?? "office" });
             await refresh();
         },
         [location, refresh]
@@ -51,7 +51,7 @@ export function useAssets(location: AssetLocation): UseAssetsResult {
 
     const updateAsset = useCallback(
         async (id: number, input: Omit<AssetInput, "location">) => {
-            await updateAssetApi(id, { ...input, location });
+            await updateAssetApi(id, { ...input, location: location ?? "office" });
             await refresh();
         },
         [location, refresh]

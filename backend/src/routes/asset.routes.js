@@ -146,10 +146,10 @@ function buildRow(body) {
     };
 }
 
-// GET /api/assets?location=office
+// GET /api/assets?location=office&type=Vehicle
 router.get("/", async (req, res) => {
     try {
-        const { location } = req.query;
+        const { location, type } = req.query;
 
         if (location && !VALID_LOCATIONS.has(location)) {
             return res.status(400).json({
@@ -157,12 +157,25 @@ router.get("/", async (req, res) => {
             });
         }
 
-        const result = location
-            ? await pool.query(
-                    `SELECT ${ASSET_COLUMNS} FROM asset_inv WHERE location = $1 AND is_current = TRUE ORDER BY id DESC`,
-                [location]
-            )
-                : await pool.query(`SELECT ${ASSET_COLUMNS} FROM asset_inv WHERE is_current = TRUE ORDER BY id DESC`);
+        const conditions = ["is_current = TRUE"];
+        const params = [];
+        let paramIndex = 1;
+
+        if (location) {
+            conditions.push(`location = $${paramIndex++}`);
+            params.push(location);
+        }
+
+        if (type) {
+            conditions.push(`LOWER(type) = LOWER($${paramIndex++})`);
+            params.push(type);
+        }
+
+        const whereClause = conditions.join(" AND ");
+        const result = await pool.query(
+            `SELECT ${ASSET_COLUMNS} FROM asset_inv WHERE ${whereClause} ORDER BY id DESC`,
+            params
+        );
 
         res.json(result.rows);
     } catch (err) {

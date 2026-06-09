@@ -808,6 +808,10 @@ function sheetAssetToDbRow(row) {
     if (!location) {
         location = parseLocation(pick(row, ["Department"]));
     }
+    // If still no location, derive it from the Type column (e.g. "Vehicle" → "vehicle").
+    if (!location) {
+        location = parseLocation(pick(row, ["Type", "Category"]));
+    }
     const itemDescription = pick(row, ["Item Description", "Description", "Item", "Asset"]);
     const quantity = Math.max(1, parseInteger(pick(row, ["Quantity", "Qty"]), 1));
     const purchasePrice = parseNumber(

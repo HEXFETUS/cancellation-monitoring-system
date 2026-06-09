@@ -83,8 +83,12 @@ export type AssetInput = Omit<AssetRow, "id" | "totalValue"> & {
     location: AssetLocation;
 };
 
-export async function listAssets(location: AssetLocation): Promise<AssetRow[]> {
-    const res = await fetch(apiUrl(`/api/assets?location=${location}`));
+export async function listAssets(location?: AssetLocation, type?: string): Promise<AssetRow[]> {
+    const params = new URLSearchParams();
+    if (location) params.set("location", location);
+    if (type) params.set("type", type);
+    const qs = params.toString();
+    const res = await fetch(apiUrl(`/api/assets${qs ? `?${qs}` : ""}`));
     if (!res.ok) throw new Error(await getErrorMessage(res, "Failed to load assets"));
     const data: AssetWire[] = await res.json();
     return data.map(fromWire);
