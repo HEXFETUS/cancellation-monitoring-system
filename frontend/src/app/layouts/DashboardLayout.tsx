@@ -550,10 +550,9 @@ export default function DashboardLayout() {
 
                     {/* ===== Logo Section ===== */}
                     <div className="relative mb-5 mt-1">
-                        <Link
-                            to="/"
-                            onClick={closeMobileSidebar}
-                            className="group relative flex items-center gap-3 px-3 py-2.5 rounded-2xl transition-all duration-300"
+                        <button
+                            onClick={() => window.location.reload()}
+                            className="group relative flex items-center gap-3 px-3 py-2.5 rounded-2xl transition-all duration-300 w-full text-left"
                             style={{
                                 background: "linear-gradient(135deg, #92C7CF 0%, #AAD7D9 100%)",
                                 boxShadow: "0 4px 20px rgba(146,199,207,0.35)",
@@ -581,7 +580,7 @@ export default function DashboardLayout() {
                                     </span>
                                 </div>
                             </div>
-                        </Link>
+                        </button>
                     </div>
 
                     {/* ===== Navigation ===== */}
