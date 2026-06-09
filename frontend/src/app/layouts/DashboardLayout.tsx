@@ -568,7 +568,7 @@ export default function DashboardLayout() {
                             />
                             <div className="relative flex items-center gap-3">
                                 <img
-                                    src="/src/assets/LogoOnly.png"
+                                    src="/slideshow/HEXLOGO.png"
                                     alt="Logo"
                                     className="h-8 w-8 rounded-xl object-contain"
                                 />
