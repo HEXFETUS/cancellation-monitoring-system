@@ -16,6 +16,7 @@ const SELECT_COLUMNS = `
         bcr.decided_at,
         bcr.created_at,
         bcr.updated_at,
+        bcr.old_booth_code,
         p.device_no,
         p.serial_number,
         p.booth_id AS current_booth_id,
@@ -198,13 +199,24 @@ router.post("/", async (req, res) => {
 // TIMESTAMP (no timezone), so the value is stored verbatim; pg then reads
 // it back as UTC, and the frontend (which already runs in Asia/Manila)
 // displays the same wall-clock value.
-const nowManila = manilaTimestamp();
+        const nowManila = manilaTimestamp();
+
+        // Capture the device's current booth code so the "Move from" value is
+        // preserved even if the device moves later (e.g. after approval).
+        const currentBoothResult = await pool.query(
+            `SELECT bi.booth_code
+             FROM pos_records pr
+             LEFT JOIN booth_info bi ON pr.booth_id = bi.id
+             WHERE pr.id = $1::int LIMIT 1`,
+            [pos_record_id]
+        );
+        const oldBoothCode = currentBoothResult.rows[0]?.booth_code ?? null;
 
         const result = await pool.query(
             `
             INSERT INTO booth_change_requests
-                (pos_record_id, requested_booth_id, requested_by_user_id, reason, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $5)
+                (pos_record_id, requested_booth_id, requested_by_user_id, reason, old_booth_code, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $6)
             RETURNING id
             `,
             [
@@ -212,6 +224,7 @@ const nowManila = manilaTimestamp();
                 Number(requested_booth_id),
                 requested_by_user_id ? Number(requested_by_user_id) : null,
                 nullable(reason),
+                oldBoothCode,
                 nowManila,
             ]
         );
@@ -231,8 +244,7 @@ const nowManila = manilaTimestamp();
  * POST /api/booth-change-requests/:id/approve
  * Body: { admin_user_id, admin_notes? }
  * Marks the request approved AND swaps the POS device's booth in one transaction.
- * Mirrors the logic in PATCH /api/pos/:id/booth-id including operator validation
- * and writing a row to booth_change_logs.
+ * Mirrors the logic in PATCH /api/pos/:id/booth-id including operator validation.
  */
 router.post("/:id/approve", async (req, res) => {
     const id = Number(req.params.id);
@@ -326,17 +338,6 @@ router.post("/:id/approve", async (req, res) => {
                  WHERE id = $1::int`,
                 [row.id]
             );
-            // Also write to booth_change_logs so the inactivation is auditable.
-            await client.query(
-                `INSERT INTO booth_change_logs
-                    (pos_record_id, old_booth_code, new_booth_code, changed_by, created_at)
-                 VALUES ($1, $2, NULL, $3, CURRENT_TIMESTAMP)`,
-                [
-                    row.id,
-                    newBooth.booth_code,
-                    admin_user_id ? `user:${admin_user_id} (auto-displaced)` : "system (auto-displaced)",
-                ]
-            );
         }
 
         // Capture old booth_code for the log row
@@ -359,18 +360,6 @@ router.post("/:id/approve", async (req, res) => {
             [newBooth.id, operatorToSet, pos.id]
         );
 
-        // Audit log (mirrors the manual-change route)
-        await client.query(
-            `INSERT INTO booth_change_logs
-                (pos_record_id, old_booth_code, new_booth_code, changed_by, created_at)
-             VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)`,
-            [
-                pos.id,
-                oldBoothCode,
-                newBooth.booth_code,
-                admin_user_id ? `user:${admin_user_id}` : "system",
-            ]
-        );
 
         // Mark request approved
         await client.query(

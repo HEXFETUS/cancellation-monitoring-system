@@ -75,6 +75,7 @@ export default function BoothChangeRequestHistory({
                             <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Reason</th>
                             <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Status</th>
                             <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Submitted</th>
+                            <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Admin Note</th>
                             <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500 text-right">Actions</th>
                         </tr>
                     </thead>
@@ -82,7 +83,7 @@ export default function BoothChangeRequestHistory({
                         {filteredRequests.length === 0 ? (
                             <tr>
                                 <td
-                                    colSpan={7}
+                                    colSpan={8}
                                     className="px-4 py-6 text-center text-sm text-gray-500"
                                 >
                                     No requests match "{search}".
@@ -99,11 +100,12 @@ export default function BoothChangeRequestHistory({
                                             {r.serial_number || "—"}
                                         </div>
                                     </td>
-                                    <td className="whitespace-nowrap px-4 py-3 text-gray-500">{r.current_booth_code || "-"}</td>
+                                    <td className="whitespace-nowrap px-4 py-3 text-gray-500">{r.old_booth_code || r.current_booth_code || "-"}</td>
                                     <td className="whitespace-nowrap px-4 py-3 text-gray-700">{r.requested_booth_code || `#${r.requested_booth_id}`}</td>
                                     <td className="px-4 py-3 text-gray-500">{r.reason || "-"}</td>
                                     <td className="whitespace-nowrap px-4 py-3"><StatusPill status={r.status} /></td>
                                     <td className="whitespace-nowrap px-4 py-3 text-xs text-gray-400">{new Date(r.created_at).toLocaleString()}</td>
+                                    <td className="whitespace-nowrap px-4 py-3 text-gray-500 max-w-[200px] truncate" title={r.admin_notes || ""}>{r.admin_notes || "-"}</td>
                                     <td className="whitespace-nowrap px-4 py-3 text-right">
                                         {(r.status || "").toLowerCase() === "pending" ? (
                                             <button
@@ -156,7 +158,7 @@ export default function BoothChangeRequestHistory({
                         </div>
                         <div className="flex items-center justify-between">
                             <span className="font-semibold">From</span>
-                            <span>{cancelTarget.current_booth_code || "-"}</span>
+                            <span>{cancelTarget.old_booth_code || cancelTarget.current_booth_code || "-"}</span>
                         </div>
                         <div className="flex items-center justify-between">
                             <span className="font-semibold">To</span>

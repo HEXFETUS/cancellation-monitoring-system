@@ -13,6 +13,9 @@ const SELECT_COLUMNS = `
         obr.decided_at,
         obr.created_at,
         obr.updated_at,
+        obr.reason,
+        obr.old_operator,
+        obr.admin_notes,
         b.booth_code,
         b.coordinate,
         b.location AS booth_location,
@@ -75,13 +78,13 @@ router.get("/", async (req, res) => {
 
 /**
  * POST /api/booth-operator-change-requests
- * Body: { user_id, booth_id }
+ * Body: { user_id, booth_id, reason?, old_operator? }
  * Operator submits a request to "adopt" a booth that currently lives
  * under a different operator. The request goes to the admin queue (status
  * "pending"); when approved, the booth's operator_id is updated.
  */
 router.post("/", async (req, res) => {
-    const { user_id, booth_id } = req.body ?? {};
+    const { user_id, booth_id, reason, old_operator } = req.body ?? {};
 
     if (!user_id || !booth_id) {
         return res.status(400).json({
@@ -135,12 +138,14 @@ router.post("/", async (req, res) => {
 
         const insertRes = await pool.query(
             `INSERT INTO operator_booth_requests
-                (user_id, booth_info_id, status)
-             VALUES ($1, $2, 'pending')
+                (user_id, booth_info_id, status, reason, old_operator)
+             VALUES ($1, $2, 'pending', $3, $4)
              RETURNING id`,
             [
                 Number(user_id),
                 Number(booth_id),
+                typeof reason === "string" && reason.trim() ? reason.trim() : null,
+                old_operator || null,
             ]
         );
 
@@ -165,7 +170,7 @@ router.post("/:id/approve", async (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isFinite(id)) return res.status(400).json({ error: "Invalid id" });
 
-    const { admin_user_id } = req.body ?? {};
+    const { admin_user_id, admin_notes } = req.body ?? {};
 
     const client = await pool.connect();
     try {
@@ -260,12 +265,14 @@ router.post("/:id/reject", async (req, res) => {
             `UPDATE operator_booth_requests
              SET status = 'rejected',
                  decided_by_user_id = $1,
+                 admin_notes = $2,
                  decided_at = CURRENT_TIMESTAMP,
                  updated_at = CURRENT_TIMESTAMP
-             WHERE id = $2::int AND status = 'pending'
+             WHERE id = $3::int AND status = 'pending'
              RETURNING id`,
             [
                 admin_user_id ? Number(admin_user_id) : null,
+                typeof admin_notes === "string" && admin_notes.trim() ? admin_notes.trim() : null,
                 id,
             ]
         );

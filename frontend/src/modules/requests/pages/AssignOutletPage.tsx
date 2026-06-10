@@ -22,6 +22,8 @@ const STATUS_OPTIONS: { id: StatusFilter; label: string }[] = [
     { id: "cancelled", label: "Cancelled" },
 ];
 
+const getFromOperator = (request: BoothOperatorChangeRequest) => request.old_operator || request.current_operator || "Unassigned";
+
 export default function AssignOutletPage() {
     const { user } = useAuth();
     const [darkMode, setDarkMode] = useState(() => document.documentElement.classList.contains("dark") || localStorage.getItem("theme") === "dark");
@@ -71,9 +73,12 @@ export default function AssignOutletPage() {
             return (r.booth_code || "").toLowerCase().includes(q) ||
                 (r.coordinate || "").toLowerCase().includes(q) ||
                 (r.booth_location || "").toLowerCase().includes(q) ||
+                (r.old_operator || "").toLowerCase().includes(q) ||
                 (r.current_operator || "").toLowerCase().includes(q) ||
                 (r.to_operator || "").toLowerCase().includes(q) ||
-                (r.requested_by_name || "").toLowerCase().includes(q);
+                (r.requested_by_name || "").toLowerCase().includes(q) ||
+                (r.reason || "").toLowerCase().includes(q) ||
+                (r.admin_notes || "").toLowerCase().includes(q);
         });
     }, [requests, search, statusFilter]);
 
@@ -119,12 +124,16 @@ export default function AssignOutletPage() {
     const confirmApprove = async () => {
         const req = approveTarget;
         if (!req || !user?.id) return;
+        const isLastPending = statusFilter === "pending" && counts.pending === 1;
         setBusyId(req.id);
         setApproveTarget(null);
         try {
             await approveBoothOperatorChangeRequest(req.id, { admin_user_id: user.id });
             showToast("success", `Approved request for outlet ${req.booth_code || `#${req.booth_info_id}`}.`);
             await load();
+            if (isLastPending) {
+                setStatusFilter("approved");
+            }
         } catch (e) {
             showToast("error", e instanceof Error ? e.message : "Failed to approve request");
         } finally {
@@ -135,6 +144,7 @@ export default function AssignOutletPage() {
     const submitReject = async () => {
         const req = rejectNoteTarget;
         if (!req || !user?.id) return;
+        const isLastPending = statusFilter === "pending" && counts.pending === 1;
         setBusyId(req.id);
         setRejectNoteTarget(null);
         setRejectNote("");
@@ -142,6 +152,9 @@ export default function AssignOutletPage() {
             await rejectBoothOperatorChangeRequest(req.id, { admin_user_id: user.id });
             showToast("info", `Rejected request for outlet ${req.booth_code || `#${req.booth_info_id}`}.`);
             await load();
+            if (isLastPending) {
+                setStatusFilter("rejected");
+            }
         } catch (e) {
             showToast("error", e instanceof Error ? e.message : "Failed to reject request");
         } finally {
@@ -292,29 +305,53 @@ export default function AssignOutletPage() {
                                     <div>
                                         <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">From</div>
                                         <div className="text-sm text-gray-700">
-                                            {r.current_operator || "Unassigned"}
+                                            {getFromOperator(r)}
                                         </div>
                                     </div>
                                     <div>
                                         <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">To</div>
                                         <div className="text-sm font-medium" style={{ color: teal }}>
                                             {r.to_operator || "—"}
-                                            {r.requested_by_name && <span className="block text-xs font-normal text-gray-500">by {r.requested_by_name}</span>}
+                                            {r.requested_by_name && <span className="block text-xs font-normal text-gray-500"></span>}
                                         </div>
                                     </div>
+                                    {statusFilter !== "rejected" && (
+                                        <div>
+                                            <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Reason</div>
+                                            <div className="text-sm text-gray-700">
+                                                {r.reason ? (
+                                                    <span className="line-clamp-2" title={r.reason}>{r.reason}</span>
+                                                ) : (
+                                                    <span className="text-gray-400 italic">No reason provided</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                    {statusFilter === "rejected" && (
+                                        <div>
+                                            <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Admin note</div>
+                                            <div className="text-sm text-gray-700">
+                                                {r.admin_notes ? (
+                                                    <span className="line-clamp-2" title={r.admin_notes}>{r.admin_notes}</span>
+                                                ) : (
+                                                    <span className="text-gray-400 italic">No admin note provided</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {statusFilter === "rejected" && (
                                     <div className="mt-2 text-xs" style={{ color: darkMode ? "#9CA3AF" : "#6B7280" }}>
-                                        <span className="font-semibold" style={{ color: darkMode ? "#F3F4F6" : "#1F2937" }}>Decided by:</span>{" "}
-                                        {r.decided_by_name || "—"}
+                                        Rejected by:{" "}
+                                        <span className="font-semibold" style={{ color: darkMode ? "#F3F4F6" : "#1F2937" }}>{r.decided_by_name || "—"}</span>
                                         {r.decided_at && <> · {new Date(r.decided_at).toLocaleString()}</>}
                                     </div>
                                 )}
                                 {statusFilter === "approved" && r.decided_by_name && (
                                     <div className="mt-2 text-xs" style={{ color: darkMode ? "#9CA3AF" : "#6B7280" }}>
-                                        <span className="font-semibold" style={{ color: darkMode ? "#F3F4F6" : "#1F2937" }}>Approved by:</span>{" "}
-                                        {r.decided_by_name}
+                                        Approved by:{" "}
+                                        <span className="font-semibold" style={{ color: darkMode ? "#F3F4F6" : "#1F2937" }}>{r.decided_by_name}</span>
                                         {r.decided_at && <> · {new Date(r.decided_at).toLocaleString()}</>}
                                     </div>
                                 )}
@@ -334,7 +371,7 @@ export default function AssignOutletPage() {
                 title="Approve Outlet Assignment"
                 message={
                     approveTarget
-                        ? `Are you sure you want to approve the operator assignment for outlet ${approveTarget.booth_code || `#${approveTarget.booth_info_id}`} (${approveTarget.current_operator || "Unassigned"} → ${approveTarget.to_operator || "—"})?`
+                        ? `Are you sure you want to approve the operator assignment for outlet ${approveTarget.booth_code || `#${approveTarget.booth_info_id}`} (${getFromOperator(approveTarget)} → ${approveTarget.to_operator || "—"})?`
                         : ""
                 }
                 confirmLabel="Approve"
@@ -362,7 +399,7 @@ export default function AssignOutletPage() {
                             </div>
                             <div className="flex items-center justify-between">
                                 <span className="text-xs font-medium text-gray-500">From</span>
-                                <span className="text-gray-700">{rejectNoteTarget.current_operator || "Unassigned"}</span>
+                                <span className="text-gray-700">{getFromOperator(rejectNoteTarget)}</span>
                             </div>
                             <div className="flex items-center justify-between">
                                 <span className="text-xs font-medium text-gray-500">To</span>
