@@ -1,18 +1,20 @@
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Monitor, Send, Search, RefreshCw } from "lucide-react";
+import { Monitor, Send, Search, RefreshCw, Plus, Smartphone } from "lucide-react";
 import OperatorPosPage from "./OperatorPosPage";
 import RequestPosPage from "../components/RequestPosPage";
+import AddCpPage from "./AddCpPage";
+import MyCpPage from "./MyCpPage";
 import { useAuth } from "../../../context/AuthContext";
 import { listOperatorChangeRequests } from "../../requests/services/operatorChangeRequests";
 import { TopTabs } from "../../../shared/components";
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 
-type TabId = "my-pos" | "request-pos";
+type TabId = "my-pos" | "my-cp" | "request-pos" | "add-cp";
 
 function getValidTab(raw: string | null): TabId {
-    if (raw === "my-pos" || raw === "request-pos") return raw;
+    if (raw === "my-pos" || raw === "my-cp" || raw === "request-pos" || raw === "add-cp") return raw;
     return "my-pos";
 }
 
@@ -52,7 +54,11 @@ export default function OperatorTabbedPage() {
 
     const tabs: { id: TabId; label: string; icon: typeof Monitor }[] = [
         { id: "my-pos", label: "My POS", icon: Monitor },
-        ...(!isSubOperator ? [{ id: "request-pos" as const, label: "Assign POS", icon: Send as typeof Monitor }] : []),
+        { id: "my-cp", label: "My CP", icon: Smartphone as typeof Monitor },
+        ...(!isSubOperator ? [
+            { id: "request-pos" as const, label: "Assign POS", icon: Send as typeof Monitor },
+            { id: "add-cp" as const, label: "Add CP", icon: Plus as typeof Monitor },
+        ] : []),
     ];
 
     useEffect(() => {
@@ -110,7 +116,7 @@ export default function OperatorTabbedPage() {
         setSearchParams({ tab: next }, { replace: true });
     };
 
-    const toolbar = activeTab === "my-pos" ? (
+    const toolbar = (activeTab === "my-pos" || activeTab === "my-cp") ? (
         <div className="flex items-center gap-2 pr-2">
             <div className="relative">
                 <Search size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 pointer-events-none" />
@@ -118,14 +124,14 @@ export default function OperatorTabbedPage() {
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search device no. or serial..."
-                    className="h-9 w-64 rounded-lg py-1.5 pl-8 pr-3 text-sm placeholder:text-gray-400 dark:placeholder:text-gray-400 focus:border-[#92C7CF] dark:focus:border-teal focus:outline-none focus:ring-1 focus:ring-[#92C7CF] dark:focus:ring-teal/50 transition"
+className="h-9 w-64 rounded-lg py-1.5 pl-8 pr-3 text-sm placeholder:text-gray-400 dark:placeholder:text-gray-400 focus:border-teal dark:focus:border-teal focus:outline-none focus:ring-1 focus:ring-teal dark:focus:ring-teal/50 transition"
                     style={searchInputStyle}
                 />
             </div>
             <button
                 type="button"
                 onClick={() => setRefreshKey((k) => k + 1)}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 shadow-sm transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#92C7CF]/50"
+className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 shadow-sm transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-teal/50"
                 aria-label="Refresh"
             >
                 <RefreshCw size={16} />
@@ -152,7 +158,11 @@ export default function OperatorTabbedPage() {
                 {activeTab === "my-pos" && (
                     <OperatorPosPage searchQuery={searchQuery} refreshKey={refreshKey} />
                 )}
+                {activeTab === "my-cp" && (
+                    <MyCpPage searchQuery={searchQuery} refreshKey={refreshKey} />
+                )}
                 {activeTab === "request-pos" && <RequestPosPage />}
+                {activeTab === "add-cp" && <AddCpPage />}
             </div>
         </div>
     );

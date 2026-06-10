@@ -23,6 +23,7 @@ import releasedLogRoutes from "./src/routes/released-log.routes.js";
 import postsRoutes from "./src/routes/posts.routes.js";
 import bulletinRoutes from "./src/routes/bulletin.routes.js";
 import activityLogRoutes from "./src/routes/activity-log.routes.js";
+import cellphoneRoutes from "./src/routes/cellphone.routes.js";
 import initDatabase from "./src/config/init.js";
 import { dbState, pingDatabase } from "./src/config/db.js";
 
@@ -77,6 +78,7 @@ app.use("/api/released-logs", releasedLogRoutes);
 app.use("/api/posts", postsRoutes);
 app.use("/api/bulletin", bulletinRoutes);
 app.use("/api/activity-logs", activityLogRoutes);
+app.use("/api/cellphones", cellphoneRoutes);
 
 // Honour the platform-provided PORT in production (Render, Railway, Fly,
 // Heroku, etc. all inject one) and fall back to 5050 for local dev so the

@@ -28,6 +28,7 @@ const SERIAL_TABLES = [
     "messages",
     "asset_media",
     "activity_logs",
+    "cellphone_list",
 ];
 
 async function syncSerialSequence(client, tableName) {
