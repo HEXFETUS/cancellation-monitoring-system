@@ -289,7 +289,7 @@ export default function AssetCodeFormModal({ open, initial, onClose, onSubmit }:
                                                                 {a.itemDescription}
                                                             </span>
                                                             <span className="block truncate text-xs text-ink-muted">
-                                                                {a.location.toUpperCase()} ·{" "}
+                                                                {(a.location ?? "").toUpperCase()} ·{" "}
                                                                 {a.serialNumber || "no serial"} ·{" "}
                                                                 {a.space || "—"}
                                                             </span>

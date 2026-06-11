@@ -5,6 +5,7 @@ import AssetFormModal, { type AssetFormValues } from "./AssetFormModal";
 import PayoutStationsModal from "./PayoutStationsModal";
 import OfficeDepartmentsModal from "./OfficeDepartmentsModal";
 import { useAssets } from "../hooks";
+import ConfirmationModal from "../../../shared/components/ConfirmationModal";
 import { useCanDelete } from "../hooks/useCanDelete";
 import type { AssetLocation } from "../services";
 import {
@@ -38,6 +39,8 @@ export default function AssetLocationPage({
 
     const [modalOpen, setModalOpen] = useState(false);
     const [editing, setEditing] = useState<AssetRow | null>(null);
+    const [deleteTarget, setDeleteTarget] = useState<AssetRow | null>(null);
+    const [deleting, setDeleting] = useState(false);
 
     // Payout-only state
     const [stationsOpen, setStationsOpen] = useState(false);
@@ -87,12 +90,19 @@ export default function AssetLocationPage({
         setModalOpen(true);
     };
 
-    const handleDelete = async (row: AssetRow) => {
-        if (!confirm(`Delete "${row.itemDescription}"? This cannot be undone.`)) return;
+    const handleDeleteClick = (row: AssetRow) => {
+        setDeleteTarget(row);
+    };
+    const handleDeleteConfirm = async () => {
+        if (!deleteTarget) return;
+        setDeleting(true);
         try {
-            await deleteAsset(Number(row.id));
+            await deleteAsset(Number(deleteTarget.id));
+            setDeleteTarget(null);
         } catch (err) {
-            alert(err instanceof Error ? (err instanceof Error ? err.message : String(err)) : "Failed to delete");
+            alert(err instanceof Error ? err.message : "Failed to delete");
+        } finally {
+            setDeleting(false);
         }
     };
 
@@ -159,7 +169,7 @@ export default function AssetLocationPage({
                 error={error || stationsError || deptsError}
                 onAdd={handleAdd}
                 onEdit={handleEdit}
-                onDelete={canDelete ? handleDelete : undefined}
+                onDelete={canDelete ? handleDeleteClick : undefined}
                 departmentLabel={
                     isPayout ? "Payout Station" : isOffice ? "Department" : undefined
                 }
@@ -220,6 +230,19 @@ export default function AssetLocationPage({
                     }}
                 />
             )}
+
+            <ConfirmationModal
+                open={!!deleteTarget}
+                variant="delete"
+                title="Delete Asset"
+                message={`Are you sure you want to delete "${deleteTarget?.itemDescription}"? This cannot be undone.`}
+                confirmLabel="Yes, Delete"
+                cancelLabel="Cancel"
+                isLoading={deleting}
+                loadingLabel="Deleting..."
+                onCancel={() => setDeleteTarget(null)}
+                onConfirm={handleDeleteConfirm}
+            />
         </>
     );
 }

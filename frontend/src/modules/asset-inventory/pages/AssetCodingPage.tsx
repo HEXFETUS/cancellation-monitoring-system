@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Pencil, Plus, QrCode, ScanLine, Search, Trash2, Wand2 } from "lucide-react";
+import { Pencil, Plus, QrCode, ScanLine, Search, Trash2 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import {
     type AssetCode,
@@ -10,7 +10,6 @@ import {
     updateAssetCode,
 } from "../services/assetCodes";
 import AssetCodeFormModal from "../components/AssetCodeFormModal";
-import BulkGenerateQrModal from "../components/BulkGenerateQrModal";
 import QrPreviewModal from "../components/QrPreviewModal";
 import QrScannerModal from "../components/QrScannerModal";
 import { listAllAssets, type AssetLocation } from "../services";
@@ -22,6 +21,7 @@ import {
     listOfficeDepartments,
     type OfficeDepartment,
 } from "../services/officeDepartments";
+import ConfirmationModal from "../../../shared/components/ConfirmationModal";
 import { useCanDelete } from "../hooks/useCanDelete";
 import { useAuth } from "../../../context/AuthContext";
 import type { AssetRow } from "../components/AssetTable";
@@ -41,9 +41,10 @@ export default function AssetCodingPage() {
 
     const [formOpen, setFormOpen] = useState(false);
     const [editing, setEditing] = useState<AssetCode | null>(null);
+    const [deleteTarget, setDeleteTarget] = useState<AssetCode | null>(null);
+    const [deleting, setDeleting] = useState(false);
     const [qrOpen, setQrOpen] = useState(false);
     const [qrCode, setQrCode] = useState<AssetCode | null>(null);
-    const [bulkOpen, setBulkOpen] = useState(false);
     const [scannerOpen, setScannerOpen] = useState(false);
     const canDelete = useCanDelete();
     const { user } = useAuth();
@@ -149,13 +150,20 @@ export default function AssetCodingPage() {
         setEditing(row);
         setFormOpen(true);
     };
-    const handleDelete = async (row: AssetCode) => {
-        if (!confirm(`Delete asset code "${row.itemCode}"? This cannot be undone.`)) return;
+    const handleDeleteClick = (row: AssetCode) => {
+        setDeleteTarget(row);
+    };
+    const handleDeleteConfirm = async () => {
+        if (!deleteTarget) return;
+        setDeleting(true);
         try {
-            await deleteAssetCode(row.id);
+            await deleteAssetCode(deleteTarget.id);
+            setDeleteTarget(null);
             await refresh();
         } catch (e) {
-            alert((e instanceof Error ? e.message : String(e)));
+            alert(e instanceof Error ? e.message : String(e));
+        } finally {
+            setDeleting(false);
         }
     };
     const handleSubmit = async (input: AssetCodeInput) => {
@@ -171,14 +179,7 @@ export default function AssetCodingPage() {
     return (
         <div>
             {/* Header */}
-            <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold text-ink">Asset Coding</h1>
-                    <p className="mt-1 text-sm text-ink-muted">
-                        Master list of asset codes. Each row gets its own QR code.
-                    </p>
-                </div>
-
+            <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                     <div className="relative w-full sm:w-72">
                         <Search
@@ -193,13 +194,6 @@ export default function AssetCodingPage() {
                             className="w-full rounded-lg border border-warm dark:border-gray-700 bg-card dark:bg-gray-800/70 pl-9 pr-3 py-2 text-sm text-ink dark:text-gray-100 placeholder:text-ink-subtle dark:placeholder:text-gray-400 focus:border-teal dark:focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal dark:focus:ring-teal/50"
                         />
                     </div>
-                    <button
-                        onClick={() => setBulkOpen(true)}
-                        className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-teal bg-teal/10 px-4 py-2 text-sm font-semibold text-ink transition hover:bg-teal/20"
-                    >
-                        <Wand2 size={16} />
-                        Generate QR Codes
-                    </button>
                     {canScan && (
                         <button
                             onClick={() => setScannerOpen(true)}
@@ -316,7 +310,7 @@ export default function AssetCodingPage() {
                                             </button>
                                             {canDelete && (
                                                 <button
-                                                    onClick={() => handleDelete(row)}
+                                                    onClick={() => handleDeleteClick(row)}
                                                     className="inline-flex items-center gap-1 rounded-lg bg-rose px-2.5 py-1 text-xs font-medium text-ink transition hover:bg-rose-dark"
                                                 >
                                                     <Trash2 size={14} />
@@ -386,16 +380,23 @@ export default function AssetCodingPage() {
                 onClose={() => setQrOpen(false)}
             />
 
-            <BulkGenerateQrModal
-                open={bulkOpen}
-                existingCodes={items}
-                onClose={() => setBulkOpen(false)}
-                onGenerated={refresh}
-            />
 
             <QrScannerModal
                 open={scannerOpen}
                 onClose={() => setScannerOpen(false)}
+            />
+
+            <ConfirmationModal
+                open={!!deleteTarget}
+                variant="delete"
+                title="Delete Asset Code"
+                message={`Are you sure you want to delete "${deleteTarget?.itemCode}"? This cannot be undone.`}
+                confirmLabel="Yes, Delete"
+                cancelLabel="Cancel"
+                isLoading={deleting}
+                loadingLabel="Deleting..."
+                onCancel={() => setDeleteTarget(null)}
+                onConfirm={handleDeleteConfirm}
             />
         </div>
     );

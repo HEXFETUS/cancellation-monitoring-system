@@ -267,7 +267,7 @@ export default function QrScannerModal({ open, onClose }: Props) {
 
     return (
         <div
-            className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+            className="fixed inset-0 z-70 flex items-start justify-center bg-black/60 backdrop-blur-sm p-4 pt-8"
             onClick={handleClose}
         >
             <div
@@ -275,7 +275,7 @@ export default function QrScannerModal({ open, onClose }: Props) {
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Header */}
-                <div className="flex items-center justify-between border-b border-warm bg-gradient-to-r from-teal/15 to-teal-light/15 px-5 py-3">
+                <div className="flex items-center justify-between border-b border-warm bg-linear-to-r from-teal/15 to-teal-light/15 px-5 py-3">
                     <div className="flex items-center gap-2">
                         <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/70">
                             <ScanLine size={18} className="text-teal-dark" />
@@ -759,7 +759,7 @@ function AssetEditPanel({
                                 onChange={(e) => setCaption(e.target.value)}
                                 placeholder="Optional caption (applies to this batch)"
                                 disabled={uploading}
-                                className="flex-1 min-w-[180px] rounded-lg border border-warm bg-white px-3 py-1.5 text-xs text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal"
+                                className="flex-1 min-w-45 rounded-lg border border-warm bg-white px-3 py-1.5 text-xs text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal"
                             />
                             <button
                                 type="button"
@@ -782,7 +782,7 @@ function AssetEditPanel({
                                         className="inline-flex items-center gap-1 rounded-md bg-cream px-2 py-0.5 text-[11px] text-ink"
                                     >
                                         <Paperclip size={11} />
-                                        <span className="max-w-[160px] truncate">{f.name}</span>
+                                        <span className="max-w-40 truncate">{f.name}</span>
                                         <button
                                             onClick={() => removePending(idx)}
                                             className="rounded p-0.5 text-ink-subtle hover:bg-warm/60"
@@ -880,7 +880,7 @@ function AssetEditPanel({
             {/* Lightbox */}
             {lightbox && (
                 <div
-                    className="fixed inset-0 z-[80] flex items-center justify-center bg-black/85 p-4"
+                    className="fixed inset-0 z-80 flex items-center justify-center bg-black/85 p-4"
                     onClick={() => setLightbox(null)}
                 >
                     <button
