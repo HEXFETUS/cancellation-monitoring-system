@@ -3,7 +3,7 @@ import pool from "../config/db.js";
 
 const router = express.Router();
 
-const COLUMNS = `id, brand, model, specs, serial_number, imei1, imei2, control_no, operator_id, added_by_user_id, created_at, updated_at`;
+const COLUMNS = `id, brand, model, specs, serial_number, imei1, imei2, control_no, operator_id, added_by_user_id, status, booth_id, created_at, updated_at`;
 
 function nullable(value) {
     if (value === undefined || value === null) return null;
@@ -72,8 +72,8 @@ router.post("/", async (req, res) => {
     try {
         const result = await pool.query(
             `
-            INSERT INTO cellphone_list (brand, model, specs, serial_number, imei1, imei2, control_no, operator_id, added_by_user_id)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+INSERT INTO cellphone_list (brand, model, specs, serial_number, imei1, imei2, control_no, operator_id, added_by_user_id, status)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
             RETURNING ${COLUMNS}
             `,
             [
@@ -86,6 +86,7 @@ router.post("/", async (req, res) => {
                 req.body.controlNo.trim(),
                 req.body.operatorId ?? null,
                 req.body.addedByUserId ?? null,
+                req.body.status ?? 'Inactive',
             ]
         );
         res.status(201).json(result.rows[0]);

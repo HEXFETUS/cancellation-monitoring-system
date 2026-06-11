@@ -1,19 +1,25 @@
 import { useEffect, useState } from "react";
-import { Monitor, Building2, RotateCcw } from "lucide-react";
+import { Monitor, Building2, RotateCcw, Smartphone } from "lucide-react";
 import AssignPosPage from "./AssignPosPage";
 import AssignOutletPage from "./AssignOutletPage";
 import RequestResetPage from "./RequestResetPage";
+import CpRequestResetPage from "./CpRequestResetPage";
+import AssignCpPage from "./AssignCpPage";
 import { listBoothChangeRequests } from "../services/boothChangeRequests";
 import { listOperatorChangeRequests } from "../services/operatorChangeRequests";
 import { listBoothOperatorChangeRequests } from "../services/boothOperatorChangeRequests";
+import { listCpBoothChangeRequests } from "../services/cpBoothChangeRequests";
+import { listCpOperatorChangeRequests } from "../services/cpOperatorChangeRequests";
 import { TopTabs } from "../../../shared/components";
 
-type TabId = "assign-pos" | "assign-outlet" | "request-reset";
+type TabId = "assign-pos" | "assign-outlet" | "request-reset" | "cp-request-reset" | "assign-cp";
 
 const tabs: { id: TabId; label: string; icon: typeof Monitor }[] = [
     { id: "assign-pos", label: "Assign POS", icon: Monitor },
     { id: "assign-outlet", label: "Assign Outlet", icon: Building2 },
     { id: "request-reset", label: "Request Reset Device", icon: RotateCcw },
+    { id: "cp-request-reset", label: "Request Reset Cp", icon: Smartphone },
+    { id: "assign-cp", label: "Assign CP", icon: Smartphone },
 ];
 
 export default function RequestsTabbedPage() {
@@ -21,6 +27,8 @@ export default function RequestsTabbedPage() {
     const [pendingRequestCount, setPendingRequestCount] = useState(0);
     const [pendingAssignPosCount, setPendingAssignPosCount] = useState(0);
     const [pendingAssignOutletCount, setPendingAssignOutletCount] = useState(0);
+    const [pendingCpRequestCount, setPendingCpRequestCount] = useState(0);
+    const [pendingCpAssignCount, setPendingCpAssignCount] = useState(0);
 
     useEffect(() => {
         let cancelled = false;
@@ -75,6 +83,60 @@ export default function RequestsTabbedPage() {
         };
     }, [activeTab]);
 
+    // Poll pending CP booth change requests for the Request Reset Cp tab badge
+    useEffect(() => {
+        let cancelled = false;
+
+        const fetchPendingCpCount = async () => {
+            try {
+                const pending = await listCpBoothChangeRequests({ status: "pending" });
+                if (!cancelled) setPendingCpRequestCount(pending.length);
+            } catch {
+                if (!cancelled) setPendingCpRequestCount(0);
+            }
+        };
+
+        fetchPendingCpCount();
+        const interval = window.setInterval(fetchPendingCpCount, 8000);
+        const onVisibility = () => {
+            if (document.visibilityState === "visible") fetchPendingCpCount();
+        };
+        document.addEventListener("visibilitychange", onVisibility);
+
+        return () => {
+            cancelled = true;
+            window.clearInterval(interval);
+            document.removeEventListener("visibilitychange", onVisibility);
+        };
+    }, [activeTab]);
+
+    // Poll pending CP operator change requests for the Assign CP tab badge
+    useEffect(() => {
+        let cancelled = false;
+
+        const fetchPendingCpAssign = async () => {
+            try {
+                const pending = await listCpOperatorChangeRequests({ status: "pending" });
+                if (!cancelled) setPendingCpAssignCount(pending.length);
+            } catch {
+                if (!cancelled) setPendingCpAssignCount(0);
+            }
+        };
+
+        fetchPendingCpAssign();
+        const interval = window.setInterval(fetchPendingCpAssign, 8000);
+        const onVisibility = () => {
+            if (document.visibilityState === "visible") fetchPendingCpAssign();
+        };
+        document.addEventListener("visibilitychange", onVisibility);
+
+        return () => {
+            cancelled = true;
+            window.clearInterval(interval);
+            document.removeEventListener("visibilitychange", onVisibility);
+        };
+    }, [activeTab]);
+
     // Poll pending booth operator change requests for the Assign Outlet tab badge
     useEffect(() => {
         let cancelled = false;
@@ -113,7 +175,11 @@ export default function RequestsTabbedPage() {
                             ? pendingAssignOutletCount
                             : t.id === "request-reset"
                                 ? pendingRequestCount
-                                : undefined,
+                                : t.id === "cp-request-reset"
+                                    ? pendingCpRequestCount
+                                    : t.id === "assign-cp"
+                                        ? pendingCpAssignCount
+                                        : undefined,
                     badgeColor: "red",
                 }))}
                 activeId={activeTab}
@@ -125,6 +191,8 @@ export default function RequestsTabbedPage() {
                 {activeTab === "assign-pos" && <AssignPosPage />}
                 {activeTab === "assign-outlet" && <AssignOutletPage />}
                 {activeTab === "request-reset" && <RequestResetPage />}
+                {activeTab === "cp-request-reset" && <CpRequestResetPage />}
+                {activeTab === "assign-cp" && <AssignCpPage />}
             </div>
         </div>
     );

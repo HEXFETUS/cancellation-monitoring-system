@@ -82,8 +82,11 @@ function toWireBody(input: AssetCodeInput) {
     };
 }
 
-export async function listAssetCodes(): Promise<AssetCode[]> {
-    const res = await fetch(apiUrl("/api/asset-codes"));
+export async function listAssetCodes(department?: string): Promise<AssetCode[]> {
+    const params = new URLSearchParams();
+    if (department) params.set("department", department);
+    const qs = params.toString();
+    const res = await fetch(apiUrl(`/api/asset-codes${qs ? `?${qs}` : ""}`));
     if (!res.ok) throw new Error(await getErrorMessage(res, "Failed to load asset codes"));
     const data: AssetCodeWire[] = await res.json();
     return data.map(fromWire);

@@ -55,8 +55,6 @@ function formatDate(iso: string) {
 }
 
 export default function AssetTable({
-    title,
-    description,
     rows,
     loading = false,
     error = "",
@@ -112,16 +110,10 @@ export default function AssetTable({
 
     return (
         <div>
-            {/* Header */}
-            <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold text-ink">{title}</h1>
-                    {description && (
-                        <p className="mt-1 text-sm text-ink-muted">{description}</p>
-                    )}
-                </div>
-
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+{/* Header */}
+            <div className="mb-6 flex flex-col gap-3">
+                
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
                     <div className="relative w-full sm:w-72">
                         <Search
                             className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle dark:text-gray-500"
@@ -157,25 +149,25 @@ export default function AssetTable({
 
             {/* Table */}
             <div className="overflow-x-auto rounded-xl border border-warm bg-card shadow-sm">
-<table className="w-full min-w-450 text-left text-sm">
+                <table className="w-full min-w-450 text-sm">
                     <thead>
                         <tr className="border-b border-warm bg-cream">
-                            <Th>Item Description</Th>
-                            <Th>Type</Th>
-                            <Th>Serial No.</Th>
-                            <Th>{departmentLabel}</Th>
-                            <Th>Space</Th>
-                            <Th>Date Purchased</Th>
-                            <Th>Vendor</Th>
-                            <Th align="right">Purchase Price</Th>
-                            <Th>Warranty Date</Th>
-                            <Th align="right">Qty</Th>
-                            <Th align="right">Discount</Th>
-                            <Th align="right">Asset Value</Th>
-                            <Th align="right">Total Value</Th>
-                            <Th>Color</Th>
-                            <Th>Remarks</Th>
-                            {showActions && <Th align="right">Actions</Th>}
+                            <Th align="center">Item Description</Th>
+                            <Th align="center">Type</Th>
+                            <Th align="center">Serial No.</Th>
+                            <Th align="center">{departmentLabel}</Th>
+                            <Th align="center">Space</Th>
+                            <Th align="center">Date Purchased</Th>
+                            <Th align="center">Vendor</Th>
+                            <Th align="center">Purchase Price</Th>
+                            <Th align="center">Warranty Date</Th>
+                            <Th align="center">Qty</Th>
+                            <Th align="center">Discount</Th>
+                            <Th align="center">Asset Value</Th>
+                            <Th align="center">Total Value</Th>
+                            <Th align="center">Color</Th>
+                            <Th align="center">Remarks</Th>
+                            {showActions && <Th align="center">Actions</Th>}
                         </tr>
                     </thead>
 
@@ -206,7 +198,7 @@ export default function AssetTable({
                                     key={r.id}
                                     className="border-b border-warm/60 transition hover:bg-cream"
                                 >
-<Td className="font-medium text-ink whitespace-normal max-w-70 wrap-break-word">{r.itemDescription}</Td>
+                                    <Td className="font-medium text-ink" style={{ whiteSpace: "normal", overflowWrap: "break-word", verticalAlign: "top" }}>{r.itemDescription}</Td>
                                     <Td>
                                         {r.type ? (
                                             <span className="inline-block rounded-full border border-teal/30 bg-teal-light/40 px-2.5 py-0.5 text-xs font-medium text-ink">
@@ -216,7 +208,7 @@ export default function AssetTable({
                                             <span className="text-ink-subtle">—</span>
                                         )}
                                     </Td>
-                                    <Td className="font-mono text-xs text-ink-muted">
+                                    <Td className="font-mono text-xs text-ink-muted" style={{ whiteSpace: "normal", overflowWrap: "break-word", verticalAlign: "top" }}>
                                         {r.serialNumber || "—"}
                                     </Td>
                                     <Td>{r.department || "—"}</Td>
@@ -234,7 +226,7 @@ export default function AssetTable({
                                     <Td>
                                         {r.color ? <ColorChip color={r.color} /> : <span className="text-ink-subtle">—</span>}
                                     </Td>
-                                    <Td className="text-ink-muted">{r.remarks || "—"}</Td>
+<Td className="text-ink-muted" style={{ whiteSpace: "normal", overflowWrap: "break-word", verticalAlign: "top" }}>{r.remarks || "—"}</Td>
                                     {showActions && (
                                         <Td align="right">
                                             <div className="flex justify-end gap-2">
@@ -333,14 +325,14 @@ export default function AssetTable({
 
 function Th({
     children,
-    align = "left",
+    align = "center",
 }: {
     children: React.ReactNode;
-    align?: "left" | "right";
+    align?: "left" | "right" | "center";
 }) {
     return (
         <th
-            className={`whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-ink-muted ${align === "right" ? "text-right" : ""
+            className={`whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-ink-muted ${align === "right" ? "text-right" : align === "left" ? "text-left" : "text-center"
                 }`}
         >
             {children}
@@ -350,17 +342,20 @@ function Th({
 
 function Td({
     children,
-    align = "left",
+    align = "center",
     className = "",
+    style,
 }: {
     children: React.ReactNode;
-    align?: "left" | "right";
+    align?: "left" | "right" | "center";
     className?: string;
+    style?: React.CSSProperties;
 }) {
     return (
         <td
-            className={`whitespace-nowrap px-4 py-3 ${align === "right" ? "text-right" : ""
+            className={`whitespace-nowrap px-4 py-3 ${align === "right" ? "text-right" : align === "left" ? "text-left" : "text-center"
                 } ${className}`}
+            style={style}
         >
             {children}
         </td>

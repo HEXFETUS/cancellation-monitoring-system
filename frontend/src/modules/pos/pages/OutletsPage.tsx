@@ -501,7 +501,7 @@ export default function OutletsPage() {
 
             {/* Table */}
             <div className="overflow-x-auto rounded-xl border border-warm bg-card shadow-sm">
-                <table className="w-full min-w-[700px] text-left text-sm">
+                <table className="w-full min-w-175 text-left text-sm">
                     <thead>
                         <tr className="border-b border-warm bg-cream">
                             <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-ink-muted">Operator</th>
@@ -533,7 +533,7 @@ export default function OutletsPage() {
                                     <td className="px-4 py-3 font-medium text-ink">{record.operator || "—"}</td>
                                     <td className="px-4 py-3 font-medium text-teal">{record.booth_code || "—"}</td>
                                     <td className="px-4 py-3 text-ink-muted text-xs">{record.coordinate || "—"}</td>
-                                    <td className="px-4 py-3 text-ink">{record.booth_location || "—"}</td>
+<td className="px-4 py-3 text-ink">{record.booth_location || "—"}</td>
                                     <td className="px-4 py-3 text-center">
                                         <button
                                             onClick={() => handleEdit(record)}
@@ -584,7 +584,7 @@ export default function OutletsPage() {
                                 <button
                                     key={page}
                                     onClick={() => setCurrentPage(page)}
-                                    className={`min-w-[32px] rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors shadow-sm ${page === currentPage
+                                    className={`min-w-8 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors shadow-sm ${page === currentPage
                                         ? 'bg-teal text-white'
                                         : 'border border-warm bg-white text-ink hover:bg-surface'
                                         }`}
@@ -765,7 +765,7 @@ export default function OutletsPage() {
                     <button
                         onClick={openConfirmModal}
                         disabled={!addForm.booth_code.trim() || !addForm.operator.trim() || isSaving}
-                        className="rounded-xl bg-gradient-to-r from-teal to-teal-dark px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-teal/25 hover:shadow-xl hover:shadow-teal/30 hover:from-teal-dark hover:to-teal transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none disabled:active:scale-100"
+                        className="rounded-xl bg-linear-to-r from-teal to-teal-dark px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-teal/25 hover:shadow-xl hover:shadow-teal/30 hover:from-teal-dark hover:to-teal transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none disabled:active:scale-100"
                     >
                         Save
                     </button>
@@ -814,7 +814,7 @@ export default function OutletsPage() {
                     <button
                         onClick={openConfirmOperatorModal}
                         disabled={!addOperatorForm.operator.trim() || isSavingOperator}
-                        className="rounded-xl bg-gradient-to-r from-teal to-teal-dark px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-teal/25 hover:shadow-xl hover:shadow-teal/30 hover:from-teal-dark hover:to-teal transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none disabled:active:scale-100"
+                        className="rounded-xl bg-linear-to-r from-teal to-teal-dark px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-teal/25 hover:shadow-xl hover:shadow-teal/30 hover:from-teal-dark hover:to-teal transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none disabled:active:scale-100"
                     >
                         Save
                     </button>
@@ -826,7 +826,7 @@ export default function OutletsPage() {
                 <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 backdrop-blur-sm pt-16 px-4">
                     <div className="relative w-full max-w-lg animate-in fade-in zoom-in-95 duration-200 rounded-2xl bg-white shadow-2xl border border-warm overflow-hidden">
                         {/* Header accent bar */}
-                        <div className="h-2 bg-gradient-to-r from-indigo-500 to-purple-600" />
+                        <div className="h-2 bg-linear-to-r from-indigo-500 to-purple-600" />
 
                         <div className="p-6">
                             {/* Header */}
@@ -849,7 +849,7 @@ export default function OutletsPage() {
                             <div className="overflow-hidden rounded-xl border border-warm bg-card shadow-sm">
                                 <table className="w-full text-left text-sm">
                                     <thead>
-                                        <tr className="border-b border-warm bg-gradient-to-r from-indigo-50 to-purple-50">
+                                        <tr className="border-b border-warm bg-linear-to-r from-indigo-50 to-purple-50">
                                             <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-ink-muted">#</th>
                                             <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-ink-muted">Operator Name</th>
                                             <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-ink-muted text-right">Booth Codes</th>
@@ -870,7 +870,7 @@ export default function OutletsPage() {
                                                         <td className="px-4 py-3 text-xs text-ink-muted">{rowNum}</td>
                                                         <td className="px-4 py-3 font-medium text-ink">{op.operator}</td>
                                                         <td className="px-4 py-3 text-right">
-                                                            <span className={`inline-flex items-center justify-center min-w-[28px] rounded-full px-2.5 py-0.5 text-xs font-bold ${op.boothCount > 0
+                                                            <span className={`inline-flex items-center justify-center min-w-7 rounded-full px-2.5 py-0.5 text-xs font-bold ${op.boothCount > 0
                                                                 ? 'bg-teal/10 text-teal-dark ring-1 ring-teal/30'
                                                                 : 'bg-gray-100 text-gray-400 ring-1 ring-gray-200'
                                                                 }`}>
@@ -1025,7 +1025,7 @@ export default function OutletsPage() {
                             editForm.coordinate === initialEditForm.coordinate &&
                             editForm.location === initialEditForm.location
                         )}
-                        className="rounded-xl bg-gradient-to-r from-teal to-teal-dark px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-teal/25 hover:shadow-xl hover:shadow-teal/30 hover:from-teal-dark hover:to-teal transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none disabled:active:scale-100"
+                        className="rounded-xl bg-linear-to-r from-teal to-teal-dark px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-teal/25 hover:shadow-xl hover:shadow-teal/30 hover:from-teal-dark hover:to-teal transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none disabled:active:scale-100"
                     >
                         Save
                     </button>
