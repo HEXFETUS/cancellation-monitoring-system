@@ -13,6 +13,7 @@ type AssetWithLocation = AssetRow & { location: AssetLocation };
 interface Props {
     open: boolean;
     initial?: AssetCode | null;
+    locationFilter?: AssetLocation | null;
     onClose: () => void;
     onSubmit: (values: AssetCodeInput) => Promise<void>;
 }
@@ -86,7 +87,7 @@ const EMPTY: AssetCodeInput = {
     assetId: null,
 };
 
-export default function AssetCodeFormModal({ open, initial, onClose, onSubmit }: Props) {
+export default function AssetCodeFormModal({ open, initial, locationFilter, onClose, onSubmit }: Props) {
     const [v, setV] = useState<AssetCodeInput>(EMPTY);
     const [err, setErr] = useState("");
     const [saving, setSaving] = useState(false);
@@ -97,6 +98,7 @@ export default function AssetCodeFormModal({ open, initial, onClose, onSubmit }:
     const [assetsLoading, setAssetsLoading] = useState(false);
     const [assetSearch, setAssetSearch] = useState("");
     const [pickedAssetId, setPickedAssetId] = useState<number | null>(null);
+    const [pickerLocation, setPickerLocation] = useState<AssetLocation | null>(null);
 
     // Load assets and existing codes every time the modal opens
     useEffect(() => {
@@ -118,6 +120,7 @@ export default function AssetCodeFormModal({ open, initial, onClose, onSubmit }:
             setV(EMPTY);
             setPickedAssetId(null);
         }
+        setPickerLocation(locationFilter ?? null);
 
         setAssetsLoading(true);
         Promise.all([listAllAssets(), listAssetCodes()])
@@ -127,18 +130,46 @@ export default function AssetCodeFormModal({ open, initial, onClose, onSubmit }:
             })
             .catch((e) => setErr(e.message || "Could not load assets"))
             .finally(() => setAssetsLoading(false));
-    }, [open, initial]);
+    }, [open, initial, locationFilter]);
 
     const filteredAssets = useMemo(() => {
         const q = assetSearch.trim().toLowerCase();
-        if (!q) return assets;
-        return assets.filter((a) =>
+        let list = assets;
+        // Pre-filter by location when a filter is selected
+        if (pickerLocation) {
+            if (pickerLocation === "vehicle") {
+                // Vehicle: match by type column instead of location
+                list = list.filter((a) => (a.type ?? "").trim().toLowerCase() === "vehicle");
+            } else {
+                list = list.filter((a) => a.location === pickerLocation);
+            }
+        }
+        if (!q) return list;
+        return list.filter((a) =>
             [a.itemDescription, a.serialNumber, a.department, a.space, a.location, a.type]
                 .join(" ")
                 .toLowerCase()
                 .includes(q)
         );
-    }, [assets, assetSearch]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [assets, assetSearch, pickerLocation]);
+
+    // Derive matching asset codes from the asset_coding table for OBS filter
+    // (asset_coding has its own department column independent of asset_inv.location)
+    const matchingAssetCodes = useMemo(() => {
+        if (!pickerLocation || pickerLocation !== "obs") return [];
+        const q = assetSearch.trim().toLowerCase();
+        return existingCodes.filter((c) => {
+            const dept = (c.department ?? "").trim().toLowerCase();
+            const matchesDept = dept === "obs" || dept === "obs office";
+            if (!matchesDept) return false;
+            if (!q) return true;
+            return [c.itemCode, c.description, c.type, c.department, c.careOf, c.space]
+                .join(" ")
+                .toLowerCase()
+                .includes(q);
+        });
+    }, [pickerLocation, existingCodes, assetSearch]);
 
     const handlePickAsset = (asset: AssetWithLocation) => {
         setPickedAssetId(asset.id as number);
@@ -198,10 +229,6 @@ export default function AssetCodeFormModal({ open, initial, onClose, onSubmit }:
             setErr("Item code and description are required");
             return;
         }
-        if (!initial && !v.assetId) {
-            setErr("Pick an asset to link this QR code to");
-            return;
-        }
         setSaving(true);
         setErr("");
         try {
@@ -245,18 +272,33 @@ export default function AssetCodeFormModal({ open, initial, onClose, onSubmit }:
                                 1. Pick the asset
                             </h4>
 
-                            <div className="relative mb-2">
-                                <Search
-                                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle dark:text-gray-500"
-                                    size={16}
-                                />
-                                <input
-                                    type="text"
-                                    value={assetSearch}
-                                    onChange={(e) => setAssetSearch(e.target.value)}
-                                    placeholder="Search assets by description, serial, location..."
-                                    className="w-full rounded-lg border border-warm dark:border-gray-700 bg-card dark:bg-gray-800/70 pl-9 pr-3 py-2 text-sm text-ink dark:text-gray-100 placeholder:text-ink-subtle dark:placeholder:text-gray-400 focus:border-teal dark:focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal dark:focus:ring-teal/50"
-                                />
+                    <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center">
+                                <select
+                                    value={pickerLocation ?? ""}
+                                    onChange={(e) => setPickerLocation((e.target.value as AssetLocation) || null)}
+                                    className="rounded-lg border border-warm bg-card px-3 py-2 text-sm text-ink focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal"
+                                >
+                                    <option value="">All locations</option>
+                                    <option value="office">Office</option>
+                                    <option value="payout">Payout</option>
+                                    <option value="drawcourt">Drawcourt</option>
+                                    <option value="obs">OBS</option>
+                                    <option value="staffhouse">Staffhouse</option>
+                                    <option value="vehicle">Vehicle</option>
+                                </select>
+                                <div className="relative flex-1">
+                                    <Search
+                                        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle dark:text-gray-500"
+                                        size={16}
+                                    />
+                                    <input
+                                        type="text"
+                                        value={assetSearch}
+                                        onChange={(e) => setAssetSearch(e.target.value)}
+                                        placeholder="Search assets by description, serial, location..."
+                                        className="w-full rounded-lg border border-warm dark:border-gray-700 bg-card dark:bg-gray-800/70 pl-9 pr-3 py-2 text-sm text-ink dark:text-gray-100 placeholder:text-ink-subtle dark:placeholder:text-gray-400 focus:border-teal dark:focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal dark:focus:ring-teal/50"
+                                    />
+                                </div>
                             </div>
 
                             <div className="max-h-56 overflow-y-auto rounded-lg border border-warm bg-cream/50">
@@ -264,7 +306,7 @@ export default function AssetCodeFormModal({ open, initial, onClose, onSubmit }:
                                     <p className="px-3 py-4 text-center text-sm text-ink-subtle">
                                         Loading assets...
                                     </p>
-                                ) : filteredAssets.length === 0 ? (
+                                ) : filteredAssets.length === 0 && matchingAssetCodes.length === 0 ? (
                                     <p className="px-3 py-4 text-center text-sm text-ink-subtle">
                                         {assets.length === 0
                                             ? "No assets in the system yet. Create one first under Office/Payout/Drawcourt/OBS."
@@ -303,6 +345,39 @@ export default function AssetCodeFormModal({ open, initial, onClose, onSubmit }:
                                                 </li>
                                             );
                                         })}
+                                        {/* Show matching asset codes from asset_coding when OBS filter is active */}
+                                        {matchingAssetCodes.map((c) => (
+                                            <li key={`code-${c.id}`}>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setPickedAssetId(null);
+                                                        setV({
+                                                            itemCode: c.itemCode,
+                                                            description: c.description,
+                                                            type: c.type,
+                                                            department: c.department,
+                                                            careOf: c.careOf,
+                                                            space: c.space,
+                                                            assetId: c.assetId,
+                                                        });
+                                                    }}
+                                                    className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition hover:bg-card"
+                                                >
+                                                    <span className="min-w-0 flex-1">
+                                                        <span className="block truncate font-medium text-ink">
+                                                            {c.description}
+                                                        </span>
+                                                        <span className="block truncate text-xs text-ink-muted">
+                                                            OBS · {c.itemCode} · {c.department || "—"}
+                                                        </span>
+                                                    </span>
+                                                    <span className="rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-ink">
+                                                        Existing code
+                                                    </span>
+                                                </button>
+                                            </li>
+                                        ))}
                                     </ul>
                                 )}
                             </div>

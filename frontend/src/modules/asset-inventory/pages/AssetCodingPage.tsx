@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { Pencil, Plus, QrCode, ScanLine, Search, Trash2 } from "lucide-react";
+import { Plus, QrCode, ScanLine, Search } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import {
     type AssetCode,
     type AssetCodeInput,
     createAssetCode,
-    deleteAssetCode,
     listAssetCodes,
     updateAssetCode,
 } from "../services/assetCodes";
@@ -21,8 +20,6 @@ import {
     listOfficeDepartments,
     type OfficeDepartment,
 } from "../services/officeDepartments";
-import ConfirmationModal from "../../../shared/components/ConfirmationModal";
-import { useCanDelete } from "../hooks/useCanDelete";
 import { useAuth } from "../../../context/AuthContext";
 import type { AssetRow } from "../components/AssetTable";
 
@@ -41,12 +38,9 @@ export default function AssetCodingPage() {
 
     const [formOpen, setFormOpen] = useState(false);
     const [editing, setEditing] = useState<AssetCode | null>(null);
-    const [deleteTarget, setDeleteTarget] = useState<AssetCode | null>(null);
-    const [deleting, setDeleting] = useState(false);
     const [qrOpen, setQrOpen] = useState(false);
     const [qrCode, setQrCode] = useState<AssetCode | null>(null);
     const [scannerOpen, setScannerOpen] = useState(false);
-    const canDelete = useCanDelete();
     const { user } = useAuth();
     // Purchasers explicitly need the scanner; admins get it too so they can
     // verify printed stickers without leaving the page.
@@ -146,31 +140,13 @@ export default function AssetCodingPage() {
         setEditing(null);
         setFormOpen(true);
     };
-    const handleEdit = (row: AssetCode) => {
-        setEditing(row);
-        setFormOpen(true);
-    };
-    const handleDeleteClick = (row: AssetCode) => {
-        setDeleteTarget(row);
-    };
-    const handleDeleteConfirm = async () => {
-        if (!deleteTarget) return;
-        setDeleting(true);
-        try {
-            await deleteAssetCode(deleteTarget.id);
-            setDeleteTarget(null);
-            await refresh();
-        } catch (e) {
-            alert(e instanceof Error ? e.message : String(e));
-        } finally {
-            setDeleting(false);
-        }
-    };
+
     const handleSubmit = async (input: AssetCodeInput) => {
         if (editing) await updateAssetCode(editing.id, input);
         else await createAssetCode(input);
         await refresh();
     };
+
     const handleViewQr = (row: AssetCode) => {
         setQrCode(row);
         setQrOpen(true);
@@ -301,22 +277,6 @@ export default function AssetCodingPage() {
                                                 <QrCode size={14} />
                                                 QR
                                             </button>
-                                            <button
-                                                onClick={() => handleEdit(row)}
-                                                className="inline-flex items-center gap-1 rounded-lg bg-teal px-2.5 py-1 text-xs font-medium text-ink transition hover:bg-teal-dark"
-                                            >
-                                                <Pencil size={14} />
-                                                Edit
-                                            </button>
-                                            {canDelete && (
-                                                <button
-                                                    onClick={() => handleDeleteClick(row)}
-                                                    className="inline-flex items-center gap-1 rounded-lg bg-rose px-2.5 py-1 text-xs font-medium text-ink transition hover:bg-rose-dark"
-                                                >
-                                                    <Trash2 size={14} />
-                                                    Delete
-                                                </button>
-                                            )}
                                         </div>
                                     </Td>
                                 </tr>
@@ -380,23 +340,9 @@ export default function AssetCodingPage() {
                 onClose={() => setQrOpen(false)}
             />
 
-
             <QrScannerModal
                 open={scannerOpen}
                 onClose={() => setScannerOpen(false)}
-            />
-
-            <ConfirmationModal
-                open={!!deleteTarget}
-                variant="delete"
-                title="Delete Asset Code"
-                message={`Are you sure you want to delete "${deleteTarget?.itemCode}"? This cannot be undone.`}
-                confirmLabel="Yes, Delete"
-                cancelLabel="Cancel"
-                isLoading={deleting}
-                loadingLabel="Deleting..."
-                onCancel={() => setDeleteTarget(null)}
-                onConfirm={handleDeleteConfirm}
             />
         </div>
     );
