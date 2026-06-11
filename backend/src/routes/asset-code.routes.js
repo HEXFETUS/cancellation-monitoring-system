@@ -31,12 +31,21 @@ function validate(body) {
     return null;
 }
 
-// GET /api/asset-codes
-router.get("/", async (_req, res) => {
+// GET /api/asset-codes?department=OBS
+router.get("/", async (req, res) => {
     try {
-        const result = await pool.query(
-            `SELECT ${COLUMNS} FROM asset_coding WHERE is_current = TRUE ORDER BY id DESC`
-        );
+        const { department } = req.query;
+        let query = `SELECT ${COLUMNS} FROM asset_coding WHERE is_current = TRUE`;
+        const params = [];
+
+        if (department) {
+            params.push(`%${department}%`);
+            query += ` AND department ILIKE $1`;
+        }
+
+        query += " ORDER BY id DESC";
+
+        const result = await pool.query(query, params);
         res.json(result.rows);
     } catch (err) {
         console.error("GET /api/asset-codes error:", err.message);

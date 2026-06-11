@@ -942,6 +942,79 @@ async function initDatabase() {
             "CREATE INDEX IF NOT EXISTS idx_activity_logs_entity ON activity_logs(entity)"
         );
 
+        // Add status column to cellphone_list if not exists (Active if assigned to a booth, Inactive otherwise)
+        await client.query(
+            "ALTER TABLE cellphone_list ADD COLUMN IF NOT EXISTS status VARCHAR(10) NOT NULL DEFAULT 'Inactive'"
+        );
+
+        // Add booth_id column to cellphone_list if not exists (links to the assigned booth)
+        await client.query(
+            "ALTER TABLE cellphone_list ADD COLUMN IF NOT EXISTS booth_id INTEGER REFERENCES booth_info(id) ON DELETE SET NULL"
+        );
+
+        /* =========================
+           cp_booth_change_requests — operator requests to assign their CP
+           (cellphone) to a booth; admins approve or reject. Append-only
+           for audit. When approved, cellphone_list.booth_id is updated and
+           status becomes 'Active'.
+        ========================= */
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS cp_booth_change_requests (
+                id SERIAL PRIMARY KEY,
+                cellphone_id INTEGER NOT NULL REFERENCES cellphone_list(id) ON DELETE CASCADE,
+                requested_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                requested_booth_id INTEGER NOT NULL REFERENCES booth_info(id) ON DELETE RESTRICT,
+                reason TEXT,
+                status VARCHAR(20) NOT NULL DEFAULT 'pending'
+                    CHECK (status IN ('pending', 'approved', 'rejected', 'cancelled')),
+                admin_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                admin_notes TEXT,
+                decided_at TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        await client.query(
+            "CREATE INDEX IF NOT EXISTS idx_cp_bcr_status ON cp_booth_change_requests(status)"
+        );
+        await client.query(
+            "CREATE INDEX IF NOT EXISTS idx_cp_bcr_user ON cp_booth_change_requests(requested_by_user_id)"
+        );
+        await client.query(
+            "CREATE INDEX IF NOT EXISTS idx_cp_bcr_cellphone ON cp_booth_change_requests(cellphone_id)"
+        );
+
+        /* =========================
+           cp_operator_change_requests — operators ask admins to re-assign
+           a cellphone's operator_id to a sub-operator. When approved, the
+           cellphone_list.operator_id is updated.
+        ========================= */
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS cp_operator_change_requests (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                cellphone_id INTEGER NOT NULL REFERENCES cellphone_list(id) ON DELETE CASCADE,
+                status VARCHAR(20) NOT NULL DEFAULT 'pending'
+                    CHECK (status IN ('pending', 'approved', 'rejected', 'cancelled')),
+                reason TEXT,
+                old_operator TEXT,
+                admin_notes TEXT,
+                decided_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                decided_at TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        await client.query(
+            "CREATE INDEX IF NOT EXISTS idx_cp_ocr_status ON cp_operator_change_requests(status)"
+        );
+        await client.query(
+            "CREATE INDEX IF NOT EXISTS idx_cp_ocr_user ON cp_operator_change_requests(user_id)"
+        );
+        await client.query(
+            "CREATE INDEX IF NOT EXISTS idx_cp_ocr_cellphone ON cp_operator_change_requests(cellphone_id)"
+        );
+
         for (const tableName of SERIAL_TABLES) {
             await syncSerialSequence(client, tableName);
         }
