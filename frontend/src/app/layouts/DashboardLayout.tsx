@@ -57,6 +57,7 @@ const iconMap: Record<string, LucideIcon> = {
     Dashboard: LayoutDashboard,
     "My POS": Monitor,
     "My Outlets": Building2,
+    "Sub-Operator": User,
     "POS Inventory": Monitor,
     "POS": Monitor,
     "POS Repair": Wrench,
@@ -388,15 +389,15 @@ export default function DashboardLayout() {
                 if (cancelled) return;
                 const posCount = Array.isArray(posData)
                     ? posData.filter(
-                          (r: { status?: string }) =>
-                              r.status === "approved" || r.status === "rejected"
-                      ).length
+                        (r: { status?: string }) =>
+                            r.status === "approved" || r.status === "rejected"
+                    ).length
                     : 0;
                 const outletCount = Array.isArray(outletData)
                     ? outletData.filter(
-                          (r: { status?: string }) =>
-                              r.status === "approved" || r.status === "rejected"
-                      ).length
+                        (r: { status?: string }) =>
+                            r.status === "approved" || r.status === "rejected"
+                    ).length
                     : 0;
                 setOperatorPosApprovedRejectedCount(posCount);
                 setOperatorOutletApprovedRejectedCount(outletCount);
@@ -489,9 +490,8 @@ export default function DashboardLayout() {
     const navItems = isOperator
         ? [
             { name: "Dashboard", path: "/app/dashboard" },
-            { name: "My POS", path: "/app/my-pos" },
-            { name: "My Outlets", path: "/app/my-outlets" },
-            { name: "Bulletin Board", path: "/app/bulletin-board" },
+            { name: "Devices", path: "/app/my-pos" },
+            { name: "Outlets", path: "/app/my-outlets" },
             { name: "Settings", path: "/app/settings" },
         ]
         : isPurchaser
@@ -909,34 +909,34 @@ export default function DashboardLayout() {
                                             />
                                         )}
 
-                                    {item.name === "POS Repair" && forCheckingRepairCount > 0 && (
-                                        <span
-                                            className="ml-auto h-2 w-2 rounded-full animate-pulse"
-                                            style={{
-                                                background: "#EF4444",
-                                                boxShadow: "0 0 8px rgba(239,68,68,0.85)",
-                                                animation: "blink 1s ease-in-out infinite",
-                                            }}
-                                        />
-                                    )}
+                                        {item.name === "POS Repair" && forCheckingRepairCount > 0 && (
+                                            <span
+                                                className="ml-auto h-2 w-2 rounded-full animate-pulse"
+                                                style={{
+                                                    background: "#EF4444",
+                                                    boxShadow: "0 0 8px rgba(239,68,68,0.85)",
+                                                    animation: "blink 1s ease-in-out infinite",
+                                                }}
+                                            />
+                                        )}
 
-                                    {((item.name === "My POS" && operatorMyPosHasNew) || (item.name === "My Outlets" && operatorMyOutletsHasNew)) && (
-                                        <span
-                                            className="ml-auto h-2 w-2 rounded-full animate-pulse"
-                                            style={{
-                                                background: "#EF4444",
-                                                boxShadow: "0 0 8px rgba(239,68,68,0.85)",
-                                                animation: "blink 1s ease-in-out infinite",
-                                            }}
-                                        />
-                                    )}
+                                        {((item.name === "My POS" && operatorMyPosHasNew) || (item.name === "My Outlets" && operatorMyOutletsHasNew)) && (
+                                            <span
+                                                className="ml-auto h-2 w-2 rounded-full animate-pulse"
+                                                style={{
+                                                    background: "#EF4444",
+                                                    boxShadow: "0 0 8px rgba(239,68,68,0.85)",
+                                                    animation: "blink 1s ease-in-out infinite",
+                                                }}
+                                            />
+                                        )}
 
-                                    {/* Active dot */}
-                                    {isActive &&
-                                        item.name !== "Bulletin Board" &&
-                                        !(item.name === "Requests" && (pendingBoothRequests > 0 || pendingOperatorChangeCount > 0 || pendingBoothOperatorChangeCount > 0)) &&
-                                        !(item.name === "POS Repair" && forCheckingRepairCount > 0) &&
-                                        !((item.name === "My POS" && operatorMyPosHasNew) || (item.name === "My Outlets" && operatorMyOutletsHasNew)) && (
+                                        {/* Active dot */}
+                                        {isActive &&
+                                            item.name !== "Bulletin Board" &&
+                                            !(item.name === "Requests" && (pendingBoothRequests > 0 || pendingOperatorChangeCount > 0 || pendingBoothOperatorChangeCount > 0)) &&
+                                            !(item.name === "POS Repair" && forCheckingRepairCount > 0) &&
+                                            !((item.name === "My POS" && operatorMyPosHasNew) || (item.name === "My Outlets" && operatorMyOutletsHasNew)) && (
                                                 <span
                                                     className="ml-auto w-1.5 h-1.5 rounded-full"
                                                     style={{

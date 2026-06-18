@@ -11,10 +11,10 @@ import { TopTabs } from "../../../shared/components";
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 
-type TabId = "my-pos" | "my-cp" | "request-pos" | "add-cp";
+type TabId = "my-pos" | "my-cp" | "request-pos";
 
 function getValidTab(raw: string | null): TabId {
-    if (raw === "my-pos" || raw === "my-cp" || raw === "request-pos" || raw === "add-cp") return raw;
+    if (raw === "my-pos" || raw === "my-cp" || raw === "request-pos") return raw;
     return "my-pos";
 }
 
@@ -34,6 +34,7 @@ export default function OperatorTabbedPage() {
         return document.documentElement.classList.contains("dark") || localStorage.getItem("theme") === "dark";
     });
     const [me, setMe] = useState<Me | null>(null);
+    const [showAddCpModal, setShowAddCpModal] = useState(false);
 
     // Fetch /api/users/me to determine if the user is a sub-operator
     useEffect(() => {
@@ -53,11 +54,10 @@ export default function OperatorTabbedPage() {
     const isSubOperator = me?.parent_operator_id != null;
 
     const tabs: { id: TabId; label: string; icon: typeof Monitor }[] = [
-        { id: "my-pos", label: "My POS", icon: Monitor },
-        { id: "my-cp", label: "My CP", icon: Smartphone as typeof Monitor },
+        { id: "my-pos", label: "POS", icon: Monitor },
+        { id: "my-cp", label: "CP Devices", icon: Smartphone as typeof Monitor },
         ...(!isSubOperator ? [
             { id: "request-pos" as const, label: "Assign POS", icon: Send as typeof Monitor },
-            { id: "add-cp" as const, label: "Add CP", icon: Plus as typeof Monitor },
         ] : []),
     ];
 
@@ -128,6 +128,20 @@ className="h-9 w-64 rounded-lg py-1.5 pl-8 pr-3 text-sm placeholder:text-gray-40
                     style={searchInputStyle}
                 />
             </div>
+            {activeTab === "my-cp" && (
+                <button
+                    type="button"
+                    onClick={() => setShowAddCpModal(true)}
+className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg px-3 text-sm font-semibold text-white transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+                    style={{
+                        background: "linear-gradient(135deg, #92C7CF, #AAD7D9)",
+                        boxShadow: "0 2px 8px rgba(146,199,207,0.30)",
+                    }}
+                >
+                    <Plus size={16} />
+                    New CP
+                </button>
+            )}
             <button
                 type="button"
                 onClick={() => setRefreshKey((k) => k + 1)}
@@ -162,8 +176,21 @@ className="inline-flex h-9 w-9 items-center justify-center rounded-lg border bor
                     <MyCpPage searchQuery={searchQuery} refreshKey={refreshKey} />
                 )}
                 {activeTab === "request-pos" && <RequestPosPage />}
-                {activeTab === "add-cp" && <AddCpPage />}
             </div>
+
+            {/* Add CP Modal */}
+            {showAddCpModal && (
+                <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 backdrop-blur-sm pt-16 px-4">
+                    <div className="relative w-full max-w-2xl">
+                        <div className="rounded-2xl bg-white shadow-2xl border border-gray-200/60 overflow-hidden">
+                            <AddCpPage onClose={() => setShowAddCpModal(false)} onSuccess={() => {
+                                setShowAddCpModal(false);
+                                setRefreshKey((k) => k + 1);
+                            }} />
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

@@ -750,9 +750,13 @@ router.get("/", async (req, res) => {
                         )
                         SELECT id FROM operator_list
                         WHERE id = (SELECT id FROM me)
+                           OR parent_operator_id = (SELECT id FROM me)
                            OR (
-                               (SELECT parent_operator_id FROM me) IS NULL
-                               AND parent_operator_id = (SELECT id FROM me)
+                               (SELECT parent_operator_id FROM me) IS NOT NULL
+                               AND (
+                                   parent_operator_id = (SELECT parent_operator_id FROM me)
+                                   OR id = (SELECT parent_operator_id FROM me)
+                               )
                            )
                     )`;
                 params.push(as_operator_id);
@@ -767,9 +771,13 @@ router.get("/", async (req, res) => {
                     )
                     SELECT id FROM operator_list
                     WHERE id = (SELECT id FROM me)
+                       OR parent_operator_id = (SELECT id FROM me)
                        OR (
-                           (SELECT parent_operator_id FROM me) IS NULL
-                           AND parent_operator_id = (SELECT id FROM me)
+                           (SELECT parent_operator_id FROM me) IS NOT NULL
+                           AND (
+                               parent_operator_id = (SELECT parent_operator_id FROM me)
+                               OR id = (SELECT parent_operator_id FROM me)
+                           )
                        )
                 )`;
                 params.push(user_id);

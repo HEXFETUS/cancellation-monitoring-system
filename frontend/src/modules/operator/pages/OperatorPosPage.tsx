@@ -7,10 +7,15 @@ import {
     listBoothChangeRequests,
     type BoothChangeRequest,
 } from "../../requests/services/boothChangeRequests";
+import {
+    listOperatorChangeRequests,
+    type OperatorChangeRequest,
+} from "../../requests/services/operatorChangeRequests";
 import { Pagination, Toast } from "../../../shared/components";
 import BoothChangeRequestHistory from "../components/BoothChangeRequestHistory";
 import RequestBoothChangeModal from "../components/RequestBoothChangeModal";
 import AssignSubOperatorModal from "../components/AssignSubOperatorModal";
+import OperatorChangeRequestHistory from "../components/OperatorChangeRequestHistory";
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 const PAGE_SIZE = 10;
@@ -36,6 +41,14 @@ interface OperatorPosPageProps {
     refreshKey?: number;
 }
 
+const uniqueById = (items: PosRecord[]) => {
+    const map = new Map<number, PosRecord>();
+    for (const item of items) {
+        map.set(Number(item.id), item);
+    }
+    return Array.from(map.values());
+};
+
 export default function OperatorPosPage({ searchQuery: externalSearch = "", refreshKey = 0 }: OperatorPosPageProps = {}) {
     const { user } = useAuth();
     const [darkMode, setDarkMode] = useState(() => {
@@ -48,6 +61,8 @@ export default function OperatorPosPage({ searchQuery: externalSearch = "", refr
     const [booths, setBooths] = useState<BoothInfo[]>([]);
     const [requests, setRequests] = useState<BoothChangeRequest[]>([]);
     const [pendingRequests, setPendingRequests] = useState<BoothChangeRequest[]>([]);
+    const [pendingOperatorRequests, setPendingOperatorRequests] = useState<OperatorChangeRequest[]>([]);
+    const [operatorRequests, setOperatorRequests] = useState<OperatorChangeRequest[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [filterOperatorId, setFilterOperatorId] = useState<number | "all">("all");
@@ -62,6 +77,8 @@ export default function OperatorPosPage({ searchQuery: externalSearch = "", refr
 
     // Search query for the Booth Change Requests history card.
     const [historySearch, setHistorySearch] = useState("");
+    // Search query for the Operator Change Requests history card.
+    const [opHistorySearch, setOpHistorySearch] = useState("");
 
     // Floating toast state (top-center)
     const [toastOpen, setToastOpen] = useState(false);
@@ -131,25 +148,29 @@ export default function OperatorPosPage({ searchQuery: externalSearch = "", refr
                     parent_operator_id: meData.parent_operator_id ?? null,
                 }
                 : null;
-            const filterParams: Parameters<typeof fetchPosRecords>[0] = {
-                user_id: String(user.id),
-            };
-            if (
-                meSafe &&
-                meSafe.parent_operator_id === null &&
-                filterOperatorId !== "all" &&
-                typeof filterOperatorId === "number"
-            ) {
-                filterParams.as_operator_id = String(filterOperatorId);
-            }
-
-            const [posData, boothData, reqData, pendingReqData, ops] = await Promise.all([
-                fetchPosRecords(filterParams),
+            const [boothData, reqData, pendingReqData, ops, pendingOpReqData, allOpReqData] = await Promise.all([
                 fetchBoothInfo(),
                 listBoothChangeRequests({ userId: user.id }),
                 listBoothChangeRequests({ status: "pending" }),
                 fetchOperators().catch(() => [] as OperatorInfo[]),
+                listOperatorChangeRequests({ status: "pending" }),
+                listOperatorChangeRequests(),
             ]);
+
+            const myOperatorId = meSafe?.operator_id ?? null;
+            const isMainOperator = meSafe?.parent_operator_id === null;
+
+            let posData: PosRecord[];
+            if (isMainOperator && filterOperatorId !== "all" && typeof filterOperatorId === "number") {
+                // Main operator filtering a specific sub-operator
+                posData = await fetchPosRecords({ operator_id: String(filterOperatorId) });
+            } else {
+                // Let the backend resolve the operator hierarchy:
+                //   - Main operators get their own records + all sub-operator records
+                //   - Sub-operators get their own records + parent operator records + sibling sub-operator records
+                posData = await fetchPosRecords({ user_id: String(user.id) });
+            }
+
             setMyOperatorId(meSafe?.operator_id ?? null);
             setMyParentOperatorId(meSafe?.parent_operator_id ?? null);
             setRecords(posData);
@@ -157,6 +178,8 @@ export default function OperatorPosPage({ searchQuery: externalSearch = "", refr
             setRequests(reqData);
             setPendingRequests(pendingReqData);
             setAllOperators(ops);
+            setPendingOperatorRequests(pendingOpReqData);
+            setOperatorRequests(allOpReqData);
 
             // Detect status changes from approved/rejected perspective
             if (!isInitialLoad.current) {
@@ -237,6 +260,12 @@ export default function OperatorPosPage({ searchQuery: externalSearch = "", refr
             if (byDeviceNo) return byDeviceNo;
         }
         return undefined;
+    };
+
+    // Lookup for pending operator change requests (used by "Assign to Sub Op" button)
+    const getPendingOperatorRequest = (rec: PosRecord | null): OperatorChangeRequest | undefined => {
+        if (!rec) return undefined;
+        return pendingOperatorRequests.find((r) => Number(r.pos_record_id) === Number(rec.id) && (r.status || "").toLowerCase() === "pending");
     };
 
     const unavailableBoothIds = useMemo(
@@ -370,20 +399,31 @@ export default function OperatorPosPage({ searchQuery: externalSearch = "", refr
                                                         {pending ? `Pending: ${pending.requested_booth_code || `#${pending.requested_booth_id}`}` : "Request Booth Change"}
                                                     </button>
                                                     {myParentOperatorId == null && (
-                                                        <button
-                                                            onClick={() => setAssigning(rec)}
-                                                            disabled={!!pending}
-                                                            title={pending ? "This device has a pending request." : undefined}
-                                                            className="group inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium text-gray-700 transition-all duration-200 hover:scale-[1.03] active:scale-[0.97] disabled:cursor-not-allowed disabled:hover:scale-100 disabled:active:scale-100"
-                                                            style={{
-                                                                background: `linear-gradient(135deg, ${teal}30, ${tealLight}20)`,
-                                                                border: "1px solid rgba(146,199,207,0.30)",
-                                                                opacity: pending ? 0.75 : 1,
-                                                            }}
-                                                        >
-                                                            <UserCog size={13} />
-                                                            Assign to Sub Op
-                                                        </button>
+                                                        (() => {
+                                                            const opPending = getPendingOperatorRequest(rec);
+                                                            return (
+                                                                <button
+                                                                    onClick={() => {
+                                                                        if (!opPending) setAssigning(rec);
+                                                                    }}
+                                                                    disabled={!!opPending}
+                                                                    title={opPending ? "This device has a pending operator change request." : undefined}
+                                                                    className="group inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium text-gray-700 transition-all duration-200 hover:scale-[1.03] active:scale-[0.97] disabled:cursor-not-allowed disabled:hover:scale-100 disabled:active:scale-100"
+                                                                    style={{
+                                                                        background: opPending
+                                                                            ? "rgba(242,215,181,0.60)"
+                                                                            : `linear-gradient(135deg, ${teal}30, ${tealLight}20)`,
+                                                                        border: opPending
+                                                                            ? "1px solid rgba(242,215,181,0.80)"
+                                                                            : "1px solid rgba(146,199,207,0.30)",
+                                                                        opacity: opPending ? 0.75 : 1,
+                                                                    }}
+                                                                >
+                                                                    <UserCog size={13} />
+                                                                    {opPending ? `Pending: ${opPending.to_operator || `#${opPending.id}`}` : "Assign to Sub Op"}
+                                                                </button>
+                                                            );
+                                                        })()
                                                     )}
                                                 </div>
                                             </td>
@@ -407,43 +447,87 @@ export default function OperatorPosPage({ searchQuery: externalSearch = "", refr
                 )}
             </div>
 
-            {/* Request History */}
-            <div className="relative rounded-2xl border border-white/50 backdrop-blur-xl bg-white/25 shadow-lg overflow-hidden">
-                <div className="flex items-center justify-between gap-3 border-b border-white/40 px-5 py-3">
-                    <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-800">
-                        <History size={16} />
-                        Booth Change Requests
-                    </h2>
-                    <div className="relative w-44">
-                        <Search
-                            size={14}
-                            className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500"
-                        />
-                        <input
-                            type="text"
-                            value={historySearch}
-                            onChange={(e) => setHistorySearch(e.target.value)}
-                            placeholder="Search…"
-                            className="h-9 w-44 rounded-xl pl-8 pr-3 text-sm outline-none transition-all duration-200 focus:border-[#92C7CF]/60 focus:ring-2 focus:ring-[#92C7CF]/35 placeholder:text-gray-400 dark:placeholder:text-gray-400"
-                            style={inputStyle}
+            {/* Two-column request history layout */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                {/* Booth Change Requests History */}
+                <div className="relative rounded-2xl border border-white/50 backdrop-blur-xl bg-white/25 shadow-lg overflow-hidden">
+                    <div className="flex items-center justify-between gap-3 border-b border-white/40 px-5 py-3">
+                        <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-800">
+                            <History size={16} />
+                            Booth Change Requests
+                        </h2>
+                        <div className="relative w-44">
+                            <Search
+                                size={14}
+                                className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500"
+                            />
+                            <input
+                                type="text"
+                                value={historySearch}
+                                onChange={(e) => setHistorySearch(e.target.value)}
+                                placeholder="Search…"
+                                className="h-9 w-44 rounded-xl pl-8 pr-3 text-sm outline-none transition-all duration-200 focus:border-[#92C7CF]/60 focus:ring-2 focus:ring-[#92C7CF]/35 placeholder:text-gray-400 dark:placeholder:text-gray-400"
+                                style={inputStyle}
+                            />
+                        </div>
+                    </div>
+                    <div className="p-5">
+                        <BoothChangeRequestHistory
+                            requests={requests}
+                            search={historySearch}
+                            onChanged={refreshData}
+                            userId={user?.id ?? null}
+                            onCancelled={(r) =>
+                                showNotice(
+                                    "info",
+                                    `Booth change request for device ${r.device_no || `#${r.pos_record_id}`} was cancelled.`
+                                )
+                            }
+                            onCancelError={(message) => showNotice("error", message)}
                         />
                     </div>
                 </div>
-                <div className="p-5">
-                    <BoothChangeRequestHistory
-                        requests={requests}
-                        search={historySearch}
-                        onChanged={refreshData}
-                        userId={user?.id ?? null}
-                        onCancelled={(r) =>
-                            showNotice(
-                                "info",
-                                `Booth change request for device ${r.device_no || `#${r.pos_record_id}`} was cancelled.`
-                            )
-                        }
-                        onCancelError={(message) => showNotice("error", message)}
-                    />
+
+                {/* Sub-Op Assign Request History */}
+                {myParentOperatorId == null && (
+                <div className="relative rounded-2xl border border-white/50 backdrop-blur-xl bg-white/25 shadow-lg overflow-hidden">
+                    <div className="flex items-center justify-between gap-3 border-b border-white/40 px-5 py-3">
+                        <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-800">
+                            <UserCog size={16} />
+                            Sub-Op Assign Requests
+                        </h2>
+                        <div className="relative w-44">
+                            <Search
+                                size={14}
+                                className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500"
+                            />
+                            <input
+                                type="text"
+                                value={opHistorySearch}
+                                onChange={(e) => setOpHistorySearch(e.target.value)}
+                                placeholder="Search…"
+                                className="h-9 w-44 rounded-xl pl-8 pr-3 text-sm outline-none transition-all duration-200 focus:border-[#92C7CF]/60 focus:ring-2 focus:ring-[#92C7CF]/35 placeholder:text-gray-400 dark:placeholder:text-gray-400"
+                                style={inputStyle}
+                            />
+                        </div>
+                    </div>
+                    <div className="p-5">
+                        <OperatorChangeRequestHistory
+                            requests={operatorRequests}
+                            search={opHistorySearch}
+                            onChanged={refreshData}
+                            userId={user?.id ?? null}
+                            onCancelled={(r) =>
+                                showNotice(
+                                    "info",
+                                    `Operator change request for device ${r.device_no || `#${r.pos_record_id}`} was cancelled.`
+                                )
+                            }
+                            onCancelError={(message) => showNotice("error", message)}
+                        />
+                    </div>
                 </div>
+                )}
             </div>
 
             <RequestBoothChangeModal

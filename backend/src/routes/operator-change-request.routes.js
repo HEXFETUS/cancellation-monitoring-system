@@ -329,6 +329,8 @@ router.post("/:id/reject", async (req, res) => {
 /**
  * POST /api/operator-change-requests/:id/cancel
  * Operators withdraw their own pending request.
+ * Allows the request's owner (sub-operator) or the main operator
+ * (who has the sub-operator as their child) to cancel.
  */
 router.post("/:id/cancel", async (req, res) => {
     const id = Number(req.params.id);
@@ -337,6 +339,8 @@ router.post("/:id/cancel", async (req, res) => {
     const { user_id } = req.body ?? {};
 
     try {
+        // Cancel if the user owns the request OR is the parent operator
+        // of the user who owns the request.
         const result = await pool.query(
             `UPDATE operator_change_requests
              SET status = 'cancelled',
@@ -344,7 +348,19 @@ router.post("/:id/cancel", async (req, res) => {
                  updated_at = CURRENT_TIMESTAMP
              WHERE id = $1::int
                AND status = 'pending'
-               AND ($2::int IS NULL OR user_id = $2::int)
+               AND (
+                   $2::int IS NULL
+                   OR user_id = $2::int
+                   OR EXISTS (
+                       SELECT 1 FROM operator_list sub
+                       WHERE sub.user_id = operator_change_requests.user_id
+                         AND sub.parent_operator_id = (
+                             SELECT id FROM operator_list
+                             WHERE user_id = $2::int
+                             LIMIT 1
+                         )
+                   )
+               )
              RETURNING id`,
             [id, user_id ? Number(user_id) : null]
         );
