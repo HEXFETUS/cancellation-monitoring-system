@@ -49,8 +49,21 @@ export default function NiimbotPrintControls({ renderCanvas, className }: Props)
     if (!anySupported) {
         return (
             <div className={`rounded-lg border border-warm bg-cream px-3 py-2 text-xs text-ink-muted ${className ?? ""}`}>
-                Direct label printing needs Chrome or Edge (Web Serial / Bluetooth). On other
-                browsers, use <span className="font-medium">Download PNG</span> and print from the NIIMBOT app.
+                {!n.secureContext ? (
+                    <>
+                        Direct printing needs a secure <span className="font-medium">HTTPS</span> connection.
+                        You're on an insecure (http://) address, so the browser hides the printer APIs.
+                        Open the app at its <span className="font-medium">https://</span> address (the deployed
+                        site), then connect in Chrome or Edge. For now you can{" "}
+                        <span className="font-medium">Download PNG</span> and print from the NIIMBOT app.
+                    </>
+                ) : (
+                    <>
+                        Direct label printing needs Chrome or Edge — desktop for USB, or Chrome on Android
+                        for Bluetooth (iPhone/Safari aren't supported). On other browsers, use{" "}
+                        <span className="font-medium">Download PNG</span> and print from the NIIMBOT app.
+                    </>
+                )}
             </div>
         );
     }

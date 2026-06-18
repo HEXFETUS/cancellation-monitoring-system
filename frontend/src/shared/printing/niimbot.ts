@@ -115,6 +115,15 @@ export function isSerialSupported(): boolean {
     return typeof navigator !== "undefined" && "serial" in navigator;
 }
 
+/**
+ * Web Serial / Web Bluetooth only exist in a secure context (HTTPS or
+ * localhost). On a plain-HTTP LAN origin the APIs are undefined, which is the
+ * most common reason "I can't connect the printer" on a teammate's machine.
+ */
+export function isSecureContext(): boolean {
+    return typeof window !== "undefined" && window.isSecureContext === true;
+}
+
 export function isBleSupported(): boolean {
     return typeof navigator !== "undefined" && "bluetooth" in navigator;
 }
@@ -307,6 +316,7 @@ export async function printCanvas(canvas: HTMLCanvasElement, quantity = 1): Prom
 export interface UseNiimbot extends NiimbotState {
     serialSupported: boolean;
     bleSupported: boolean;
+    secureContext: boolean;
     connect: typeof connect;
     disconnect: typeof disconnect;
     printCanvas: typeof printCanvas;
@@ -319,6 +329,7 @@ export function useNiimbot(): UseNiimbot {
         ...snapshot,
         serialSupported: isSerialSupported(),
         bleSupported: isBleSupported(),
+        secureContext: isSecureContext(),
         connect,
         disconnect,
         printCanvas,
