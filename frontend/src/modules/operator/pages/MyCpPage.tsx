@@ -169,7 +169,7 @@ export default function MyCpPage({ searchQuery: externalSearch = "", refreshKey 
                     if (!r.ok) throw new Error("Failed to fetch cellphones");
                     return r.json();
                 }),
-                fetchBoothInfo().catch(() => [] as BoothInfo[]),
+                fetchBoothInfo({ user_id: String(user.id) }).catch(() => [] as BoothInfo[]),
                 fetchOperators().catch(() => []),
                 listCpBoothChangeRequests({ userId: user.id }),
                 listCpBoothChangeRequests({ status: "pending" }),
@@ -231,7 +231,9 @@ export default function MyCpPage({ searchQuery: externalSearch = "", refreshKey 
                         if (!r.ok) throw new Error("Failed to fetch cellphones");
                         return r.json();
                     }),
-                    fetchBoothInfo().catch(() => [] as BoothInfo[]),
+                    user?.id
+                        ? fetchBoothInfo({ user_id: String(user.id) }).catch(() => [] as BoothInfo[])
+                        : Promise.resolve([] as BoothInfo[]),
                     fetchOperators().catch(() => []),
                     listCpBoothChangeRequests({ userId: user?.id }).catch(() => [] as CpBoothChangeRequest[]),
                     listCpBoothChangeRequests({ status: "pending" }),

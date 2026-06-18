@@ -41,14 +41,6 @@ interface OperatorPosPageProps {
     refreshKey?: number;
 }
 
-const uniqueById = (items: PosRecord[]) => {
-    const map = new Map<number, PosRecord>();
-    for (const item of items) {
-        map.set(Number(item.id), item);
-    }
-    return Array.from(map.values());
-};
-
 export default function OperatorPosPage({ searchQuery: externalSearch = "", refreshKey = 0 }: OperatorPosPageProps = {}) {
     const { user } = useAuth();
     const [darkMode, setDarkMode] = useState(() => {
@@ -148,8 +140,12 @@ export default function OperatorPosPage({ searchQuery: externalSearch = "", refr
                     parent_operator_id: meData.parent_operator_id ?? null,
                 }
                 : null;
+            const isMainOperator = meSafe?.parent_operator_id === null;
+            const scopedBoothParams = !isMainOperator && meSafe?.operator_id != null
+                ? { operator_id: String(meSafe.operator_id) }
+                : { user_id: String(user.id) };
             const [boothData, reqData, pendingReqData, ops, pendingOpReqData, allOpReqData] = await Promise.all([
-                fetchBoothInfo(),
+                fetchBoothInfo(scopedBoothParams),
                 listBoothChangeRequests({ userId: user.id }),
                 listBoothChangeRequests({ status: "pending" }),
                 fetchOperators().catch(() => [] as OperatorInfo[]),
@@ -157,17 +153,16 @@ export default function OperatorPosPage({ searchQuery: externalSearch = "", refr
                 listOperatorChangeRequests(),
             ]);
 
-            const myOperatorId = meSafe?.operator_id ?? null;
-            const isMainOperator = meSafe?.parent_operator_id === null;
-
             let posData: PosRecord[];
             if (isMainOperator && filterOperatorId !== "all" && typeof filterOperatorId === "number") {
                 // Main operator filtering a specific sub-operator
                 posData = await fetchPosRecords({ operator_id: String(filterOperatorId) });
+            } else if (!isMainOperator && meSafe?.operator_id != null) {
+                posData = await fetchPosRecords({ operator_id: String(meSafe.operator_id) });
             } else {
                 // Let the backend resolve the operator hierarchy:
-                //   - Main operators get their own records + all sub-operator records
-                //   - Sub-operators get their own records + parent operator records + sibling sub-operator records
+                //   - Main operators get their own records + direct sub-operator records
+                //   - Sub-operators get only their own records
                 posData = await fetchPosRecords({ user_id: String(user.id) });
             }
 
@@ -398,7 +393,7 @@ export default function OperatorPosPage({ searchQuery: externalSearch = "", refr
                                                         <ArrowRightLeft size={13} />
                                                         {pending ? `Pending: ${pending.requested_booth_code || `#${pending.requested_booth_id}`}` : "Request Booth Change"}
                                                     </button>
-                                                    {myParentOperatorId == null && (
+                                                    {!loading && myParentOperatorId == null && (
                                                         (() => {
                                                             const opPending = getPendingOperatorRequest(rec);
                                                             return (
@@ -489,7 +484,7 @@ export default function OperatorPosPage({ searchQuery: externalSearch = "", refr
                 </div>
 
                 {/* Sub-Op Assign Request History */}
-                {myParentOperatorId == null && (
+                {!loading && myParentOperatorId == null && (
                 <div className="relative rounded-2xl border border-white/50 backdrop-blur-xl bg-white/25 shadow-lg overflow-hidden">
                     <div className="flex items-center justify-between gap-3 border-b border-white/40 px-5 py-3">
                         <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-800">

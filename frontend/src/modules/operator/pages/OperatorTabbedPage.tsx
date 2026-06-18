@@ -34,11 +34,13 @@ export default function OperatorTabbedPage() {
         return document.documentElement.classList.contains("dark") || localStorage.getItem("theme") === "dark";
     });
     const [me, setMe] = useState<Me | null>(null);
+    const [meLoaded, setMeLoaded] = useState(false);
     const [showAddCpModal, setShowAddCpModal] = useState(false);
 
     // Fetch /api/users/me to determine if the user is a sub-operator
     useEffect(() => {
         if (!user?.id) return;
+        setMeLoaded(false);
         fetch(`${API_BASE_URL}/api/users/me?id=${user.id}`)
             .then((res) => (res.ok ? res.json() : null))
             .then((data) => {
@@ -48,15 +50,17 @@ export default function OperatorTabbedPage() {
                         : null
                 );
             })
-            .catch(() => setMe(null));
+            .catch(() => setMe(null))
+            .finally(() => setMeLoaded(true));
     }, [user]);
 
     const isSubOperator = me?.parent_operator_id != null;
+    const tabsReady = meLoaded;
 
     const tabs: { id: TabId; label: string; icon: typeof Monitor }[] = [
         { id: "my-pos", label: "POS", icon: Monitor },
         { id: "my-cp", label: "CP Devices", icon: Smartphone as typeof Monitor },
-        ...(!isSubOperator ? [
+        ...(tabsReady && !isSubOperator ? [
             { id: "request-pos" as const, label: "Assign POS", icon: Send as typeof Monitor },
         ] : []),
     ];

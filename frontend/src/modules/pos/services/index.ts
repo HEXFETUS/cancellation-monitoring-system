@@ -49,8 +49,13 @@ export async function fetchPosBySerial(serial: string): Promise<PosRecord> {
     return handleResponse<PosRecord>(response);
 }
 
-export async function fetchBoothInfo(): Promise<BoothInfo[]> {
-    const response = await fetch(`${API_BASE}/booth-info`);
+export async function fetchBoothInfo(params?: { user_id?: string; operator_id?: string }): Promise<BoothInfo[]> {
+    const searchParams = new URLSearchParams();
+    if (params?.user_id) searchParams.set("user_id", params.user_id);
+    if (params?.operator_id) searchParams.set("operator_id", params.operator_id);
+    const query = searchParams.toString();
+    const url = query ? `${API_BASE}/booth-info?${query}` : `${API_BASE}/booth-info`;
+    const response = await fetch(url);
     return handleResponse<BoothInfo[]>(response);
 }
 

@@ -144,7 +144,7 @@ export default function OperatorDashboard() {
                 fetchPosRecords({ user_id: String(user.id) }),
                 listBoothChangeRequests({ userId: user.id }),
                 fetchOperators().catch(() => [] as OperatorInfo[]),
-                fetchBoothInfo().catch(() => [] as BoothInfo[]),
+                fetchBoothInfo({ user_id: String(user.id) }).catch(() => [] as BoothInfo[]),
                 listOperatorChangeRequests().catch(
                     () => [] as OperatorChangeRequest[]
                 ),
@@ -550,7 +550,7 @@ export default function OperatorDashboard() {
                     <SectionHeader section="requests" />
                     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                         {/* Request POS History — hidden for sub-operators */}
-                        {!isSubOperator && (
+                        {!loading && !isSubOperator && (
                             <GlassCard>
                                 <div className="border-b border-white/40 bg-gradient-to-r from-[#92C7CF]/10 to-[#AAD7D9]/10 px-5 py-3">
                                     <div className="flex items-center justify-between">
@@ -610,7 +610,7 @@ export default function OperatorDashboard() {
                         )}
 
                         {/* Request Outlet History — hidden for sub-operators */}
-                        {!isSubOperator && (
+                        {!loading && !isSubOperator && (
                             <GlassCard>
                                 <div className="border-b border-white/40 bg-gradient-to-r from-[#92C7CF]/10 to-[#AAD7D9]/10 px-5 py-3">
                                     <div className="flex items-center justify-between">
@@ -785,7 +785,8 @@ export default function OperatorDashboard() {
                             </div>
                         </GlassCard>
 
-                        {/* CP Sub-Op Assign Requests — beside CP Booth Change Requests */}
+                        {/* CP Sub-Op Assign Requests — beside CP Booth Change Requests — hidden for sub-operators */}
+                        {!loading && !isSubOperator && (
                         <GlassCard>
                             <div className="border-b border-white/40 bg-gradient-to-r from-[#92C7CF]/10 to-[#AAD7D9]/10 px-5 py-3">
                                 <div className="flex items-center justify-between">
@@ -842,9 +843,10 @@ export default function OperatorDashboard() {
                                 )}
                             </div>
                         </GlassCard>
+                        )}
 
                         {/* POS Sub-Op Assign Requests — hidden for sub-operators */}
-                        {!isSubOperator && (
+                        {!loading && !isSubOperator && (
                             <GlassCard>
                                 <div className="border-b border-white/40 bg-gradient-to-r from-[#92C7CF]/10 to-[#AAD7D9]/10 px-5 py-3">
                                     <div className="flex items-center justify-between">
@@ -907,7 +909,7 @@ export default function OperatorDashboard() {
             )}
 
             {/* ── Quick action — hidden for sub-operators */}
-            {!isSubOperator && (
+            {!loading && !isSubOperator && (
                 <GlassCard>
                     <div className="p-5 flex flex-col items-center text-center">
                         <span
