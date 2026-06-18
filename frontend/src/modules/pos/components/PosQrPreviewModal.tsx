@@ -3,6 +3,7 @@ import { Download, Printer, X } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import type { PosRecord } from "../types";
 import { renderLabelPng } from "../../../shared/qr/renderLabelPng";
+import NiimbotPrintControls from "../../../shared/printing/NiimbotPrintControls";
 
 interface Props {
     open: boolean;
@@ -122,6 +123,15 @@ export default function PosQrPreviewModal({ open, record, onClose }: Props) {
                             <p className="mt-3 break-all rounded-lg bg-cream px-3 py-2 font-mono text-xs text-ink-muted">
                                 {serial}
                             </p>
+
+                            <NiimbotPrintControls
+                                svgContainerRef={svgRef}
+                                lines={[
+                                    { text: record.device_no, bold: true, scale: 1.3 },
+                                    { text: serial, mono: true, scale: 1 },
+                                ]}
+                                className="mt-4"
+                            />
                         </>
                     ) : (
                         <p className="py-8 text-sm text-ink-muted">

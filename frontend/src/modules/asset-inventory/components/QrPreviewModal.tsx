@@ -3,6 +3,7 @@ import { Download, Printer, X } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import type { AssetCode } from "../services/assetCodes";
 import { renderLabelPng } from "../../../shared/qr/renderLabelPng";
+import NiimbotPrintControls from "../../../shared/printing/NiimbotPrintControls";
 
 interface Props {
     open: boolean;
@@ -115,6 +116,15 @@ export default function QrPreviewModal({ open, code, onClose }: Props) {
                     <p className="mt-3 break-all rounded-lg bg-cream px-3 py-2 font-mono text-xs text-ink-muted">
                         {code.qrPayload}
                     </p>
+
+                    <NiimbotPrintControls
+                        svgContainerRef={svgRef}
+                        lines={[
+                            { text: code.itemCode, bold: true, scale: 1.3 },
+                            { text: code.description, scale: 0.9 },
+                        ]}
+                        className="mt-4"
+                    />
                 </div>
 
                 <div className="flex justify-center gap-3 border-t border-warm bg-cream px-6 py-4">
