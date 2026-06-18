@@ -2,6 +2,7 @@ import { useRef } from "react";
 import { Download, Printer, X } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import type { AssetCode } from "../services/assetCodes";
+import { renderLabelPng } from "../../../shared/qr/renderLabelPng";
 
 interface Props {
     open: boolean;
@@ -23,13 +24,13 @@ export default function QrPreviewModal({ open, code, onClose }: Props) {
         if (!svg) return;
 
         try {
-            const blob = await renderLabelPng(svg, {
-                brand: "HEXAPRIME INC.",
-                code: code.itemCode,
-                description: code.description,
-                issued: `Issued ${issuedLabel}`,
-                payload: code.qrPayload,
-            });
+            const blob = await renderLabelPng(svg, [
+                { text: "HEXAPRIME INC.", size: 14, weight: "bold", color: "#1a1a1a", gap: 16 },
+                { text: code.itemCode, size: 16, weight: "600", color: "#4a4a4a", gap: 8 },
+                { text: code.description, size: 12, color: "#6b6b6b", gap: 6 },
+                { text: `Issued ${issuedLabel}`, size: 10, color: "#999999", gap: 10 },
+                { text: code.qrPayload, size: 9, mono: true, color: "#999999", gap: 0 },
+            ]);
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = url;
@@ -151,129 +152,3 @@ function formatDateTime(iso: string): string {
     });
 }
 
-interface LabelText {
-    brand: string;
-    code: string;
-    description: string;
-    issued: string;
-    payload: string;
-}
-
-/**
- * Compose a printable label as a PNG: QR on top, then HEXAPRIME, code,
- * description, issued date, and payload underneath. Uses canvas so the
- * output is a single rasterized image.
- */
-async function renderLabelPng(svgEl: SVGSVGElement, text: LabelText): Promise<Blob> {
-    // Layout (in pixels at the chosen scale)
-    const SCALE = 2; // bumps clarity for laser printers / retina screens
-    const W = 480 * SCALE;
-    const QR_SIZE = 360 * SCALE;
-    const PAD = 32 * SCALE;
-
-    // Rasterize the SVG into an Image
-    const xml = new XMLSerializer().serializeToString(svgEl);
-    const svgBlob = new Blob([xml], { type: "image/svg+xml;charset=utf-8" });
-    const svgUrl = URL.createObjectURL(svgBlob);
-    const qrImage = await loadImage(svgUrl);
-    URL.revokeObjectURL(svgUrl);
-
-    // Measure text first so we can size the canvas tall enough.
-    const measureCanvas = document.createElement("canvas");
-    const mctx = measureCanvas.getContext("2d");
-    if (!mctx) throw new Error("Canvas not supported");
-
-    const lines: Array<{ text: string; font: string; gap: number; color: string }> = [
-        { text: text.brand, font: `bold ${14 * SCALE}px system-ui, sans-serif`, gap: 16 * SCALE, color: "#1a1a1a" },
-        { text: text.code, font: `600 ${16 * SCALE}px system-ui, sans-serif`, gap: 8 * SCALE, color: "#4a4a4a" },
-        { text: text.description, font: `${12 * SCALE}px system-ui, sans-serif`, gap: 6 * SCALE, color: "#6b6b6b" },
-        { text: text.issued, font: `${10 * SCALE}px system-ui, sans-serif`, gap: 10 * SCALE, color: "#999999" },
-        { text: text.payload, font: `${9 * SCALE}px ui-monospace, monospace`, gap: 0, color: "#999999" },
-    ];
-
-    // Wrap each line to canvas width and accumulate total height
-    const maxTextWidth = W - PAD * 2;
-    const wrapped: Array<{ text: string[]; lineHeight: number; gap: number; font: string; color: string }> = [];
-    let textHeight = 0;
-
-    for (const l of lines) {
-        mctx.font = l.font;
-        const lh = parseInt(l.font.match(/(\d+)px/)?.[1] || "12", 10) * 1.25;
-        const wrappedLines = wrapText(mctx, l.text, maxTextWidth);
-        wrapped.push({
-            text: wrappedLines,
-            lineHeight: lh,
-            gap: l.gap,
-            font: l.font,
-            color: l.color,
-        });
-        textHeight += wrappedLines.length * lh + l.gap;
-    }
-
-    const H = PAD + QR_SIZE + 24 * SCALE + textHeight + PAD;
-
-    // Render
-    const canvas = document.createElement("canvas");
-    canvas.width = W;
-    canvas.height = H;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) throw new Error("Canvas not supported");
-
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, W, H);
-
-    // Center QR horizontally
-    const qrX = (W - QR_SIZE) / 2;
-    ctx.drawImage(qrImage, qrX, PAD, QR_SIZE, QR_SIZE);
-
-    // Draw text lines
-    let y = PAD + QR_SIZE + 24 * SCALE;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "top";
-    const cx = W / 2;
-
-    for (const block of wrapped) {
-        ctx.font = block.font;
-        ctx.fillStyle = block.color;
-        for (const line of block.text) {
-            ctx.fillText(line, cx, y);
-            y += block.lineHeight;
-        }
-        y += block.gap;
-    }
-
-    return new Promise<Blob>((resolve, reject) => {
-        canvas.toBlob((blob) => {
-            if (blob) resolve(blob);
-            else reject(new Error("toBlob returned null"));
-        }, "image/png");
-    });
-}
-
-function loadImage(src: string): Promise<HTMLImageElement> {
-    return new Promise((resolve, reject) => {
-        const img = new Image();
-        img.onload = () => resolve(img);
-        img.onerror = () => reject(new Error("Failed to load QR image"));
-        img.src = src;
-    });
-}
-
-function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
-    if (!text) return [""];
-    // Soft-break long unbroken strings (like the payload) by character.
-    if (ctx.measureText(text).width <= maxWidth) return [text];
-    const lines: string[] = [];
-    let current = "";
-    for (const ch of text) {
-        const next = current + ch;
-        if (ctx.measureText(next).width > maxWidth && current) {
-            lines.push(current);
-            current = ch;
-        } else {
-            current = next;
-        }
-    }
-    if (current) lines.push(current);
-    return lines;
-}

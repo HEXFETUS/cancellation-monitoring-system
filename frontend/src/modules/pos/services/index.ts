@@ -39,6 +39,16 @@ export async function fetchPosRecords(params?: {
     return handleResponse<PosRecord[]>(response);
 }
 
+/**
+ * Look up a single POS record by its serial number. Used by the QR scanner:
+ * the POS QR sticker encodes the device serial_number, and scanning it pulls
+ * the full record back onto the POS page.
+ */
+export async function fetchPosBySerial(serial: string): Promise<PosRecord> {
+    const response = await fetch(`${API_BASE}/by-serial/${encodeURIComponent(serial)}`);
+    return handleResponse<PosRecord>(response);
+}
+
 export async function fetchBoothInfo(): Promise<BoothInfo[]> {
     const response = await fetch(`${API_BASE}/booth-info`);
     return handleResponse<BoothInfo[]>(response);

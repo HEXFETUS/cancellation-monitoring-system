@@ -1,9 +1,12 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { Search, Plus, Filter, Map, RefreshCw, X, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Check, AlertTriangle } from "lucide-react";
+import { Search, Plus, Filter, Map, RefreshCw, X, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Check, AlertTriangle, ScanLine } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import type { PosRecord, BoothInfo } from "../types";
-import { fetchPosRecords, updatePosRecord, createPosRecord, fetchBoothInfo, changePosBooth, convertPosArea } from "../services";
+import { fetchPosRecords, createPosRecord, fetchBoothInfo, changePosBooth, convertPosArea } from "../services";
 import { useAuth } from "../../../context/AuthContext";
 import { ConfirmationModal, EditModal } from "../components";
+import PosQrPreviewModal from "../components/PosQrPreviewModal";
+import PosQrScannerModal from "../components/PosQrScannerModal";
 
 const ROWS_PER_PAGE = 20;
 
@@ -21,6 +24,16 @@ export default function AllPosPage() {
         area: "", // Default value
     });
     const [formErrors, setFormErrors] = useState<{ device_no?: string; serial_no?: string; area?: string }>({});
+
+    // QR code preview + scanner state. The QR encodes the device serial_number.
+    const [qrRecord, setQrRecord] = useState<PosRecord | null>(null);
+    const [qrOpen, setQrOpen] = useState(false);
+    const [scannerOpen, setScannerOpen] = useState(false);
+
+    const openQrPreview = (record: PosRecord) => {
+        setQrRecord(record);
+        setQrOpen(true);
+    };
 
     // Change Booth Modal state
     const [isChangeBoothModalOpen, setIsChangeBoothModalOpen] = useState(false);
@@ -263,19 +276,10 @@ export default function AllPosPage() {
             setRecords((prev) => [...prev, createdRecord]);
             setFormErrors({});
             resetForm();
+            // Auto-show the freshly generated QR so it can be printed right away.
+            openQrPreview(createdRecord);
         } catch (err) {
             alert(err instanceof Error ? (err instanceof Error ? err.message : String(err)) : "Failed to add new POS record");
-        }
-    };
-
-    const handleStickerToggle = async (id: number, currentSticker: boolean) => {
-        try {
-            await updatePosRecord(id, { sticker: !currentSticker });
-            setRecords(prev =>
-                prev.map(r => (r.id === id ? { ...r, sticker: !currentSticker } : r))
-            );
-        } catch (err) {
-            alert(err instanceof Error ? (err instanceof Error ? err.message : String(err)) : "Failed to update sticker status");
         }
     };
 
@@ -434,6 +438,13 @@ export default function AllPosPage() {
 
                     {/* BUTTON */}
                     <button
+                        onClick={() => setScannerOpen(true)}
+                        className="flex items-center gap-2 rounded-xl border border-warm bg-white px-4 py-2 text-sm font-medium text-ink shadow-sm transition hover:bg-cream focus:outline-none focus:ring-2 focus:ring-teal/50 whitespace-nowrap"
+                    >
+                        <ScanLine size={16} />
+                        Scan QR
+                    </button>
+                    <button
                         onClick={() => setIsModalOpen(true)}
                         className="flex items-center gap-2 rounded-xl bg-teal px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-teal-dark focus:outline-none focus:ring-2 focus:ring-teal/50 whitespace-nowrap"
                     >
@@ -571,7 +582,7 @@ export default function AllPosPage() {
                             <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-ink-muted">Booth Code</th>
                             <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-ink-muted">Booth Location</th>
                             <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-ink-muted">Status</th>
-                            <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-ink-muted text-center">Sticker</th>
+                            <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-ink-muted text-center">QR Code</th>
                             <th className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-ink-muted text-right">Action</th>
                         </tr>
                     </thead>
@@ -617,12 +628,22 @@ export default function AllPosPage() {
                                     </td>
                                     <td className="px-4 py-3 text-center">
                                         <div className="flex items-center justify-center">
-                                            <input
-                                                type="checkbox"
-                                                checked={record.sticker}
-                                                onChange={() => handleStickerToggle(record.id, record.sticker)}
-                                                className="h-3 w-3 rounded border-warm text-teal focus:ring-teal transition-colors cursor-pointer"
-                                            />
+                                            {(record.serial_no || record.serial_number) ? (
+                                                <button
+                                                    onClick={() => openQrPreview(record)}
+                                                    className="inline-block rounded-lg border border-warm bg-white p-1 transition hover:border-teal"
+                                                    title="View / print QR code"
+                                                >
+                                                    <QRCodeSVG
+                                                        value={record.serial_no || record.serial_number || ""}
+                                                        size={40}
+                                                        level="M"
+                                                        marginSize={1}
+                                                    />
+                                                </button>
+                                            ) : (
+                                                <span className="text-ink-subtle">—</span>
+                                            )}
                                         </div>
                                     </td>
                                     <td className="px-4 py-3 text-right">
@@ -974,6 +995,25 @@ export default function AllPosPage() {
                     </>
                 )}
             </ConfirmationModal>
+
+            {/* POS QR PREVIEW (print / download) */}
+            <PosQrPreviewModal
+                open={qrOpen}
+                record={qrRecord}
+                onClose={() => setQrOpen(false)}
+            />
+
+            {/* POS QR SCANNER (scan a sticker -> look the device up) */}
+            <PosQrScannerModal
+                open={scannerOpen}
+                onClose={() => setScannerOpen(false)}
+                onFound={(record) => {
+                    // Surface the scanned device in the table by jumping to its
+                    // record and pre-filling the search with its device number.
+                    setSearchQuery(record.device_no || "");
+                    setFilterField("device_no");
+                }}
+            />
         </div>
     );
 }

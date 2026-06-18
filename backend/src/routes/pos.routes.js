@@ -790,6 +790,37 @@ router.get("/", async (req, res) => {
 
 
 /* =========================
+   GET POS BY SERIAL NUMBER
+   ---------------------------------------------------------------
+   QR scanner endpoint. The POS QR sticker encodes the device's
+   serial_number directly (no payload indirection), mirroring the
+   asset-coding by-item-code lookup. Trim defensively so scanner /
+   printer whitespace doesn't break the match, and compare case
+   -insensitively since serials are effectively case-agnostic.
+========================= */
+router.get("/by-serial/:serial", async (req, res) => {
+    const raw = String(req.params.serial || "").trim();
+    if (!raw) {
+        return res.status(400).json({ error: "EMPTY_SERIAL" });
+    }
+
+    try {
+        const result = await pool.query(
+            `${POS_SELECT} WHERE LOWER(p.serial_number) = LOWER($1) LIMIT 1`,
+            [raw]
+        );
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: "Serial number not found" });
+        }
+        res.json(result.rows[0]);
+    } catch (err) {
+        console.error("GET /api/pos/by-serial error:", err.message);
+        res.status(500).json({ error: "Failed to look up POS record" });
+    }
+});
+
+
+/* =========================
    CREATE POS RECORD
 ========================= */
 router.post("/", async (req, res) => {
