@@ -35,8 +35,12 @@ export async function renderThermalLabelCanvas(
 ): Promise<HTMLCanvasElement> {
     const dpi = opts.dpi ?? 203;
     const dotsPerMm = dpi / MM_PER_INCH;
-    const W = Math.max(1, Math.round(opts.widthMm * dotsPerMm));
-    const H = Math.max(1, Math.round(opts.heightMm * dotsPerMm));
+    // The encoder requires the column count (the dimension that maps to the
+    // print head) to be a multiple of 8, so round both dimensions to /8 to stay
+    // valid regardless of print direction.
+    const round8 = (n: number) => Math.max(8, Math.round(n / 8) * 8);
+    const W = round8(opts.widthMm * dotsPerMm);
+    const H = round8(opts.heightMm * dotsPerMm);
     const pad = Math.max(2, Math.round(dotsPerMm)); // ~1mm margin
 
     const qrImage = await rasterizeSvg(svgEl);

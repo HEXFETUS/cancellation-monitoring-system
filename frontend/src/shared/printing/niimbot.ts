@@ -47,14 +47,17 @@ export interface NiimbotSettings {
     printTaskName: string;
 }
 
-const SETTINGS_KEY = "niimbot.settings.v1";
+const SETTINGS_KEY = "niimbot.settings.v2";
 
 const DEFAULT_SETTINGS: NiimbotSettings = {
     transport: "serial",
     labelWidthMm: 50,
     labelHeightMm: 30,
     density: 3,
-    direction: "left",
+    // "top" = print without rotation, so the label width maps to the print
+    // head. This is correct for landscape stock like 50x30mm. "left" rotates
+    // 90deg (use only if your label feeds the other way).
+    direction: "top",
     printTaskName: "auto",
 };
 

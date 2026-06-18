@@ -202,8 +202,8 @@ export default function NiimbotPrintControls({ svgContainerRef, lines, className
                             onChange={(e) => n.updateSettings({ direction: e.target.value as "left" | "top" })}
                             className="rounded-lg border border-warm bg-card px-2 py-1 text-xs text-ink focus:border-teal focus:outline-none"
                         >
-                            <option value="left">Left</option>
-                            <option value="top">Top</option>
+                            <option value="top">Top (no rotation)</option>
+                            <option value="left">Left (rotate 90°)</option>
                         </select>
                     </label>
                     <label className="flex flex-col gap-1 text-[11px] text-ink-muted">
