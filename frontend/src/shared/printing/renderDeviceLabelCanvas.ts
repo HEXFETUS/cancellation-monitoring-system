@@ -81,10 +81,49 @@ export async function renderDeviceLabelCanvas(
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, W, H);
 
-    // ---- QR on the right (square, fit to height) ----
-    const qrSize = Math.min(H - pad * 2, Math.floor(W * 0.42));
-    const qrX = W - qrSize - pad;
+    // ---- Layout: [brand + fields] | [QR], centred as a group ----
+    // Everything is measured first so the whole composition can be centred
+    // horizontally (as a group) and vertically (each column), leaving even
+    // margins on all sides so nothing rides the label edge.
+    const family = "system-ui, sans-serif";
+    const margin = pad;
+    const brand = opts.brand ?? "HEXAPRIME INC.";
+
+    const qrSize = Math.min(H - margin * 2, Math.round(W * 0.42));
+    const columnGap = Math.round(pad * 1.4);
+    const leftMaxW = Math.max(1, W - qrSize - columnGap - margin * 2);
+
+    // Brand row sizing (logo + brand text).
+    const brandH = Math.round(H * 0.24);
+    let logoW = 0;
+    if (logo) {
+        logoW = Math.min(
+            Math.round(brandH * (logo.width / logo.height || 1)),
+            Math.round(leftMaxW * 0.42)
+        );
+    }
+    const logoGap = logo ? Math.round(pad * 0.6) : 0;
+    const brandFontPx = pickFontPx(ctx, brand, Math.max(1, leftMaxW - logoW - logoGap), Math.round(brandH * 0.6), "700", family);
+    ctx.font = `700 ${brandFontPx}px ${family}`;
+    const brandTextW = ctx.measureText(brand).width;
+    const brandRowW = logoW + logoGap + brandTextW;
+
+    // Field sizing.
+    const fieldsBlockH = Math.round(H * 0.34);
+    const measured = measureFields(ctx, opts.fields, leftMaxW, fieldsBlockH, family);
+    const maxFieldW = measured.reduce((m, f) => Math.max(m, f.lineW), 0);
+
+    // Left column width = widest of the brand row / field lines.
+    const leftW = Math.min(leftMaxW, Math.max(brandRowW, maxFieldW));
+
+    // Group geometry, centred horizontally.
+    const groupW = leftW + columnGap + qrSize;
+    const groupX = Math.max(margin, Math.round((W - groupW) / 2));
+    const leftX = groupX;
+    const qrX = groupX + leftW + columnGap;
     const qrY = Math.round((H - qrSize) / 2);
+
+    // ---- QR (centred vertically) ----
     ctx.imageSmoothingEnabled = false; // keep QR modules crisp
     ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
 
@@ -101,92 +140,111 @@ export async function renderDeviceLabelCanvas(
         drawImageContain(ctx, logo, bx + lpad, by + lpad, box - lpad * 2, box - lpad * 2);
     }
 
-    // ---- Left region: brand row + fields ----
+    // ---- Left column (brand row + fields), centred vertically ----
     ctx.imageSmoothingEnabled = true;
-    const leftX = pad;
-    const leftW = qrX - pad - leftX;
+    const brandGap = Math.round(pad * 0.8);
+    const leftBlockH = brandH + brandGap + fieldsBlockH;
+    const leftBlockY = Math.max(margin, Math.round((H - leftBlockH) / 2));
 
-    // Brand row (logo + brand text), top of the left region.
-    const brandH = Math.round(H * 0.3);
-    let brandLogoW = 0;
-    if (logo) {
-        const naturalW = Math.round(brandH * (logo.width / logo.height || 1));
-        brandLogoW = Math.min(naturalW, Math.round(leftW * 0.45));
-        drawImageContain(ctx, logo, leftX, pad, brandLogoW, brandH);
+    // Brand row, centred within the left column.
+    const brandStartX = leftX + Math.max(0, Math.round((leftW - brandRowW) / 2));
+    if (logo && logoW > 0) {
+        drawImageContain(ctx, logo, brandStartX, leftBlockY, logoW, brandH);
     }
-    const brand = opts.brand ?? "HEXAPRIME INC.";
-    const brandTextX = leftX + (brandLogoW ? brandLogoW + Math.round(pad * 0.8) : 0);
-    const brandTextW = leftX + leftW - brandTextX;
-    if (brandTextW > 0) {
-        ctx.fillStyle = "#000000";
-        ctx.textBaseline = "middle";
-        ctx.textAlign = "left";
-        setFittedFont(ctx, brand, brandTextW, Math.round(brandH * 0.7), "700", "system-ui, sans-serif");
-        ctx.fillText(brand, brandTextX, pad + Math.round(brandH / 2), brandTextW);
-    }
+    ctx.fillStyle = "#000000";
+    ctx.textBaseline = "middle";
+    ctx.textAlign = "left";
+    ctx.font = `700 ${brandFontPx}px ${family}`;
+    ctx.fillText(brand, brandStartX + logoW + logoGap, leftBlockY + Math.round(brandH / 2));
 
-    // Fields under the brand row.
-    const fieldsY = pad + brandH + Math.round(pad * 0.8);
-    const fieldsH = H - fieldsY - pad;
-    drawFields(ctx, opts.fields, leftX, fieldsY, leftW, fieldsH);
+    // Fields, each line centred within the left column.
+    drawMeasuredFields(ctx, measured, leftX, leftBlockY + brandH + brandGap, leftW, fieldsBlockH, family);
 
     return canvas;
 }
 
-/** Draw stacked "label: value" lines, shrinking each to fit the width. */
-function drawFields(
+interface MeasuredField {
+    labelText: string;
+    value: string;
+    fontPx: number;
+    labelW: number;
+    valueW: number;
+    lineW: number;
+}
+
+/** Compute per-line font sizes / widths for fields without drawing. */
+function measureFields(
     ctx: CanvasRenderingContext2D,
     fields: DeviceLabelField[],
-    x: number,
-    y: number,
-    w: number,
-    h: number
-) {
-    if (fields.length === 0 || w <= 0 || h <= 0) return;
-    const family = "system-ui, sans-serif";
-    const gap = Math.max(2, Math.round(h * 0.08));
-    const lineH = Math.floor((h - gap * (fields.length - 1)) / fields.length);
-    if (lineH < 1) return;
-
-    ctx.textBaseline = "top";
-    ctx.textAlign = "left";
-    let cy = y;
-
-    for (const f of fields) {
+    maxW: number,
+    blockH: number,
+    family: string
+): MeasuredField[] {
+    if (fields.length === 0) return [];
+    const gap = Math.max(2, Math.round(blockH * 0.12));
+    const lineH = Math.floor((blockH - gap * (fields.length - 1)) / fields.length);
+    return fields.map((f) => {
         const labelText = f.label ? `${f.label}: ` : "";
-        // Shrink until "label value" fits the width.
-        let fontPx = lineH;
+        let fontPx = Math.max(8, lineH);
         for (; fontPx >= 8; fontPx--) {
             ctx.font = `500 ${fontPx}px ${family}`;
             const lW = ctx.measureText(labelText).width;
             ctx.font = `700 ${fontPx}px ${family}`;
             const vW = ctx.measureText(f.value).width;
-            if (lW + vW <= w) break;
+            if (lW + vW <= maxW) break;
         }
-        ctx.fillStyle = "#000000";
         ctx.font = `500 ${fontPx}px ${family}`;
-        ctx.fillText(labelText, x, cy);
         const labelW = ctx.measureText(labelText).width;
         ctx.font = `700 ${fontPx}px ${family}`;
-        ctx.fillText(f.value, x + labelW, cy, Math.max(1, w - labelW));
+        const valueW = ctx.measureText(f.value).width;
+        return { labelText, value: f.value, fontPx, labelW, valueW, lineW: Math.min(maxW, labelW + valueW) };
+    });
+}
+
+/** Draw pre-measured field lines, each centred within the column width. */
+function drawMeasuredFields(
+    ctx: CanvasRenderingContext2D,
+    measured: MeasuredField[],
+    x: number,
+    y: number,
+    w: number,
+    blockH: number,
+    family: string
+) {
+    if (measured.length === 0) return;
+    const gap = Math.max(2, Math.round(blockH * 0.12));
+    const lineH = Math.floor((blockH - gap * (measured.length - 1)) / measured.length);
+    if (lineH < 1) return;
+
+    ctx.textBaseline = "top";
+    ctx.textAlign = "left";
+    let cy = y;
+    for (const m of measured) {
+        const startX = x + Math.max(0, Math.round((w - (m.labelW + m.valueW)) / 2));
+        ctx.fillStyle = "#000000";
+        ctx.font = `500 ${m.fontPx}px ${family}`;
+        ctx.fillText(m.labelText, startX, cy);
+        ctx.font = `700 ${m.fontPx}px ${family}`;
+        ctx.fillText(m.value, startX + m.labelW, cy, Math.max(1, w - m.labelW));
         cy += lineH + gap;
     }
 }
 
-/** Set ctx.font to the largest size (<= maxPx) whose text fits width w. */
-function setFittedFont(
+/** Return the largest font size (<= maxPx) whose text fits width w. */
+function pickFontPx(
     ctx: CanvasRenderingContext2D,
     text: string,
     w: number,
     maxPx: number,
     weight: string,
     family: string
-) {
+): number {
     let fontPx = Math.max(8, maxPx);
     for (; fontPx >= 8; fontPx--) {
         ctx.font = `${weight} ${fontPx}px ${family}`;
         if (ctx.measureText(text).width <= w) break;
     }
+    return fontPx;
 }
 
 /** Draw an image scaled to fit inside the box, preserving aspect ratio. */
