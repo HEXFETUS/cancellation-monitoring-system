@@ -1,4 +1,4 @@
-import { useMemo, useState, type RefObject } from "react";
+import { useMemo, useState } from "react";
 import { Bluetooth, Loader2, Plug, Printer, Settings2, Usb, X } from "lucide-react";
 import {
     LABEL_PRESETS,
@@ -6,13 +6,18 @@ import {
     useNiimbot,
     type NiimbotTransport,
 } from "./niimbot";
-import { renderThermalLabelCanvas, type ThermalLabelLine } from "./renderThermalLabelCanvas";
+
+export interface LabelDimensions {
+    widthMm: number;
+    heightMm: number;
+}
 
 interface Props {
-    /** Container holding the QR <svg> to print (e.g. the preview modal's ref). */
-    svgContainerRef: RefObject<HTMLDivElement | null>;
-    /** Text lines drawn alongside the QR on the thermal label. */
-    lines: ThermalLabelLine[];
+    /**
+     * Build the label canvas for the given physical label size. The caller owns
+     * the layout (QR, brand, fields) so each modal can render its own sticker.
+     */
+    renderCanvas: (dims: LabelDimensions) => Promise<HTMLCanvasElement>;
     className?: string;
 }
 
@@ -24,7 +29,7 @@ const STATUS_LABEL: Record<string, string> = {
     error: "Error",
 };
 
-export default function NiimbotPrintControls({ svgContainerRef, lines, className }: Props) {
+export default function NiimbotPrintControls({ renderCanvas, className }: Props) {
     const n = useNiimbot();
     const [quantity, setQuantity] = useState(1);
     const [showAdvanced, setShowAdvanced] = useState(false);
@@ -57,16 +62,10 @@ export default function NiimbotPrintControls({ svgContainerRef, lines, className
 
     const handlePrint = async () => {
         setLocalError(null);
-        const svg = svgContainerRef.current?.querySelector("svg");
-        if (!svg) {
-            setLocalError("Couldn't find the QR to print.");
-            return;
-        }
         try {
-            const canvas = await renderThermalLabelCanvas(svg as SVGSVGElement, {
+            const canvas = await renderCanvas({
                 widthMm: n.settings.labelWidthMm,
                 heightMm: n.settings.labelHeightMm,
-                lines,
             });
             await n.printCanvas(canvas, quantity);
         } catch (e) {

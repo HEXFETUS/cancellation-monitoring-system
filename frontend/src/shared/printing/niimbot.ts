@@ -253,7 +253,7 @@ export async function disconnect(): Promise<void> {
 
 /**
  * Print a pre-rendered label canvas. The canvas must already be sized to the
- * label stock at the printer resolution (see renderThermalLabelCanvas).
+ * label stock at the printer resolution (see renderDeviceLabelCanvas).
  */
 export async function printCanvas(canvas: HTMLCanvasElement, quantity = 1): Promise<void> {
     if (!client) {
