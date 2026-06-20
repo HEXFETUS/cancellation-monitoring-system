@@ -194,14 +194,20 @@ router.get("/booth-info", async (req, res) => {
 /* =========================
    GET OPERATORS
 ========================= */
-router.get("/operators", async (_req, res) => {
+router.get("/operators", async (req, res) => {
     try {
-        const result = await pool.query(`
+        const { q } = req.query;
+        const trimmed = typeof q === "string" && q.trim().length > 0 ? q.trim() : null;
+
+        const query = `
             ${OPERATOR_SELECT}
             WHERE NULLIF(TRIM(operator), '') IS NOT NULL
+            ${trimmed ? ` AND operator ILIKE $1` : ""}
             ORDER BY operator ASC
-        `);
+        `;
+        const params = trimmed ? [`${trimmed}%`] : [];
 
+        const result = await pool.query(query, params);
         res.json(result.rows);
     } catch (err) {
         console.error("GET operators error:", err.message);
