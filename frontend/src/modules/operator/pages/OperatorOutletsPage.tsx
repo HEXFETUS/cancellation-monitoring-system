@@ -135,8 +135,12 @@ export default function OperatorOutletsPage() {
                 : null;
             setMe(meSafe);
 
+            const scopedBoothParams = meSafe?.parent_operator_id != null && meSafe.operator_id != null
+                ? { operator_id: String(meSafe.operator_id) }
+                : { user_id: String(user.id) };
+
             const [boothData, ops, reqs] = await Promise.all([
-                fetchBoothInfo().catch(() => [] as BoothInfo[]),
+                fetchBoothInfo(scopedBoothParams).catch(() => [] as BoothInfo[]),
                 fetchOperators().catch(() => [] as OperatorInfo[]),
                 listBoothOperatorChangeRequests({ userId: user.id }).catch(
                     () => [] as BoothOperatorChangeRequest[]
@@ -185,8 +189,12 @@ export default function OperatorOutletsPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [loadData]);
 
-    const isMainOperator = myOperator !== null && myOperator.parent_operator_id == null;
-    const isSubOperator = myOperator !== null && myOperator.parent_operator_id != null;
+    const isMainOperator =
+        (me?.operator_id != null && me.parent_operator_id == null) ||
+        (myOperator !== null && myOperator.parent_operator_id == null);
+    const isSubOperator =
+        me?.parent_operator_id != null ||
+        (myOperator !== null && myOperator.parent_operator_id != null);
 
     const subOperatorIds = useMemo(() => {
         if (!isMainOperator || !myOperator) return new Set<number>();
@@ -199,13 +207,14 @@ export default function OperatorOutletsPage() {
     }, [isMainOperator, myOperator, operators]);
 
     const visibleOperatorIds = useMemo(() => {
-        if (!myOperator) return new Set<number>();
-        const ids = new Set<number>([Number(myOperator.id)]);
+        const ownOperatorId = myOperator?.id ?? me?.operator_id ?? null;
+        if (ownOperatorId == null) return new Set<number>();
+        const ids = new Set<number>([Number(ownOperatorId)]);
         if (isMainOperator) {
             for (const subId of subOperatorIds) ids.add(subId);
         }
         return ids;
-    }, [myOperator, isMainOperator, subOperatorIds]);
+    }, [myOperator, me?.operator_id, isMainOperator, subOperatorIds]);
 
     const myBooths = useMemo(() => {
         return booths.filter((b) => b.operator_id != null && visibleOperatorIds.has(Number(b.operator_id)));
@@ -422,7 +431,7 @@ export default function OperatorOutletsPage() {
                             style={inputStyle}
                         />
                     </div>
-                    {!isSubOperator && (
+                    {!loading && !isSubOperator && (
                         <button
                             type="button"
                             onClick={openAddModal}
@@ -520,7 +529,7 @@ export default function OperatorOutletsPage() {
             </div>
 
             {/* My Request Outlet History (below the outlets table) — hidden for sub-operators */}
-            {!isSubOperator && (
+            {!loading && !isSubOperator && (
                 <div className="relative rounded-2xl border border-white/50 backdrop-blur-xl bg-white/25 shadow-lg overflow-hidden">
                     <div className="flex items-center gap-2 border-b border-white/40 px-5 py-3">
                         <History size={16} />

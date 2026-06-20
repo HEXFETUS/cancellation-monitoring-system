@@ -3,7 +3,7 @@ import pool from "../config/db.js";
 
 const router = express.Router();
 
-const COLUMNS = `id, brand, model, specs, serial_number, imei1, imei2, control_no, operator_id, added_by_user_id, status, booth_id, created_at, updated_at`;
+const COLUMNS = `id, brand, model, specs, serial_number, imei1, imei2, control_no, operator_id, added_by_user_id, status, booth_id, area, created_at, updated_at`;
 
 function nullable(value) {
     if (value === undefined || value === null) return null;
@@ -143,6 +143,40 @@ router.put("/:id", async (req, res) => {
         }
         console.error("PUT cellphone_list error:", err.message);
         res.status(500).json({ error: "Failed to update cellphone record" });
+    }
+});
+
+/**
+ * POST /api/cellphones/:id/convert-area
+ * Body: { new_area }
+ * Updates the area field of a cellphone record.
+ */
+router.post("/:id/convert-area", async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) return res.status(400).json({ error: "Invalid id" });
+
+    const { new_area } = req.body ?? {};
+    if (!new_area || !["CDO", "MISOR"].includes(new_area.toUpperCase())) {
+        return res.status(400).json({ error: "Invalid area. Must be CDO or MISOR." });
+    }
+
+    try {
+        const result = await pool.query(
+            `UPDATE cellphone_list
+             SET area = $1,
+                 booth_id = NULL,
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = $2
+             RETURNING ${COLUMNS}`,
+            [new_area.toUpperCase(), id]
+        );
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: "Cellphone not found" });
+        }
+        res.json(result.rows[0]);
+    } catch (err) {
+        console.error("POST convert-area error:", err.message);
+        res.status(500).json({ error: "Failed to convert area" });
     }
 });
 
