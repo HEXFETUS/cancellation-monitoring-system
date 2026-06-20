@@ -28,6 +28,7 @@ import {
 import { useAuth } from "../../context/AuthContext";
 import { useEffect, useRef, useState } from "react";
 import { FloatingAlert } from "../../shared/components";
+import hexLogo from "../../assets/HEXLOGO.png";
 
 const teal = "#92C7CF";
 const tealLight = "#AAD7D9";
@@ -779,10 +780,10 @@ export default function DashboardLayout() {
 
                         {/* ===== Logo Section ===== */}
                         <div className="relative mb-5 mt-1">
-                            <Link
-                                to="/"
-                                onClick={closeMobileSidebar}
-                                className="group relative flex items-center gap-3 px-3 py-2.5 rounded-2xl transition-all duration-300"
+                            <button
+                                type="button"
+                                onClick={() => window.location.reload()}
+                                className="group relative flex w-full items-center gap-3 px-3 py-2.5 rounded-2xl text-left transition-all duration-300"
                                 style={{
                                     background: "linear-gradient(135deg, #92C7CF 0%, #AAD7D9 100%)",
                                     boxShadow: "0 4px 20px rgba(146,199,207,0.35)",
@@ -797,7 +798,7 @@ export default function DashboardLayout() {
                                 />
                                 <div className="relative flex items-center gap-3">
                                     <img
-                                        src="/src/assets/LogoOnly.png"
+                                        src={hexLogo}
                                         alt="Logo"
                                         className="h-8 w-8 rounded-xl object-contain"
                                     />
@@ -810,7 +811,7 @@ export default function DashboardLayout() {
                                         </span>
                                     </div>
                                 </div>
-                            </Link>
+                            </button>
                         </div>
 
                         {/* ===== Navigation ===== */}
