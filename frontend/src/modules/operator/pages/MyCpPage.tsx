@@ -382,7 +382,7 @@ export default function MyCpPage({ searchQuery: externalSearch = "", refreshKey 
                                 <tr><td colSpan={7} className="px-4 py-10 text-center text-gray-500">Loading...</td></tr>
                             ) : filteredRecords.length === 0 ? (
                                 <tr><td colSpan={7} className="px-4 py-10 text-center text-gray-500">
-                                    {records.length === 0 ? "No cellphone records yet." : "No records match your search."}
+                                    {records.length === 0 ? "No CP Device assigned to you." : "No records match your search."}
                                 </td></tr>
                             ) : (
                                 paginatedRecords.map((rec) => {
@@ -435,7 +435,7 @@ export default function MyCpPage({ searchQuery: externalSearch = "", refreshKey 
                                                     >
                                                         <Eye className="h-4 w-4" />
                                                     </button>
-                                                    {me?.parent_operator_id == null && (
+                                                    {me && me.parent_operator_id == null && (
                                                     <button
                                                         onClick={() => {
                                                             setConvertAreaRecord(rec);
@@ -475,7 +475,7 @@ export default function MyCpPage({ searchQuery: externalSearch = "", refreshKey 
                                                             </button>
                                                         );
                                                     })()}
-                                                    {me?.parent_operator_id == null && (() => {
+                                                    {me && me.parent_operator_id == null && (() => {
                                                         const opPending = getPendingOperatorRequest(rec);
                                                         return (
                                                             <button
@@ -570,7 +570,7 @@ export default function MyCpPage({ searchQuery: externalSearch = "", refreshKey 
                     </div>
                 </div>
 
-                {me?.parent_operator_id == null && (
+                {me && me.parent_operator_id == null && (
                 <div className="relative rounded-2xl border border-white/50 backdrop-blur-xl bg-white/25 shadow-lg overflow-hidden">
                     <div className="flex items-center justify-between gap-3 border-b border-white/40 px-5 py-3">
                         <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-800">
