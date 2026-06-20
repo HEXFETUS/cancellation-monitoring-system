@@ -111,11 +111,8 @@ export default function RequestPosPage() {
                     : null
             );
 
-            // Pull a wide pos_records set so the lookup works regardless of
-            // whether the device is currently under the user. We cap to a
-            // reasonable size so the page stays snappy.
             const [pos, ops, reqs] = await Promise.all([
-                fetchPosRecords().catch(() => [] as PosRecord[]),
+                fetchPosRecords({ user_id: String(user.id) }).catch(() => [] as PosRecord[]),
                 fetchOperators().catch(() => [] as OperatorInfo[]),
                 listOperatorChangeRequests({ userId: user.id }).catch(
                     () => [] as OperatorChangeRequest[]

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { X, AlertCircle } from "lucide-react";
-import { updateCellphone } from "../services/cellphones";
+import { X, AlertCircle, Trash2 } from "lucide-react";
+import { updateCellphone, deleteCellphone } from "../services/cellphones";
 
 interface CellphoneRecord {
     id: number;
@@ -24,9 +24,12 @@ interface Props {
     cellphone: CellphoneRecord | null;
     onClose: () => void;
     onSubmitted: () => Promise<void>;
+    mode?: "edit" | "view";
+    onEditClick?: () => void;
+    isSubOperator?: boolean;
 }
 
-export default function EditCpModal({ open, cellphone, onClose, onSubmitted }: Props) {
+export default function EditCpModal({ open, cellphone, onClose, onSubmitted, mode = "edit", onEditClick, isSubOperator = false }: Props) {
     const [brand, setBrand] = useState("");
     const [model, setModel] = useState("");
     const [specs, setSpecs] = useState("");
@@ -36,6 +39,8 @@ export default function EditCpModal({ open, cellphone, onClose, onSubmitted }: P
     const [controlNo, setControlNo] = useState("");
     const [error, setError] = useState("");
     const [saving, setSaving] = useState(false);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [deleting, setDeleting] = useState(false);
 
     useEffect(() => {
         if (open && cellphone) {
@@ -51,6 +56,23 @@ export default function EditCpModal({ open, cellphone, onClose, onSubmitted }: P
     }, [open, cellphone]);
 
     if (!open || !cellphone) return null;
+
+    const isViewMode = mode === "view";
+    const viewerStyle = isViewMode ? "border border-gray-200/70 bg-gray-50/80 text-gray-600" : "border border-gray-300 bg-white";
+    const viewerDisabled = isViewMode || saving;
+
+    const handleDelete = async () => {
+        setDeleting(true);
+        try {
+            await deleteCellphone(cellphone.id);
+            setShowDeleteConfirm(false);
+            await onSubmitted();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Failed to delete cellphone");
+        } finally {
+            setDeleting(false);
+        }
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -85,17 +107,53 @@ export default function EditCpModal({ open, cellphone, onClose, onSubmitted }: P
 
     return (
         <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 backdrop-blur-sm pt-16 px-4">
-            <div className="relative w-full max-w-lg animate-in fade-in zoom-in-95 duration-200 rounded-2xl bg-white shadow-2xl border border-warm overflow-hidden">
+            <div className="relative w-full max-w-lg animate-in fade-in zoom-in-95 duration-200 rounded-2xl bg-white shadow-2xl border border-gray-200/60 overflow-hidden">
                 {/* Header accent bar */}
-                <div className="h-2 bg-linear-to-r from-teal to-teal-dark" />
+                <div className="h-1.5 bg-gradient-to-r from-[#92C7CF] via-[#AAD7D9] to-[#92C7CF]" />
+
+                {showDeleteConfirm && (
+                    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                        <div className="mx-4 w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
+                            <h3 className="text-lg font-bold text-gray-800">Delete Cellphone</h3>
+                            <p className="mt-2 text-sm text-gray-600">
+                                Are you sure you want to delete <strong>{cellphone.brand} {cellphone.model}</strong> ({cellphone.control_no})? This action cannot be undone.
+                            </p>
+                            {error && (
+                                <div className="mt-3 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
+                                    <AlertCircle size={14} className="shrink-0" />
+                                    {error}
+                                </div>
+                            )}
+                            <div className="mt-5 flex justify-end gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => { setShowDeleteConfirm(false); setError(""); }}
+                                    disabled={deleting}
+                                    className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:opacity-50"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleDelete}
+                                    disabled={deleting}
+                                    className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700 disabled:opacity-50"
+                                >
+                                    <Trash2 size={14} />
+                                    {deleting ? "Deleting..." : "Delete"}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 <div className="p-6">
                     {/* Header */}
                     <div className="flex items-center justify-between mb-6">
                         <div>
-                            <h2 className="text-lg font-bold text-ink">Edit Cellphone</h2>
-                            <p className="text-sm text-ink-muted mt-0.5">
-                                Update the cellphone details
+                            <h2 className="text-lg font-bold text-gray-800">{isViewMode ? "View Cellphone Details" : "Edit Cellphone"}</h2>
+                            <p className="text-sm text-gray-500 mt-0.5">
+                                {isViewMode ? "Review cellphone information" : "Update the cellphone details"}
                             </p>
                         </div>
                         <button
@@ -115,46 +173,52 @@ export default function EditCpModal({ open, cellphone, onClose, onSubmitted }: P
                             </div>
                         )}
 
-                        {/* Device info display */}
-                        <div className="rounded-lg border border-warm bg-gray-50 px-3 py-2 text-xs text-gray-500 space-y-1">
-                            <div className="flex items-center justify-between">
-                                <span className="font-medium">ID:</span>
-                                <span>#{cellphone.id}</span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                                <span className="font-medium">Status:</span>
-                                <span className={`font-semibold ${cellphone.status === "Active" ? "text-emerald-600" : "text-gray-500"}`}>{cellphone.status}</span>
-                            </div>
-                        </div>
-
-                        {/* Brand */}
+                        {/* Control No. — first field */}
                         <div>
                             <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
-                                Brand <span className="text-red-500">*</span>
+                                Control No. <span className="text-red-500">*</span>
                             </label>
                             <input
                                 type="text"
-                                value={brand}
-                                onChange={(e) => setBrand(e.target.value)}
-                                placeholder="e.g. Samsung"
-                                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/30"
-                                disabled={saving}
+                                value={controlNo}
+                                onChange={(e) => setControlNo(e.target.value)}
+                                placeholder="e.g. BMC-001"
+                                className={`w-full rounded-xl px-3 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/30 transition-all ${viewerStyle}`}
+                                disabled={viewerDisabled}
+                                readOnly={isViewMode}
                             />
                         </div>
 
-                        {/* Model */}
-                        <div>
-                            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
-                                Model <span className="text-red-500">*</span>
-                            </label>
-                            <input
-                                type="text"
-                                value={model}
-                                onChange={(e) => setModel(e.target.value)}
-                                placeholder="e.g. Galaxy S24 Ultra"
-                                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/30"
-                                disabled={saving}
-                            />
+                        {/* Brand + Model on same row */}
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                    Brand <span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                    type="text"
+                                    value={brand}
+                                    onChange={(e) => setBrand(e.target.value)}
+                                    placeholder="e.g. Samsung"
+                                    className={`w-full rounded-xl px-3 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/30 transition-all ${viewerStyle}`}
+                                    disabled={viewerDisabled}
+                                    readOnly={isViewMode}
+                                />
+                            </div>
+                            <div>
+                                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                    Model <span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                    type="text"
+                                    value={model}
+                                    onChange={(e) => setModel(e.target.value)}
+                                    placeholder="e.g. Galaxy S24"
+                                    className={`w-full rounded-xl px-3 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/30 transition-all ${viewerStyle}`}
+                                    disabled={viewerDisabled}
+                                    readOnly={isViewMode}
+                                />
+                            </div>
                         </div>
 
                         {/* Specs */}
@@ -167,42 +231,45 @@ export default function EditCpModal({ open, cellphone, onClose, onSubmitted }: P
                                 value={specs}
                                 onChange={(e) => setSpecs(e.target.value)}
                                 placeholder="e.g. 12GB RAM, 256GB Storage"
-                                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/30"
-                                disabled={saving}
+                                className={`w-full rounded-xl px-3 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/30 transition-all ${viewerStyle}`}
+                                disabled={viewerDisabled}
+                                readOnly={isViewMode}
                             />
                         </div>
 
-                        {/* Serial Number */}
-                        <div>
-                            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
-                                Serial No. <span className="text-red-500">*</span>
-                            </label>
-                            <input
-                                type="text"
-                                value={sn}
-                                onChange={(e) => setSn(e.target.value)}
-                                placeholder="e.g. SN-123456"
-                                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/30"
-                                disabled={saving}
-                            />
+                        {/* SN + IMEI1 on same row */}
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                    Serial No. <span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                    type="text"
+                                    value={sn}
+                                    onChange={(e) => setSn(e.target.value)}
+                                    placeholder="e.g. SN-123456"
+                                    className={`w-full rounded-xl px-3 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/30 transition-all ${viewerStyle}`}
+                                    disabled={viewerDisabled}
+                                    readOnly={isViewMode}
+                                />
+                            </div>
+                            <div>
+                                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                    IMEI1 <span className="text-xs font-normal normal-case text-gray-400">*</span>
+                                </label>
+                                <input
+                                    type="text"
+                                    value={imei1}
+                                    onChange={(e) => setImei1(e.target.value)}
+                                    placeholder="e.g. 123456789012345"
+                                    className={`w-full rounded-xl px-3 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/30 transition-all ${viewerStyle}`}
+                                    disabled={viewerDisabled}
+                                    readOnly={isViewMode}
+                                />
+                            </div>
                         </div>
 
-                        {/* IMEI1 */}
-                        <div>
-                            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
-                                IMEI1 <span className="text-xs font-normal normal-case text-gray-400">(at least one required)</span>
-                            </label>
-                            <input
-                                type="text"
-                                value={imei1}
-                                onChange={(e) => setImei1(e.target.value)}
-                                placeholder="e.g. 123456789012345"
-                                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/30"
-                                disabled={saving}
-                            />
-                        </div>
-
-                        {/* IMEI2 */}
+                        {/* IMEI2 standalone */}
                         <div>
                             <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
                                 IMEI2 <span className="text-xs font-normal normal-case text-gray-400">(optional)</span>
@@ -212,47 +279,77 @@ export default function EditCpModal({ open, cellphone, onClose, onSubmitted }: P
                                 value={imei2}
                                 onChange={(e) => setImei2(e.target.value)}
                                 placeholder="e.g. 123456789012346"
-                                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/30"
-                                disabled={saving}
+                                className={`w-full rounded-xl px-3 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/30 transition-all ${viewerStyle}`}
+                                disabled={viewerDisabled}
+                                readOnly={isViewMode}
                             />
                         </div>
 
-                        {/* Control No. */}
-                        <div>
-                            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
-                                Control No. <span className="text-red-500">*</span>
-                            </label>
-                            <input
-                                type="text"
-                                value={controlNo}
-                                onChange={(e) => setControlNo(e.target.value)}
-                                placeholder="e.g. BMC-001"
-                                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/30"
-                                disabled={saving}
-                            />
+                        {/* Status pill — clean display */}
+                        <div className="flex items-center justify-between rounded-xl border border-gray-200/70 bg-gray-50/60 px-4 py-2.5">
+                            <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Status</span>
+                            <span
+                                className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
+                                    cellphone.status === "Active"
+                                        ? "bg-emerald-100 text-emerald-700"
+                                        : "bg-gray-100 text-gray-500"
+                                }`}
+                            >
+                                {cellphone.status === "Active" ? "Active" : "Inactive"}
+                            </span>
                         </div>
 
-                        {/* Buttons */}
-                        <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
-                            <button
-                                type="button"
-                                onClick={onClose}
-                                disabled={saving}
-                                className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:opacity-50"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                type="submit"
-                                disabled={saving}
-                                className="rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:opacity-90 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
-                                style={{
-                                    background: "linear-gradient(135deg, #92C7CF, #AAD7D9)",
-                                    boxShadow: "0 2px 8px rgba(146,199,207,0.25)",
-                                }}
-                            >
-                                {saving ? "Saving..." : "Save Changes"}
-                            </button>
+                        {/* Footer buttons */}
+                        <div className="flex items-center justify-between gap-3 pt-4 border-t border-gray-200">
+                            <div className="flex items-center gap-2">
+                                {isViewMode && !isSubOperator && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowDeleteConfirm(true)}
+                                        className="inline-flex items-center gap-1.5 rounded-xl border border-red-300 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-100"
+                                    >
+                                        <Trash2 size={14} />
+                                        Delete
+                                    </button>
+                                )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                                {isViewMode && !isSubOperator ? (
+                                    <button
+                                        type="button"
+                                        onClick={onEditClick}
+                                        className="inline-flex items-center gap-1.5 rounded-xl px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:opacity-90 active:scale-[0.98]"
+                                        style={{
+                                            background: "linear-gradient(135deg, #92C7CF, #AAD7D9)",
+                                            boxShadow: "0 2px 8px rgba(146,199,207,0.25)",
+                                        }}
+                                    >
+                                        Edit
+                                    </button>
+                                ) : (
+                                    <>
+                                        <button
+                                            type="button"
+                                            onClick={onClose}
+                                            disabled={saving}
+                                            className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:opacity-50"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            type="submit"
+                                            disabled={saving}
+                                            className="rounded-xl px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:opacity-90 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                                            style={{
+                                                background: "linear-gradient(135deg, #92C7CF, #AAD7D9)",
+                                                boxShadow: "0 2px 8px rgba(146,199,207,0.25)",
+                                            }}
+                                        >
+                                            {saving ? "Saving..." : "Save Changes"}
+                                        </button>
+                                    </>
+                                )}
+                            </div>
                         </div>
                     </form>
                 </div>

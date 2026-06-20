@@ -101,6 +101,22 @@ const SERIAL_TABLES = new Set([
     "status_logs",
 ]);
 
+function operatorScopeSql(columnName, userIdPlaceholder) {
+    return `${columnName} IN (
+        WITH me AS (
+            SELECT id, parent_operator_id
+            FROM operator_list
+            WHERE user_id = ${userIdPlaceholder}::int LIMIT 1
+        )
+        SELECT id FROM operator_list
+        WHERE id = (SELECT id FROM me)
+           OR (
+               (SELECT parent_operator_id FROM me) IS NULL
+               AND parent_operator_id = (SELECT id FROM me)
+           )
+    )`;
+}
+
 async function syncSerialSequence(tableName) {
     if (!SERIAL_TABLES.has(tableName)) {
         throw new Error(`Cannot sync unknown serial table: ${tableName}`);
@@ -142,14 +158,32 @@ async function insertStatusLog(values) {
 /* =========================
    GET BOOTH INFO
 ========================= */
-router.get("/booth-info", async (_req, res) => {
+router.get("/booth-info", async (req, res) => {
     try {
-        const result = await pool.query(`
+        const { operator_id, user_id } = req.query;
+
+        let query = `
             ${BOOTH_INFO_SELECT}
             WHERE NULLIF(TRIM(b.booth_code), '') IS NOT NULL
-            ORDER BY b.booth_code ASC
-        `);
+        `;
+        const params = [];
+        let idx = 1;
 
+        if (operator_id) {
+            query += ` AND b.operator_id = $${idx}::int`;
+            params.push(operator_id);
+            idx++;
+        } else if (user_id) {
+            // Main operators see their own booths plus direct sub-operator booths.
+            // Sub-operators see only booths assigned directly to their operator id.
+            query += ` AND ${operatorScopeSql("b.operator_id", `$${idx}`)}`;
+            params.push(user_id);
+            idx++;
+        }
+
+        query += ` ORDER BY b.booth_code ASC`;
+
+        const result = await pool.query(query, params);
         res.json(result.rows);
     } catch (err) {
         console.error("GET booth_info error:", err.message);
@@ -734,44 +768,20 @@ router.get("/", async (req, res) => {
         }
 
         // Resolve operator from user_id when caller is an operator user.
-        // Main operators see their own POS records AND those of any sub-operator
-        // whose parent_operator_id matches them. Sub-operators only see their own.
+        // Main operators see their own POS records plus direct sub-operator
+        // records. Sub-operators see only records assigned directly to them.
         // When `as_operator_id` is also passed, narrow the result further to that
         // specific operator (a main operator filtering one of its subs). The
         // server validates the requested operator is reachable for that user.
         if (user_id) {
             if (as_operator_id) {
                 query += ` AND p.operator_id = $${idx}::int
-                    AND $${idx}::int IN (
-                        WITH me AS (
-                            SELECT id, parent_operator_id
-                            FROM operator_list
-                            WHERE user_id = $${idx + 1}::int LIMIT 1
-                        )
-                        SELECT id FROM operator_list
-                        WHERE id = (SELECT id FROM me)
-                           OR (
-                               (SELECT parent_operator_id FROM me) IS NULL
-                               AND parent_operator_id = (SELECT id FROM me)
-                           )
-                    )`;
+                    AND ${operatorScopeSql(`$${idx}::int`, `$${idx + 1}`)}`;
                 params.push(as_operator_id);
                 params.push(user_id);
                 idx += 2;
             } else {
-                query += ` AND p.operator_id IN (
-                    WITH me AS (
-                        SELECT id, parent_operator_id
-                        FROM operator_list
-                        WHERE user_id = $${idx}::int LIMIT 1
-                    )
-                    SELECT id FROM operator_list
-                    WHERE id = (SELECT id FROM me)
-                       OR (
-                           (SELECT parent_operator_id FROM me) IS NULL
-                           AND parent_operator_id = (SELECT id FROM me)
-                       )
-                )`;
+                query += ` AND ${operatorScopeSql("p.operator_id", `$${idx}`)}`;
                 params.push(user_id);
                 idx++;
             }
