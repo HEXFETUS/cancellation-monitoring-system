@@ -349,10 +349,10 @@ export default function OperatorPosPage({ searchQuery: externalSearch = "", refr
                         <tbody>
                             {loading ? (
                                 <tr><td colSpan={7} className="px-4 py-10 text-center text-gray-500">Loading...</td></tr>
+                            ) : records.length === 0 ? (
+                                <tr><td colSpan={7} className="px-4 py-10 text-center text-gray-500">No POS assigned to you.</td></tr>
                             ) : searchedRecords.length === 0 ? (
                                 <tr><td colSpan={7} className="px-4 py-10 text-center text-gray-500">No devices match your search.</td></tr>
-                            ) : records.length === 0 ? (
-                                <tr><td colSpan={7} className="px-4 py-10 text-center text-gray-500">No POS devices assigned to you yet.</td></tr>
                             ) : (
                                 paginatedRecords.map((rec) => {
                                     const pending = getPendingRequest(rec);

@@ -58,8 +58,20 @@ export default function EditCpModal({ open, cellphone, onClose, onSubmitted, mod
     if (!open || !cellphone) return null;
 
     const isViewMode = mode === "view";
-    const viewerStyle = isViewMode ? "border border-gray-200/70 bg-gray-50/80 text-gray-600" : "border border-gray-300 bg-white";
-    const viewerDisabled = isViewMode || saving;
+    const viewerStyle = "border border-gray-300 bg-white";
+
+    function ViewField({ label, value }: { label: string; value: string }) {
+        return (
+            <div>
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    {label}
+                </label>
+                <div className="w-full rounded-xl border border-gray-200/70 bg-gray-50/80 px-3 py-2.5 text-sm text-gray-700">
+                    {value || "—"}
+                </div>
+            </div>
+        );
+    }
 
     const handleDelete = async () => {
         setDeleting(true);
@@ -173,117 +185,130 @@ export default function EditCpModal({ open, cellphone, onClose, onSubmitted, mod
                             </div>
                         )}
 
-                        {/* Control No. — first field */}
-                        <div>
-                            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
-                                Control No. <span className="text-red-500">*</span>
-                            </label>
-                            <input
-                                type="text"
-                                value={controlNo}
-                                onChange={(e) => setControlNo(e.target.value)}
-                                placeholder="e.g. BMC-001"
-                                className={`w-full rounded-xl px-3 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/30 transition-all ${viewerStyle}`}
-                                disabled={viewerDisabled}
-                                readOnly={isViewMode}
-                            />
-                        </div>
+                        {isViewMode ? (
+                            <>
+                                {/* View mode: display-only fields */}
+                                <ViewField label="Control No." value={controlNo} />
+                                <div className="grid grid-cols-2 gap-3">
+                                    <ViewField label="Brand" value={brand} />
+                                    <ViewField label="Model" value={model} />
+                                </div>
+                                <ViewField label="Specs" value={specs} />
+                                <div className="grid grid-cols-2 gap-3">
+                                    <ViewField label="Serial No." value={sn} />
+                                    <ViewField label="IMEI1" value={imei1} />
+                                </div>
+                                <ViewField label="IMEI2" value={imei2 || "—"} />
+                            </>
+                        ) : (
+                            <>
+                                {/* Edit mode: input fields */}
+                                {/* Control No. — first field */}
+                                <div>
+                                    <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                        Control No. <span className="text-red-500">*</span>
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={controlNo}
+                                        onChange={(e) => setControlNo(e.target.value)}
+                                        placeholder="e.g. BMC-001"
+                                        className={`w-full rounded-xl px-3 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/30 transition-all ${viewerStyle}`}
+                                        disabled={saving}
+                                    />
+                                </div>
 
-                        {/* Brand + Model on same row */}
-                        <div className="grid grid-cols-2 gap-3">
-                            <div>
-                                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
-                                    Brand <span className="text-red-500">*</span>
-                                </label>
-                                <input
-                                    type="text"
-                                    value={brand}
-                                    onChange={(e) => setBrand(e.target.value)}
-                                    placeholder="e.g. Samsung"
-                                    className={`w-full rounded-xl px-3 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/30 transition-all ${viewerStyle}`}
-                                    disabled={viewerDisabled}
-                                    readOnly={isViewMode}
-                                />
-                            </div>
-                            <div>
-                                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
-                                    Model <span className="text-red-500">*</span>
-                                </label>
-                                <input
-                                    type="text"
-                                    value={model}
-                                    onChange={(e) => setModel(e.target.value)}
-                                    placeholder="e.g. Galaxy S24"
-                                    className={`w-full rounded-xl px-3 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/30 transition-all ${viewerStyle}`}
-                                    disabled={viewerDisabled}
-                                    readOnly={isViewMode}
-                                />
-                            </div>
-                        </div>
+                                {/* Brand + Model on same row */}
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                            Brand <span className="text-red-500">*</span>
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={brand}
+                                            onChange={(e) => setBrand(e.target.value)}
+                                            placeholder="e.g. Samsung"
+                                            className={`w-full rounded-xl px-3 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/30 transition-all ${viewerStyle}`}
+                                            disabled={saving}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                            Model <span className="text-red-500">*</span>
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={model}
+                                            onChange={(e) => setModel(e.target.value)}
+                                            placeholder="e.g. Galaxy S24"
+                                            className={`w-full rounded-xl px-3 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/30 transition-all ${viewerStyle}`}
+                                            disabled={saving}
+                                        />
+                                    </div>
+                                </div>
 
-                        {/* Specs */}
-                        <div>
-                            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
-                                Specs <span className="text-red-500">*</span>
-                            </label>
-                            <input
-                                type="text"
-                                value={specs}
-                                onChange={(e) => setSpecs(e.target.value)}
-                                placeholder="e.g. 12GB RAM, 256GB Storage"
-                                className={`w-full rounded-xl px-3 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/30 transition-all ${viewerStyle}`}
-                                disabled={viewerDisabled}
-                                readOnly={isViewMode}
-                            />
-                        </div>
+                                {/* Specs */}
+                                <div>
+                                    <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                        Specs <span className="text-red-500">*</span>
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={specs}
+                                        onChange={(e) => setSpecs(e.target.value)}
+                                        placeholder="e.g. 12GB RAM, 256GB Storage"
+                                        className={`w-full rounded-xl px-3 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/30 transition-all ${viewerStyle}`}
+                                        disabled={saving}
+                                    />
+                                </div>
 
-                        {/* SN + IMEI1 on same row */}
-                        <div className="grid grid-cols-2 gap-3">
-                            <div>
-                                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
-                                    Serial No. <span className="text-red-500">*</span>
-                                </label>
-                                <input
-                                    type="text"
-                                    value={sn}
-                                    onChange={(e) => setSn(e.target.value)}
-                                    placeholder="e.g. SN-123456"
-                                    className={`w-full rounded-xl px-3 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/30 transition-all ${viewerStyle}`}
-                                    disabled={viewerDisabled}
-                                    readOnly={isViewMode}
-                                />
-                            </div>
-                            <div>
-                                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
-                                    IMEI1 <span className="text-xs font-normal normal-case text-gray-400">*</span>
-                                </label>
-                                <input
-                                    type="text"
-                                    value={imei1}
-                                    onChange={(e) => setImei1(e.target.value)}
-                                    placeholder="e.g. 123456789012345"
-                                    className={`w-full rounded-xl px-3 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/30 transition-all ${viewerStyle}`}
-                                    disabled={viewerDisabled}
-                                    readOnly={isViewMode}
-                                />
-                            </div>
-                        </div>
+                                {/* SN + IMEI1 on same row */}
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                            Serial No. <span className="text-red-500">*</span>
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={sn}
+                                            onChange={(e) => setSn(e.target.value)}
+                                            placeholder="e.g. SN-123456"
+                                            className={`w-full rounded-xl px-3 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/30 transition-all ${viewerStyle}`}
+                                            disabled={saving}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                            IMEI1 <span className="text-xs font-normal normal-case text-gray-400">*</span>
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={imei1}
+                                            onChange={(e) => setImei1(e.target.value)}
+                                            placeholder="e.g. 123456789012345"
+                                            className={`w-full rounded-xl px-3 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/30 transition-all ${viewerStyle}`}
+                                            disabled={saving}
+                                        />
+                                    </div>
+                                </div>
 
-                        {/* IMEI2 standalone */}
-                        <div>
-                            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
-                                IMEI2 <span className="text-xs font-normal normal-case text-gray-400">(optional)</span>
-                            </label>
-                            <input
-                                type="text"
-                                value={imei2}
-                                onChange={(e) => setImei2(e.target.value)}
-                                placeholder="e.g. 123456789012346"
-                                className={`w-full rounded-xl px-3 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/30 transition-all ${viewerStyle}`}
-                                disabled={viewerDisabled}
-                                readOnly={isViewMode}
-                            />
-                        </div>
+                                {/* IMEI2 standalone */}
+                                <div>
+                                    <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                        IMEI2 <span className="text-xs font-normal normal-case text-gray-400">(optional)</span>
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={imei2}
+                                        onChange={(e) => setImei2(e.target.value)}
+                                        placeholder="e.g. 123456789012346"
+                                        className={`w-full rounded-xl px-3 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/30 transition-all ${viewerStyle}`}
+                                        disabled={saving}
+                                    />
+                                </div>
+                            </>
+                        )}
 
                         {/* Status pill — clean display */}
                         <div className="flex items-center justify-between rounded-xl border border-gray-200/70 bg-gray-50/60 px-4 py-2.5">
@@ -314,18 +339,28 @@ export default function EditCpModal({ open, cellphone, onClose, onSubmitted, mod
                                 )}
                             </div>
                             <div className="flex items-center gap-2">
-                                {isViewMode && !isSubOperator ? (
-                                    <button
-                                        type="button"
-                                        onClick={onEditClick}
-                                        className="inline-flex items-center gap-1.5 rounded-xl px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:opacity-90 active:scale-[0.98]"
-                                        style={{
-                                            background: "linear-gradient(135deg, #92C7CF, #AAD7D9)",
-                                            boxShadow: "0 2px 8px rgba(146,199,207,0.25)",
-                                        }}
-                                    >
-                                        Edit
-                                    </button>
+                                {isViewMode ? (
+                                    isSubOperator ? (
+                                        <button
+                                            type="button"
+                                            onClick={onClose}
+                                            className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+                                        >
+                                            Close
+                                        </button>
+                                    ) : (
+                                        <button
+                                            type="button"
+                                            onClick={onEditClick}
+                                            className="inline-flex items-center gap-1.5 rounded-xl px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:opacity-90 active:scale-[0.98]"
+                                            style={{
+                                                background: "linear-gradient(135deg, #92C7CF, #AAD7D9)",
+                                                boxShadow: "0 2px 8px rgba(146,199,207,0.25)",
+                                            }}
+                                        >
+                                            Edit
+                                        </button>
+                                    )
                                 ) : (
                                     <>
                                         <button

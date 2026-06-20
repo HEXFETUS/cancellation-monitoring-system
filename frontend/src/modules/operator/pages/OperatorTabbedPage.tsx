@@ -132,7 +132,7 @@ className="h-9 w-64 rounded-lg py-1.5 pl-8 pr-3 text-sm placeholder:text-gray-40
                     style={searchInputStyle}
                 />
             </div>
-            {activeTab === "my-cp" && (
+            {activeTab === "my-cp" && tabsReady && !isSubOperator && (
                 <button
                     type="button"
                     onClick={() => setShowAddCpModal(true)}

@@ -56,7 +56,9 @@ function resolveAvatarUrl(p?: string | null) {
 
 const iconMap: Record<string, LucideIcon> = {
     Dashboard: LayoutDashboard,
+    Devices: Monitor,
     "My POS": Monitor,
+    Outlets: Building2,
     "My Outlets": Building2,
     "Sub-Operator": User,
     "POS Inventory": Monitor,
@@ -348,6 +350,7 @@ export default function DashboardLayout() {
         };
     }, [authUser?.id, location.pathname]);
 
+    const isAdmin = (sidebarUser?.usertype ?? authUser?.usertype) === "admin";
     const isOperator = (sidebarUser?.usertype ?? authUser?.usertype) === "operator";
     const isPurchaser = (sidebarUser?.usertype ?? authUser?.usertype) === "purchaser";
     const isCsr = (sidebarUser?.usertype ?? authUser?.usertype) === "csr";
@@ -463,10 +466,7 @@ export default function DashboardLayout() {
         } catch { /* localStorage unavailable */ }
     };
     const displayName = sidebarUser?.name?.trim() || authUser?.name?.trim() || "User";
-    const displayDepartment = sidebarUser?.department?.trim() || authUser?.department?.trim();
-    let sidebarDisplayName = displayDepartment
-        ? `${displayDepartment}-${displayName}`
-        : displayName;
+    let sidebarDisplayName = displayName;
     const displayUserType =
         sidebarUser?.usertype?.trim() || authUser?.usertype?.trim() || "Unknown role";
     const avatarUrl = resolveAvatarUrl(sidebarUser?.profile_picture ?? authUser?.profile_picture);
@@ -477,11 +477,6 @@ export default function DashboardLayout() {
     };
 
     const closeMobileSidebar = () => setMobileSidebarOpen(false);
-
-    // For CSR, show "CSR-Name" instead of department prefix like "ACCOUNT-Name"
-    if (isCsr) {
-        sidebarDisplayName = `CSR-${displayName}`;
-    }
 
     // Operators get a slim sidebar with only their own POS view.
     // Purchasers get one sidebar entry per asset section (instead of
@@ -1121,8 +1116,8 @@ export default function DashboardLayout() {
                     </div>
                 </aside>
 
-                {/* Global floating alert for pending repair records */}
-                {forCheckingRepairCount > 0 && (
+                {/* Global floating alert for pending repair records — restricted to admin users only */}
+                {isAdmin && forCheckingRepairCount > 0 && (
                     <FloatingAlert
                         key={`repair-${forCheckingRepairCount}`}
                         message={`There ${forCheckingRepairCount === 1 ? "is" : "are"} ${forCheckingRepairCount} repair record${forCheckingRepairCount !== 1 ? "s" : ""} waiting for checking. Please review and process accordingly.`}
