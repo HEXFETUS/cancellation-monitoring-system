@@ -232,12 +232,16 @@ router.get("/pos/:posRecordId/request-eligibility", async (req, res) => {
             return res.json({ eligible: false, error: "The POS is already being repaired" });
         }
 
-        // Check the latest repair record
+        // Check the latest repair record. Cleared rows (status IS NULL) are
+        // soft-deleted from the user's perspective — they're kept for activity
+        // logs but must NOT count as an active repair, otherwise the device
+        // could never be requested again after a "delete" on For Checking.
         const latestRepairRecord = await pool.query(
             `
                 SELECT id, forwarded, released
                 FROM repair_records
                 WHERE pos_record_id = $1::int
+                  AND status IS NOT NULL
                 ORDER BY id DESC
                 LIMIT 1
                 `,
@@ -313,11 +317,16 @@ router.post("/", async (req, res) => {
             return res.status(400).json({ error: "The POS is already being repaired" });
         }
 
+        // Ignore cleared rows (status IS NULL) so a "deleted" For Checking
+        // request frees the device for a new request. The row itself is kept
+        // for activity-log history. Condition mirrors the eligibility check
+        // above (a POS is free only once its latest real record is released).
         const latestRepairRecord = await pool.query(
             `
             SELECT id, forwarded, released
             FROM repair_records
             WHERE pos_record_id = $1::int
+              AND status IS NOT NULL
             ORDER BY id DESC
             LIMIT 1
             `,
@@ -326,7 +335,7 @@ router.post("/", async (req, res) => {
 
         if (latestRepairRecord.rows.length > 0) {
             const latest = latestRepairRecord.rows[0];
-            if (latest.forwarded !== false && latest.released !== true) {
+            if (latest.forwarded !== false || latest.released !== true) {
                 return res.status(400).json({ error: "The POS is already being repaired" });
             }
         }
