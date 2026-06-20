@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ClipboardList, Save, RotateCcw } from "lucide-react";
 import { listDiagnoses, type DiagnosisItem } from "../services/diagnosisList";
-import { searchPosRecords, type PosRecord } from "../services/posRecords";
+import { searchPosRecordsBySerial, searchPosRecordsByDevice, type PosRecord, searchOperators, type OperatorItem } from "../services/posRecords";
 import { checkRepairRequestEligibility, createRepairRecord } from "../services/repairRecords";
 import { ConfirmationModal, Toast } from "../../../shared/components";
 
@@ -60,9 +60,15 @@ export default function RepairRequestPage() {
     // Autocomplete state
     const [searchResults, setSearchResults] = useState<PosRecord[]>([]);
     const [searching, setSearching] = useState(false);
-    const [activeDropdown, setActiveDropdown] = useState<"serialNumber" | "posNumber" | null>(null);
+    const [activeDropdown, setActiveDropdown] = useState<"serialNumber" | "posNumber" | "operator" | null>(null);
     const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
+
+    // Operator autocomplete state
+    const [operatorResults, setOperatorResults] = useState<OperatorItem[]>([]);
+    const [operatorSearching, setOperatorSearching] = useState(false);
+    const operatorDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const operatorDropdownRef = useRef<HTMLDivElement>(null);
 
     const handleChange = (field: string, value: string) => {
         setFormData((prev) => ({ ...prev, [field]: value }));
@@ -89,7 +95,9 @@ export default function RepairRequestPage() {
 
         debounceTimer.current = setTimeout(async () => {
             try {
-                const results = await searchPosRecords(query);
+                const results = await (source === "serialNumber"
+                    ? searchPosRecordsBySerial(query)
+                    : searchPosRecordsByDevice(query));
                 setSearchResults(results);
             } catch {
                 setSearchResults([]);
@@ -97,6 +105,30 @@ export default function RepairRequestPage() {
                 setSearching(false);
             }
         }, 300);
+    }, []);
+
+    const handleOperatorSearch = useCallback((query: string) => {
+        if (operatorDebounceTimer.current) clearTimeout(operatorDebounceTimer.current);
+
+        if (!query.trim()) {
+            setOperatorResults([]);
+            setActiveDropdown(null);
+            return;
+        }
+
+        setActiveDropdown("operator");
+        setOperatorSearching(true);
+
+        operatorDebounceTimer.current = setTimeout(async () => {
+            try {
+                const results = await searchOperators(query);
+                setOperatorResults(results);
+            } catch {
+                setOperatorResults([]);
+            } finally {
+                setOperatorSearching(false);
+            }
+        }, 200);
     }, []);
 
     const handleFieldChange = (field: "serialNumber" | "posNumber", value: string) => {
@@ -146,11 +178,21 @@ export default function RepairRequestPage() {
         }
     };
 
+    const handleSelectOperator = (op: OperatorItem) => {
+        setFormData((prev) => ({ ...prev, operator: op.operator }));
+        setOperatorResults([]);
+        setActiveDropdown(null);
+    };
+
     // Close dropdown on outside click
     useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+            if (
+                (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) &&
+                (operatorDropdownRef.current && !operatorDropdownRef.current.contains(e.target as Node))
+            ) {
                 setSearchResults([]);
+                setOperatorResults([]);
                 setActiveDropdown(null);
             }
         };
@@ -158,10 +200,11 @@ export default function RepairRequestPage() {
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
-    // Cleanup debounce timer
+    // Cleanup debounce timers
     useEffect(() => {
         return () => {
             if (debounceTimer.current) clearTimeout(debounceTimer.current);
+            if (operatorDebounceTimer.current) clearTimeout(operatorDebounceTimer.current);
         };
     }, []);
 
@@ -291,6 +334,7 @@ export default function RepairRequestPage() {
         setCheckingPosEligibility(false);
         setDiagnosisId(null);
         setSearchResults([]);
+        setOperatorResults([]);
         setActiveDropdown(null);
     };
 
@@ -430,7 +474,7 @@ export default function RepairRequestPage() {
             <Toast open={toastOpen} message={toastMessage} type={toastType} onClose={hideToast} />
 
             {/* Form Card */}
-            <div className="relative rounded-2xl border border-white/50 backdrop-blur-xl bg-white/25 shadow-lg overflow-hidden">
+            <div className="relative rounded-2xl border border-white/50 backdrop-blur-xl bg-white/25 shadow-lg overflow-visible">
                 <div className="border-b border-white/40 px-5 py-3">
                     <h2 className="text-sm font-semibold text-gray-800">Request Details</h2>
                     <p className="text-xs text-gray-500">Required intake information for the repair log</p>
@@ -507,18 +551,58 @@ export default function RepairRequestPage() {
 
                     {/* Row 3: Operator + Diagnosis */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
+                        <div className="relative">
                             <label className={labelClass}>
                                 Operator <span className="text-red-500">*</span>
                             </label>
                             <input
                                 type="text"
                                 value={formData.operator}
-                                onChange={(e) => handleChange("operator", e.target.value)}
+                                onChange={(e) => {
+                                    handleChange("operator", e.target.value);
+                                    handleOperatorSearch(e.target.value);
+                                }}
+                                onFocus={() => {
+                                    if (formData.operator.trim() && operatorResults.length > 0) {
+                                        setActiveDropdown("operator");
+                                    }
+                                }}
                                 className={inputClass}
                                 style={inputStyle}
-                                placeholder="Operator name"
+                                placeholder="Search operator"
                             />
+                            {activeDropdown === "operator" && (
+                                <div
+                                    ref={operatorDropdownRef}
+                                    className={darkMode
+                                        ? "absolute z-50 mt-2 w-full rounded-xl border border-gray-700 bg-gray-800/95 backdrop-blur-xl shadow-xl overflow-hidden max-h-64 overflow-y-auto"
+                                        : "absolute z-50 mt-2 w-full rounded-xl border border-white/60 bg-white/95 backdrop-blur-xl shadow-xl overflow-hidden max-h-64 overflow-y-auto"
+                                    }
+                                >
+                                    {operatorSearching ? (
+                                        <div className={`px-4 py-3 text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'} text-center`}>Searching…</div>
+                                    ) : operatorResults.length === 0 ? (
+                                        <div className={`px-4 py-3 text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'} text-center`}>
+                                            No matching operators found.
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <div className={`px-4 py-2 text-xs font-semibold uppercase tracking-wider ${darkMode ? 'text-gray-500 bg-gray-700/50' : 'text-gray-400 bg-[#F8FAFA]'}`}>
+                                                {operatorResults.length} result{operatorResults.length !== 1 ? "s" : ""}
+                                            </div>
+                                            {operatorResults.map((op) => (
+                                                <div
+                                                    key={op.id}
+                                                    className={`${dropdownItemClass} ${darkMode ? 'border-gray-700/50' : 'border-gray-100/50'} last:border-b-0`}
+                                                    onClick={() => handleSelectOperator(op)}
+                                                >
+                                                    <span className="font-medium">{op.operator}</span>
+                                                </div>
+                                            ))}
+                                        </>
+                                    )}
+                                </div>
+                            )}
                         </div>
                         <div>
                             <label className={labelClass}>
