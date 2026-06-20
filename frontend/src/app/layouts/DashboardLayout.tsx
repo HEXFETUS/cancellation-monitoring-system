@@ -466,7 +466,6 @@ export default function DashboardLayout() {
         } catch { /* localStorage unavailable */ }
     };
     const displayName = sidebarUser?.name?.trim() || authUser?.name?.trim() || "User";
-    const displayDepartment = sidebarUser?.department?.trim() || authUser?.department?.trim();
     let sidebarDisplayName = displayName;
     const displayUserType =
         sidebarUser?.usertype?.trim() || authUser?.usertype?.trim() || "Unknown role";

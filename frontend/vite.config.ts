@@ -18,6 +18,22 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  build: {
+    // esbuild minifier is ~6× faster than terser and produces comparable output
+    minify: 'esbuild',
+    cssMinify: 'esbuild',
+    // Don't copy public/ assets through the asset pipeline since they are
+    // served verbatim — saves vite:asset processing time for larger files
+    // such as the slideshow images (~2.5 MB total).
+    assetsInlineLimit: 0,
+    rollupOptions: {
+      output: {
+        // In Vite 8+ rolldown is the default bundler under the hood, which
+        // already handles tree-shaking efficiently. No further tinkering
+        // needed unless CJS interop warnings appear.
+      },
+    },
+  },
   server: {
     host: true, // listen on 0.0.0.0 so other machines on the LAN can reach it
     proxy: {
