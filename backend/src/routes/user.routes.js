@@ -43,6 +43,19 @@ const profileUpload = multer({
 
 const VALID_USER_TYPES = new Set(["admin", "csr", "operator", "purchaser"]);
 
+const operatorDisplay = (alias, parentAlias) => `
+    COALESCE(
+        NULLIF(TRIM(${alias}.operator), ''),
+        CASE
+            WHEN ${alias}.parent_operator_id IS NOT NULL
+             AND UPPER(TRIM(COALESCE(${alias}.sub_op_name, ''))) NOT IN ('', 'EMPTY', 'NULL')
+            THEN COALESCE(NULLIF(TRIM(${parentAlias}.operator), ''), ${parentAlias}.operator)
+                || ' (' || TRIM(${alias}.sub_op_name) || ')'
+            ELSE NULL
+        END
+    )
+`;
+
 function validateUserInput({ name, email, usertype, position, department }) {
     if (
         !name?.trim() ||
@@ -70,12 +83,13 @@ router.get("/", async (req, res) => {
     try {
         const result = await pool.query(
             `SELECT u.id, u.name, u.email, u.usertype, u.position, u.department, u.profile_picture,
-                    ol.id AS operator_id, ol.operator AS operator_name,
+                    ol.id AS operator_id, ${operatorDisplay("ol", "parent")} AS operator_name,
                     ol.parent_operator_id,
-                    parent.operator AS parent_operator_name
+                    ${operatorDisplay("parent", "grandparent")} AS parent_operator_name
              FROM users u
              LEFT JOIN operator_list ol ON ol.user_id = u.id
              LEFT JOIN operator_list parent ON parent.id = ol.parent_operator_id
+             LEFT JOIN operator_list grandparent ON grandparent.id = parent.parent_operator_id
              ORDER BY u.id ASC`
         );
         res.json(result.rows);
@@ -94,12 +108,13 @@ router.get("/me", async (req, res) => {
         }
         const result = await pool.query(
             `SELECT u.id, u.name, u.email, u.usertype, u.position, u.department, u.profile_picture,
-                    ol.id AS operator_id, ol.operator AS operator_name,
+                    ol.id AS operator_id, ${operatorDisplay("ol", "parent")} AS operator_name,
                     ol.parent_operator_id,
-                    parent.operator AS parent_operator_name
+                    ${operatorDisplay("parent", "grandparent")} AS parent_operator_name
              FROM users u
              LEFT JOIN operator_list ol ON ol.user_id = u.id
              LEFT JOIN operator_list parent ON parent.id = ol.parent_operator_id
+             LEFT JOIN operator_list grandparent ON grandparent.id = parent.parent_operator_id
              WHERE u.id = $1`,
             [userId]
         );
@@ -377,9 +392,10 @@ router.patch("/:id/operator", async (req, res) => {
         // Return the updated user row with linkage details
         const result = await pool.query(
             `SELECT u.id, u.name, u.email, u.usertype, u.position, u.department,
-                    ol.id AS operator_id, ol.operator AS operator_name
+                    ol.id AS operator_id, ${operatorDisplay("ol", "parent")} AS operator_name
              FROM users u
              LEFT JOIN operator_list ol ON ol.user_id = u.id
+             LEFT JOIN operator_list parent ON parent.id = ol.parent_operator_id
              WHERE u.id = $1::int`,
             [userId]
         );

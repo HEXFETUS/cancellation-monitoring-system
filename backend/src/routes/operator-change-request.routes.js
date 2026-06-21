@@ -3,6 +3,19 @@ import pool from "../config/db.js";
 
 const router = express.Router();
 
+const operatorDisplay = (alias, parentAlias) => `
+    COALESCE(
+        NULLIF(TRIM(${alias}.operator), ''),
+        CASE
+            WHEN ${alias}.parent_operator_id IS NOT NULL
+             AND UPPER(TRIM(COALESCE(${alias}.sub_op_name, ''))) NOT IN ('', 'EMPTY', 'NULL')
+            THEN COALESCE(NULLIF(TRIM(${parentAlias}.operator), ''), ${parentAlias}.operator)
+                || ' (' || TRIM(${alias}.sub_op_name) || ')'
+            ELSE NULL
+        END
+    )
+`;
+
 const SELECT_COLUMNS = `
     SELECT
         ocr.id,
@@ -25,11 +38,11 @@ const SELECT_COLUMNS = `
         ob.booth_code AS requested_booth_code,
         -- Snapshot the previous operator once approved; before approval,
         -- fall back to the device's current operator.
-        COALESCE(ocr.old_operator, current_op.operator) AS from_operator,
+        COALESCE(ocr.old_operator, ${operatorDisplay("current_op", "current_parent_op")}) AS from_operator,
         -- Operator that's submitting the request (snapshot of their operator at
         -- request time, but we also fall back to the live operator lookup so
         -- a renamed operator stays in sync)
-        COALESCE(requester_op.operator, requester_user_lookup.operator) AS to_operator,
+        COALESCE(${operatorDisplay("requester_op", "requester_parent_op")}, requester_user_lookup.operator) AS to_operator,
         u.name AS requested_by_name,
         decider.name AS decided_by_name
     FROM operator_change_requests ocr
@@ -37,12 +50,15 @@ const SELECT_COLUMNS = `
     LEFT JOIN booth_info cb ON p.booth_id = cb.id
     LEFT JOIN booth_info ob ON p.booth_id = ob.id
     LEFT JOIN operator_list current_op ON p.operator_id = current_op.id
+    LEFT JOIN operator_list current_parent_op ON current_parent_op.id = current_op.parent_operator_id
     LEFT JOIN operator_list requester_op
         ON requester_op.user_id = ocr.user_id
+    LEFT JOIN operator_list requester_parent_op ON requester_parent_op.id = requester_op.parent_operator_id
     LEFT JOIN (
-        SELECT u.id AS user_id, ol.operator
+        SELECT u.id AS user_id, ${operatorDisplay("ol", "parent_ol")} AS operator
         FROM users u
         LEFT JOIN operator_list ol ON ol.user_id = u.id
+        LEFT JOIN operator_list parent_ol ON parent_ol.id = ol.parent_operator_id
     ) requester_user_lookup ON requester_user_lookup.user_id = ocr.user_id
     LEFT JOIN users u ON ocr.user_id = u.id
     LEFT JOIN users decider ON ocr.decided_by_user_id = decider.id
@@ -131,7 +147,13 @@ router.post("/", async (req, res) => {
 
         // Reject if the requesting user already owns the device
         const requesterOpRes = await pool.query(
-            `SELECT id, operator FROM operator_list WHERE user_id = $1::int LIMIT 1`,
+            `SELECT
+                o.id,
+                ${operatorDisplay("o", "parent_o")} AS operator
+             FROM operator_list o
+             LEFT JOIN operator_list parent_o ON parent_o.id = o.parent_operator_id
+             WHERE o.user_id = $1::int
+             LIMIT 1`,
             [user_id]
         );
         const requesterOpId = requesterOpRes.rows[0]?.id ?? null;
@@ -223,9 +245,10 @@ router.post("/:id/approve", async (req, res) => {
         const newOperatorId = Number(opRes.rows[0].id);
 
         const posCurrent = await client.query(
-            `SELECT p.id, p.operator_id, o.operator
+            `SELECT p.id, p.operator_id, ${operatorDisplay("o", "parent_o")} AS operator
              FROM pos_records p
              LEFT JOIN operator_list o ON p.operator_id = o.id
+             LEFT JOIN operator_list parent_o ON parent_o.id = o.parent_operator_id
              WHERE p.id = $1::int
              FOR UPDATE OF p`,
             [reqRow.pos_record_id]

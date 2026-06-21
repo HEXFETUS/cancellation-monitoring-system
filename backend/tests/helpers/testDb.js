@@ -26,6 +26,7 @@ const SCHEMA_DDL = `
     CREATE TABLE operator_list (
         id SERIAL PRIMARY KEY,
         operator VARCHAR(255) NOT NULL,
+        sub_op_name VARCHAR(255),
         user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
         parent_operator_id INTEGER REFERENCES operator_list(id) ON DELETE SET NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

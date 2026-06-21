@@ -3,13 +3,26 @@ import pool from "../config/db.js";
 
 const router = express.Router();
 
+const operatorDisplay = (alias, parentAlias) => `
+    COALESCE(
+        NULLIF(TRIM(${alias}.operator), ''),
+        CASE
+            WHEN ${alias}.parent_operator_id IS NOT NULL
+             AND UPPER(TRIM(COALESCE(${alias}.sub_op_name, ''))) NOT IN ('', 'EMPTY', 'NULL')
+            THEN COALESCE(NULLIF(TRIM(${parentAlias}.operator), ''), ${parentAlias}.operator)
+                || ' (' || TRIM(${alias}.sub_op_name) || ')'
+            ELSE NULL
+        END
+    )
+`;
+
 const REPAIR_SELECT = `
     SELECT
         rr.*,
         pr.serial_number,
         pr.device_no,
         pr.area,
-        ol.operator AS operator_name,
+        ${operatorDisplay("ol", "parent_ol")} AS operator_name,
         dl.name AS diagnosis_name,
         pd.repaired_by,
         pd.remarks,
@@ -18,6 +31,7 @@ const REPAIR_SELECT = `
     FROM repair_records rr
     LEFT JOIN pos_records pr ON rr.pos_record_id = pr.id
     LEFT JOIN operator_list ol ON rr.operator_id = ol.id
+    LEFT JOIN operator_list parent_ol ON parent_ol.id = ol.parent_operator_id
     LEFT JOIN diagnosis_list dl ON rr.diagnosis_id = dl.id
     LEFT JOIN LATERAL (
         SELECT repaired_by, remarks FROM diagnosis_logs
@@ -125,12 +139,13 @@ router.get("/billing-code/:billingCode", async (req, res) => {
                 pr.device_no,
                 pr.serial_number,
                 pr.area,
-                ol.operator AS operator_name,
+                ${operatorDisplay("ol", "parent_ol")} AS operator_name,
                 bt.billing_code
             FROM billing_transmittals bt
             JOIN repair_records rr ON rr.id = bt.repair_record_id
             LEFT JOIN pos_records pr ON rr.pos_record_id = pr.id
             LEFT JOIN operator_list ol ON rr.operator_id = ol.id
+            LEFT JOIN operator_list parent_ol ON parent_ol.id = ol.parent_operator_id
             WHERE LOWER(TRIM(bt.billing_code)) = LOWER($1)
             ORDER BY rr.id ASC
             `,
@@ -160,15 +175,22 @@ router.get("/billing-codes/list", async (req, res) => {
             SELECT
                 bt.billing_code,
                 rr.operator_id,
-                ol.operator AS operator_name,
+                ${operatorDisplay("ol", "parent_ol")} AS operator_name,
                 COUNT(DISTINCT rr.id)::int AS pos_count
             FROM billing_transmittals bt
             JOIN repair_records rr ON rr.id = bt.repair_record_id
             LEFT JOIN operator_list ol ON rr.operator_id = ol.id
+            LEFT JOIN operator_list parent_ol ON parent_ol.id = ol.parent_operator_id
             WHERE TRIM(bt.billing_code) <> ''
               AND bt.billing_code !~ '^HEXA-[0-9]{4}$'
               AND ($1::int IS NULL OR rr.operator_id = $1::int)
-            GROUP BY bt.billing_code, rr.operator_id, ol.operator
+            GROUP BY
+                bt.billing_code,
+                rr.operator_id,
+                ol.operator,
+                ol.parent_operator_id,
+                ol.sub_op_name,
+                parent_ol.operator
             ORDER BY MAX(bt.updated_at) DESC, bt.billing_code ASC
             `,
             [operatorId]
@@ -855,10 +877,11 @@ router.patch("/:id/release", async (req, res) => {
 
         const billingOperatorConflict = await client.query(
             `
-            SELECT rr.id, ol.operator AS operator_name
+            SELECT rr.id, ${operatorDisplay("ol", "parent_ol")} AS operator_name
             FROM billing_transmittals bt
             JOIN repair_records rr ON rr.id = bt.repair_record_id
             LEFT JOIN operator_list ol ON rr.operator_id = ol.id
+            LEFT JOIN operator_list parent_ol ON parent_ol.id = ol.parent_operator_id
             WHERE LOWER(TRIM(bt.billing_code)) = LOWER($1)
               AND rr.id <> $2::int
               AND rr.operator_id IS DISTINCT FROM $3::int

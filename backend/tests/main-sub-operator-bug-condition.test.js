@@ -35,7 +35,12 @@ import { seedBuggyGraph, seedLeafQ } from "./helpers/seedBuggyGraph.js";
 // underlying module via `../config/db.js`.
 vi.mock("../src/config/db.js", async () => {
     const m = await import("./helpers/testDb.js");
-    return { default: m.pool, pool: m.pool };
+    return {
+        default: m.pool,
+        pool: m.pool,
+        dbState: { status: "ok", lastError: null },
+        pingDatabase: async () => true,
+    };
 });
 
 // Import the Express app AFTER the mock is registered so it picks up the

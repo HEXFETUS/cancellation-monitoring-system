@@ -117,6 +117,15 @@ async function initDatabase() {
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         `);
+        await client.query(`
+            ALTER TABLE operator_list
+            DROP CONSTRAINT IF EXISTS operator_list_operator_key;
+        `);
+        await client.query(`
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_operator_list_operator_nonempty_unique
+            ON operator_list (LOWER(TRIM(operator)))
+            WHERE NULLIF(TRIM(operator), '') IS NOT NULL;
+        `);
 
         // Link an operator profile to the user that signs in as them. NULL is
         // fine — back-office operators may exist without a login. ON DELETE
@@ -137,6 +146,9 @@ async function initDatabase() {
         );
         await client.query(
             "CREATE INDEX IF NOT EXISTS idx_operator_list_parent ON operator_list(parent_operator_id)"
+        );
+        await client.query(
+            "ALTER TABLE operator_list ADD COLUMN IF NOT EXISTS sub_op_name VARCHAR(255)"
         );
 
         await client.query(`

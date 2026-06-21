@@ -67,6 +67,7 @@ export async function fetchOperators(): Promise<OperatorInfo[]> {
 export async function createOperator(data: {
     operator: string;
     parent_operator_id?: number | null;
+    sub_op_name?: string | null;
 }): Promise<OperatorInfo> {
     const response = await fetch(`${API_BASE}/operators`, {
         method: "POST",

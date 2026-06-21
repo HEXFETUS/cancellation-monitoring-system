@@ -3,6 +3,19 @@ import pool from "../config/db.js";
 
 const router = express.Router();
 
+const operatorDisplay = (alias, parentAlias) => `
+    COALESCE(
+        NULLIF(TRIM(${alias}.operator), ''),
+        CASE
+            WHEN ${alias}.parent_operator_id IS NOT NULL
+             AND UPPER(TRIM(COALESCE(${alias}.sub_op_name, ''))) NOT IN ('', 'EMPTY', 'NULL')
+            THEN COALESCE(NULLIF(TRIM(${parentAlias}.operator), ''), ${parentAlias}.operator)
+                || ' (' || TRIM(${alias}.sub_op_name) || ')'
+            ELSE NULL
+        END
+    )
+`;
+
 const POS_SELECT = `
     SELECT 
         p.id,
@@ -19,10 +32,11 @@ const POS_SELECT = `
         b.booth_code,
         b.location AS booth_location,
         b.coordinate,
-        o.operator
+        ${operatorDisplay("o", "parent_o")} AS operator
     FROM pos_records p
     LEFT JOIN booth_info b ON p.booth_id = b.id
     LEFT JOIN operator_list o ON p.operator_id = o.id
+    LEFT JOIN operator_list parent_o ON parent_o.id = o.parent_operator_id
     LEFT JOIN LATERAL (
         SELECT latest_log.status
         FROM repair_records rr
@@ -62,10 +76,11 @@ const POS_SELECT_BY_USER = `
         b.booth_code,
         b.location AS booth_location,
         b.coordinate,
-        o.operator
+        ${operatorDisplay("o", "parent_o")} AS operator
     FROM pos_records p
     LEFT JOIN booth_info b ON p.booth_id = b.id
     LEFT JOIN operator_list o ON p.operator_id = o.id
+    LEFT JOIN operator_list parent_o ON parent_o.id = o.parent_operator_id
 `;
 
 const BOOTH_INFO_SELECT = `
@@ -78,20 +93,23 @@ const BOOTH_INFO_SELECT = `
         b.operator_id,
         b.created_at,
         b.updated_at,
-        o.operator
+        ${operatorDisplay("o", "parent_o")} AS operator
     FROM booth_info b
     LEFT JOIN operator_list o ON b.operator_id = o.id
+    LEFT JOIN operator_list parent_o ON parent_o.id = o.parent_operator_id
 `;
 
 const OPERATOR_SELECT = `
     SELECT
-        id,
-        operator,
-        user_id,
-        parent_operator_id,
-        created_at,
-        updated_at
-    FROM operator_list
+        o.id,
+        ${operatorDisplay("o", "parent_o")} AS operator,
+        o.sub_op_name,
+        o.user_id,
+        o.parent_operator_id,
+        o.created_at,
+        o.updated_at
+    FROM operator_list o
+    LEFT JOIN operator_list parent_o ON parent_o.id = o.parent_operator_id
 `;
 
 const SERIAL_TABLES = new Set([
@@ -201,8 +219,8 @@ router.get("/operators", async (req, res) => {
 
         const query = `
             ${OPERATOR_SELECT}
-            WHERE NULLIF(TRIM(operator), '') IS NOT NULL
-            ${trimmed ? ` AND operator ILIKE $1` : ""}
+            WHERE ${operatorDisplay("o", "parent_o")} IS NOT NULL
+            ${trimmed ? ` AND ${operatorDisplay("o", "parent_o")} ILIKE $1` : ""}
             ORDER BY operator ASC
         `;
         const params = trimmed ? [`${trimmed}%`] : [];
@@ -350,7 +368,13 @@ router.post("/operators/:id/assign-subs", async (req, res) => {
         const reparentedGrandchildren = [];
         for (const subId of ids) {
             const subRow = await client.query(
-                `SELECT id, operator FROM operator_list WHERE id = $1::int FOR UPDATE`,
+                `SELECT
+                    o.id,
+                    ${operatorDisplay("o", "parent_o")} AS operator
+                 FROM operator_list o
+                 LEFT JOIN operator_list parent_o ON parent_o.id = o.parent_operator_id
+                 WHERE o.id = $1::int
+                 FOR UPDATE OF o`,
                 [subId]
             );
             if (subRow.rows.length === 0) {
@@ -361,8 +385,13 @@ router.post("/operators/:id/assign-subs", async (req, res) => {
             // If this sub itself has children, re-parent those children to the
             // top-level main so we don't violate the one-level rule.
             const grandchildren = await client.query(
-                `SELECT id, operator FROM operator_list
-                 WHERE parent_operator_id = $1::int FOR UPDATE`,
+                `SELECT
+                    o.id,
+                    ${operatorDisplay("o", "parent_o")} AS operator
+                 FROM operator_list o
+                 LEFT JOIN operator_list parent_o ON parent_o.id = o.parent_operator_id
+                 WHERE o.parent_operator_id = $1::int
+                 FOR UPDATE OF o`,
                 [subId]
             );
             for (const gc of grandchildren.rows) {
@@ -393,7 +422,7 @@ router.post("/operators/:id/assign-subs", async (req, res) => {
         // Return refreshed operator list so the frontend updates in one round-trip.
         const list = await pool.query(
             `${OPERATOR_SELECT}
-             WHERE NULLIF(TRIM(operator), '') IS NOT NULL
+             WHERE ${operatorDisplay("o", "parent_o")} IS NOT NULL
              ORDER BY operator ASC`
         );
         res.json({
@@ -1056,11 +1085,19 @@ router.post("/:id/change-booth", async (req, res) => {
         if (record.operator_id && newBoothOperatorId && record.operator_id !== newBoothOperatorId) {
             // Get operator names for the error message
             const currentOpResult = await pool.query(
-                `SELECT operator FROM operator_list WHERE id = $1::int`,
+                `SELECT
+                    ${operatorDisplay("o", "parent_o")} AS operator
+                 FROM operator_list o
+                 LEFT JOIN operator_list parent_o ON parent_o.id = o.parent_operator_id
+                 WHERE o.id = $1::int`,
                 [record.operator_id]
             );
             const newOpResult = await pool.query(
-                `SELECT operator FROM operator_list WHERE id = $1::int`,
+                `SELECT
+                    ${operatorDisplay("o", "parent_o")} AS operator
+                 FROM operator_list o
+                 LEFT JOIN operator_list parent_o ON parent_o.id = o.parent_operator_id
+                 WHERE o.id = $1::int`,
                 [newBoothOperatorId]
             );
             const currentOperator = currentOpResult.rows[0]?.operator || "Unknown";
