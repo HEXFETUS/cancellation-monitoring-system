@@ -219,19 +219,6 @@ export default function SimpleAssetCodeFormModal({ open, initial, onClose, onSub
 
 /* ---------------- helpers ---------------- */
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-    return (
-        <div>
-            <h4 className="mb-3 text-xs font-bold uppercase tracking-widest text-ink-muted flex items-center gap-2">
-                <span className="h-px flex-1 bg-warm/60" />
-                {title}
-                <span className="h-px flex-1 bg-warm/60" />
-            </h4>
-            {children}
-        </div>
-    );
-}
-
 function SummaryRow({ label, value }: { label: string; value: string }) {
     return (
         <div className="flex items-center justify-between px-3 py-2">
