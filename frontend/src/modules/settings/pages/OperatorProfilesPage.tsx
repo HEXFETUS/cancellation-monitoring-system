@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Plus, RefreshCw, Trash2, UserPlus } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Plus, Trash2, UserPlus } from "lucide-react";
 import {
     createOperator,
     fetchOperators,
@@ -7,6 +7,7 @@ import {
 } from "../../pos/services";
 import type { OperatorInfo } from "../../pos/types";
 import CreateSubOperatorUserModal from "../components/CreateSubOperatorUserModal";
+import { Toast, type ToastType } from "../../../shared/components";
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 
@@ -42,49 +43,108 @@ function isUnassignedParent(parentOperatorId: unknown): boolean {
     return false;
 }
 
-function hasSubOperatorName(op: OperatorInfo): boolean {
-    if (cleanSubOpName(op.sub_op_name)) return true;
-
-    const code = extractMainCode(op.operator);
-    if (!code) return false;
-
-    return op.operator.trim().length > code.length;
-}
-
-function belongsToMainCode(op: OperatorInfo, mainCode: string): boolean {
-    const operator = op.operator.trim().toUpperCase();
-    return extractMainCode(op.operator) === mainCode || operator.startsWith(mainCode);
-}
-
-function isAssignedToActiveMain(op: OperatorInfo, activeMainId: number): boolean {
-    return Number(op.parent_operator_id) === activeMainId;
+function sameId(a: unknown, b: unknown): boolean {
+    return Number(a) === Number(b);
 }
 
 /** Returns true if the operator should be considered a sub-operator
- *  (has a sub_op_name, is assigned to a parent, or the operator
- *   string contains extra content beyond just the main code). */
+ *  (has a sub_op_name OR is assigned to a parent). Relies exclusively
+ *  on database fields — never on string heuristics — so that operators
+ *  whose display name happens to contain parentheses (e.g. an imported
+ *  name like "HEXA-005 (ADRIAN)") are not incorrectly treated as subs. */
 function isSubOperator(o: OperatorInfo): boolean {
     // Has a non-empty sub_op_name
     if (cleanSubOpName(o.sub_op_name)) return true;
     // Has a parent assigned
     if (!isUnassignedParent(o.parent_operator_id)) return true;
-    // Operator string has extra content beyond the main code
-    const code = extractMainCode(o.operator);
-    if (code && o.operator.trim() !== code) return true;
-    // Contains parentheses (usually indicates a sub-op was appended)
-    if (/\(/.test(o.operator)) return true;
     return false;
 }
 
-/** Build a display name for an operator, preferring sub_op_name when available
- *  to avoid duplication like "HEXA-005 (ADRIAN) (ADRIAN)". */
+/** Build a display name for an operator.
+ *  The backend SQL already builds "ParentName (SubName)" for sub-operators
+ *  when the operator column is empty.  If op.operator already ends with the
+ *  sub_op_name in parentheses, return it as-is to avoid duplication like
+ *  "TEST DEVICE (2) (2)".  For main operators (no sub_op_name) or operators
+ *  whose raw name hasn't been pre-formatted, construct the display from
+ *  the raw fields. */
 function formatOperatorDisplay(op: OperatorInfo): string {
-    const code = extractMainCode(op.operator) ?? op.operator;
     const subOpName = cleanSubOpName(op.sub_op_name);
     if (subOpName) {
+        // The backend may have already formatted the operator as "Parent (Sub)".
+        // Check if op.operator already ends with "(SubName)".
+        if (op.operator.trim().endsWith(`(${subOpName})`)) {
+            return op.operator;
+        }
+        const code = extractMainCode(op.operator) ?? op.operator;
         return `${code} (${subOpName})`;
     }
     return op.operator;
+}
+
+function ConfirmAddSubModal({
+    mainOpName,
+    type,
+    names,
+    onConfirm,
+    onCancel,
+}: {
+    mainOpName: string;
+    type: "single" | "bulk";
+    names: string[];
+    onConfirm: () => void;
+    onCancel: () => void;
+}) {
+    const displayNames = names.length <= 5
+        ? names
+        : [...names.slice(0, 4), `... and ${names.length - 4} more`];
+
+    return (
+        <div className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-black/50 backdrop-blur-sm pt-24 px-4">
+            <div className="w-full max-w-md animate-in fade-in zoom-in-95 duration-200 rounded-2xl bg-white shadow-2xl border border-warm overflow-hidden">
+                <div className="h-2 bg-gradient-to-r from-teal to-teal-dark" />
+
+                <div className="p-6">
+                    <div className="flex flex-col items-center gap-4 text-center">
+                        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-teal/10 ring-4 ring-teal/20">
+                            <CheckCircle2 className="h-7 w-7 text-teal" />
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-bold text-ink">
+                                {type === "single" ? "Add Sub-Operator" : "Add Sub-Operators"}
+                            </h3>
+                            <p className="text-sm text-ink-muted mt-1">
+                                This will add the following sub-operator{names.length !== 1 ? "s" : ""} under{" "}
+                                <span className="font-semibold text-ink">{mainOpName}</span>:
+                            </p>
+                            <div className="mt-3 w-full rounded-xl bg-gradient-to-br from-cream to-teal-50/50 border border-warm/70 px-4 py-3 text-left">
+                                {displayNames.map((name) => (
+                                    <p key={name} className="text-sm font-medium text-ink leading-relaxed">
+                                        {mainOpName} ({name})
+                                    </p>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex gap-3 mt-6">
+                        <button
+                            onClick={onCancel}
+                            className="flex-1 rounded-xl border-2 border-gray-200 py-3 text-sm font-semibold text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-all active:scale-[0.98] cursor-pointer"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={onConfirm}
+                            autoFocus
+                            className="flex-1 rounded-xl bg-gradient-to-r from-teal to-teal-dark py-3 text-sm font-semibold text-white shadow-lg shadow-teal/25 hover:shadow-xl hover:shadow-teal/30 hover:from-teal-dark hover:to-teal transition-all active:scale-[0.98] cursor-pointer"
+                        >
+                            {type === "single" ? "Add" : `Add all (${names.length})`}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
 }
 
 function ConfirmRemoveModal({
@@ -142,7 +202,9 @@ export default function OperatorProfilesPage() {
     const [users, setUsers] = useState<UserSummary[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
-    const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+    const [toastOpen, setToastOpen] = useState(false);
+    const [toastMessage, setToastMessage] = useState("");
+    const [toastType, setToastType] = useState<ToastType>("error");
 
     // Main-picker controls which main we're managing.
     const [activeMainId, setActiveMainId] = useState<number | null>(null);
@@ -169,6 +231,13 @@ export default function OperatorProfilesPage() {
     // Confirmation modal for removing a sub-operator
     const [removingSub, setRemovingSub] = useState<OperatorInfo | null>(null);
     const [deletingSubId, setDeletingSubId] = useState<number | null>(null);
+
+    // Confirmation modal for adding sub-operator(s)
+    const [confirmAddData, setConfirmAddData] = useState<{
+        type: "single" | "bulk";
+        mainOpName: string;
+        names: string[];
+    } | null>(null);
 
     const refresh = async () => {
         try {
@@ -198,11 +267,11 @@ export default function OperatorProfilesPage() {
 
     const subsOfActive = useMemo(() => {
         if (!activeMainId) return [] as OperatorInfo[];
-        return operators.filter((o) => o.parent_operator_id === activeMainId);
+        return operators.filter((o) => sameId(o.parent_operator_id, activeMainId));
     }, [operators, activeMainId]);
 
     const activeMainOperator = useMemo(
-        () => operators.find((o) => o.id === activeMainId) ?? null,
+        () => operators.find((o) => sameId(o.id, activeMainId)) ?? null,
         [operators, activeMainId]
     );
 
@@ -214,13 +283,21 @@ export default function OperatorProfilesPage() {
         return map;
     }, [users]);
 
-    const showOk = (text: string) => setMsg({ kind: "ok", text });
-    const showErr = (text: string) => setMsg({ kind: "err", text });
+    const showOk = (text: string) => {
+        setToastMessage(text);
+        setToastType("success");
+        setToastOpen(true);
+    };
+    const showErr = (text: string) => {
+        setToastMessage(text);
+        setToastType("error");
+        setToastOpen(true);
+    };
 
     const handleCreateMain = async () => {
         if (!mainName.trim()) return showErr("Main operator name is required.");
         setCreatingMain(true);
-        setMsg(null);
+        setToastOpen(false);
         try {
             const created = await createOperator({
                 operator: mainName.trim(),
@@ -241,7 +318,7 @@ export default function OperatorProfilesPage() {
     /** Validate that the user's input doesn't contain the main operator prefix */
     const validateSingleName = (value: string): string => {
         if (!activeMainId || !value.trim()) return "";
-        const mainOp = operators.find((o) => o.id === activeMainId);
+        const mainOp = operators.find((o) => sameId(o.id, activeMainId));
         if (!mainOp) return "";
         const mainPrefix = extractMainCode(mainOp.operator) ?? mainOp.operator;
         if (value.trim().toUpperCase().startsWith(mainPrefix.toUpperCase())) {
@@ -256,37 +333,73 @@ export default function OperatorProfilesPage() {
         setSingleNameError(validateSingleName(value));
     };
 
-    const handleCreateSingleSub = async () => {
+    const handleCreateSingleSub = () => {
         if (!activeMainId) return showErr("Pick a main operator first.");
         if (!singleName.trim()) return showErr("Sub-operator name is required.");
 
-        const mainOp = operators.find((o) => o.id === activeMainId);
+        const mainOp = operators.find((o) => sameId(o.id, activeMainId));
         if (!mainOp) return showErr("Main operator not found.");
 
         const mainPrefix = extractMainCode(mainOp.operator) ?? mainOp.operator;
-        // Inline validation should catch this, but double-check before submitting
         if (singleName.trim().toUpperCase().startsWith(mainPrefix.toUpperCase())) {
             return showErr("Just type the sub-operator's name, no need to include the main operator.");
         }
 
-        setCreatingSingle(true);
-        setMsg(null);
-        try {
-            const subName = singleName.trim();
-            const fullName = `${mainPrefix} (${subName})`;
-            await createOperator({
-                operator: fullName,
-                parent_operator_id: activeMainId,
-                sub_op_name: subName,
-            });
-            setSingleName("");
-            setSingleNameError("");
+        // Show confirmation modal instead of saving directly
+        setConfirmAddData({
+            type: "single",
+            mainOpName: operatorDisplay(mainOp),
+            names: [singleName.trim()],
+        });
+    };
+
+    /** Actually saves the sub-operator(s) after confirmation */
+    const handleConfirmAddSub = async () => {
+        if (!confirmAddData) return;
+        const { type, names } = confirmAddData;
+        setConfirmAddData(null);
+
+        if (type === "single") {
+            setCreatingSingle(true);
+            setToastOpen(false);
+            try {
+                const subName = names[0];
+                await createOperator({
+                    operator: "",
+                    parent_operator_id: activeMainId,
+                    sub_op_name: subName,
+                });
+                setSingleName("");
+                setSingleNameError("");
+                await refresh();
+                showOk("Sub-operator added.");
+            } catch (e) {
+                showErr(e instanceof Error ? (e instanceof Error ? e.message : String(e)) : "Failed to add sub-operator");
+            } finally {
+                setCreatingSingle(false);
+            }
+        } else {
+            setCreatingBulk(true);
+            setToastOpen(false);
+            const errors: string[] = [];
+            for (const name of names) {
+                try {
+                    await createOperator({ operator: "", parent_operator_id: activeMainId, sub_op_name: name });
+                } catch (e) {
+                    errors.push(`${name}: ${(e instanceof Error ? e.message : String(e)) ?? "failed"}`);
+                }
+            }
             await refresh();
-            showOk("Sub-operator added.");
-        } catch (e) {
-            showErr(e instanceof Error ? (e instanceof Error ? e.message : String(e)) : "Failed to add sub-operator");
-        } finally {
-            setCreatingSingle(false);
+            setBulkText("");
+            setBulkTextError("");
+            setCreatingBulk(false);
+
+            const okCount = names.length - errors.length;
+            if (errors.length === 0) {
+                showOk(`Added ${okCount} sub-operator${okCount === 1 ? "" : "s"}.`);
+            } else {
+                showErr(`Added ${okCount} of ${names.length}. Errors:\n${errors.join("\n")}`);
+            }
         }
     };
 
@@ -295,7 +408,7 @@ export default function OperatorProfilesPage() {
         const subId = removingSub.id;
         setDeletingSubId(subId);
         setRemovingSub(null);
-        setMsg(null);
+        setToastOpen(false);
         try {
             await updateOperatorParent(subId, null);
             await refresh();
@@ -310,7 +423,7 @@ export default function OperatorProfilesPage() {
     /** Validate bulk text lines: returns an array of error messages, one per line with issues */
     const validateBulkText = (text: string): string => {
         if (!activeMainId || !text.trim()) return "";
-        const mainOp = operators.find((o) => o.id === activeMainId);
+        const mainOp = operators.find((o) => sameId(o.id, activeMainId));
         if (!mainOp) return "";
         const mainPrefix = extractMainCode(mainOp.operator) ?? mainOp.operator;
         const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
@@ -329,7 +442,7 @@ export default function OperatorProfilesPage() {
         setBulkTextError(validateBulkText(value));
     };
 
-    const handleCreateBulkSubs = async () => {
+    const handleCreateBulkSubs = () => {
         if (!activeMainId) return showErr("Pick a main operator first.");
         const lines = bulkText
             .split("\n")
@@ -337,80 +450,35 @@ export default function OperatorProfilesPage() {
             .filter(Boolean);
         if (lines.length === 0) return showErr("Add at least one name (one per line).");
 
-        const mainOp = operators.find((o) => o.id === activeMainId);
+        const mainOp = operators.find((o) => sameId(o.id, activeMainId));
         if (!mainOp) return showErr("Main operator not found.");
-        const mainPrefix = extractMainCode(mainOp.operator) ?? mainOp.operator;
 
-        setCreatingBulk(true);
-        setMsg(null);
-        const errors: string[] = [];
-        for (const name of lines) {
-            // Check if user typed the main operator prefix
-            if (name.toUpperCase().startsWith(mainPrefix.toUpperCase())) {
-                errors.push(`${name}: Just type the sub-operator's name, no need to include the main operator.`);
-                continue;
-            }
-            try {
-                const fullName = `${mainPrefix} (${name})`;
-                await createOperator({ operator: fullName, parent_operator_id: activeMainId, sub_op_name: name });
-            } catch (e) {
-                errors.push(`${name}: ${(e instanceof Error ? e.message : String(e)) ?? "failed"}`);
-            }
-        }
-        await refresh();
-        setBulkText("");
-        setBulkTextError("");
-        setCreatingBulk(false);
-
-        const okCount = lines.length - errors.length;
-        if (errors.length === 0) {
-            showOk(`Added ${okCount} sub-operator${okCount === 1 ? "" : "s"}.`);
-        } else {
-            showErr(
-                `Added ${okCount} of ${lines.length}. Errors:\n${errors.join("\n")}`
-            );
-        }
+        // Show confirmation modal instead of saving directly
+        setConfirmAddData({
+            type: "bulk",
+            mainOpName: operatorDisplay(mainOp),
+            names: lines,
+        });
     };
 
     const operatorDisplay = (op: OperatorInfo) => formatOperatorDisplay(op);
 
     return (
         <div className="space-y-6">
-            <div className="flex items-start justify-between gap-3">
-                <div />
-                <button
-                    type="button"
-                    onClick={refresh}
-                    disabled={loading}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-warm bg-card px-3 py-1.5 text-xs font-medium text-ink-muted transition hover:bg-cream disabled:opacity-50"
-                >
-                    <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-                    Refresh
-                </button>
-            </div>
-
             {error && (
                 <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
                     {error}
                 </div>
             )}
-            {msg && (
-                <div
-                    className={`whitespace-pre-line rounded-lg border px-3 py-2 text-sm ${msg.kind === "ok"
-                        ? "border-teal/30 bg-teal/10 text-ink"
-                        : "border-red-200 bg-red-50 text-red-600"
-                        }`}
-                >
-                    {msg.text}
-                </div>
-            )}
+
+            <Toast open={toastOpen} message={toastMessage} type={toastType} onClose={() => setToastOpen(false)} />
 
             {/* Main picker + create-main toggle */}
             <section className="max-w-3xl rounded-2xl border border-warm bg-card p-5 shadow-sm">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
                     <div className="flex-1">
                         <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-muted">
-                            Manage subs of
+                            MANAGE SUB-OPERATORS OF MAIN OPERATOR:
                         </label>
                         <select
                             value={activeMainId ?? ""}
@@ -463,10 +531,10 @@ export default function OperatorProfilesPage() {
             {activeMainId && (
                 <section className="max-w-3xl rounded-2xl border border-warm bg-card p-5 shadow-sm">
                     {(() => {
-                        const picked = operators.find((m) => m.id === activeMainId);
+                        const picked = operators.find((m) => sameId(m.id, activeMainId));
                         if (picked?.parent_operator_id) {
                             const currentParent = operators.find(
-                                (o) => o.id === picked.parent_operator_id
+                                (o) => sameId(o.id, picked.parent_operator_id)
                             );
                             return (
                                 <p className="mb-3 rounded-lg border border-peach/40 bg-peach/15 px-3 py-2 text-xs text-ink">
@@ -494,7 +562,7 @@ export default function OperatorProfilesPage() {
                                         type="text"
                                         value={singleName}
                                         onChange={handleSingleNameChange}
-                                        placeholder={`Sub-operator name (e.g., AI CINCO)`}
+                                        placeholder="Sub-operator name"
                                         className={`w-full rounded-lg border px-3 py-2 text-sm text-ink focus:outline-none focus:ring-2 ${singleNameError
                                             ? "border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-200"
                                             : "border-warm bg-card focus:border-teal focus:ring-teal"
@@ -530,7 +598,7 @@ export default function OperatorProfilesPage() {
                                 value={bulkText}
                                 onChange={handleBulkTextChange}
                                 rows={4}
-                                placeholder={"Branch A\nBranch B\nBranch C"}
+                                placeholder={"Name 1\nName 2\nName 3"}
                                 className={`w-full rounded-lg border px-3 py-2 font-mono text-xs text-ink focus:outline-none focus:ring-2 ${bulkTextError
                                     ? "border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-200"
                                     : "border-warm bg-card focus:border-teal focus:ring-teal"
@@ -566,7 +634,7 @@ export default function OperatorProfilesPage() {
             {activeMainId && (
                 <section className="max-w-3xl rounded-2xl border border-warm bg-card p-5 shadow-sm">
                     <h3 className="mb-3 text-sm font-semibold text-ink">
-                        Sub-operators ({subsOfActive.length})
+                        SUB-OPERATORS ({subsOfActive.length})
                     </h3>
 
                     {subsOfActive.length === 0 ? (
@@ -598,7 +666,7 @@ export default function OperatorProfilesPage() {
                                                         </span>
                                                     ) : (
                                                         <span className="inline-block rounded-full bg-peach/40 px-2 py-0.5 text-xs font-medium text-ink">
-                                                            no user yet
+                                                            No User Account
                                                         </span>
                                                     )}
                                                 </td>
@@ -637,6 +705,16 @@ export default function OperatorProfilesPage() {
                 </section>
             )}
 
+            {confirmAddData && (
+                <ConfirmAddSubModal
+                    mainOpName={confirmAddData.mainOpName}
+                    type={confirmAddData.type}
+                    names={confirmAddData.names}
+                    onConfirm={handleConfirmAddSub}
+                    onCancel={() => setConfirmAddData(null)}
+                />
+            )}
+
             {removingSub && (
                 <ConfirmRemoveModal
                     subOperator={removingSub}
@@ -650,7 +728,7 @@ export default function OperatorProfilesPage() {
                     subOperator={creatingUserFor}
                     parentOperator={
                         operators.find(
-                            (o) => o.id === creatingUserFor.parent_operator_id
+                            (o) => sameId(o.id, creatingUserFor.parent_operator_id)
                         ) ?? null
                     }
                     onClose={() => setCreatingUserFor(null)}

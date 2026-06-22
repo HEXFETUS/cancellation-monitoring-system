@@ -247,12 +247,9 @@ router.get("/operators", async (req, res) => {
 router.post("/operators", async (req, res) => {
     const client = await pool.connect();
     try {
-        const { operator, parent_operator_id } = req.body;
+        const { operator, parent_operator_id, sub_op_name } = req.body;
         const operatorName = String(operator || "").trim();
-
-        if (!operatorName) {
-            return res.status(400).json({ error: "Operator name is required" });
-        }
+        const subOpName = sub_op_name != null ? String(sub_op_name).trim() : null;
 
         // Coerce parent_operator_id up-front so we can fail fast on bad input
         // without opening a transaction.
@@ -268,16 +265,25 @@ router.post("/operators", async (req, res) => {
             }
         }
 
+        const isSubOperatorCreate = parentId !== null;
+        if (!operatorName && (!isSubOperatorCreate || !subOpName)) {
+            return res.status(400).json({ error: "Operator name is required" });
+        }
+
         await client.query("BEGIN");
 
-        // Duplicate-name check (existing validation, preserved).
-        const duplicate = await client.query(
-            `SELECT id FROM operator_list WHERE LOWER(TRIM(operator)) = LOWER($1) LIMIT 1`,
-            [operatorName]
-        );
-        if (duplicate.rows.length > 0) {
-            await client.query("ROLLBACK");
-            return res.status(400).json({ error: "Operator already exists" });
+        // Duplicate-name check. Empty operator values are allowed for
+        // sub-operators because display comes from parent_operator_id +
+        // sub_op_name, and the database unique index ignores blanks.
+        if (operatorName) {
+            const duplicate = await client.query(
+                `SELECT id FROM operator_list WHERE LOWER(TRIM(operator)) = LOWER($1) LIMIT 1`,
+                [operatorName]
+            );
+            if (duplicate.rows.length > 0) {
+                await client.query("ROLLBACK");
+                return res.status(400).json({ error: "Operator already exists" });
+            }
         }
 
         if (parentId !== null) {
@@ -306,8 +312,8 @@ router.post("/operators", async (req, res) => {
         }
 
         const result = await client.query(
-            `INSERT INTO operator_list (operator, parent_operator_id) VALUES ($1, $2) RETURNING *`,
-            [operatorName, parentId]
+            `INSERT INTO operator_list (operator, parent_operator_id, sub_op_name) VALUES ($1, $2, $3) RETURNING *`,
+            [operatorName, parentId, subOpName]
         );
 
         await client.query("COMMIT");

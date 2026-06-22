@@ -104,6 +104,15 @@ export default function DashboardLayout() {
     // Count of the operator's booth-operator-change requests that have
     // been approved or rejected. These relate to the "My Outlets" page.
     const [operatorOutletApprovedRejectedCount, setOperatorOutletApprovedRejectedCount] = useState(0);
+    // Tracks the count value at which the user last dismissed each
+    // floating alert. Stored in refs so the value persists across
+    // re-renders without triggering a re-render itself.
+    const dismissedRepairCountRef = useRef(0);
+    const dismissedPendingRequestsRef = useRef(0);
+    const dismissedOperatorPosRef = useRef(0);
+    const dismissedOperatorOutletRef = useRef(0);
+    const dismissedOperatorNoticeShownRef = useRef(false);
+
     // "Seen" markers per nav. They are stored in localStorage so the red
     // dot stays dismissed across reloads, but we ALSO track a "session
     // initialized" flag in sessionStorage so that the first load of a
@@ -1116,66 +1125,7 @@ export default function DashboardLayout() {
                     </div>
                 </aside>
 
-                {/* Global floating alert for pending repair records — restricted to admin users only */}
-                {isAdmin && forCheckingRepairCount > 0 && (
-                    <FloatingAlert
-                        key={`repair-${forCheckingRepairCount}`}
-                        message={`There ${forCheckingRepairCount === 1 ? "is" : "are"} ${forCheckingRepairCount} repair record${forCheckingRepairCount !== 1 ? "s" : ""} waiting for checking. Please review and process accordingly.`}
-                    />
-                )}
-
-                {/* Global floating alert for pending requests — restricted to IT department only */}
-                {isITDepartment && (pendingBoothRequests > 0 || pendingOperatorChangeCount > 0 || pendingBoothOperatorChangeCount > 0) && (
-                    <FloatingAlert
-                        key={`requests-${pendingBoothRequests}-${pendingOperatorChangeCount}-${pendingBoothOperatorChangeCount}`}
-                        message={`There ${(pendingBoothRequests + pendingOperatorChangeCount + pendingBoothOperatorChangeCount) === 1 ? "is" : "are"} ${pendingBoothRequests + pendingOperatorChangeCount + pendingBoothOperatorChangeCount} pending request${(pendingBoothRequests + pendingOperatorChangeCount + pendingBoothOperatorChangeCount) !== 1 ? "s" : ""} awaiting your action. Please review and process accordingly.`}
-                    />
-                )}
-
-                {/* Global floating alert for operator approved/rejected requests.
-                    Only surfaces for requests that the operator has not yet
-                    acknowledged (per-section "seen" markers), AND only after
-                    the session has been initialized for this login. The
-                    initialization useEffect captures the current counts as
-                    "seen" on first load, so any approvals/rejections from
-                    previous days are silently absorbed and do not pop a
-                    toast when the operator signs in. */}
-                {isOperator &&
-                    operatorSessionInitialized &&
-                    (operatorPosApprovedRejectedCount > operatorSeenMyPos ||
-                        operatorOutletApprovedRejectedCount > operatorSeenMyOutlets) &&
-                    (() => {
-                        const posUnseen = Math.max(
-                            0,
-                            operatorPosApprovedRejectedCount - operatorSeenMyPos
-                        );
-                        const outletUnseen = Math.max(
-                            0,
-                            operatorOutletApprovedRejectedCount - operatorSeenMyOutlets
-                        );
-                        const totalUnseen = posUnseen + outletUnseen;
-                        if (totalUnseen <= 0) return null;
-                        const parts: string[] = [];
-                        if (posUnseen > 0) {
-                            parts.push(
-                                `${posUnseen} POS booth change request${posUnseen !== 1 ? "s" : ""}`
-                            );
-                        }
-                        if (outletUnseen > 0) {
-                            parts.push(
-                                `${outletUnseen} outlet request${outletUnseen !== 1 ? "s" : ""}`
-                            );
-                        }
-                        const detail = parts.length > 1
-                            ? `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}`
-                            : parts[0];
-                        return (
-                            <FloatingAlert
-                                key={`operator-approved-${operatorPosApprovedRejectedCount}-${operatorOutletApprovedRejectedCount}`}
-                                message={`You have ${detail} that ha${totalUnseen === 1 ? "s" : "ve"} been approved or rejected. Please check your request history.`}
-                            />
-                        );
-                    })()}
+                {/* Floating alerts temporarily hidden */}
                 {/* Main Content */}
                 <main className="flex-1 overflow-auto pt-16 lg:pt-0">
                     <div

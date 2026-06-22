@@ -14,6 +14,21 @@ async function handleResponse<T>(response: Response): Promise<T> {
     return response.json();
 }
 
+function normalizeOperatorInfo(operator: OperatorInfo): OperatorInfo {
+    return {
+        ...operator,
+        id: Number(operator.id),
+        user_id:
+            operator.user_id === null || operator.user_id === undefined
+                ? operator.user_id
+                : Number(operator.user_id),
+        parent_operator_id:
+            operator.parent_operator_id === null || operator.parent_operator_id === undefined
+                ? operator.parent_operator_id
+                : Number(operator.parent_operator_id),
+    };
+}
+
 export async function fetchPosRecords(params?: {
     device_no?: string;
     serial_number?: string;
@@ -61,7 +76,8 @@ export async function fetchBoothInfo(params?: { user_id?: string; operator_id?: 
 
 export async function fetchOperators(): Promise<OperatorInfo[]> {
     const response = await fetch(`${API_BASE}/operators`);
-    return handleResponse<OperatorInfo[]>(response);
+    const operators = await handleResponse<OperatorInfo[]>(response);
+    return operators.map(normalizeOperatorInfo);
 }
 
 export async function createOperator(data: {
@@ -74,7 +90,7 @@ export async function createOperator(data: {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
     });
-    return handleResponse<OperatorInfo>(response);
+    return normalizeOperatorInfo(await handleResponse<OperatorInfo>(response));
 }
 
 export async function updateOperatorParent(
@@ -86,7 +102,7 @@ export async function updateOperatorParent(
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ parent_operator_id: parentOperatorId }),
     });
-    return handleResponse<OperatorInfo>(response);
+    return normalizeOperatorInfo(await handleResponse<OperatorInfo>(response));
 }
 
 /**

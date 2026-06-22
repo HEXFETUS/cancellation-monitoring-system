@@ -4,9 +4,10 @@ import { X, AlertTriangle } from "lucide-react";
 type FloatingAlertProps = {
     message: string;
     count?: number;
+    onClose?: () => void;
 };
 
-export default function FloatingAlert({ message }: FloatingAlertProps) {
+export default function FloatingAlert({ message, onClose }: FloatingAlertProps) {
     // `count` is accepted on the prop type for API compatibility with
     // future callers that may want to surface a numeric badge inside the
     // alert body. The current rendering is text-only via `message`, so
@@ -37,7 +38,10 @@ export default function FloatingAlert({ message }: FloatingAlertProps) {
                     {message}
                 </p>
                 <button
-                    onClick={() => setDismissed(true)}
+                    onClick={() => {
+                        setDismissed(true);
+                        onClose?.();
+                    }}
                     className="shrink-0 rounded-full p-1 transition-colors hover:bg-red-200/50"
                     style={{ color: "#991B1B" }}
                 >
