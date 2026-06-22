@@ -200,7 +200,7 @@ function ConfirmRemoveModal({
 export default function OperatorProfilesPage() {
     const [operators, setOperators] = useState<OperatorInfo[]>([]);
     const [users, setUsers] = useState<UserSummary[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [toastOpen, setToastOpen] = useState(false);
     const [toastMessage, setToastMessage] = useState("");
