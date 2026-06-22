@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { Eye, Plus, Search, Wallet } from "lucide-react";
+import { Pagination } from "../../../shared/components";
+import TruncatedDescription from "./TruncatedDescription";
 
 export interface AssetRow {
     id: number | string;
@@ -31,10 +33,16 @@ interface AssetTableProps {
     onAdd?: () => void;
     onEdit?: (row: AssetRow) => void;
     onDelete?: (row: AssetRow) => void;
+    /** Called when the user clicks "View Details". */
+    onViewDetails?: (row: AssetRow) => void;
     /** Optional extra buttons rendered next to "Add Asset" in the header. */
     extraHeaderActions?: React.ReactNode;
     /** Override the column header label for the `department` column. */
     departmentLabel?: string;
+    /** Hide the internal search/action header (when they are moved to tabs row). */
+    hideHeader?: boolean;
+    /** External search value to use instead of the internal search bar. Works with hideHeader. */
+    externalSearch?: string;
 }
 
 const PHP = new Intl.NumberFormat("en-PH", {
@@ -43,17 +51,6 @@ const PHP = new Intl.NumberFormat("en-PH", {
     minimumFractionDigits: 2,
 });
 
-function formatDate(iso: string) {
-    if (!iso) return "—";
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return iso;
-    return d.toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "short",
-        day: "2-digit",
-    });
-}
-
 export default function AssetTable({
     rows,
     loading = false,
@@ -61,18 +58,25 @@ export default function AssetTable({
     onAdd,
     onEdit,
     onDelete,
+    onViewDetails,
     extraHeaderActions,
     departmentLabel = "Department",
+    hideHeader = false,
+    externalSearch,
 }: AssetTableProps) {
-    const [search, setSearch] = useState("");
+    const [internalSearch, setInternalSearch] = useState("");
     const [page, setPage] = useState(1);
     const PAGE_SIZE = 20;
 
-    const showActions = Boolean(onEdit || onDelete);
-    const colCount = 15 + (showActions ? 1 : 0);
+    // Use external search if provided, otherwise use internal state
+    const effectiveSearch = externalSearch !== undefined ? externalSearch : internalSearch;
+
+    const showActions = Boolean(onViewDetails || onEdit || onDelete);
+    // Columns: Item Description, Department, Space, Qty, Discount, Asset Value, Total Value, Actions
+    const colCount = 7 + (showActions ? 1 : 0);
 
     const filtered = useMemo(() => {
-        const q = search.trim().toLowerCase();
+        const q = effectiveSearch.trim().toLowerCase();
         if (!q) return rows;
         return rows.filter((r) =>
             [
@@ -89,12 +93,12 @@ export default function AssetTable({
                 .toLowerCase()
                 .includes(q)
         );
-    }, [rows, search]);
+    }, [rows, effectiveSearch]);
 
     // Reset to page 1 when search changes
     useEffect(() => {
         setPage(1);
-    }, [search]);
+    }, [effectiveSearch]);
 
     const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
     const safePage = Math.min(page, totalPages);
@@ -110,40 +114,51 @@ export default function AssetTable({
 
     return (
         <div>
-{/* Header */}
-            <div className="mb-6 flex flex-col gap-3">
-                
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
-                    <div className="relative w-full sm:w-72">
-                        <Search
-                            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle dark:text-gray-500"
-                            size={16}
-                        />
-                        <input
-                            type="text"
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            placeholder="Search assets..."
-                            className="w-full rounded-lg border border-warm dark:border-gray-700 bg-card dark:bg-gray-800/70 pl-9 pr-3 py-2 text-sm text-ink dark:text-gray-100 placeholder:text-ink-subtle dark:placeholder:text-gray-400 focus:border-teal dark:focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal dark:focus:ring-teal/50"
-                        />
-                    </div>
+            {/* Header - only show when not hidden */}
+            {!hideHeader && (
+                <div className="mb-6 flex flex-col gap-3">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+                        <div className="relative w-full sm:w-72">
+                            <Search
+                                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle dark:text-gray-500"
+                                size={16}
+                            />
+                            <input
+                                type="text"
+                                value={effectiveSearch}
+                                onChange={(e) => setInternalSearch(e.target.value)}
+                                placeholder="Search assets..."
+                                className="w-full rounded-lg border border-warm dark:border-gray-700 bg-card dark:bg-gray-800/70 pl-8 pr-2.5 py-1.5 text-xs text-ink dark:text-gray-100 placeholder:text-ink-subtle dark:placeholder:text-gray-400 focus:border-teal dark:focus:border-teal focus:outline-none focus:ring-1 focus:ring-teal dark:focus:ring-teal/50"
+                            />
+                        </div>
 
-                    {onAdd && (
-                        <button
-                            onClick={onAdd}
-                            className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-teal px-4 py-2 text-sm font-semibold text-ink transition hover:bg-teal-dark"
-                        >
-                            <Plus size={16} />
-                            Add Asset
-                        </button>
-                    )}
-                    {extraHeaderActions}
+                        {onAdd && (
+                            <button
+                                onClick={onAdd}
+                                className="inline-flex items-center justify-center gap-1 rounded-lg bg-teal px-3 py-1.5 text-xs font-semibold text-ink transition hover:bg-teal-dark"
+                            >
+                                <Plus size={16} />
+                                Add Asset
+                            </button>
+                        )}
+                        {extraHeaderActions}
+                    </div>
                 </div>
-            </div>
+            )}
 
             {error && (
                 <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
                     {error}
+                </div>
+            )}
+
+            {filtered.length > 0 && !loading && (
+                <div className="mb-3 flex items-center justify-between rounded-lg border border-warm bg-cream px-4 py-2.5">
+                    <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-ink-muted">
+                        <Wallet size={14} />
+                        Grand Total
+                    </span>
+                    <span className="text-base font-bold text-teal">{PHP.format(grandTotal)}</span>
                 </div>
             )}
 
@@ -152,21 +167,13 @@ export default function AssetTable({
                 <table className="w-full min-w-450 text-sm">
                     <thead>
                         <tr className="border-b border-warm bg-cream">
-                            <Th align="center">Item Description</Th>
-                            <Th align="center">Type</Th>
-                            <Th align="center">Serial No.</Th>
+                            <Th align="left" style={{ width: "260px" }}>Item Description</Th>
                             <Th align="center">{departmentLabel}</Th>
                             <Th align="center">Space</Th>
-                            <Th align="center">Date Purchased</Th>
-                            <Th align="center">Vendor</Th>
-                            <Th align="center">Purchase Price</Th>
-                            <Th align="center">Warranty Date</Th>
                             <Th align="center">Qty</Th>
                             <Th align="center">Discount</Th>
                             <Th align="center">Asset Value</Th>
                             <Th align="center">Total Value</Th>
-                            <Th align="center">Color</Th>
-                            <Th align="center">Remarks</Th>
                             {showActions && <Th align="center">Actions</Th>}
                         </tr>
                     </thead>
@@ -188,7 +195,7 @@ export default function AssetTable({
                                     className="px-4 py-10 text-center text-ink-subtle"
                                 >
                                     {rows.length === 0
-                                        ? "No assets yet. Click \"Add Asset\" to create one."
+                                        ? 'No assets yet. Click "Add Asset" to create one.'
                                         : "No assets match your search."}
                                 </td>
                             </tr>
@@ -198,54 +205,27 @@ export default function AssetTable({
                                     key={r.id}
                                     className="border-b border-warm/60 transition hover:bg-cream"
                                 >
-                                    <Td className="font-medium text-ink" style={{ whiteSpace: "normal", overflowWrap: "break-word", verticalAlign: "top" }}>{r.itemDescription}</Td>
-                                    <Td>
-                                        {r.type ? (
-                                            <span className="inline-block rounded-full border border-teal/30 bg-teal-light/40 px-2.5 py-0.5 text-xs font-medium text-ink">
-                                                {r.type}
-                                            </span>
-                                        ) : (
-                                            <span className="text-ink-subtle">—</span>
-                                        )}
-                                    </Td>
-                                    <Td className="font-mono text-xs text-ink-muted" style={{ whiteSpace: "normal", overflowWrap: "break-word", verticalAlign: "top" }}>
-                                        {r.serialNumber || "—"}
+                                    <Td align="left" className="font-medium text-ink" style={{ width: "260px", whiteSpace: "normal", overflowWrap: "break-word", verticalAlign: "top" }}>
+                                        <TruncatedDescription text={r.itemDescription} />
                                     </Td>
                                     <Td>{r.department || "—"}</Td>
                                     <Td>{r.space || "—"}</Td>
-                                    <Td>{formatDate(r.datePurchase)}</Td>
-                                    <Td>{r.vendor || "—"}</Td>
-                                    <Td align="right">{PHP.format(r.purchasePrice)}</Td>
-                                    <Td>{formatDate(r.warrantyDate)}</Td>
-                                    <Td align="right">{r.quantity}</Td>
-                                    <Td align="right">{PHP.format(r.discount)}</Td>
-                                    <Td align="right">{PHP.format(r.assetValue)}</Td>
-                                    <Td align="right" className="font-semibold text-ink">
+                                    <Td>{r.quantity}</Td>
+                                    <Td>{PHP.format(r.discount)}</Td>
+                                    <Td>{PHP.format(r.assetValue)}</Td>
+                                    <Td className="font-semibold text-ink">
                                         {PHP.format(r.totalValue)}
                                     </Td>
-                                    <Td>
-                                        {r.color ? <ColorChip color={r.color} /> : <span className="text-ink-subtle">—</span>}
-                                    </Td>
-<Td className="text-ink-muted" style={{ whiteSpace: "normal", overflowWrap: "break-word", verticalAlign: "top" }}>{r.remarks || "—"}</Td>
                                     {showActions && (
-                                        <Td align="right">
-                                            <div className="flex justify-end gap-2">
-                                                {onEdit && (
+                                        <Td>
+                                            <div className="flex justify-center gap-2">
+                                                {onViewDetails && (
                                                     <button
-                                                        onClick={() => onEdit(r)}
-                                                        className="inline-flex items-center gap-1 rounded-lg bg-teal px-2.5 py-1 text-xs font-medium text-ink transition hover:bg-teal-dark"
+                                                        onClick={() => onViewDetails(r)}
+                                                        className="inline-flex items-center gap-1 rounded-lg border border-teal bg-card px-2.5 py-1 text-xs font-medium text-teal-dark transition hover:bg-teal-light/40"
                                                     >
-                                                        <Pencil size={14} />
-                                                        Edit
-                                                    </button>
-                                                )}
-                                                {onDelete && (
-                                                    <button
-                                                        onClick={() => onDelete(r)}
-                                                        className="inline-flex items-center gap-1 rounded-lg bg-rose px-2.5 py-1 text-xs font-medium text-ink transition hover:bg-rose-dark"
-                                                    >
-                                                        <Trash2 size={14} />
-                                                        Delete
+                                                        <Eye size={14} />
+                                                        View Details
                                                     </button>
                                                 )}
                                             </div>
@@ -255,68 +235,16 @@ export default function AssetTable({
                             ))
                         )}
                     </tbody>
-
-                    {filtered.length > 0 && !loading && (
-                        <tfoot>
-                            <tr className="border-t-2 border-warm bg-cream">
-                                <td
-                                    colSpan={12}
-                                    className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-ink-muted"
-                                >
-                                    Grand Total
-                                </td>
-                                <td className="px-4 py-3 text-right text-base font-bold text-teal">
-                                    {PHP.format(grandTotal)}
-                                </td>
-                                <td colSpan={showActions ? 3 : 2} />
-                            </tr>
-                        </tfoot>
-                    )}
                 </table>
+
+                <Pagination
+                    currentPage={safePage}
+                    totalPages={totalPages}
+                    totalItems={filtered.length}
+                    onPageChange={setPage}
+                    pageSize={PAGE_SIZE}
+                />
             </div>
-
-            {/* Pagination Controls */}
-            {filtered.length > 0 && !loading && (
-                <div className="mt-4 flex items-center justify-between gap-3">
-                    <p className="text-xs text-ink-subtle">
-                        Page {safePage} of {totalPages} &middot; {filtered.length} result{filtered.length === 1 ? "" : "s"}
-                    </p>
-
-                    <div className="flex items-center gap-1">
-                        <button
-                            disabled={safePage <= 1}
-                            onClick={() => setPage((p) => Math.max(1, p - 1))}
-                            className="rounded-lg border border-warm bg-card px-3 py-1.5 text-xs font-medium text-ink transition hover:bg-warm/40 disabled:cursor-not-allowed disabled:opacity-40"
-                        >
-                            Prev
-                        </button>
-                        {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-                            const start = Math.max(1, safePage - 2);
-                            const pageNum = start + i;
-                            if (pageNum > totalPages) return null;
-                            return (
-                                <button
-                                    key={pageNum}
-                                    onClick={() => setPage(pageNum)}
-                                    className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${pageNum === safePage
-                                        ? "bg-teal text-ink"
-                                        : "border border-warm bg-card text-ink hover:bg-warm/40"
-                                    }`}
-                                >
-                                    {pageNum}
-                                </button>
-                            );
-                        })}
-                        <button
-                            disabled={safePage >= totalPages}
-                            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                            className="rounded-lg border border-warm bg-card px-3 py-1.5 text-xs font-medium text-ink transition hover:bg-warm/40 disabled:cursor-not-allowed disabled:opacity-40"
-                        >
-                            Next
-                        </button>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }
@@ -326,14 +254,18 @@ export default function AssetTable({
 function Th({
     children,
     align = "center",
+    style,
 }: {
     children: React.ReactNode;
     align?: "left" | "right" | "center";
+    style?: React.CSSProperties;
 }) {
     return (
         <th
-            className={`whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-ink-muted ${align === "right" ? "text-right" : align === "left" ? "text-left" : "text-center"
-                }`}
+            className={`whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-ink-muted ${
+                align === "right" ? "text-right" : align === "left" ? "text-left" : "text-center"
+            }`}
+            style={style}
         >
             {children}
         </th>
@@ -353,8 +285,9 @@ function Td({
 }) {
     return (
         <td
-            className={`whitespace-nowrap px-4 py-3 ${align === "right" ? "text-right" : align === "left" ? "text-left" : "text-center"
-                } ${className}`}
+            className={`whitespace-nowrap px-4 py-3 ${
+                align === "right" ? "text-right" : align === "left" ? "text-left" : "text-center"
+            } ${className}`}
             style={style}
         >
             {children}
@@ -362,15 +295,3 @@ function Td({
     );
 }
 
-function ColorChip({ color }: { color: string }) {
-    return (
-        <span className="inline-flex items-center gap-2">
-            <span
-                className="inline-block h-3.5 w-3.5 rounded-full border border-warm"
-                style={{ backgroundColor: color }}
-                aria-hidden
-            />
-            <span className="text-xs text-ink-muted">{color}</span>
-        </span>
-    );
-}

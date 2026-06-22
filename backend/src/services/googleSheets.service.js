@@ -883,6 +883,10 @@ function sheetAssetCodeToDbRow(row) {
     ]);
     const description = pick(row, ["Description", "Item Description", "Item"]);
 
+    const careOf = pick(row, ["Care Of", "Careof", "Custodian"]) || null;
+    const space = pick(row, ["Space", "Sub Location", "Sub-Location", "Room"]) || null;
+    const spaceLooksLikeCareOf = /^care\s*of\b/i.test(String(space || "").trim());
+
     return {
         // asset_id (FK to asset_inv) is resolved later via description match
         // inside importAssetCodeFromSheet. Never read it from the sheet.
@@ -890,8 +894,8 @@ function sheetAssetCodeToDbRow(row) {
         description,
         type: pick(row, ["Type", "Category"]) || null,
         department: pick(row, ["Department"]) || null,
-        care_of: pick(row, ["Care Of", "Careof", "Custodian"]) || null,
-        space: pick(row, ["Space", "Sub Location", "Sub-Location", "Room"]) || null,
+        care_of: careOf || (spaceLooksLikeCareOf ? space : null),
+        space: spaceLooksLikeCareOf && !careOf ? null : space,
         asset_id: null,
     };
 }

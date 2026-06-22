@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, type RefObject } from "react";
 import { Settings2 } from "lucide-react";
 import AssetTable, { type AssetRow } from "./AssetTable";
 import AssetFormModal, { type AssetFormValues } from "./AssetFormModal";
+import AssetDetailsModal from "./AssetDetailsModal";
 import PayoutStationsModal from "./PayoutStationsModal";
 import OfficeDepartmentsModal from "./OfficeDepartmentsModal";
 import { useAssets } from "../hooks";
@@ -22,6 +23,18 @@ interface AssetLocationPageProps {
     type?: string;
     title: string;
     description?: string;
+    /** External search value from the parent (tabs row). */
+    externalSearch?: string;
+    /** Ref to expose the add handler to the parent. */
+    onAddRef?: RefObject<() => void>;
+    /** Whether the Manage Departments modal should be open (controlled from parent). */
+    manageDeptsOpen?: boolean;
+    /** Called when Manage Departments modal is closed. */
+    onManageDeptsClose?: () => void;
+    /** Whether the Manage Stations modal should be open (controlled from parent). */
+    manageStationsOpen?: boolean;
+    /** Called when Manage Stations modal is closed. */
+    onManageStationsClose?: () => void;
 }
 
 export default function AssetLocationPage({
@@ -29,6 +42,12 @@ export default function AssetLocationPage({
     type,
     title,
     description,
+    externalSearch,
+    onAddRef,
+    manageDeptsOpen: externalDeptsOpen,
+    onManageDeptsClose,
+    manageStationsOpen: externalStationsOpen,
+    onManageStationsClose,
 }: AssetLocationPageProps) {
     const { rows, loading, error, addAsset, updateAsset, deleteAsset, refresh } =
         useAssets(location, type);
@@ -41,16 +60,35 @@ export default function AssetLocationPage({
     const [editing, setEditing] = useState<AssetRow | null>(null);
     const [deleteTarget, setDeleteTarget] = useState<AssetRow | null>(null);
     const [deleting, setDeleting] = useState(false);
+    const [detailsOpen, setDetailsOpen] = useState(false);
+    const [detailsAsset, setDetailsAsset] = useState<AssetRow | null>(null);
+
+    // Internal state for modals (used when not externally controlled)
+    const [internalStationsOpen, setInternalStationsOpen] = useState(false);
+    const [internalDeptsOpen, setInternalDeptsOpen] = useState(false);
+
+    // Determine if modals are externally controlled
+    const stationsOpen = externalStationsOpen !== undefined ? externalStationsOpen : internalStationsOpen;
+    const deptsOpen = externalDeptsOpen !== undefined ? externalDeptsOpen : internalDeptsOpen;
+
+    const setStationsOpen = externalStationsOpen !== undefined
+        ? (v: boolean) => { if (!v && onManageStationsClose) onManageStationsClose(); }
+        : setInternalStationsOpen;
+    const setDeptsOpen = externalDeptsOpen !== undefined
+        ? (v: boolean) => { if (!v && onManageDeptsClose) onManageDeptsClose(); }
+        : setInternalDeptsOpen;
 
     // Payout-only state
-    const [stationsOpen, setStationsOpen] = useState(false);
     const [stations, setStations] = useState<PayoutStation[]>([]);
     const [stationsError, setStationsError] = useState("");
 
     // Office-only state
-    const [deptsOpen, setDeptsOpen] = useState(false);
     const [departments, setDepartments] = useState<OfficeDepartment[]>([]);
     const [deptsError, setDeptsError] = useState("");
+
+    // Internal add ref to expose
+    const internalAddRef = useRef<() => void>(() => {});
+    const effectiveAddRef = onAddRef || internalAddRef;
 
     const loadStations = async () => {
         if (!isPayout) return;
@@ -81,6 +119,18 @@ export default function AssetLocationPage({
     const handleAdd = () => {
         setEditing(null);
         setModalOpen(true);
+    };
+
+    // Expose handleAdd to parent via ref
+    useEffect(() => {
+        if (effectiveAddRef) {
+            effectiveAddRef.current = handleAdd;
+        }
+    });
+
+    const handleViewDetails = (row: AssetRow) => {
+        setDetailsAsset(row);
+        setDetailsOpen(true);
     };
 
     const handleEdit = (row: AssetRow) => {
@@ -159,6 +209,9 @@ export default function AssetLocationPage({
         return rows;
     })();
 
+    // We hide the internal header if externalSearch is provided (controls in tabs row)
+    const hideHeader = externalSearch !== undefined;
+
     return (
         <>
             <AssetTable
@@ -167,44 +220,55 @@ export default function AssetLocationPage({
                 rows={displayRows}
                 loading={loading}
                 error={error || stationsError || deptsError}
-                onAdd={handleAdd}
-                onEdit={handleEdit}
-                onDelete={canDelete ? handleDeleteClick : undefined}
+                onAdd={!hideHeader ? handleAdd : undefined}
+                onViewDetails={handleViewDetails}
                 departmentLabel={
                     isPayout ? "Payout Station" : isOffice ? "Department" : undefined
                 }
+                hideHeader={hideHeader}
+                externalSearch={hideHeader ? externalSearch : undefined}
                 extraHeaderActions={
-                    <>
-                        {isPayout && (
-                            <button
-                                onClick={() => setStationsOpen(true)}
-                                className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-warm bg-card px-4 py-2 text-sm font-medium text-ink transition hover:bg-warm/40"
-                            >
-                                <Settings2 size={16} />
-                                Manage Stations
-                            </button>
-                        )}
-                        {isOffice && (
-                            <button
-                                onClick={() => setDeptsOpen(true)}
-                                className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-warm bg-card px-4 py-2 text-sm font-medium text-ink transition hover:bg-warm/40"
-                            >
-                                <Settings2 size={16} />
-                                Manage Departments
-                            </button>
-                        )}
-                    </>
+                    !hideHeader ? (
+                        <>
+                            {isPayout && (
+                                <button
+                                    onClick={() => setStationsOpen(true)}
+                                    className="inline-flex items-center justify-center gap-1 rounded-lg border border-warm bg-card px-2.5 py-1.5 text-xs font-medium text-ink transition hover:bg-warm/40"
+                                >
+                                    <Settings2 size={14} />
+                                    Manage Stations
+                                </button>
+                            )}
+                            {isOffice && (
+                                <button
+                                    onClick={() => setDeptsOpen(true)}
+                                    className="inline-flex items-center justify-center gap-1 rounded-lg border border-warm bg-card px-2.5 py-1.5 text-xs font-medium text-ink transition hover:bg-warm/40"
+                                >
+                                    <Settings2 size={14} />
+                                    Manage Departments
+                                </button>
+                            )}
+                        </>
+                    ) : undefined
                 }
             />
 
             <AssetFormModal
                 open={modalOpen}
-                title={editing ? "Edit Asset" : "Add Asset"}
+                title={editing ? "Edit Asset" : `Add Asset for ${location ? location.charAt(0).toUpperCase() + location.slice(1) : "Location"}`}
                 initial={editing}
                 payoutStations={isPayout ? stations : undefined}
                 officeDepartments={isOffice ? departments : undefined}
                 onClose={() => setModalOpen(false)}
                 onSubmit={handleSubmit}
+            />
+
+            <AssetDetailsModal
+                open={detailsOpen}
+                asset={detailsAsset}
+                onClose={() => setDetailsOpen(false)}
+                onEdit={handleEdit}
+                onDelete={canDelete ? handleDeleteClick : undefined}
             />
 
             {isPayout && (

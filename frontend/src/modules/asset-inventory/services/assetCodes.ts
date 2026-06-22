@@ -53,14 +53,20 @@ async function getErrorMessage(res: Response, fallback: string) {
 }
 
 function fromWire(w: AssetCodeWire): AssetCode {
+    const rawCareOf = w.care_of ?? "";
+    const rawSpace = w.space ?? "";
+    const spaceLooksLikeCareOf = /^care\s*of\b/i.test(rawSpace.trim());
+    const careOf = rawCareOf || (spaceLooksLikeCareOf ? rawSpace : "");
+    const space = spaceLooksLikeCareOf && !rawCareOf ? "" : rawSpace;
+
     return {
         id: w.id,
         itemCode: w.item_code ?? "",
         description: w.description,
         type: w.type ?? "",
         department: w.department ?? "",
-        careOf: w.care_of ?? "",
-        space: w.space ?? "",
+        careOf,
+        space,
         // QR sticker text is the item_code itself in the new schema.
         // Fall back to "NO-CODE" when the sheet row had no ASSET ID.
         qrPayload: w.item_code ?? "NO-CODE",

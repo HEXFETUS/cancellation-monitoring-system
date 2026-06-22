@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Download, Printer, X } from "lucide-react";
+import { Download, Printer, QrCode, X } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import type { AssetCode } from "../services/assetCodes";
 import NiimbotPrintControls, {
@@ -111,63 +111,77 @@ export default function QrPreviewModal({ open, code, onClose }: Props) {
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 pt-8 pb-8">
-            <div className="w-full max-w-md rounded-2xl border border-warm bg-card shadow-xl">
-                <div className="flex items-center justify-between border-b border-warm px-6 py-4">
-                    <h3 className="text-lg font-semibold text-ink">QR Code</h3>
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/50 backdrop-blur-sm pt-8 pb-8">
+            <div className="w-full max-w-sm rounded-2xl border border-warm bg-white shadow-2xl">
+                {/* Header */}
+                <div className="flex items-center justify-between border-b border-warm bg-gradient-to-r from-teal-50 to-white px-5 py-3.5">
+                    <div className="flex items-center gap-2.5">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white shadow-sm ring-1 ring-teal-200">
+                            <QrCode size={18} className="text-teal" />
+                        </div>
+                        <div>
+                            <h3 className="text-sm font-bold text-ink">QR Label Preview</h3>
+                            <p className="text-xs text-ink-muted">{code.itemCode} — {code.description}</p>
+                        </div>
+                    </div>
                     <button
                         onClick={onClose}
-                        className="rounded-lg p-1 text-ink-subtle transition hover:bg-cream hover:text-ink"
+                        className="rounded-lg p-1.5 text-ink-subtle transition hover:bg-cream hover:text-ink"
                     >
-                        <X size={20} />
+                        <X size={18} />
                     </button>
                 </div>
 
-                <div className="px-6 py-6 text-center">
+                <div className="p-5 text-center">
                     {/* Hidden bare QR (level H so the centre logo is safe). */}
                     <div ref={svgRef} className="sr-only" aria-hidden="true">
                         <QRCodeSVG value={payload} size={400} level="H" marginSize={2} />
                     </div>
 
                     {/* WYSIWYG label preview */}
-                    <div className="mx-auto inline-flex rounded-xl border border-warm bg-white p-3">
+                    <div className="relative mx-auto w-full max-w-[300px] rounded-xl border-2 border-dashed border-warm bg-white p-2 shadow-inner">
                         {previewUrl ? (
                             <img
                                 src={previewUrl}
                                 alt={`Label for ${code.itemCode}`}
-                                className="h-auto w-full max-w-[320px]"
+                                className="h-auto w-full rounded-lg"
                                 style={{ aspectRatio: `${widthMm} / ${heightMm}` }}
                             />
                         ) : (
                             <div
-                                className="flex w-[320px] items-center justify-center text-xs text-ink-subtle"
+                                className="flex w-full items-center justify-center text-xs text-ink-subtle"
                                 style={{ aspectRatio: `${widthMm} / ${heightMm}` }}
                             >
-                                Generating label…
+                                <div className="flex flex-col items-center gap-2">
+                                    <div className="h-6 w-6 animate-spin rounded-full border-2 border-teal border-t-transparent" />
+                                    <span>Generating label…</span>
+                                </div>
                             </div>
                         )}
                     </div>
 
-                    <p className="mt-3 break-all rounded-lg bg-cream px-3 py-2 font-mono text-xs text-ink-muted">
+                    <p className="mt-3 break-all rounded-lg bg-slate-50 px-3 py-2 font-mono text-[11px] text-slate-500">
                         {payload}
                     </p>
 
-                    <NiimbotPrintControls renderCanvas={buildCanvas} className="mt-4" />
+                    <div className="mt-4">
+                        <NiimbotPrintControls renderCanvas={buildCanvas} />
+                    </div>
                 </div>
 
-                <div className="flex justify-center gap-3 border-t border-warm bg-cream px-6 py-4">
+                <div className="flex justify-center gap-2.5 border-t border-warm bg-slate-50 px-5 py-3.5">
                     <button
                         onClick={handleDownload}
-                        className="inline-flex items-center gap-2 rounded-lg border border-warm bg-card px-4 py-2 text-sm font-medium text-ink transition hover:bg-warm/40"
+                        className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-400 hover:bg-white"
                     >
-                        <Download size={16} />
-                        Download PNG
+                        <Download size={15} />
+                        PNG
                     </button>
                     <button
                         onClick={handlePrint}
-                        className="inline-flex items-center gap-2 rounded-lg bg-teal px-4 py-2 text-sm font-semibold text-ink transition hover:bg-teal-dark"
+                        className="inline-flex items-center gap-2 rounded-xl bg-teal px-4 py-2 text-sm font-semibold text-ink shadow-sm transition hover:bg-teal-dark"
                     >
-                        <Printer size={16} />
+                        <Printer size={15} />
                         Print
                     </button>
                 </div>

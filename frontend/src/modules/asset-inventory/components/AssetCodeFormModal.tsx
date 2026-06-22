@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Search, X } from "lucide-react";
+import { Search, X, Plus, Pencil, CheckCircle2, Info } from "lucide-react";
 import {
     type AssetCode,
     type AssetCodeInput,
@@ -7,6 +7,7 @@ import {
 } from "../services/assetCodes";
 import type { AssetRow } from "./AssetTable";
 import { listAllAssets, type AssetLocation } from "../services";
+import ConfirmationModal from "../../../shared/components/ConfirmationModal";
 
 type AssetWithLocation = AssetRow & { location: AssetLocation };
 
@@ -89,8 +90,10 @@ const EMPTY: AssetCodeInput = {
 
 export default function AssetCodeFormModal({ open, initial, locationFilter, onClose, onSubmit }: Props) {
     const [v, setV] = useState<AssetCodeInput>(EMPTY);
+    const [initialValues, setInitialValues] = useState<AssetCodeInput | null>(null);
     const [err, setErr] = useState("");
     const [saving, setSaving] = useState(false);
+    const [showConfirm, setShowConfirm] = useState(false);
 
     // Asset picker state
     const [assets, setAssets] = useState<AssetWithLocation[]>([]);
@@ -105,8 +108,9 @@ export default function AssetCodeFormModal({ open, initial, locationFilter, onCl
         if (!open) return;
 
         setErr("");
+        setShowConfirm(false);
         if (initial) {
-            setV({
+            const initV: AssetCodeInput = {
                 itemCode: initial.itemCode,
                 description: initial.description,
                 type: initial.type,
@@ -114,10 +118,13 @@ export default function AssetCodeFormModal({ open, initial, locationFilter, onCl
                 careOf: initial.careOf,
                 space: initial.space,
                 assetId: initial.assetId,
-            });
+            };
+            setV(initV);
+            setInitialValues(initV);
             setPickedAssetId(initial.assetId);
         } else {
             setV(EMPTY);
+            setInitialValues(null);
             setPickedAssetId(null);
         }
         setPickerLocation(locationFilter ?? null);
@@ -223,19 +230,36 @@ export default function AssetCodeFormModal({ open, initial, locationFilter, onCl
     const set = <K extends keyof AssetCodeInput>(k: K, val: AssetCodeInput[K]) =>
         setV((prev) => ({ ...prev, [k]: val }));
 
-    const submit = async (e: React.FormEvent) => {
+    // Check if required fields are filled
+    const isMissingRequired = !v.itemCode.trim() || !v.type.trim() || !v.department.trim() || !v.space.trim();
+
+    // Check if any changes were made (for edit mode)
+    const hasChanges: boolean = initialValues
+        ? JSON.stringify(v) !== JSON.stringify(initialValues)
+        : true;
+
+    // Step 1: Validate and show confirmation
+    const handleSubmitClick = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!v.itemCode.trim() || !v.description.trim()) {
-            setErr("Item code and description are required");
+        if (!v.itemCode.trim() || !v.type.trim() || !v.department.trim() || !v.space.trim()) {
+            setErr("Item code, type, department, and space are required");
             return;
         }
+        setErr("");
+        setShowConfirm(true);
+    };
+
+    // Step 2: Actually save after confirmation
+    const handleConfirmSave = async () => {
         setSaving(true);
         setErr("");
         try {
             await onSubmit(v);
+            setShowConfirm(false);
             onClose();
         } catch (e) {
-            setErr(e instanceof Error ? (e instanceof Error ? e.message : String(e)) : "Save failed");
+            setErr(e instanceof Error ? e.message : "Save failed");
+            setShowConfirm(false);
         } finally {
             setSaving(false);
         }
@@ -243,233 +267,311 @@ export default function AssetCodeFormModal({ open, initial, locationFilter, onCl
 
     if (!open) return null;
 
+    const pickedAsset = pickedAssetId ? assets.find((a) => Number(a.id) === pickedAssetId) : null;
+
     return (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 pt-8 pb-8">
-            <div className="w-full max-w-3xl rounded-2xl border border-warm bg-card shadow-xl">
-                <div className="flex items-center justify-between border-b border-warm px-6 py-4">
-                    <h3 className="text-lg font-semibold text-ink">
-                        {initial ? "Edit Asset Code" : "Add Asset Code"}
-                    </h3>
-                    <button
-                        onClick={onClose}
-                        className="rounded-lg p-1 text-ink-subtle transition hover:bg-cream hover:text-ink"
-                    >
-                        <X size={20} />
-                    </button>
-                </div>
-
-                <form onSubmit={submit} className="max-h-[70vh] space-y-5 overflow-y-auto px-6 py-5">
-                    {err && (
-                        <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
-                            {err}
-                        </div>
-                    )}
-
-                    {/* Asset picker (only for new codes) */}
-                    {!initial && (
-                        <section>
-                            <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">
-                                1. Pick the asset
-                            </h4>
-
-                    <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center">
-                                <select
-                                    value={pickerLocation ?? ""}
-                                    onChange={(e) => setPickerLocation((e.target.value as AssetLocation) || null)}
-                                    className="rounded-lg border border-warm bg-card px-3 py-2 text-sm text-ink focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal"
-                                >
-                                    <option value="">All locations</option>
-                                    <option value="office">Office</option>
-                                    <option value="payout">Payout</option>
-                                    <option value="drawcourt">Drawcourt</option>
-                                    <option value="obs">OBS</option>
-                                    <option value="staffhouse">Staffhouse</option>
-                                    <option value="vehicle">Vehicle</option>
-                                </select>
-                                <div className="relative flex-1">
-                                    <Search
-                                        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle dark:text-gray-500"
-                                        size={16}
-                                    />
-                                    <input
-                                        type="text"
-                                        value={assetSearch}
-                                        onChange={(e) => setAssetSearch(e.target.value)}
-                                        placeholder="Search assets by description, serial, location..."
-                                        className="w-full rounded-lg border border-warm dark:border-gray-700 bg-card dark:bg-gray-800/70 pl-9 pr-3 py-2 text-sm text-ink dark:text-gray-100 placeholder:text-ink-subtle dark:placeholder:text-gray-400 focus:border-teal dark:focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal dark:focus:ring-teal/50"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="max-h-56 overflow-y-auto rounded-lg border border-warm bg-cream/50">
-                                {assetsLoading ? (
-                                    <p className="px-3 py-4 text-center text-sm text-ink-subtle">
-                                        Loading assets...
-                                    </p>
-                                ) : filteredAssets.length === 0 && matchingAssetCodes.length === 0 ? (
-                                    <p className="px-3 py-4 text-center text-sm text-ink-subtle">
-                                        {assets.length === 0
-                                            ? "No assets in the system yet. Create one first under Office/Payout/Drawcourt/OBS."
-                                            : "No assets match your search."}
-                                    </p>
+        <>
+            <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/50 backdrop-blur-sm pt-8 pb-8">
+                <div className="w-full max-w-3xl rounded-2xl border border-warm bg-white shadow-2xl">
+                    {/* Header */}
+                    <div className="flex items-center justify-between border-b border-warm bg-gradient-to-r from-teal-50 to-white px-6 py-4">
+                        <div className="flex items-center gap-3">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white shadow-sm ring-1 ring-teal-200">
+                                {initial ? (
+                                    <Pencil size={18} className="text-teal" />
                                 ) : (
-                                    <ul className="divide-y divide-warm/60">
-                                        {filteredAssets.map((a) => {
-                                            const picked = pickedAssetId === a.id;
-                                            return (
-                                                <li key={a.id}>
+                                    <Plus size={18} className="text-teal" />
+                                )}
+                            </div>
+                            <div>
+                                <h3 className="text-base font-bold text-ink">
+                                    {initial ? "Edit Asset Code" : "Add Asset Code"}
+                                </h3>
+                                {!initial && (
+                                    <p className="text-xs text-ink-muted">Generate a new item code from an existing asset</p>
+                                )}
+                            </div>
+                        </div>
+                        <button
+                            onClick={onClose}
+                            className="rounded-lg p-1.5 text-ink-subtle transition hover:bg-cream hover:text-ink"
+                        >
+                            <X size={20} />
+                        </button>
+                    </div>
+
+                    <form onSubmit={handleSubmitClick} className="max-h-[70vh] space-y-5 overflow-y-auto bg-slate-50/50 px-6 py-5">
+                        {err && (
+                            <div className="flex items-start gap-2.5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-red-100 text-[10px] font-bold text-red-600">!</span>
+                                {err}
+                            </div>
+                        )}
+
+                        {/* Asset picker (only for new codes) */}
+                        {!initial && (
+                            <section className="rounded-xl border border-warm bg-white p-4 shadow-sm">
+                                <h4 className="mb-3 text-xs font-bold uppercase tracking-widest text-ink-muted">
+                                    Pick the asset
+                                </h4>
+
+                                <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+                                    <select
+                                        value={pickerLocation ?? ""}
+                                        onChange={(e) => setPickerLocation((e.target.value as AssetLocation) || null)}
+                                        className="rounded-lg border border-warm bg-white px-3 py-2 text-sm text-ink focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal"
+                                    >
+                                        <option value="">All locations</option>
+                                        <option value="office">Office</option>
+                                        <option value="payout">Payout</option>
+                                        <option value="drawcourt">Drawcourt</option>
+                                        <option value="obs">OBS</option>
+                                        <option value="staffhouse">Staffhouse</option>
+                                        <option value="vehicle">Vehicle</option>
+                                    </select>
+                                    <div className="relative flex-1">
+                                        <Search
+                                            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle"
+                                            size={16}
+                                        />
+                                        <input
+                                            type="text"
+                                            value={assetSearch}
+                                            onChange={(e) => setAssetSearch(e.target.value)}
+                                            placeholder="Search assets by description, serial, location..."
+                                            className="w-full rounded-lg border border-warm bg-white pl-9 pr-3 py-2 text-sm text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="max-h-56 overflow-y-auto rounded-xl border border-warm bg-white shadow-inner">
+                                    {assetsLoading ? (
+                                        <div className="flex items-center justify-center gap-2 px-3 py-6">
+                                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-teal border-t-transparent" />
+                                            <p className="text-sm text-ink-subtle">Loading assets…</p>
+                                        </div>
+                                    ) : filteredAssets.length === 0 && matchingAssetCodes.length === 0 ? (
+                                        <div className="px-4 py-6 text-center">
+                                            <p className="text-sm font-medium text-ink">
+                                                {assets.length === 0
+                                                    ? "No assets in the system yet."
+                                                    : "No assets match your search."}
+                                            </p>
+                                            <p className="mt-1 text-xs text-ink-muted">
+                                                {assets.length === 0
+                                                    ? "Create an asset first under Office / Payout / Drawcourt / OBS."
+                                                    : "Try a different search term."}
+                                            </p>
+                                        </div>
+                                    ) : (
+                                        <ul className="divide-y divide-warm/60">
+                                            {filteredAssets.map((a) => {
+                                                const picked = pickedAssetId === a.id;
+                                                return (
+                                                    <li key={a.id}>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handlePickAsset(a)}
+                                                            className={`flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-sm transition ${picked
+                                                                ? "border-l-4 border-l-teal bg-teal/10"
+                                                                : "border-l-4 border-l-transparent hover:bg-cream"
+                                                                }`}
+                                                        >
+                                                            <span className="min-w-0 flex-1">
+                                                                <span className="block truncate font-medium text-ink">
+                                                                    {a.itemDescription}
+                                                                </span>
+                                                                <span className="block truncate text-xs text-ink-muted">
+                                                                    {(a.location ?? "").toUpperCase()} ·{" "}
+                                                                    {a.serialNumber || "no serial"} ·{" "}
+                                                                    {a.space || "—"}
+                                                                </span>
+                                                            </span>
+                                                            {picked && (
+                                                                <span className="flex items-center gap-1 rounded-full bg-teal px-2.5 py-1 text-xs font-semibold text-ink shadow-sm">
+                                                                    <CheckCircle2 size={12} />
+                                                                    Selected
+                                                                </span>
+                                                            )}
+                                                        </button>
+                                                    </li>
+                                                );
+                                            })}
+                                            {/* Show matching asset codes from asset_coding when OBS filter is active */}
+                                            {matchingAssetCodes.map((c) => (
+                                                <li key={`code-${c.id}`}>
                                                     <button
                                                         type="button"
-                                                        onClick={() => handlePickAsset(a)}
-                                                        className={`flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition ${picked
-                                                            ? "bg-teal/15"
-                                                            : "hover:bg-card"
-                                                            }`}
+                                                        onClick={() => {
+                                                            setPickedAssetId(null);
+                                                            setV({
+                                                                itemCode: c.itemCode,
+                                                                description: c.description,
+                                                                type: c.type,
+                                                                department: c.department,
+                                                                careOf: c.careOf,
+                                                                space: c.space,
+                                                                assetId: c.assetId,
+                                                            });
+                                                        }}
+                                                        className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-sm transition border-l-4 border-l-transparent hover:bg-cream"
                                                     >
                                                         <span className="min-w-0 flex-1">
                                                             <span className="block truncate font-medium text-ink">
-                                                                {a.itemDescription}
+                                                                {c.description}
                                                             </span>
                                                             <span className="block truncate text-xs text-ink-muted">
-                                                                {(a.location ?? "").toUpperCase()} ·{" "}
-                                                                {a.serialNumber || "no serial"} ·{" "}
-                                                                {a.space || "—"}
+                                                                OBS · {c.itemCode} · {c.department || "—"}
                                                             </span>
                                                         </span>
-                                                        {picked && (
-                                                            <span className="rounded-full bg-teal px-2 py-0.5 text-xs font-semibold text-ink">
-                                                                Selected
-                                                            </span>
-                                                        )}
+                                                        <span className="rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-[10px] font-semibold text-amber-700">
+                                                            Existing code
+                                                        </span>
                                                     </button>
                                                 </li>
-                                            );
-                                        })}
-                                        {/* Show matching asset codes from asset_coding when OBS filter is active */}
-                                        {matchingAssetCodes.map((c) => (
-                                            <li key={`code-${c.id}`}>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        setPickedAssetId(null);
-                                                        setV({
-                                                            itemCode: c.itemCode,
-                                                            description: c.description,
-                                                            type: c.type,
-                                                            department: c.department,
-                                                            careOf: c.careOf,
-                                                            space: c.space,
-                                                            assetId: c.assetId,
-                                                        });
-                                                    }}
-                                                    className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition hover:bg-card"
-                                                >
-                                                    <span className="min-w-0 flex-1">
-                                                        <span className="block truncate font-medium text-ink">
-                                                            {c.description}
-                                                        </span>
-                                                        <span className="block truncate text-xs text-ink-muted">
-                                                            OBS · {c.itemCode} · {c.department || "—"}
-                                                        </span>
-                                                    </span>
-                                                    <span className="rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-ink">
-                                                        Existing code
-                                                    </span>
-                                                </button>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                )}
+                                            ))}
+                                        </ul>
+                                    )}
+                                </div>
+                            </section>
+                        )}
+
+                        <section className="rounded-xl border border-warm bg-white p-4 shadow-sm">
+                            {initial && v.assetId && (
+                                <div className="mb-4 flex justify-end">
+                                    <button
+                                        type="button"
+                                        onClick={handleSyncCode}
+                                        className="rounded-lg border border-teal/40 bg-teal/10 px-3 py-1.5 text-xs font-medium text-ink transition hover:bg-teal/20"
+                                        title="Regenerate item code using station-aware convention"
+                                    >
+                                        Sync to station code
+                                    </button>
+                                </div>
+                            )}
+
+                            <div className="grid gap-4 sm:grid-cols-2">
+                                <Field label="Item Code" required>
+                                    <Input
+                                        value={v.itemCode}
+                                        onChange={(s) => set("itemCode", s)}
+                                        placeholder="e.g. OFC-001"
+                                        required
+                                    />
+                                </Field>
+                                <Field label="Description">
+                                    <Input
+                                        value={v.description}
+                                        onChange={(s) => set("description", s)}
+                                    />
+                                </Field>
+                                <Field label="Type" required>
+                                    <Input value={v.type} onChange={(s) => set("type", s)} required />
+                                </Field>
+                                <Field label="Department" required>
+                                    <Input
+                                        value={v.department}
+                                        onChange={(s) => set("department", s)}
+                                        required
+                                    />
+                                </Field>
+                                <Field label="Care Of">
+                                    <Input value={v.careOf} onChange={(s) => set("careOf", s)} />
+                                </Field>
+                                <Field label="Space" required>
+                                    <Input value={v.space} onChange={(s) => set("space", s)} required />
+                                </Field>
                             </div>
                         </section>
-                    )}
 
-                    <section>
-                        <div className="mb-2 flex items-center justify-between gap-2">
-                            <h4 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
-                                {initial ? "Edit details" : "2. Confirm details"}
-                            </h4>
-                            {initial && v.assetId && (
-                                <button
-                                    type="button"
-                                    onClick={handleSyncCode}
-                                    className="rounded-lg border border-teal/40 bg-teal/10 px-2.5 py-1 text-xs font-medium text-ink transition hover:bg-teal/20"
-                                    title="Regenerate item code using station-aware convention"
-                                >
-                                    Sync to station code
-                                </button>
-                            )}
-                        </div>
+                        {!initial && (
+                            <div className="flex items-start gap-2.5 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-xs text-blue-800">
+                                <Info size={16} className="mt-0.5 shrink-0 text-blue-600" />
+                                <span>A unique QR code will be auto-generated for the picked asset on save.</span>
+                            </div>
+                        )}
+                    </form>
 
-                        <div className="grid gap-4 sm:grid-cols-2">
-                            <Field label="Item Code *">
-                                <Input
-                                    value={v.itemCode}
-                                    onChange={(s) => set("itemCode", s)}
-                                    placeholder="e.g. OFC-001"
-                                    required
-                                />
-                            </Field>
-                            <Field label="Description *">
-                                <Input
-                                    value={v.description}
-                                    onChange={(s) => set("description", s)}
-                                    required
-                                />
-                            </Field>
-                            <Field label="Type">
-                                <Input value={v.type} onChange={(s) => set("type", s)} />
-                            </Field>
-                            <Field label="Department">
-                                <Input
-                                    value={v.department}
-                                    onChange={(s) => set("department", s)}
-                                />
-                            </Field>
-                            <Field label="Care Of">
-                                <Input value={v.careOf} onChange={(s) => set("careOf", s)} />
-                            </Field>
-                            <Field label="Space">
-                                <Input value={v.space} onChange={(s) => set("space", s)} />
-                            </Field>
-                        </div>
-                    </section>
-
-                    {!initial && (
-                        <p className="rounded-lg border border-teal/30 bg-teal/5 px-3 py-2 text-xs text-ink-muted">
-                            A unique QR code will be auto-generated for the picked asset on save.
-                        </p>
-                    )}
-                </form>
-
-                <div className="flex justify-end gap-3 border-t border-warm bg-cream px-6 py-4">
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        disabled={saving}
-                        className="rounded-lg border border-warm bg-card px-4 py-2 text-sm font-medium text-ink transition hover:bg-warm/40 disabled:opacity-50"
-                    >
-                        Cancel
-                    </button>
-                    <button
-                        type="button"
-                        onClick={submit}
-                        disabled={saving}
-                        className="rounded-lg bg-teal px-4 py-2 text-sm font-semibold text-ink transition hover:bg-teal-dark disabled:opacity-50"
-                    >
-                        {saving ? "Saving..." : "Save"}
-                    </button>
+                    {/* Footer */}
+                    <div className="flex justify-end gap-2.5 border-t border-warm bg-slate-50 px-6 py-4">
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            disabled={saving}
+                            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-50"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleSubmitClick}
+                            disabled={!!(saving || isMissingRequired || (initial && !hasChanges))}
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-teal px-5 py-2 text-sm font-bold text-ink shadow-sm transition hover:bg-teal-dark disabled:opacity-50 disabled:cursor-not-allowed"
+                            title={
+                                isMissingRequired
+                                    ? "Please fill in all required fields"
+                                    : initial && !hasChanges
+                                        ? "No changes to update"
+                                        : ""
+                            }
+                        >
+                            {saving ? (
+                                <>
+                                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-ink border-t-transparent" />
+                                    Saving…
+                                </>
+                            ) : initial ? "Update Code" : "Add Code"}
+                        </button>
+                    </div>
                 </div>
             </div>
+
+            {/* Confirmation Modal */}
+            <ConfirmationModal
+                open={showConfirm}
+                variant="save"
+                title={initial ? "Update Asset Code?" : "Add Asset Code?"}
+                message={`Please review the details below before ${initial ? "updating" : "adding"} this asset code.`}
+                confirmLabel={initial ? "Yes, Update" : "Yes, Add"}
+                cancelLabel="Go Back"
+                isLoading={saving}
+                loadingLabel={initial ? "Updating..." : "Adding..."}
+                onCancel={() => setShowConfirm(false)}
+                onConfirm={handleConfirmSave}
+            >
+                <div className="divide-y divide-warm/60 text-sm">
+                    <SummaryRow label="Item Code" value={v.itemCode || "—"} />
+                    <SummaryRow label="Description" value={v.description || "—"} />
+                    <SummaryRow label="Type" value={v.type || "—"} />
+                    <SummaryRow label="Department" value={v.department || "—"} />
+                    <SummaryRow label="Care Of" value={v.careOf || "—"} />
+                    <SummaryRow label="Space" value={v.space || "—"} />
+                    {pickedAsset && (
+                        <SummaryRow label="Linked Asset" value={pickedAsset.itemDescription} />
+                    )}
+                </div>
+            </ConfirmationModal>
+        </>
+    );
+}
+
+/* ---------------- helpers ---------------- */
+
+function SummaryRow({ label, value }: { label: string; value: string }) {
+    return (
+        <div className="flex items-center justify-between px-3 py-2">
+            <span className="text-ink-muted font-medium">{label}</span>
+            <span className="text-ink text-right max-w-[55%] truncate font-medium">{value}</span>
         </div>
     );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
     return (
         <label className="block">
-            <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-muted">
+            <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-ink-muted">
                 {label}
+                {required && <span className="ml-0.5 text-rose-500">*</span>}
             </span>
             {children}
         </label>
@@ -494,7 +596,7 @@ function Input({
             onChange={(e) => onChange(e.target.value)}
             placeholder={placeholder}
             required={required}
-            className="w-full rounded-lg border border-warm bg-card px-3 py-2 text-sm text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal"
+            className="w-full rounded-lg border border-warm bg-card px-3 py-2 text-sm text-ink placeholder:text-ink-subtle focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal transition-all"
         />
     );
 }
