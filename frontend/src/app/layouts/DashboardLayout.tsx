@@ -27,7 +27,6 @@ import {
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useEffect, useRef, useState } from "react";
-import { FloatingAlert } from "../../shared/components";
 import hexLogo from "../../assets/HEXLOGO.png";
 
 const teal = "#92C7CF";
@@ -107,11 +106,6 @@ export default function DashboardLayout() {
     // Tracks the count value at which the user last dismissed each
     // floating alert. Stored in refs so the value persists across
     // re-renders without triggering a re-render itself.
-    const dismissedRepairCountRef = useRef(0);
-    const dismissedPendingRequestsRef = useRef(0);
-    const dismissedOperatorPosRef = useRef(0);
-    const dismissedOperatorOutletRef = useRef(0);
-    const dismissedOperatorNoticeShownRef = useRef(false);
 
     // "Seen" markers per nav. They are stored in localStorage so the red
     // dot stays dismissed across reloads, but we ALSO track a "session
@@ -359,15 +353,12 @@ export default function DashboardLayout() {
         };
     }, [authUser?.id, location.pathname]);
 
-    const isAdmin = (sidebarUser?.usertype ?? authUser?.usertype) === "admin";
     const isOperator = (sidebarUser?.usertype ?? authUser?.usertype) === "operator";
     const isPurchaser = (sidebarUser?.usertype ?? authUser?.usertype) === "purchaser";
     const isCsr = (sidebarUser?.usertype ?? authUser?.usertype) === "csr";
     // The pending-requests floating alert is restricted to the IT department.
     // Department is case-insensitive and trimmed to handle small data-entry
     // variations like "it", "IT", or "It " across the system.
-    const isITDepartment =
-        (sidebarUser?.department ?? authUser?.department ?? "").trim().toLowerCase() === "it";
 
     // Poll the operator's booth-change requests ("My POS") and
     // booth-operator-change requests ("My Outlets") for approved/rejected
