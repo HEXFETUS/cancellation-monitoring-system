@@ -32,8 +32,11 @@ const CancellationTabbedPage = lazy(
 const AssetInventoryTabbedPage = lazy(
     () => import("../../modules/asset-inventory/pages/AssetInventoryTabbedPage")
 );
-const AssetSummaryPage = lazy(
+const AssetDashboardPage = lazy(
     () => import("../../modules/asset-inventory/pages/AssetsDashboardPage")
+);
+const AssetSummaryPage = lazy(
+    () => import("../../modules/asset-inventory/pages/SummaryReportPage")
 );
 const AssetOfficePage = lazy(
     () => import("../../modules/asset-inventory/pages/OfficePage")
@@ -319,6 +322,16 @@ export const router = createBrowserRouter([
             // sidebar (one nav item per section) and by anyone who deep-links
             // to a specific asset view. Admin's tabbed UX at the parent path
             // above is unchanged.
+            {
+                path: "asset-inventory/dashboard",
+                element: (
+                    <RoleGuard allow={["admin", "purchaser"]}>
+                        <Suspense fallback={<RouteFallback />}>
+                            <AssetDashboardPage />
+                        </Suspense>
+                    </RoleGuard>
+                ),
+            },
             {
                 path: "asset-inventory/summary",
                 element: (

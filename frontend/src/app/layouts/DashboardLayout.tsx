@@ -1,4 +1,5 @@
 import { Link, useLocation, useNavigate, Outlet } from "react-router-dom";
+import MyAccountModal from "../../modules/settings/components/MyAccountModal";
 import {
     LogOut,
     Menu,
@@ -13,6 +14,7 @@ import {
     Building2,
     MapPin,
     Eye,
+    EyeOff,
     Code,
     ClipboardList,
     ArrowUpRight,
@@ -97,6 +99,29 @@ export default function DashboardLayout() {
     const [pendingOperatorChangeCount, setPendingOperatorChangeCount] = useState(0);
     const [pendingBoothOperatorChangeCount, setPendingBoothOperatorChangeCount] = useState(0);
     const [forCheckingRepairCount, setForCheckingRepairCount] = useState(0);
+    const [myAccountModalOpen, setMyAccountModalOpen] = useState(false);
+    const [myAccountInitialTab, setMyAccountInitialTab] = useState<"account" | "password">("account");
+    const [userMenuOpen, setUserMenuOpen] = useState(false);
+    const userMenuRef = useRef<HTMLDivElement>(null);
+
+    // Close the user menu when clicking anywhere outside the popover.
+    useEffect(() => {
+        if (!userMenuOpen) return;
+        const handleClickOutside = (e: MouseEvent) => {
+            if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+                setUserMenuOpen(false);
+            }
+        };
+        // Use a timeout so the toggle button click doesn't immediately
+        // re-close the menu on the same event.
+        const timer = window.setTimeout(() => {
+            document.addEventListener("mousedown", handleClickOutside);
+        }, 0);
+        return () => {
+            window.clearTimeout(timer);
+            document.removeEventListener("mousedown", handleClickOutside);
+        };
+    }, [userMenuOpen]);
     // Count of the operator's booth-change requests that have been
     // approved or rejected. These relate to the "My POS" page.
     const [operatorPosApprovedRejectedCount, setOperatorPosApprovedRejectedCount] = useState(0);
@@ -492,13 +517,13 @@ export default function DashboardLayout() {
         ]
         : isPurchaser
             ? [
+                { name: "Dashboard", path: "/app/asset-inventory/dashboard" },
                 { name: "Summary", path: "/app/asset-inventory/summary" },
                 { name: "Office", path: "/app/asset-inventory/office" },
                 { name: "Payout", path: "/app/asset-inventory/payout" },
                 { name: "Drawcourt", path: "/app/asset-inventory/drawcourt" },
                 { name: "OBS", path: "/app/asset-inventory/obs" },
                 { name: "Asset Coding", path: "/app/asset-inventory/asset-coding" },
-                { name: "Bulletin Board", path: "/app/bulletin-board" },
                 { name: "Settings", path: "/app/settings" },
             ]
             : isCsr
@@ -967,61 +992,143 @@ export default function DashboardLayout() {
 
                         {/* ===== Bottom Section ===== */}
                         <div className="relative space-y-2">
-                            {/* User info */}
-                            <div
-                                className="flex items-center gap-2.5 rounded-xl px-3 py-2 transition-all duration-300"
-                                style={{
-                                    background: darkMode
-                                        ? "rgba(75,85,99,0.15)"
-                                        : "rgba(146,199,207,0.06)",
-                                    border: darkMode
-                                        ? "1px solid rgba(75,85,99,0.30)"
-                                        : "1px solid rgba(146,199,207,0.12)",
-                                }}
-                            >
-                                {avatarUrl ? (
-                                    <div
-                                        className="h-8 w-8 rounded-xl overflow-hidden shrink-0 ring-1 ring-white/40"
-                                        style={{
-                                            boxShadow: `0 2px 12px rgba(146,199,207,0.30)`,
-                                        }}
-                                    >
-                                        <img
-                                            src={avatarUrl}
-                                            alt={displayName}
-                                            className="h-full w-full object-cover"
+                            {/* User info — click to toggle user menu popover */}
+                            <div className="relative" ref={userMenuRef}>
+                                <button
+                                    type="button"
+                                    onClick={() => setUserMenuOpen((v) => !v)}
+                                    className="flex items-center gap-2.5 w-full text-left rounded-xl px-3 py-2 transition-all duration-300 cursor-pointer hover:opacity-80"
+                                    style={{
+                                        background: darkMode
+                                            ? "rgba(75,85,99,0.15)"
+                                            : "rgba(146,199,207,0.06)",
+                                        border: darkMode
+                                            ? "1px solid rgba(75,85,99,0.30)"
+                                            : "1px solid rgba(146,199,207,0.12)",
+                                    }}
+                                >
+                                    {avatarUrl ? (
+                                        <div
+                                            className="h-8 w-8 rounded-xl overflow-hidden shrink-0 ring-1 ring-white/40"
+                                            style={{
+                                                boxShadow: `0 2px 12px rgba(146,199,207,0.30)`,
+                                            }}
+                                        >
+                                            <img
+                                                src={avatarUrl}
+                                                alt={displayName}
+                                                className="h-full w-full object-cover"
+                                            />
+                                        </div>
+                                    ) : (
+                                        <div
+                                            className="flex h-8 w-8 items-center justify-center rounded-xl text-white text-sm font-bold shrink-0"
+                                            style={{
+                                                background: `linear-gradient(135deg, ${teal}, ${tealLight})`,
+                                                boxShadow: `0 2px 12px rgba(146,199,207,0.30)`,
+                                            }}
+                                        >
+                                            <User className="h-4 w-4 text-white" />
+                                        </div>
+                                    )}
+                                    <div className="min-w-0 flex-1">
+                                        <p
+                                            className="text-[13px] font-semibold truncate transition-colors duration-300"
+                                            style={{ color: darkMode ? "#E5E7EB" : "#1F2937" }}
+                                        >
+                                            {sidebarDisplayName}
+                                        </p>
+                                        <p
+                                            className="text-[10px] truncate uppercase transition-colors duration-300"
+                                            style={{ color: darkMode ? "#6B7280" : "#9CA3AF" }}
+                                        >
+                                            {displayUserType}
+                                        </p>
+                                    </div>
+                                    {/* Online status */}
+                                    <span
+                                        className="inline-block w-2 h-2 rounded-full shrink-0 animate-pulse"
+                                        style={{ backgroundColor: "#6BBF6B" }}
+                                    />
+                                </button>
+
+                                {/* User menu popover */}
+                                {userMenuOpen && (
+                                    <>
+                                        <div
+                                            className="fixed inset-0 z-30"
+                                            onClick={() => setUserMenuOpen(false)}
                                         />
-                                    </div>
-                                ) : (
-                                    <div
-                                        className="flex h-8 w-8 items-center justify-center rounded-xl text-white text-sm font-bold shrink-0"
-                                        style={{
-                                            background: `linear-gradient(135deg, ${teal}, ${tealLight})`,
-                                            boxShadow: `0 2px 12px rgba(146,199,207,0.30)`,
-                                        }}
-                                    >
-                                        <User className="h-4 w-4 text-white" />
-                                    </div>
+                                        <div
+                                            className="absolute bottom-full left-0 right-0 mb-2 z-40 rounded-xl border shadow-xl overflow-hidden"
+                                            style={{
+                                                background: darkMode
+                                                    ? "linear-gradient(160deg, rgba(31,41,55,0.98) 0%, rgba(17,24,39,0.95) 100%)"
+                                                    : "rgba(255,255,255,0.98)",
+                                                border: darkMode
+                                                    ? "1px solid rgba(75,85,99,0.40)"
+                                                    : "1px solid rgba(146,199,207,0.20)",
+                                                backdropFilter: "blur(24px)",
+                                                WebkitBackdropFilter: "blur(24px)",
+                                            }}
+                                        >
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setMyAccountInitialTab("account");
+                                                    setMyAccountModalOpen(true);
+                                                    setUserMenuOpen(false);
+                                                }}
+                                                className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm font-medium transition"
+                                                style={{
+                                                    color: darkMode ? "#E5E7EB" : "#1F2937",
+                                                }}
+                                                onMouseEnter={(e) => {
+                                                    e.currentTarget.style.background = darkMode
+                                                        ? "rgba(146,199,207,0.15)"
+                                                        : "rgba(146,199,207,0.08)";
+                                                }}
+                                                onMouseLeave={(e) => {
+                                                    e.currentTarget.style.background = "transparent";
+                                                }}
+                                            >
+                                                <User size={16} className="shrink-0" style={{ color: teal }} />
+                                                Account
+                                            </button>
+                                            <div
+                                                className="h-px mx-3"
+                                                style={{
+                                                    background: darkMode
+                                                        ? "rgba(75,85,99,0.30)"
+                                                        : "rgba(146,199,207,0.15)",
+                                                }}
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setMyAccountInitialTab("password");
+                                                    setMyAccountModalOpen(true);
+                                                    setUserMenuOpen(false);
+                                                }}
+                                                className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm font-medium transition"
+                                                style={{
+                                                    color: darkMode ? "#E5E7EB" : "#1F2937",
+                                                }}
+                                                onMouseEnter={(e) => {
+                                                    e.currentTarget.style.background = darkMode
+                                                        ? "rgba(146,199,207,0.15)"
+                                                        : "rgba(146,199,207,0.08)";
+                                                }}
+                                                onMouseLeave={(e) => {
+                                                    e.currentTarget.style.background = "transparent";
+                                                }}
+                                            >
+                                                <EyeOff size={16} className="shrink-0" style={{ color: teal }} />
+                                                Password
+                                            </button>
+                                        </div>
+                                    </>
                                 )}
-                                <div className="min-w-0 flex-1">
-                                    <p
-                                        className="text-[13px] font-semibold truncate transition-colors duration-300"
-                                        style={{ color: darkMode ? "#E5E7EB" : "#1F2937" }}
-                                    >
-                                        {sidebarDisplayName}
-                                    </p>
-                                    <p
-                                        className="text-[10px] truncate uppercase transition-colors duration-300"
-                                        style={{ color: darkMode ? "#6B7280" : "#9CA3AF" }}
-                                    >
-                                        {displayUserType}
-                                    </p>
-                                </div>
-                                {/* Online status */}
-                                <span
-                                    className="inline-block w-2 h-2 rounded-full shrink-0 animate-pulse"
-                                    style={{ backgroundColor: "#6BBF6B" }}
-                                />
                             </div>
 
                             {/* Logout */}
@@ -1141,6 +1248,13 @@ export default function DashboardLayout() {
                     </div>
                 </main>
             </div>
+
+            {/* My Account Modal */}
+            <MyAccountModal
+                open={myAccountModalOpen}
+                onClose={() => setMyAccountModalOpen(false)}
+                initialTab={myAccountInitialTab}
+            />
         </>
     );
 }

@@ -1,10 +1,8 @@
 import { useEffect, useState } from "react";
-import { Users, UserPlus, ClipboardList, Check, X, Building2, UserCircle, Activity } from "lucide-react";
+import { Users, UserPlus, Check, X, Building2, Activity } from "lucide-react";
 import UserAccountsPage from "./UserAccountsPage";
 import CreateUserAccountPage from "./CreateUserAccountPage";
-import UserLogsPage from "./UserLogsPage";
 import OperatorProfilesPage from "./OperatorProfilesPage";
-import MyAccountPage from "./MyAccountPage";
 import ActivityLogsPage from "./ActivityLogsPage";
 import { useAuth } from "../../../context/AuthContext";
 import { TopTabs } from "../../../shared/components";
@@ -12,30 +10,18 @@ import { TopTabs } from "../../../shared/components";
 const mainTabs = [
     { id: "user-accounts", label: "Users", icon: Users },
     { id: "activity-logs", label: "Activity Logs", icon: Activity },
-    { id: "my-account", label: "My Account", icon: UserCircle },
 ];
 
 const userSubTabs = [
     { id: "accounts", label: "User Accounts", icon: Users },
     { id: "create-user", label: "Create User", icon: UserPlus },
     { id: "operator-profiles", label: "Operator Profiles", icon: Building2 },
-    { id: "user-logs", label: "User Logs", icon: ClipboardList },
 ];
 
 export default function SettingsPage() {
     const { user } = useAuth();
 
-    // Operators, purchasers, and CSR get a slim, self-scoped settings view
-    // (My Account only). Admin sees the full management UI below.
-    if (
-        user?.usertype === "operator" ||
-        user?.usertype === "purchaser" ||
-        user?.usertype === "csr"
-    ) {
-        return <MyAccountPage />;
-    }
-
-    // Operators see the admin layout but only the "Operator Profiles" tab
+    // Operators see a limited view with only the Operator Profiles tab
     // so they can create user accounts for their sub-operators.
     if (user?.usertype === "operator") {
         return <OperatorSettingsPage />;
@@ -160,14 +146,11 @@ function AdminSettingsPage() {
                             {activeUserSubTab === "accounts" && <UserAccountsPage onSuccess={setSuccessMessage} />}
                             {activeUserSubTab === "create-user" && <CreateUserAccountPage />}
                             {activeUserSubTab === "operator-profiles" && <OperatorProfilesPage />}
-                            {activeUserSubTab === "user-logs" && <UserLogsPage />}
                         </div>
                     </div>
                 )}
 
                 {activeTab === "activity-logs" && <ActivityLogsPage />}
-
-                {activeTab === "my-account" && <MyAccountPage />}
             </div>
         </div>
     );

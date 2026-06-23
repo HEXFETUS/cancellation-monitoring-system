@@ -164,17 +164,17 @@ export default function AssetTable({
 
             {/* Table */}
             <div className="overflow-x-auto rounded-xl border border-warm bg-card shadow-sm">
-                <table className="w-full min-w-450 text-sm">
+                <table className="w-full min-w-[1000px] text-sm">
                     <thead>
                         <tr className="border-b border-warm bg-cream">
-                            <Th align="left" style={{ width: "260px" }}>Item Description</Th>
-                            <Th align="center">{departmentLabel}</Th>
-                            <Th align="center">Space</Th>
-                            <Th align="center">Qty</Th>
-                            <Th align="center">Discount</Th>
-                            <Th align="center">Asset Value</Th>
-                            <Th align="center">Total Value</Th>
-                            {showActions && <Th align="center">Actions</Th>}
+                            <Th align="left" style={{ width: "28%" }}>Item Description</Th>
+                            <Th align="center" style={{ width: "14%" }}>{departmentLabel}</Th>
+                            <Th align="center" style={{ width: "12%" }}>Space</Th>
+                            <Th align="center" style={{ width: "8%" }}>Qty</Th>
+                            <Th align="center" style={{ width: "12%" }}>Discount</Th>
+                            <Th align="center" style={{ width: "13%" }}>Asset Value</Th>
+                            <Th align="center" style={{ width: "13%" }}>Total Value</Th>
+                            {showActions && <Th align="center" style={{ width: "160px", minWidth: "160px" }}>Actions</Th>}
                         </tr>
                     </thead>
 
@@ -205,7 +205,7 @@ export default function AssetTable({
                                     key={r.id}
                                     className="border-b border-warm/60 transition hover:bg-cream"
                                 >
-                                    <Td align="left" className="font-medium text-ink" style={{ width: "260px", whiteSpace: "normal", overflowWrap: "break-word", verticalAlign: "top" }}>
+                                    <Td align="left" className="font-medium text-ink" style={{ whiteSpace: "normal", overflowWrap: "break-word", verticalAlign: "top" }}>
                                         <TruncatedDescription text={r.itemDescription} />
                                     </Td>
                                     <Td>{r.department || "—"}</Td>
