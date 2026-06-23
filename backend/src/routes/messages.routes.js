@@ -24,6 +24,206 @@ async function loadCaller(req) {
     return result.rows[0] ?? null;
 }
 
+async function getOrCreateSharedAdminConversation(nonAdminId) {
+    const existing = await pool.query(
+        `SELECT c.id FROM conversations c
+         JOIN conversation_participants cp ON cp.conversation_id = c.id AND cp.user_id = $1::int
+         WHERE NOT EXISTS (
+             SELECT 1 FROM conversation_participants cp2
+             JOIN users u2 ON u2.id = cp2.user_id
+             WHERE cp2.conversation_id = c.id
+             AND u2.usertype != 'admin'
+             AND cp2.user_id != $1::int
+         )
+         AND (
+             SELECT COUNT(*) FROM conversation_participants cp3
+             JOIN users u3 ON u3.id = cp3.user_id
+             WHERE cp3.conversation_id = c.id AND u3.usertype = 'admin'
+         ) = (SELECT COUNT(*) FROM users WHERE usertype = 'admin')
+         LIMIT 1`,
+        [nonAdminId]
+    );
+
+    if (existing.rows.length > 0) {
+        return existing.rows[0].id;
+    }
+
+    const admins = await pool.query("SELECT id FROM users WHERE usertype = 'admin'");
+    if (admins.rows.length === 0) {
+        throw new Error("NO_ADMINS");
+    }
+
+    const convResult = await pool.query(
+        `INSERT INTO conversations DEFAULT VALUES RETURNING id`
+    );
+    const conversationId = convResult.rows[0].id;
+
+    // Build values array: conversationId first, then each admin id, then the non-admin id.
+    // This ensures $1 = conversationId, $2..$N = admin ids, $N+1 = nonAdminId.
+    const values = [conversationId];
+    const placeholders = [];
+    admins.rows.forEach((admin, i) => {
+        placeholders.push(`($1::int, $${i + 2}::int)`);
+        values.push(admin.id);
+    });
+    placeholders.push(`($1::int, $${placeholders.length + 2}::int)`);
+    values.push(nonAdminId);
+
+    await pool.query(
+        `INSERT INTO conversation_participants (conversation_id, user_id) VALUES ${placeholders.join(", ")}`,
+        values
+    );
+
+    return conversationId;
+}
+
+async function migrateOldAdminMessages(sharedConvId, nonAdminId) {
+    // Step 1: Capture old conversation IDs BEFORE moving any messages.
+    // After messages are moved, these old conversations will be empty/orphaned.
+    const oldConvResult = await pool.query(
+        `SELECT DISTINCT cp.conversation_id AS id
+         FROM conversation_participants cp
+         WHERE cp.user_id = $1::int
+           AND EXISTS (
+               SELECT 1 FROM conversation_participants cp_admin
+               JOIN users u_admin ON u_admin.id = cp_admin.user_id
+               WHERE cp_admin.conversation_id = cp.conversation_id
+                 AND u_admin.usertype = 'admin'
+           )
+           AND NOT EXISTS (
+               SELECT 1 FROM conversation_participants cp_other
+               JOIN users u_other ON u_other.id = cp_other.user_id
+               WHERE cp_other.conversation_id = cp.conversation_id
+                 AND u_other.usertype != 'admin'
+                 AND cp_other.user_id != $1::int
+           )
+           AND cp.conversation_id != $2::int`,
+        [nonAdminId, sharedConvId]
+    );
+
+    const oldConversationIds = oldConvResult.rows.map(r => r.id);
+
+    if (oldConversationIds.length === 0) {
+        return; // nothing to migrate
+    }
+
+    // Step 2: Move messages from old conversations to the shared conversation
+    await pool.query(
+        `UPDATE private_messages
+         SET conversation_id = $1::int
+         WHERE conversation_id = ANY($2::int[])
+           AND conversation_id != $1::int`,
+        [sharedConvId, oldConversationIds]
+    );
+
+    // Step 3: Delete participants for old conversations (using captured IDs)
+    await pool.query(
+        `DELETE FROM conversation_participants
+         WHERE conversation_id = ANY($1::int[])`,
+        [oldConversationIds]
+    );
+
+    // Step 4: Delete old conversations (using captured IDs)
+    await pool.query(
+        `DELETE FROM conversations
+         WHERE id = ANY($1::int[])`,
+        [oldConversationIds]
+    );
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/messages/unread-summary — lightweight unread check for the nav dot.
+// Returns timestamps of the latest unread message per category so the frontend
+// can compare against localStorage seen-timestamps.
+// ---------------------------------------------------------------------------
+router.get("/unread-summary", async (req, res) => {
+    try {
+        const caller = await loadCaller(req);
+        if (!caller) {
+            return res.status(401).json({ error: "UNAUTHENTICATED" });
+        }
+
+        const isAdmin = caller.usertype === "admin";
+        let adminGroupLatestAt = null;
+        let supportLatestIncomingAt = null;
+
+        if (isAdmin) {
+            // 1) Admin Group Chat — latest message timestamp not sent by current admin
+            const adminGroup = await pool.query(
+                `SELECT c.id FROM conversations c
+                 WHERE c.conversation_type = 'admin_group'
+                 LIMIT 1`
+            );
+            if (adminGroup.rows.length > 0) {
+                const agId = adminGroup.rows[0].id;
+                const agLastMsg = await pool.query(
+                    `SELECT pm.created_at, pm.sender_id
+                     FROM private_messages pm
+                     WHERE pm.conversation_id = $1::int
+                       AND pm.sender_id != $2::int
+                     ORDER BY pm.created_at DESC
+                     LIMIT 1`,
+                    [agId, caller.id]
+                );
+                if (agLastMsg.rows.length > 0) {
+                    adminGroupLatestAt = agLastMsg.rows[0].created_at;
+                }
+            }
+
+            // 2) Support conversations — latest incoming message from a non-admin
+            const supportResult = await pool.query(
+                `SELECT MAX(pm.created_at) AS latest_at
+                 FROM private_messages pm
+                 JOIN conversation_participants cp ON cp.conversation_id = pm.conversation_id
+                 WHERE cp.user_id = $1::int
+                   AND pm.sender_id != $1::int
+                   AND EXISTS (
+                       SELECT 1 FROM conversation_participants cp2
+                       JOIN users u2 ON u2.id = cp2.user_id
+                       WHERE cp2.conversation_id = pm.conversation_id
+                         AND u2.usertype != 'admin'
+                   )
+                   AND pm.conversation_id NOT IN (
+                       SELECT c3.id FROM conversations c3 WHERE c3.conversation_type = 'admin_group'
+                   )`,
+                [caller.id]
+            );
+            if (supportResult.rows.length > 0 && supportResult.rows[0].latest_at) {
+                supportLatestIncomingAt = supportResult.rows[0].latest_at;
+            }
+        } else {
+            // Non-admin: latest admin reply in their shared conversation
+            const dockResult = await pool.query(
+                `SELECT pm.created_at
+                 FROM private_messages pm
+                 JOIN conversation_participants cp ON cp.conversation_id = pm.conversation_id
+                 WHERE cp.user_id = $1::int
+                   AND pm.sender_id != $1::int
+                   AND EXISTS (
+                       SELECT 1 FROM conversation_participants cp2
+                       JOIN users u2 ON u2.id = cp2.user_id
+                       WHERE cp2.conversation_id = pm.conversation_id
+                         AND u2.usertype = 'admin'
+                   )
+                 ORDER BY pm.created_at DESC
+                 LIMIT 1`,
+                [caller.id]
+            );
+            if (dockResult.rows.length > 0) {
+                supportLatestIncomingAt = dockResult.rows[0].created_at;
+            }
+        }
+
+        res.json({
+            admin_group_latest_at: adminGroupLatestAt,
+            support_latest_incoming_at: supportLatestIncomingAt,
+        });
+    } catch (err) {
+        console.error("Error fetching unread summary:", err.message);
+        res.status(500).json({ error: "Failed to fetch unread summary" });
+    }
+});
+
 // ---------------------------------------------------------------------------
 // GET /api/messages/users — list of users the admin can chat with.
 // Excludes the caller's own id. Returns users w/ last message preview.
@@ -68,9 +268,39 @@ router.get("/users", async (req, res) => {
                       )
                     ORDER BY pm.created_at DESC
                     LIMIT 1
-                ) AS last_message_at
+                ) AS last_message_at,
+                (
+                    SELECT pm.sender_id
+                    FROM private_messages pm
+                    JOIN conversations c ON c.id = pm.conversation_id
+                    JOIN conversation_participants cp ON cp.conversation_id = c.id
+                    WHERE cp.user_id = u.id
+                      AND c.id IN (
+                          SELECT cp2.conversation_id
+                          FROM conversation_participants cp2
+                          WHERE cp2.user_id = $1::int
+                      )
+                    ORDER BY pm.created_at DESC
+                    LIMIT 1
+                ) AS last_message_sender_id,
+                (
+                    SELECT pm.created_at
+                    FROM private_messages pm
+                    JOIN conversations c ON c.id = pm.conversation_id
+                    JOIN conversation_participants cp ON cp.conversation_id = c.id
+                    WHERE cp.user_id = u.id
+                      AND pm.sender_id = u.id
+                      AND c.id IN (
+                          SELECT cp2.conversation_id
+                          FROM conversation_participants cp2
+                          WHERE cp2.user_id = $1::int
+                      )
+                    ORDER BY pm.created_at DESC
+                    LIMIT 1
+                ) AS last_incoming_message_at
             FROM users u
             WHERE u.id != $1::int
+              ${caller.usertype === "admin" ? " AND u.usertype != 'admin'" : ""}
             ORDER BY last_message_at DESC NULLS LAST, u.name ASC`,
             [caller.id]
         );
@@ -79,6 +309,156 @@ router.get("/users", async (req, res) => {
     } catch (err) {
         console.error("Error fetching message users:", err.message);
         res.status(500).json({ error: "Failed to fetch users" });
+    }
+});
+
+// ---------------------------------------------------------------------------
+// Helpers — Admin Group Chat
+// ---------------------------------------------------------------------------
+
+/** Return the single admin-group conversation ID, creating it if needed. */
+async function getOrCreateAdminGroup() {
+    // Look for existing admin_group conversation
+    const existing = await pool.query(
+        `SELECT c.id FROM conversations c
+         WHERE c.conversation_type = 'admin_group'
+         LIMIT 1`
+    );
+    if (existing.rows.length > 0) {
+        return existing.rows[0].id;
+    }
+
+    const admins = await pool.query("SELECT id FROM users WHERE usertype = 'admin'");
+    if (admins.rows.length === 0) {
+        throw new Error("NO_ADMINS");
+    }
+
+    const convResult = await pool.query(
+        `INSERT INTO conversations (conversation_type) VALUES ('admin_group') RETURNING id`
+    );
+    const conversationId = convResult.rows[0].id;
+
+    // Add all current admins as participants
+    const values = [conversationId];
+    const placeholders = [];
+    admins.rows.forEach((admin, i) => {
+        placeholders.push(`($1::int, $${i + 2}::int)`);
+        values.push(admin.id);
+    });
+    await pool.query(
+        `INSERT INTO conversation_participants (conversation_id, user_id) VALUES ${placeholders.join(", ")}`,
+        values
+    );
+
+    return conversationId;
+}
+
+/** Ensure the caller is an admin. */
+function requireAdmin(caller) {
+    if (!caller || caller.usertype !== "admin") {
+        const err = new Error("FORBIDDEN");
+        err.status = 403;
+        throw err;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/messages/admin-group — returns the admin group conversation info.
+// ---------------------------------------------------------------------------
+router.get("/admin-group", async (req, res) => {
+    try {
+        const caller = await loadCaller(req);
+        if (!caller) {
+            return res.status(401).json({ error: "UNAUTHENTICATED" });
+        }
+        requireAdmin(caller);
+
+        const conversationId = await getOrCreateAdminGroup();
+
+        // Fetch last message details
+        const details = await pool.query(
+            `SELECT
+                pm.message AS last_message,
+                pm.sender_id AS last_message_sender_id,
+                pm.created_at AS last_message_at
+             FROM private_messages pm
+             WHERE pm.conversation_id = $1::int
+             ORDER BY pm.created_at DESC
+             LIMIT 1`,
+            [conversationId]
+        );
+
+        res.json({
+            conversation_id: conversationId,
+            last_message: details.rows[0]?.last_message ?? null,
+            last_message_sender_id: details.rows[0]?.last_message_sender_id ?? null,
+            last_message_at: details.rows[0]?.last_message_at ?? null,
+        });
+    } catch (err) {
+        if (err.message === "FORBIDDEN") {
+            return res.status(403).json({ error: "FORBIDDEN" });
+        }
+        if (err.message === "NO_ADMINS") {
+            return res.status(404).json({ error: "NO_ADMINS" });
+        }
+        console.error("Error fetching admin group:", err.message);
+        res.status(500).json({ error: "Failed to fetch admin group" });
+    }
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/messages/admin-group/messages — send a message to the admin group.
+// ---------------------------------------------------------------------------
+router.post("/admin-group/messages", async (req, res) => {
+    try {
+        const caller = await loadCaller(req);
+        if (!caller) {
+            return res.status(401).json({ error: "UNAUTHENTICATED" });
+        }
+        requireAdmin(caller);
+
+        const body = String(req.body?.message ?? "").trim();
+        if (!body) {
+            return res.status(400).json({ error: "EMPTY_MESSAGE" });
+        }
+        if (body.length > 2000) {
+            return res.status(400).json({ error: "MESSAGE_TOO_LONG" });
+        }
+
+        const conversationId = await getOrCreateAdminGroup();
+
+        const insert = await pool.query(
+            `INSERT INTO private_messages (conversation_id, sender_id, message)
+             VALUES ($1::int, $2::int, $3)
+             RETURNING id, created_at`,
+            [conversationId, caller.id, body]
+        );
+
+        const newMessage = insert.rows[0];
+
+        res.status(201).json({
+            id: newMessage.id,
+            conversation_id: conversationId,
+            message: body,
+            attachment_urls: [],
+            created_at: newMessage.created_at,
+            sender_id: caller.id,
+            sender: {
+                id: caller.id,
+                name: caller.name,
+                profile_picture: caller.profile_picture,
+                role: caller.usertype,
+            },
+        });
+    } catch (err) {
+        if (err.message === "FORBIDDEN") {
+            return res.status(403).json({ error: "FORBIDDEN" });
+        }
+        if (err.message === "NO_ADMINS") {
+            return res.status(404).json({ error: "NO_ADMINS" });
+        }
+        console.error("Error sending admin group message:", err.message);
+        res.status(500).json({ error: "Failed to send message" });
     }
 });
 
@@ -104,6 +484,13 @@ router.get("/conversations", async (req, res) => {
                     ORDER BY pm.created_at DESC
                     LIMIT 1
                 ) AS last_message,
+                (
+                    SELECT pm.sender_id
+                    FROM private_messages pm
+                    WHERE pm.conversation_id = c.id
+                    ORDER BY pm.created_at DESC
+                    LIMIT 1
+                ) AS last_message_sender_id,
                 (
                     SELECT pm.created_at
                     FROM private_messages pm
@@ -155,16 +542,38 @@ router.post("/conversations", async (req, res) => {
             return res.status(400).json({ error: "CANNOT_CHAT_WITH_SELF" });
         }
 
-        // Check the other user exists
+        // Check the other user exists and get their type
         const otherUser = await pool.query(
-            "SELECT id FROM users WHERE id = $1::int",
+            "SELECT id, usertype FROM users WHERE id = $1::int",
             [otherUserId]
         );
         if (otherUser.rows.length === 0) {
             return res.status(404).json({ error: "USER_NOT_FOUND" });
         }
 
-        // Check if conversation already exists
+        const isAdminCaller = caller.usertype === "admin";
+        const isAdminOther = otherUser.rows[0].usertype === "admin";
+
+        if (isAdminCaller !== isAdminOther) {
+            // Admin-nonadmin pair — use shared conversation with all admins
+            const nonAdminId = isAdminCaller ? otherUserId : caller.id;
+            let sharedConvId;
+            try {
+                sharedConvId = await getOrCreateSharedAdminConversation(nonAdminId);
+            } catch (err) {
+                if (err.message === "NO_ADMINS") {
+                    return res.status(404).json({ error: "NO_ADMINS" });
+                }
+                throw err;
+            }
+
+            // Migrate old 1:1 admin-nonadmin messages into the shared conversation
+            await migrateOldAdminMessages(sharedConvId, nonAdminId);
+
+            return res.json({ conversation_id: sharedConvId });
+        }
+
+        // Check if conversation already exists (admin-admin or nonadmin-nonadmin)
         const existing = await pool.query(
             `SELECT c.id
              FROM conversations c
@@ -320,6 +729,81 @@ router.get("/conversations/:id", async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// POST /api/messages/dock/send — send a dock chat message as a non-admin user.
+// The message is saved into the shared Admin conversation so all admins can see it.
+// Body: { message: string }
+// ---------------------------------------------------------------------------
+router.post("/dock/send", async (req, res) => {
+    try {
+        const caller = await loadCaller(req);
+        if (!caller) {
+            return res.status(401).json({ error: "UNAUTHENTICATED" });
+        }
+
+        // This route is intended for non-admin users only.
+        if (caller.usertype === "admin") {
+            return res.status(403).json({ error: "FORBIDDEN" });
+        }
+
+        const body = String(req.body?.message ?? "").trim();
+        if (!body) {
+            return res.status(400).json({ error: "EMPTY_MESSAGE" });
+        }
+        if (body.length > 2000) {
+            return res.status(400).json({ error: "MESSAGE_TOO_LONG" });
+        }
+
+        // Find or create the shared Admin conversation for this non-admin user.
+        let sharedConvId;
+        try {
+            sharedConvId = await getOrCreateSharedAdminConversation(caller.id);
+        } catch (err) {
+            if (err.message === "NO_ADMINS") {
+                return res.status(404).json({ error: "NO_ADMINS" });
+            }
+            throw err;
+        }
+
+        // Migrate any historic 1:1 Admin-to-nonAdmin conversations into the shared conversation.
+        await migrateOldAdminMessages(sharedConvId, caller.id);
+
+        // Save the new message into the shared conversation.
+        const insert = await pool.query(
+            `INSERT INTO private_messages (conversation_id, sender_id, message)
+             VALUES ($1::int, $2::int, $3)
+             RETURNING id, created_at`,
+            [sharedConvId, caller.id, body]
+        );
+
+        const newMessage = insert.rows[0];
+
+        await recordActivity(req, {
+            action: "create",
+            entity: "private_message",
+            entity_id: newMessage.id,
+            summary: `Sent dock support message #${newMessage.id} in shared admin conversation #${sharedConvId}`,
+        });
+
+        res.status(201).json({
+            id: newMessage.id,
+            conversation_id: sharedConvId,
+            message: body,
+            attachment_urls: [],
+            created_at: newMessage.created_at,
+            sender_id: caller.id,
+            sender: {
+                id: caller.id,
+                name: caller.name,
+                profile_picture: caller.profile_picture,
+                role: caller.usertype,
+            },
+        });
+    } catch (err) {
+        console.error("Error sending dock message:", err.message);
+        res.status(500).json({ error: "Failed to send message" });
+    }
+});
+
 // POST /api/messages/conversations/:id/messages — send a message.
 // Body: { message: string }
 // ---------------------------------------------------------------------------

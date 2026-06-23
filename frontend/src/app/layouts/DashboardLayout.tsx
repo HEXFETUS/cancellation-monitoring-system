@@ -97,6 +97,7 @@ export default function DashboardLayout() {
         return localStorage.getItem("theme") === "dark";
     });
     const [bulletinUnread, setBulletinUnread] = useState(0);
+    const [messagesUnread, setMessagesUnread] = useState(0);
     const [pendingBoothRequests, setPendingBoothRequests] = useState(0);
     const [pendingOperatorChangeCount, setPendingOperatorChangeCount] = useState(0);
     const [pendingBoothOperatorChangeCount, setPendingBoothOperatorChangeCount] = useState(0);
@@ -234,6 +235,65 @@ export default function DashboardLayout() {
         };
     }, [authUser?.id, location.pathname]);
 
+    // Poll messages unread using the lightweight unread-summary endpoint.
+    // Returns timestamps — frontend compares against localStorage seen markers.
+    useEffect(() => {
+        if (!authUser?.id) {
+            setMessagesUnread(0);
+            return;
+        }
+        let cancelled = false;
+
+        const fetchMessagesUnread = async () => {
+            if (cancelled) return;
+            try {
+                const res = await fetch(
+                    `${API_BASE_URL}/api/messages/unread-summary?user_id=${authUser.id}`
+                );
+                if (!res.ok) return;
+                const data = await res.json();
+                if (cancelled) return;
+
+                let hasUnread = false;
+
+                // Check Admin Group Chat unread (admin only)
+                if (data.admin_group_latest_at) {
+                    const agTime = new Date(data.admin_group_latest_at).getTime();
+                    const agSeenKey = `admin_group_seen_${authUser.id}`;
+                    let agSeen = 0;
+                    try { agSeen = Number(localStorage.getItem(agSeenKey) ?? 0); } catch {}
+                    if (agTime > agSeen) hasUnread = true;
+                }
+
+                // Check support conversations unread
+                if (data.support_latest_incoming_at) {
+                    const supportTime = new Date(data.support_latest_incoming_at).getTime();
+                    const supportSeenKey = `msg_page_seen_${authUser.id}`;
+                    let supportSeen = 0;
+                    try { supportSeen = Number(localStorage.getItem(supportSeenKey) ?? 0); } catch {}
+                    if (supportTime > supportSeen) hasUnread = true;
+                }
+
+                if (!cancelled) setMessagesUnread(hasUnread ? 1 : 0);
+            } catch {
+                // Non-fatal — dot just stays at its previous value.
+            }
+        };
+
+        fetchMessagesUnread();
+        const interval = window.setInterval(fetchMessagesUnread, 5000);
+        const onVisibility = () => {
+            if (document.visibilityState === "visible") fetchMessagesUnread();
+        };
+        document.addEventListener("visibilitychange", onVisibility);
+
+        return () => {
+            cancelled = true;
+            window.clearInterval(interval);
+            document.removeEventListener("visibilitychange", onVisibility);
+        };
+    }, [authUser?.id, location.pathname]);
+
     useEffect(() => {
         if (!authUser?.id) {
             setPendingBoothRequests(0);
@@ -341,6 +401,10 @@ export default function DashboardLayout() {
         };
     }, [authUser?.id, location.pathname]);
 
+    const isOperator = (sidebarUser?.usertype ?? authUser?.usertype) === "operator";
+    const isPurchaser = (sidebarUser?.usertype ?? authUser?.usertype) === "purchaser";
+    const isCsr = (sidebarUser?.usertype ?? authUser?.usertype) === "csr";
+
     useEffect(() => {
         if (!authUser?.id) {
             setForCheckingRepairCount(0);
@@ -356,9 +420,11 @@ export default function DashboardLayout() {
                 const payload = await res.json();
                 const records = Array.isArray(payload) ? payload : payload?.data ?? payload?.rows ?? [];
                 if (!cancelled) {
+                    // CSR counts "For Request" records; admin counts "For Repair" records
+                    const targetStatus = isCsr ? "For Request" : "For Repair";
                     setForCheckingRepairCount(
                         Array.isArray(records)
-                            ? records.filter((record) => record?.status === "For Repair").length
+                            ? records.filter((record) => record?.status === targetStatus).length
                             : 0
                     );
                 }
@@ -379,11 +445,8 @@ export default function DashboardLayout() {
             window.clearInterval(interval);
             document.removeEventListener("visibilitychange", onVisibility);
         };
-    }, [authUser?.id, location.pathname]);
+    }, [authUser?.id, isCsr, location.pathname]);
 
-    const isOperator = (sidebarUser?.usertype ?? authUser?.usertype) === "operator";
-    const isPurchaser = (sidebarUser?.usertype ?? authUser?.usertype) === "purchaser";
-    const isCsr = (sidebarUser?.usertype ?? authUser?.usertype) === "csr";
     // The pending-requests floating alert is restricted to the IT department.
     // Department is case-insensitive and trimmed to handle small data-entry
     // variations like "it", "IT", or "It " across the system.
@@ -493,6 +556,13 @@ export default function DashboardLayout() {
             localStorage.setItem(`operator_seen_myoutlets_${authUser?.id}`, String(outletCount));
         } catch { /* localStorage unavailable */ }
     };
+
+    const handleMarkMessagesSeen = () => {
+        setMessagesUnread(0);
+        try {
+            localStorage.setItem(`msg_page_seen_${authUser?.id}`, String(Date.now()));
+        } catch { /* localStorage unavailable */ }
+    };
     const displayName = sidebarUser?.name?.trim() || authUser?.name?.trim() || "User";
     let sidebarDisplayName = displayName;
     const displayUserType =
@@ -516,7 +586,6 @@ export default function DashboardLayout() {
             { name: "Dashboard", path: "/app/dashboard" },
             { name: "Devices", path: "/app/my-pos" },
             { name: "Outlets", path: "/app/my-outlets" },
-            { name: "Settings", path: "/app/settings" },
         ]
         : isPurchaser
             ? [
@@ -527,15 +596,12 @@ export default function DashboardLayout() {
                 { name: "Drawcourt", path: "/app/asset-inventory/drawcourt" },
                 { name: "OBS", path: "/app/asset-inventory/obs" },
                 { name: "Asset Coding", path: "/app/asset-inventory/asset-coding" },
-                { name: "Settings", path: "/app/settings" },
             ]
             : isCsr
                 ? [
                     { name: "Dashboard", path: "/app/dashboard" },
                     { name: "POS Repair", path: "/app/csr-pos-repair" },
                     { name: "Posts", path: "/app/csr-pos-repair/posts" },
-                    { name: "Bulletin Board", path: "/app/bulletin-board" },
-                    { name: "Settings", path: "/app/settings" },
                 ]
                 : [
                     { name: "Dashboard", path: "/app/dashboard" },
@@ -851,6 +917,9 @@ export default function DashboardLayout() {
                                         to={item.path}
                                         onClick={() => {
                                             closeMobileSidebar();
+                                            if (item.name === "Messages") {
+                                                handleMarkMessagesSeen();
+                                            }
                                             if (isOperator && item.name === "My POS") {
                                                 handleMarkMyPosSeen();
                                             } else if (isOperator && item.name === "My Outlets") {
@@ -909,6 +978,18 @@ export default function DashboardLayout() {
                                         >
                                             {item.name}
                                         </span>
+
+                                        {/* Red blinking dot for Messages */}
+                                        {item.name === "Messages" && messagesUnread > 0 && (
+                                            <span
+                                                className="ml-auto h-2 w-2 rounded-full animate-pulse"
+                                                style={{
+                                                    background: "#EF4444",
+                                                    boxShadow: "0 0 8px rgba(239,68,68,0.85)",
+                                                    animation: "blink 1s ease-in-out infinite",
+                                                }}
+                                            />
+                                        )}
 
                                         {/* Unread badge for the Bulletin Board entry */}
                                         {item.name === "Bulletin Board" && bulletinUnread > 0 && (

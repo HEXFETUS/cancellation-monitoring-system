@@ -72,6 +72,9 @@ importers:
       globals:
         specifier: ^17.6.0
         version: 17.6.0
+      lightningcss:
+        specifier: ^1.32.0
+        version: 1.32.0
       postcss:
         specifier: ^8.5.14
         version: 8.5.14

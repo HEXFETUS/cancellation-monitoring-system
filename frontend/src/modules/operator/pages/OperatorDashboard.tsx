@@ -669,8 +669,8 @@ export default function OperatorDashboard() {
                             </GlassCard>
                         )}
 
-                        {/* POS Booth Change Requests — always visible */}
-                        <GlassCard>
+                        {/* POS Booth Change Requests — always visible, full width */}
+                        <GlassCard className="lg:col-span-3 sm:col-span-2">
                             <div className="border-b border-white/40 bg-gradient-to-r from-[#92C7CF]/10 to-[#AAD7D9]/10 px-5 py-3">
                                 <div className="flex items-center justify-between">
                                     <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-800">
@@ -727,8 +727,8 @@ export default function OperatorDashboard() {
                             </div>
                         </GlassCard>
 
-                        {/* CP Booth Change Requests Card */}
-                        <GlassCard>
+                        {/* CP Booth Change Requests Card — full width */}
+                        <GlassCard className="lg:col-span-3 sm:col-span-2">
                             <div className="border-b border-white/40 bg-gradient-to-r from-[#92C7CF]/10 to-[#AAD7D9]/10 px-5 py-3">
                                 <div className="flex items-center justify-between">
                                     <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-800">

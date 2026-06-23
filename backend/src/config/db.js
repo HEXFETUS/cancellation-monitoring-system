@@ -30,6 +30,15 @@ const pool = new Pool({
     max: 10,
 });
 
+// Ensure the pg driver reads TIMESTAMP columns as UTC so that when it converts
+// them to JavaScript Date objects it does not apply an incorrect offset.
+// The database stores UTC values in TIMESTAMP (without time zone) columns.
+pg.types.setTypeParser(pg.types.builtins.TIMESTAMP, (val) => {
+    if (val === null) return null;
+    // Append Z to indicate UTC so JavaScript Date parses correctly
+    return new Date(val + "Z");
+});
+
 pool.on("error", (err) => {
     // Background errors from idle clients (Supabase pooler kicking us off,
     // transient network blips, etc.) should never crash the process.

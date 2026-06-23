@@ -443,7 +443,7 @@ export default function OperatorPosPage({ searchQuery: externalSearch = "", refr
             </div>
 
             {/* Two-column request history layout */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            <div className={`grid grid-cols-1 gap-5 ${!loading && myParentOperatorId == null ? "lg:grid-cols-2" : "lg:grid-cols-1"}`}>
                 {/* Booth Change Requests History */}
                 <div className="relative rounded-2xl border border-white/50 backdrop-blur-xl bg-white/25 shadow-lg overflow-hidden">
                     <div className="flex items-center justify-between gap-3 border-b border-white/40 px-5 py-3">

@@ -21,7 +21,8 @@ export default defineConfig({
   build: {
     // esbuild minifier is ~6× faster than terser and produces comparable output
     minify: 'esbuild',
-    cssMinify: 'esbuild',
+    // Lightning CSS is a Rust-based CSS minifier — faster than esbuild for CSS
+    cssMinify: 'lightningcss',
     // Don't copy public/ assets through the asset pipeline since they are
     // served verbatim — saves vite:asset processing time for larger files
     // such as the slideshow images (~2.5 MB total).
