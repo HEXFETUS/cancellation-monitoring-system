@@ -7,7 +7,6 @@ import {
     Key,
     Loader2,
     Pencil,
-    RefreshCw,
     Save,
     ShieldCheck,
     User,
@@ -116,21 +115,6 @@ export default function MyAccountModal({ open, onClose, initialTab = "account" }
             setConfirmSave(false);
         }
     }, [open, initialTab]);
-
-    const refreshProfile = async () => {
-        if (!user?.id) return;
-        try {
-            setLoading(true);
-            setError("");
-            const res = await fetch(apiUrl(`/api/users/me?id=${user.id}`));
-            if (!res.ok) throw new Error("Failed to load profile");
-            setMe(await res.json());
-        } catch (e) {
-            setError(e instanceof Error ? e.message : "Failed to load");
-        } finally {
-            setLoading(false);
-        }
-    };
 
     const startEditing = () => {
         if (!me) return;
