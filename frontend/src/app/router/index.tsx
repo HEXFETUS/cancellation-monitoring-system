@@ -98,6 +98,7 @@ const PosDiagnosisListPage = lazy(
 const CsrPostsTabbedPage = lazy(
     () => import("../../modules/csr/pages/CsrPostsTabbedPage")
 );
+const MessagesPage = lazy(() => import("../../modules/messages/pages/MessagesPage"));
 
 // Full-page loading shell shown while any of the lazy route modules is being
 // fetched. Kept dependency-free (no lucide, no router hooks) so it can render
@@ -443,6 +444,16 @@ export const router = createBrowserRouter([
                 ),
             },
 
+            {
+                path: "messages",
+                element: (
+                    <RoleGuard allow={["admin"]}>
+                        <Suspense fallback={<RouteFallback />}>
+                            <MessagesPage />
+                        </Suspense>
+                    </RoleGuard>
+                ),
+            },
             {
                 path: "bulletin-board",
                 element: (

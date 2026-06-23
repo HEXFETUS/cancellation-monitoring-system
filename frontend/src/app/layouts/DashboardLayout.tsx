@@ -1,5 +1,6 @@
 import { Link, useLocation, useNavigate, Outlet } from "react-router-dom";
 import MyAccountModal from "../../modules/settings/components/MyAccountModal";
+import MessageDock from "../../modules/messages/components/MessageDock";
 import {
     LogOut,
     Menu,
@@ -80,6 +81,7 @@ const iconMap: Record<string, LucideIcon> = {
     "Diagnosis List": Stethoscope,
     Posts: Megaphone,
     "Bulletin Board": MessageSquare,
+    "Messages": MessageSquare,
     "Request POS": Send,
     Requests: Notebook,
     Settings: Settings,
@@ -103,6 +105,7 @@ export default function DashboardLayout() {
     const [myAccountInitialTab, setMyAccountInitialTab] = useState<"account" | "password">("account");
     const [userMenuOpen, setUserMenuOpen] = useState(false);
     const userMenuRef = useRef<HTMLDivElement>(null);
+    const isMessagesPage = location.pathname.includes("/messages");
 
     // Close the user menu when clicking anywhere outside the popover.
     useEffect(() => {
@@ -541,6 +544,7 @@ export default function DashboardLayout() {
                     { name: "Cancellation", path: "/app/cancellation" },
                     { name: "Requests", path: "/app/requests" },
                     { name: "Assets", path: "/app/asset-inventory" },
+                    { name: "Messages", path: "/app/messages" },
                     { name: "Bulletin Board", path: "/app/bulletin-board" },
                     { name: "Settings", path: "/app/settings" },
                 ];
@@ -1225,9 +1229,9 @@ export default function DashboardLayout() {
 
                 {/* Floating alerts temporarily hidden */}
                 {/* Main Content */}
-                <main className="flex-1 overflow-auto pt-16 lg:pt-0">
+                <main className={`flex-1 pt-16 lg:pt-0 ${isMessagesPage ? "overflow-hidden" : "overflow-auto"}`}>
                     <div
-                        className="m-3 min-h-full rounded-3xl border shadow-2xl backdrop-blur-2xl p-4 sm:p-6 lg:m-8 lg:p-10 transition-colors duration-300"
+                        className={`m-3 rounded-3xl border shadow-2xl backdrop-blur-2xl p-4 sm:p-6 lg:m-8 lg:p-10 transition-colors duration-300 ${isMessagesPage ? "h-[calc(100%-1.5rem)] min-h-0 lg:h-[calc(100%-4rem)]" : "min-h-full"}`}
                         style={{
                             background: darkMode
                                 ? "rgba(31, 41, 55, 0.60)"
@@ -1242,12 +1246,15 @@ export default function DashboardLayout() {
                             WebkitBackdropFilter: "blur(20px)",
                         }}
                     >
-                        <div className="main-content-area">
+                        <div className={`main-content-area ${isMessagesPage ? "h-full min-h-0" : ""}`}>
                             <Outlet />
                         </div>
                     </div>
                 </main>
             </div>
+
+            {/* Message dock for non-admin users */}
+            <MessageDock />
 
             {/* My Account Modal */}
             <MyAccountModal

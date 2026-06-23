@@ -26,6 +26,7 @@ import activityLogRoutes from "./src/routes/activity-log.routes.js";
 import cellphoneRoutes from "./src/routes/cellphone.routes.js";
 import cpBoothChangeRequestRoutes from "./src/routes/cp-booth-change-request.routes.js";
 import cpOperatorChangeRequestRoutes from "./src/routes/cp-operator-change-request.routes.js";
+import messagesRoutes from "./src/routes/messages.routes.js";
 import initDatabase from "./src/config/init.js";
 import { dbState, pingDatabase } from "./src/config/db.js";
 
@@ -83,6 +84,7 @@ app.use("/api/activity-logs", activityLogRoutes);
 app.use("/api/cellphones", cellphoneRoutes);
 app.use("/api/cp-booth-change-requests", cpBoothChangeRequestRoutes);
 app.use("/api/cp-operator-change-requests", cpOperatorChangeRequestRoutes);
+app.use("/api/messages", messagesRoutes);
 
 // Honour the platform-provided PORT in production (Render, Railway, Fly,
 // Heroku, etc. all inject one) and fall back to 5050 for local dev so the

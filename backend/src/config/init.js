@@ -29,6 +29,9 @@ const SERIAL_TABLES = [
     "asset_media",
     "activity_logs",
     "cellphone_list",
+    "conversations",
+    "conversation_participants",
+    "private_messages",
 ];
 
 async function syncSerialSequence(client, tableName) {
@@ -1025,6 +1028,62 @@ async function initDatabase() {
         );
         await client.query(
             "CREATE INDEX IF NOT EXISTS idx_cp_ocr_cellphone ON cp_operator_change_requests(cellphone_id)"
+        );
+
+        /* =========================
+           conversations — private chat rooms between two users.
+           Each row represents a private 1-on-1 conversation. Messages are
+           stored in private_messages (below) rather than the shared messages
+           table to keep the Bulletin Board feed clean.
+        ========================= */
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS conversations (
+                id SERIAL PRIMARY KEY,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        /* =========================
+           conversation_participants — links users to conversations.
+           There should be exactly 2 rows per conversation for 1-on-1 chat.
+           The (conversation_id, user_id) pair is unique so a user can't be
+           added twice to the same conversation.
+        ========================= */
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS conversation_participants (
+                id SERIAL PRIMARY KEY,
+                conversation_id INTEGER NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                UNIQUE(conversation_id, user_id)
+            );
+        `);
+        await client.query(
+            "CREATE INDEX IF NOT EXISTS idx_conversation_participants_user ON conversation_participants(user_id)"
+        );
+        await client.query(
+            "CREATE INDEX IF NOT EXISTS idx_conversation_participants_conversation ON conversation_participants(conversation_id)"
+        );
+
+        /* =========================
+           private_messages — messages inside a private conversation.
+           Uses the same attachment pattern as the bulletin messages
+           (JSON array of /uploads/* paths) for consistency.
+        ========================= */
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS private_messages (
+                id SERIAL PRIMARY KEY,
+                conversation_id INTEGER NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+                sender_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                message TEXT NOT NULL,
+                attachment_urls TEXT DEFAULT '[]',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        await client.query(
+            "CREATE INDEX IF NOT EXISTS idx_private_messages_conversation ON private_messages(conversation_id)"
+        );
+        await client.query(
+            "CREATE INDEX IF NOT EXISTS idx_private_messages_created_at ON private_messages(created_at)"
         );
 
         for (const tableName of SERIAL_TABLES) {
