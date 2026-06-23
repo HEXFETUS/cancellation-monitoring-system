@@ -33,7 +33,7 @@ const AssetInventoryTabbedPage = lazy(
     () => import("../../modules/asset-inventory/pages/AssetInventoryTabbedPage")
 );
 const AssetSummaryPage = lazy(
-    () => import("../../modules/asset-inventory/pages/SummaryPage")
+    () => import("../../modules/asset-inventory/pages/AssetsDashboardPage")
 );
 const AssetOfficePage = lazy(
     () => import("../../modules/asset-inventory/pages/OfficePage")

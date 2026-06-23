@@ -1,15 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
-import { Grid3x3, ChevronLeft, ChevronRight } from "lucide-react";
 import { listAllAssets, type AssetLocation } from "../services";
+import { Pagination } from "../../../shared/components";
 
 const LOCATIONS = [
-    { key: "office", label: "Main Office", headerBg: "bg-yellow-100", headerText: "text-ink" },
-    { key: "drawcourt", label: "Drawcourt", headerBg: "bg-green-100", headerText: "text-ink" },
-    { key: "pcso", label: "PCSO", headerBg: "bg-blue-100", headerText: "text-ink" },
-    { key: "payout", label: "Payout Station", headerBg: "bg-pink-100", headerText: "text-ink" },
-    { key: "obs", label: "OBS Office", headerBg: "bg-indigo-100", headerText: "text-ink" },
-    { key: "staffhouse", label: "Staffhouse", headerBg: "bg-slate-200", headerText: "text-ink" },
-    { key: "vehicle", label: "Vehicle", headerBg: "bg-emerald-200", headerText: "text-ink" },
+    { key: "office", label: "Main Office" },
+    { key: "drawcourt", label: "Drawcourt" },
+    { key: "pcso", label: "PCSO" },
+    { key: "payout", label: "Payout Station" },
+    { key: "obs", label: "OBS Office" },
+    { key: "staffhouse", label: "Staffhouse" },
+    { key: "vehicle", label: "Vehicle" },
 ] as const;
 
 // Fallback list used when the DB has no asset rows yet. Keeps the
@@ -173,13 +173,6 @@ export default function SummaryReportPage() {
         [assetNames]
     );
 
-    // Note: we intentionally do NOT reset `page` to 1 via a set-state
-    // effect when the underlying data changes. The `Math.min(page,
-    // totalPages)` clamp below keeps the user on a valid page after
-    // the data shrinks, and is the React-idiomatic pattern. Resetting
-    // via useEffect triggers the `react-hooks/set-state-in-effect`
-    // linter rule and causes a cascading render.
-
     const totalPages = Math.max(1, Math.ceil(displayNames.length / PAGE_SIZE));
     const safePage = Math.min(page, totalPages);
     const pageStart = (safePage - 1) * PAGE_SIZE;
@@ -189,9 +182,6 @@ export default function SummaryReportPage() {
         [displayNames, pageStart, pageEnd]
     );
 
-    const goPrev = () => setPage((p) => Math.max(1, p - 1));
-    const goNext = () => setPage((p) => Math.min(totalPages, p + 1));
-
     // When real data is showing, the rowTotal is meaningful.
     // When the SAMPLE fallback is showing, the totals would be 0 — hide
     // them so the empty-DB state matches the original screenshot exactly.
@@ -199,14 +189,6 @@ export default function SummaryReportPage() {
 
     return (
         <div className="space-y-4">
-            {/* Title bar */}
-            <div className="flex items-center gap-2 rounded-lg bg-slate-800 px-4 py-3 text-white">
-                <Grid3x3 size={18} className="text-white" />
-                <h2 className="text-sm font-semibold tracking-wide uppercase">
-                    Actual Distribution
-                </h2>
-            </div>
-
             {error && (
                 <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
                     {error}
@@ -214,22 +196,22 @@ export default function SummaryReportPage() {
             )}
 
             {/* Distribution matrix */}
-            <div className="overflow-x-auto rounded-lg border border-warm bg-white">
+            <div className="overflow-x-auto rounded-2xl border border-warm bg-card shadow-sm">
                 <table className="w-full text-sm border-collapse">
                     <thead>
                         <tr>
-                            <th className="bg-slate-50 px-4 py-3 text-left font-bold text-ink uppercase tracking-wider text-xs border border-slate-200 min-w-45">
+                            <th className="bg-cream px-4 py-3 text-left font-bold text-ink uppercase tracking-wider text-xs border-b border-warm min-w-45">
                                 Asset Name
                             </th>
                             {LOCATIONS.map((loc) => (
                                 <th
                                     key={loc.key}
-                                    className={`${loc.headerBg} ${loc.headerText} px-3 py-3 text-center font-bold uppercase tracking-wider text-xs border border-slate-200 min-w-22.5`}
+                                    className="bg-cream px-3 py-3 text-center font-bold text-ink uppercase tracking-wider text-xs border-b border-warm min-w-22.5"
                                 >
                                     {loc.label}
                                 </th>
                             ))}
-                            <th className="bg-blue-600 px-3 py-3 text-center font-bold text-white uppercase tracking-wider text-xs border border-slate-200 min-w-20">
+                            <th className="bg-teal/10 px-3 py-3 text-center font-bold text-teal-dark uppercase tracking-wider text-xs border-b border-warm min-w-20">
                                 Total
                             </th>
                         </tr>
@@ -259,9 +241,9 @@ export default function SummaryReportPage() {
                                 return (
                                     <tr
                                         key={`${pageStart + idx}-${name}`}
-                                        className="hover:bg-slate-50"
+                                        className="hover:bg-cream transition"
                                     >
-                                        <td className="px-4 py-3 text-ink font-medium border border-slate-200">
+                                        <td className="px-4 py-3 text-ink font-medium border-b border-warm/50">
                                             {name}
                                         </td>
                                         {LOCATIONS.map((loc) => {
@@ -271,13 +253,13 @@ export default function SummaryReportPage() {
                                             return (
                                                 <td
                                                     key={loc.key}
-                                                    className="px-3 py-3 text-center text-ink border border-slate-200"
+                                                    className="px-3 py-3 text-center text-ink border-b border-warm/50"
                                                 >
                                                     {value > 0 ? value : ""}
                                                 </td>
                                             );
                                         })}
-                                        <td className="bg-blue-50 px-3 py-3 text-center text-ink font-semibold border border-slate-200">
+                                        <td className="bg-teal/5 px-3 py-3 text-center text-ink font-semibold border-b border-warm/50">
                                             {total > 0 ? total : ""}
                                         </td>
                                     </tr>
@@ -286,56 +268,15 @@ export default function SummaryReportPage() {
                         )}
                     </tbody>
                 </table>
-            </div>
 
-            {/* Pagination footer */}
-            <div className="flex flex-col items-center justify-between gap-2 sm:flex-row">
-                <p className="text-xs text-ink-subtle italic">
-                    {isShowingFallback
-                        ? "Showing placeholder list — connect the summary report data source to populate real counts."
-                        : "Live distribution data — totals and counts reflect the current asset inventory."}
-                </p>
-                <div className="flex items-center gap-3 text-sm text-ink-muted">
-                    <span className="text-xs">
-                        Showing{" "}
-                        <span className="font-semibold text-ink">
-                            {pagedNames.length === 0
-                                ? 0
-                                : pageStart + 1}
-                            –
-                            <span className="font-semibold text-ink">
-                                {Math.min(pageEnd, displayNames.length)}
-                            </span>
-                        </span>{" "}
-                        of{" "}
-                        <span className="font-semibold text-ink">
-                            {displayNames.length}
-                        </span>
-                    </span>
-                    <div className="flex items-center gap-1">
-                        <button
-                            type="button"
-                            onClick={goPrev}
-                            disabled={safePage <= 1}
-                            aria-label="Previous page"
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-warm bg-card text-ink transition hover:bg-warm/40 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                            <ChevronLeft size={16} />
-                        </button>
-                        <span className="px-2 text-xs font-semibold text-ink">
-                            Page {safePage} / {totalPages}
-                        </span>
-                        <button
-                            type="button"
-                            onClick={goNext}
-                            disabled={safePage >= totalPages}
-                            aria-label="Next page"
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-warm bg-card text-ink transition hover:bg-warm/40 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                            <ChevronRight size={16} />
-                        </button>
-                    </div>
-                </div>
+                {/* Shared pagination */}
+                <Pagination
+                    currentPage={safePage}
+                    totalPages={totalPages}
+                    totalItems={displayNames.length}
+                    onPageChange={setPage}
+                    pageSize={PAGE_SIZE}
+                />
             </div>
         </div>
     );

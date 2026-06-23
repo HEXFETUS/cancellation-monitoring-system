@@ -8,6 +8,8 @@ import {
     Save,
     Trash2,
     X,
+    CheckCircle2,
+    XCircle,
 } from "lucide-react";
 import { Html5Qrcode, Html5QrcodeScannerState } from "html5-qrcode";
 import type { AssetCode } from "../services/assetCodes";
@@ -275,32 +277,32 @@ export default function QrScannerModal({ open, onClose }: Props) {
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Header */}
-                <div className="flex items-center justify-between border-b border-warm bg-linear-to-r from-teal/15 to-teal-light/15 px-5 py-3">
-                    <div className="flex items-center gap-2">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/70">
-                            <ScanLine size={18} className="text-teal-dark" />
+                <div className="flex items-center justify-between border-b border-warm bg-gradient-to-r from-teal-50 to-teal-100/50 px-5 py-3">
+                    <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white shadow-sm ring-1 ring-teal-200">
+                            <ScanLine size={20} className="text-teal" />
                         </div>
                         <div>
                             <h3 className="text-base font-bold text-ink">
-                                {result?.code ? "Asset Details" : "Scan QR Code"}
+                                {result?.code ? "Asset Details" : "QR Code Scanner"}
                             </h3>
                             <p className="text-xs text-ink-muted">
                                 {result?.code
-                                    ? "Update remarks or attach photos and videos."
-                                    : "Point your camera at an asset's QR sticker."}
+                                    ? "Asset matched — view details below"
+                                    : "Position the QR sticker within the frame to scan"}
                             </p>
                         </div>
                     </div>
                     <button
                         onClick={handleClose}
-                        className="rounded-lg p-1.5 text-ink-subtle hover:bg-warm/40 hover:text-ink"
+                        className="rounded-lg p-1.5 text-ink-subtle transition hover:bg-warm/40 hover:text-ink"
                     >
                         <X size={18} />
                     </button>
                 </div>
 
                 {/* Body */}
-                <div className="flex-1 overflow-y-auto p-5">
+                <div className="flex-1 overflow-y-auto bg-slate-50/50 p-5">
                     {result ? (
                         <ResultPanel
                             result={result}
@@ -361,47 +363,80 @@ function ScannerPanel({
     return (
         <>
             {error ? (
-                <div className="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                    <AlertCircle size={18} className="mt-0.5 shrink-0" />
+                <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 shadow-sm">
+                    <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-100">
+                        <AlertCircle size={18} className="text-red-600" />
+                    </div>
                     <div>
-                        <p className="font-semibold">Camera unavailable</p>
-                        <p className="mt-0.5 text-xs">{error}</p>
-                        <p className="mt-1 text-xs">
-                            Browsers only allow live camera access on HTTPS or localhost.
-                            On a phone over the LAN you can still scan by uploading a photo
-                            of the QR — use the button below.
+                        <p className="font-semibold text-red-800">Camera unavailable</p>
+                        <p className="mt-1 text-xs text-red-600">{error}</p>
+                        <p className="mt-1.5 text-xs text-red-600/80">
+                            Browsers require HTTPS for live camera access. Use the photo option below to scan from an image instead.
                         </p>
                     </div>
                 </div>
             ) : null}
 
-            <div className="relative mx-auto mt-1 aspect-square w-full max-w-sm overflow-hidden rounded-xl bg-black">
-                <div id={SCANNER_REGION_ID} className="h-full w-full" />
+            {/* Scanner viewport */}
+            <div className="mx-auto mt-3 w-full max-w-sm">
+                <div className="relative aspect-square overflow-hidden rounded-2xl bg-slate-900 shadow-lg ring-4 ring-slate-700/50">
+                    {/* Corner brackets overlay */}
+                    <div className="absolute inset-0 z-10 pointer-events-none">
+                        <div className="absolute inset-6 rounded-xl border-2 border-teal/40" />
+                        <div className="absolute left-3 top-3 h-5 w-5 border-t-2 border-l-2 border-teal" />
+                        <div className="absolute right-3 top-3 h-5 w-5 border-t-2 border-r-2 border-teal" />
+                        <div className="absolute bottom-3 left-3 h-5 w-5 border-b-2 border-l-2 border-teal" />
+                        <div className="absolute bottom-3 right-3 h-5 w-5 border-b-2 border-r-2 border-teal" />
+                    </div>
+                    <div id={SCANNER_REGION_ID} className="h-full w-full" />
 
-                {!scanning && !error && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-white/80">
-                        <Camera size={28} />
-                        <p className="text-sm">Starting camera...</p>
+                    {!scanning && !error && (
+                        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-slate-900/90 backdrop-blur-sm">
+                            <div className="flex h-14 w-14 animate-pulse items-center justify-center rounded-full bg-slate-800">
+                                <Camera size={28} className="text-teal" />
+                            </div>
+                            <div>
+                                <p className="text-sm font-medium text-white">Starting camera…</p>
+                                <p className="mt-1 text-xs text-slate-400">Please allow camera access when prompted</p>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Scan pulse indicator */}
+                {scanning && (
+                    <div className="mx-auto mt-4 flex items-center justify-center gap-2">
+                        <span className="relative flex h-3 w-3">
+                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-teal-400 opacity-75" />
+                            <span className="relative inline-flex h-3 w-3 rounded-full bg-teal" />
+                        </span>
+                        <span className="text-xs font-medium text-slate-600">Scanning…</span>
                     </div>
                 )}
+
+                <p className="mt-3 text-center text-xs text-slate-500">
+                    Hold steady within the frame. Scan triggers automatically when detected.
+                </p>
             </div>
 
-            <p className="mt-3 text-center text-xs text-ink-subtle">
-                Hold steady. The scan will trigger as soon as the QR is detected.
-            </p>
-
-            {/* No-camera fallback: snap or pick a photo. Works on any device
-                regardless of HTTP/HTTPS. `capture="environment"` opens the
-                back camera directly on phones. */}
-            <div className="mt-3 flex flex-col items-center gap-1.5">
+            {/* No-camera fallback */}
+            <div className="mt-5 flex flex-col items-center gap-2">
+                <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                        <div className="w-full border-t border-slate-200" />
+                    </div>
+                    <div className="relative flex justify-center text-xs">
+                        <span className="bg-slate-50 px-3 text-slate-400">or</span>
+                    </div>
+                </div>
                 <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={decoding}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-warm bg-white px-3 py-1.5 text-xs font-medium text-ink hover:bg-cream disabled:opacity-50"
+                    className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 disabled:opacity-50"
                 >
-                    <ImageIcon size={14} />
-                    {decoding ? "Decoding..." : "Use a photo of the QR"}
+                    <ImageIcon size={15} />
+                    {decoding ? "Decoding image…" : "Upload a photo of the QR code"}
                 </button>
                 <input
                     ref={fileInputRef}
@@ -416,7 +451,7 @@ function ScannerPanel({
                     }}
                 />
                 {fileError && (
-                    <p className="text-center text-xs text-red-600">{fileError}</p>
+                    <p className="text-center text-xs text-red-500">{fileError}</p>
                 )}
             </div>
         </>
@@ -436,29 +471,37 @@ function ResultPanel({
 
     if (!code) {
         return (
-            <div>
-                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">
-                        {error ?? "QR scanned"}
-                    </p>
-                    <p className="mt-1 break-all text-sm text-ink">{payload || "(empty)"}</p>
-                    <p className="mt-2 text-xs text-ink-muted">
-                        This QR isn't tied to any asset code in the system. You can scan
-                        another, or add it as a new asset code.
-                    </p>
+            <div className="space-y-4">
+                <div className="rounded-xl border border-red-200 bg-red-50 p-5 shadow-sm">
+                    <div className="flex items-start gap-3">
+                        <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-100">
+                            <XCircle size={18} className="text-red-600" />
+                        </div>
+                        <div className="flex-1">
+                            <p className="text-sm font-semibold text-red-800">
+                                {error ?? "QR scanned — no match found"}
+                            </p>
+                            <p className="mt-1.5 break-all rounded-lg bg-red-100/60 px-2.5 py-1 font-mono text-xs text-red-700">
+                                {payload || "(empty payload)"}
+                            </p>
+                            <p className="mt-2 text-xs text-red-600/80">
+                                This code isn't registered in the system. You can add it as a new asset code.
+                            </p>
+                        </div>
+                    </div>
                 </div>
-                <div className="mt-4 flex justify-end gap-2">
+                <div className="flex justify-end gap-2">
                     <button
                         onClick={onClose}
-                        className="rounded-lg border border-warm bg-card px-3 py-1.5 text-sm text-ink-muted hover:bg-cream"
+                        className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
                     >
                         Done
                     </button>
                     <button
                         onClick={onRescan}
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-teal px-3 py-1.5 text-sm font-semibold text-ink hover:bg-teal-dark"
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-teal px-4 py-2 text-sm font-semibold text-ink shadow-sm transition hover:bg-teal-dark"
                     >
-                        <ScanLine size={14} />
+                        <ScanLine size={15} />
                         Scan another
                     </button>
                 </div>
@@ -618,35 +661,48 @@ function AssetEditPanel({
     return (
         <div className="space-y-5">
             {/* Asset code summary */}
-            <section className="rounded-xl border border-teal/30 bg-teal/5 p-4">
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-teal-dark">
-                    Match found
+            <section className="relative overflow-hidden rounded-xl border border-teal-200 bg-gradient-to-br from-teal-50 to-white p-5 shadow-sm">
+                <div className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-teal-100">
+                    <CheckCircle2 size={18} className="text-teal" />
+                </div>
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-teal">
+                    Asset Matched
                 </p>
-                <h4 className="mt-1 text-lg font-bold text-ink">{code.itemCode}</h4>
-                <p className="text-sm text-ink-muted">{code.description}</p>
-                <dl className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
+                <h4 className="mt-1.5 text-xl font-bold text-ink tracking-tight">{code.itemCode}</h4>
+                <p className="mt-1 text-sm text-ink-muted">{code.description}</p>
+                <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-xs sm:grid-cols-3">
                     <Field label="Type" value={code.type || "—"} />
                     <Field label="Department" value={code.department || "—"} />
                     <Field label="Care Of" value={code.careOf || "—"} />
                     <Field label="Space" value={code.space || "—"} />
-                    <Field label="Asset ID" value={code.assetId ? String(code.assetId) : "—"} />
+                    <Field label="Asset ID" value={code.assetId ? `#${code.assetId}` : "—"} highlight />
                 </dl>
             </section>
 
             {/* Linked asset details */}
             {loading ? (
-                <p className="text-sm text-ink-subtle">Loading asset details...</p>
+                <div className="flex items-center justify-center gap-2 rounded-xl border border-warm bg-white p-6">
+                    <div className="h-5 w-5 animate-spin rounded-full border-2 border-teal border-t-transparent" />
+                    <p className="text-sm text-ink-subtle">Loading asset details…</p>
+                </div>
             ) : loadError ? (
-                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
+                <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+                    <AlertCircle size={16} className="mt-0.5 shrink-0" />
                     {loadError}
                 </div>
             ) : !asset ? (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-                    <p className="font-semibold">No linked asset record</p>
-                    <p className="mt-1 text-xs text-ink-muted">
-                        This QR code isn't yet tied to an asset row, so there's nothing to update.
-                        Link it to an asset on the Asset Coding page first.
-                    </p>
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm shadow-sm">
+                    <div className="flex items-start gap-3">
+                        <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-100">
+                            <AlertCircle size={18} className="text-amber-600" />
+                        </div>
+                        <div>
+                            <p className="font-semibold text-amber-800">No linked asset record</p>
+                            <p className="mt-1 text-xs text-amber-700/80">
+                                This QR code isn't yet tied to an asset row. Visit the Asset Coding page to link it.
+                            </p>
+                        </div>
+                    </div>
                 </div>
             ) : (
                 <>
@@ -902,13 +958,15 @@ function AssetEditPanel({
     );
 }
 
-function Field({ label, value }: { label: string; value: string }) {
+function Field({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
     return (
         <div>
-            <dt className="text-[10px] font-semibold uppercase tracking-wide text-ink-muted">
+            <dt className="text-[10px] font-semibold uppercase tracking-widest text-ink-muted">
                 {label}
             </dt>
-            <dd className="mt-0.5 text-sm text-ink">{value}</dd>
+            <dd className={`mt-0.5 text-sm ${highlight ? "font-semibold text-teal-dark" : "text-ink"}`}>
+                {value}
+            </dd>
         </div>
     );
 }
