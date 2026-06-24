@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "../../../context/AuthContext";
-import { MessageCircle, Send, X } from "lucide-react";
+import { MessageCircle, X } from "lucide-react";
+import MessageInput from "./MessageInput";
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 const POLL_INTERVAL_MS = 3000;
@@ -14,6 +15,7 @@ function resolveAvatar(p?: string | null) {
 type MessageType = {
     id: number;
     message: string;
+    attachment_urls: string[];
     created_at: string;
     sender_id: number;
     sender: { id: number; name: string; profile_picture: string | null; role: string };
@@ -60,7 +62,6 @@ export default function MessageDock() {
     const [conversations, setConversations] = useState<ConversationType[]>([]);
     const [activeConv, setActiveConv] = useState<number | null>(null);
     const [messages, setMessages] = useState<MessageType[]>([]);
-    const [inputText, setInputText] = useState("");
     const [sending, setSending] = useState(false);
     const [unreadMap, setUnreadMap] = useState<Record<number, boolean>>({});
     const isAdmin = authUser?.usertype === "admin";
@@ -126,33 +127,28 @@ export default function MessageDock() {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages]);
 
-    const handleSend = useCallback(async () => {
-        const text = inputText.trim();
-        if (!text || !authUser?.id || sending) return;
+    const handleSend = useCallback(async (text: string, attachmentUrls: string[]) => {
+        if (!authUser?.id || sending) return;
+        const trimmed = text.trim();
+        if (!trimmed && attachmentUrls.length === 0) return;
         setSending(true);
-        setInputText("");
         try {
             const res = await fetch(`${API_BASE_URL}/api/messages/dock/send`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ user_id: authUser.id, message: text }),
+                body: JSON.stringify({ user_id: authUser.id, message: trimmed, attachment_urls: attachmentUrls }),
             });
-            if (!res.ok) { setInputText(text); return; }
+            if (!res.ok) { setSending(false); return; }
             const newMsg = await res.json();
             setMessages((prev) => [...prev, newMsg]);
             setActiveConv(newMsg.conversation_id);
-            // After sending our own message, update the seen timestamp so it doesn't show as unread
             if (authUser?.id) {
                 writeDockSeen(authUser.id, newMsg.conversation_id, Date.now());
                 setUnreadMap((prev) => ({ ...prev, [newMsg.conversation_id]: false }));
             }
             refreshData();
-        } catch { setInputText(text); } finally { setSending(false); }
-    }, [inputText, authUser?.id, sending, refreshData]);
-
-    const handleKeyDown = (e: React.KeyboardEvent) => {
-        if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
-    };
+        } catch { } finally { setSending(false); }
+    }, [authUser?.id, sending, refreshData]);
 
     function getOtherParticipant(conv: ConversationType) {
         if (!conv.participants) return null;
@@ -255,7 +251,16 @@ export default function MessageDock() {
                                                 </div>
                                             )}
                                             <div className={`rounded-2xl px-3 py-1.5 text-sm leading-relaxed ${isMine ? "bg-[#92C7CF] text-white rounded-br-md" : "bg-slate-100 text-slate-600 rounded-bl-md"} ${isNew ? "ring-1 ring-red-400/50" : ""}`}>
-                                                <p className="whitespace-pre-wrap break-words">{msg.message}</p>
+                                                {msg.attachment_urls && msg.attachment_urls.length > 0 && (
+                                                    <div className="mb-1">
+                                                        {msg.attachment_urls.map((url, i) => {
+                                                            const src = resolveAvatar(url);
+                                                            if (!src) return null;
+                                                            return <img key={i} src={src} alt="" className="max-w-[200px] max-h-[200px] rounded-lg object-cover mb-1" />;
+                                                        })}
+                                                    </div>
+                                                )}
+                                                {msg.message && <p className="whitespace-pre-wrap break-words">{msg.message}</p>}
                                                 <p className={`text-[9px] mt-0.5 text-right ${isMine ? "text-white/70" : "text-slate-400"}`}>{formatTime(msg.created_at)}</p>
                                             </div>
                                         </div>
@@ -268,24 +273,11 @@ export default function MessageDock() {
 
                     {/* Input */}
                     <div className="px-3 py-2 border-t border-slate-100">
-                        <div className="flex items-center gap-1.5">
-                            <input
-                                type="text"
-                                value={inputText}
-                                onChange={(e) => setInputText(e.target.value)}
-                                onKeyDown={handleKeyDown}
-                                placeholder="Reply..."
-                                disabled={sending}
-                                className="flex-1 px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#92C7CF]/40 disabled:opacity-50"
-                            />
-                            <button
-                                onClick={handleSend}
-                                disabled={!inputText.trim() || sending}
-                                className="inline-flex items-center justify-center h-8 w-8 rounded-xl bg-[#92C7CF] text-white hover:bg-[#7FB8C0] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                            >
-                                <Send className="h-3.5 w-3.5" />
-                            </button>
-                        </div>
+                        <MessageInput
+                            onSend={handleSend}
+                            sending={sending}
+                            placeholder="Reply..."
+                        />
                     </div>
                 </div>
             )}

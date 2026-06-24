@@ -67,8 +67,8 @@ const AssignOutletPage = lazy(
 const RequestResetPage = lazy(
     () => import("../../modules/requests/pages/RequestResetPage")
 );
-const BulletinBoardPage = lazy(
-    () => import("../../modules/bulletin/pages/BulletinBoardPage")
+const AnnouncementsPage = lazy(
+    () => import("../../modules/announcements/pages/AnnouncementsPage")
 );
 const OperatorTabbedPage = lazy(
     () => import("../../modules/operator/pages/OperatorTabbedPage")
@@ -459,7 +459,7 @@ export const router = createBrowserRouter([
                 element: (
                     <RoleGuard allow={["admin", "csr", "operator", "purchaser"]}>
                         <Suspense fallback={<RouteFallback />}>
-                            <BulletinBoardPage />
+                            <AnnouncementsPage />
                         </Suspense>
                     </RoleGuard>
                 ),

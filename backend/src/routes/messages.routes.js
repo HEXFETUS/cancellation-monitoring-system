@@ -1,6 +1,7 @@
 import express from "express";
 import pool from "../config/db.js";
 import { recordActivity } from "../utils/activity-log.js";
+import upload from "../config/multer.js";
 
 const router = express.Router();
 
@@ -411,7 +412,10 @@ router.post("/admin-group/messages", async (req, res) => {
         requireAdmin(caller);
 
         const body = String(req.body?.message ?? "").trim();
-        if (!body) {
+        const attachmentUrls = Array.isArray(req.body?.attachment_urls)
+            ? req.body.attachment_urls.filter((u) => typeof u === "string")
+            : [];
+        if (!body && attachmentUrls.length === 0) {
             return res.status(400).json({ error: "EMPTY_MESSAGE" });
         }
         if (body.length > 2000) {
@@ -421,10 +425,10 @@ router.post("/admin-group/messages", async (req, res) => {
         const conversationId = await getOrCreateAdminGroup();
 
         const insert = await pool.query(
-            `INSERT INTO private_messages (conversation_id, sender_id, message)
-             VALUES ($1::int, $2::int, $3)
+            `INSERT INTO private_messages (conversation_id, sender_id, message, attachment_urls)
+             VALUES ($1::int, $2::int, $3, $4::jsonb)
              RETURNING id, created_at`,
-            [conversationId, caller.id, body]
+            [conversationId, caller.id, body, JSON.stringify(attachmentUrls)]
         );
 
         const newMessage = insert.rows[0];
@@ -433,7 +437,7 @@ router.post("/admin-group/messages", async (req, res) => {
             id: newMessage.id,
             conversation_id: conversationId,
             message: body,
-            attachment_urls: [],
+            attachment_urls: attachmentUrls,
             created_at: newMessage.created_at,
             sender_id: caller.id,
             sender: {
@@ -715,7 +719,10 @@ router.post("/dock/send", async (req, res) => {
         }
 
         const body = String(req.body?.message ?? "").trim();
-        if (!body) {
+        const attachmentUrls = Array.isArray(req.body?.attachment_urls)
+            ? req.body.attachment_urls.filter((u) => typeof u === "string")
+            : [];
+        if (!body && attachmentUrls.length === 0) {
             return res.status(400).json({ error: "EMPTY_MESSAGE" });
         }
         if (body.length > 2000) {
@@ -735,10 +742,10 @@ router.post("/dock/send", async (req, res) => {
         await migrateOldAdminMessages(sharedConvId, caller.id);
 
         const insert = await pool.query(
-            `INSERT INTO private_messages (conversation_id, sender_id, message)
-             VALUES ($1::int, $2::int, $3)
+            `INSERT INTO private_messages (conversation_id, sender_id, message, attachment_urls)
+             VALUES ($1::int, $2::int, $3, $4::jsonb)
              RETURNING id, created_at`,
-            [sharedConvId, caller.id, body]
+            [sharedConvId, caller.id, body, JSON.stringify(attachmentUrls)]
         );
 
         const newMessage = insert.rows[0];
@@ -754,7 +761,7 @@ router.post("/dock/send", async (req, res) => {
             id: newMessage.id,
             conversation_id: sharedConvId,
             message: body,
-            attachment_urls: [],
+            attachment_urls: attachmentUrls,
             created_at: newMessage.created_at,
             sender_id: caller.id,
             sender: {
@@ -792,7 +799,10 @@ router.post("/conversations/:id/messages", async (req, res) => {
         }
 
         const body = String(req.body?.message ?? "").trim();
-        if (!body) {
+        const attachmentUrls = Array.isArray(req.body?.attachment_urls)
+            ? req.body.attachment_urls.filter((u) => typeof u === "string")
+            : [];
+        if (!body && attachmentUrls.length === 0) {
             return res.status(400).json({ error: "EMPTY_MESSAGE" });
         }
         if (body.length > 2000) {
@@ -800,10 +810,10 @@ router.post("/conversations/:id/messages", async (req, res) => {
         }
 
         const insert = await pool.query(
-            `INSERT INTO private_messages (conversation_id, sender_id, message)
-             VALUES ($1::int, $2::int, $3)
+            `INSERT INTO private_messages (conversation_id, sender_id, message, attachment_urls)
+             VALUES ($1::int, $2::int, $3, $4::jsonb)
              RETURNING id, created_at`,
-            [conversationId, caller.id, body]
+            [conversationId, caller.id, body, JSON.stringify(attachmentUrls)]
         );
 
         const newMessage = insert.rows[0];
@@ -819,7 +829,7 @@ router.post("/conversations/:id/messages", async (req, res) => {
             id: newMessage.id,
             conversation_id: conversationId,
             message: body,
-            attachment_urls: [],
+            attachment_urls: attachmentUrls,
             created_at: newMessage.created_at,
             sender_id: caller.id,
             sender: {

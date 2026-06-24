@@ -68,6 +68,7 @@ const iconMap: Record<string, LucideIcon> = {
     "POS Repair": Wrench,
     Cancellation: FileText,
     "Asset Inventory": Package,
+    "Assets": Package,
     Summary: LayoutDashboard,
     Office: Building2,
     Payout: MapPin,
@@ -80,7 +81,6 @@ const iconMap: Record<string, LucideIcon> = {
     "Released Log": ArrowUpRight,
     "Diagnosis List": Stethoscope,
     Posts: Megaphone,
-    "Bulletin Board": MessageSquare,
     "Messages": MessageSquare,
     "Request POS": Send,
     Requests: Notebook,
@@ -96,7 +96,6 @@ export default function DashboardLayout() {
     const [darkMode, setDarkMode] = useState(() => {
         return localStorage.getItem("theme") === "dark";
     });
-    const [bulletinUnread, setBulletinUnread] = useState(0);
     const [messagesUnread, setMessagesUnread] = useState(0);
     const [pendingBoothRequests, setPendingBoothRequests] = useState(0);
     const [pendingOperatorChangeCount, setPendingOperatorChangeCount] = useState(0);
@@ -196,44 +195,6 @@ export default function DashboardLayout() {
             ignored = true;
         };
     }, [authUser]);
-
-    // Poll the bulletin board unread count so the sidebar badge stays
-    // current. Cheap O(1) query on the backend; 8s cadence is enough — the
-    // badge isn't time-sensitive and the chat page itself polls faster.
-    useEffect(() => {
-        if (!authUser?.id) {
-            setBulletinUnread(0);
-            return;
-        }
-        let cancelled = false;
-
-        const fetchUnread = async () => {
-            if (cancelled) return;
-            try {
-                const res = await fetch(
-                    `${API_BASE_URL}/api/bulletin/unread-count?user_id=${authUser.id}`
-                );
-                if (!res.ok) return;
-                const data = await res.json();
-                if (!cancelled) setBulletinUnread(Number(data?.unread ?? 0));
-            } catch {
-                // Non-fatal — badge just stays at its previous value.
-            }
-        };
-
-        fetchUnread();
-        const interval = window.setInterval(fetchUnread, 8000);
-        const onVisibility = () => {
-            if (document.visibilityState === "visible") fetchUnread();
-        };
-        document.addEventListener("visibilitychange", onVisibility);
-
-        return () => {
-            cancelled = true;
-            window.clearInterval(interval);
-            document.removeEventListener("visibilitychange", onVisibility);
-        };
-    }, [authUser?.id, location.pathname]);
 
     // Poll messages unread using the lightweight unread-summary endpoint.
     // Returns timestamps — frontend compares against localStorage seen markers.
@@ -611,7 +572,6 @@ export default function DashboardLayout() {
                     { name: "Requests", path: "/app/requests" },
                     { name: "Assets", path: "/app/asset-inventory" },
                     { name: "Messages", path: "/app/messages" },
-                    { name: "Bulletin Board", path: "/app/bulletin-board" },
                     { name: "Settings", path: "/app/settings" },
                 ];
 
@@ -991,19 +951,6 @@ export default function DashboardLayout() {
                                             />
                                         )}
 
-                                        {/* Unread badge for the Bulletin Board entry */}
-                                        {item.name === "Bulletin Board" && bulletinUnread > 0 && (
-                                            <span
-                                                className="ml-auto inline-flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-[10px] font-bold text-white"
-                                                style={{
-                                                    background: "linear-gradient(135deg, #EF4444, #F97316)",
-                                                    boxShadow: "0 2px 6px rgba(239,68,68,0.35)",
-                                                }}
-                                            >
-                                                {bulletinUnread > 99 ? "99+" : bulletinUnread}
-                                            </span>
-                                        )}
-
                                         {item.name === "Requests" && (pendingBoothRequests > 0 || pendingOperatorChangeCount > 0 || pendingBoothOperatorChangeCount > 0) && (
                                             <span
                                                 className="ml-auto h-2 w-2 rounded-full animate-pulse"
@@ -1039,7 +986,6 @@ export default function DashboardLayout() {
 
                                         {/* Active dot */}
                                         {isActive &&
-                                            item.name !== "Bulletin Board" &&
                                             !(item.name === "Requests" && (pendingBoothRequests > 0 || pendingOperatorChangeCount > 0 || pendingBoothOperatorChangeCount > 0)) &&
                                             !(item.name === "POS Repair" && forCheckingRepairCount > 0) &&
                                             !((item.name === "My POS" && operatorMyPosHasNew) || (item.name === "My Outlets" && operatorMyOutletsHasNew)) && (
@@ -1051,15 +997,6 @@ export default function DashboardLayout() {
                                                     }}
                                                 />
                                             )}
-                                        {isActive && item.name === "Bulletin Board" && bulletinUnread === 0 && (
-                                            <span
-                                                className="ml-auto w-1.5 h-1.5 rounded-full"
-                                                style={{
-                                                    background: teal,
-                                                    boxShadow: `0 0 8px ${teal}`,
-                                                }}
-                                            />
-                                        )}
                                     </Link>
                                 );
                             })}

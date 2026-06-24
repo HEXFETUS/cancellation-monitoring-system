@@ -87,7 +87,7 @@ const ROLE_LABELS: Record<string, string> = {
     purchaser: "Purchaser",
 };
 
-export default function BulletinBoardPage() {
+export default function AnnouncementsPage() {
     const { user } = useAuth();
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [pinned, setPinned] = useState<ChatMessage[]>([]);
@@ -386,7 +386,7 @@ export default function BulletinBoardPage() {
         <div className="flex h-[calc(100vh-160px)] flex-col gap-3">
             <div className="flex items-start justify-between gap-3">
                 <div>
-                    <h1 className="text-2xl font-bold text-ink">Bulletin Board</h1>
+                    <h1 className="text-2xl font-bold text-ink">Announcements</h1>
                     <p className="text-sm text-ink-muted">
                         Group chat for everyone. Share updates, ask questions, attach images or videos.
                     </p>
