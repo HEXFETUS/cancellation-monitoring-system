@@ -401,7 +401,7 @@ export default function OperatorDashboard() {
             {/* ── POS Devices & Outlets section ── */}
             <div>
                 <SectionHeader section="devices" />
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     <DeviceStatCard
                         label="Total POS Devices"
                         value={loading ? "—" : combinedStats.total}
@@ -669,8 +669,8 @@ export default function OperatorDashboard() {
                             </GlassCard>
                         )}
 
-                        {/* POS Booth Change Requests — always visible, full width */}
-                        <GlassCard className="lg:col-span-3 sm:col-span-2">
+                        {/* POS Booth Change Requests — always visible */}
+                        <GlassCard className="lg:col-span-1 sm:col-span-2">
                             <div className="border-b border-white/40 bg-gradient-to-r from-[#92C7CF]/10 to-[#AAD7D9]/10 px-5 py-3">
                                 <div className="flex items-center justify-between">
                                     <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-800">
@@ -727,8 +727,8 @@ export default function OperatorDashboard() {
                             </div>
                         </GlassCard>
 
-                        {/* CP Booth Change Requests Card — full width */}
-                        <GlassCard className="lg:col-span-3 sm:col-span-2">
+                        {/* CP Booth Change Requests Card */}
+                        <GlassCard className="lg:col-span-1 sm:col-span-2">
                             <div className="border-b border-white/40 bg-gradient-to-r from-[#92C7CF]/10 to-[#AAD7D9]/10 px-5 py-3">
                                 <div className="flex items-center justify-between">
                                     <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-800">
@@ -758,10 +758,10 @@ export default function OperatorDashboard() {
                                                         <BoothStatusPill status={r.status} />
                                                     </div>
                                                     <p className="mt-0.5 text-xs text-gray-500 truncate">
-                                                        <span className="font-mono">Current</span>
+                                                        <span className="font-mono">{r.control_no ? `CP ${r.control_no}` : `CP #${r.cellphone_id}`}</span>
                                                         <span className="mx-1 text-gray-300">→</span>
                                                         <span className="font-mono" style={{ color: teal }}>
-                                                            {r.requested_booth_code || `#${r.requested_booth_id}`}
+                                                            {r.requested_booth_code || `Booth #${r.requested_booth_id}`}
                                                         </span>
                                                     </p>
                                                     <p className="text-[11px] text-gray-400 mt-0.5">
@@ -855,29 +855,29 @@ export default function OperatorDashboard() {
                                             POS Sub-Op Assign Requests
                                         </h3>
                                         <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-amber-100 px-1.5 text-[10px] font-bold text-amber-700">
-                                            {posRequests.length}
+                                            {outletRequests.length}
                                         </span>
                                     </div>
                                 </div>
                                 <div className="p-4">
-                                    {recentPosRequests.length === 0 ? (
+                                    {recentOutletRequests.length === 0 ? (
                                         <div className="rounded-xl border border-dashed border-[#92C7CF]/20 bg-white/30 px-4 py-6 text-center">
                                             <UserCircle size={28} className="mx-auto text-gray-300 mb-2" />
                                             <p className="text-sm text-gray-500">No POS sub-op assign requests yet.</p>
                                         </div>
                                     ) : (
                                         <ul className="divide-y divide-gray-100">
-                                            {recentPosRequests.map((r) => (
+                                            {recentOutletRequests.map((r) => (
                                                 <li key={r.id} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
                                                     <div className="min-w-0 flex-1">
                                                         <div className="flex items-center gap-1.5">
                                                             <span className="text-sm font-semibold text-gray-800 truncate">
-                                                                {r.device_no || `POS #${r.pos_record_id}`}
+                                                                {r.booth_code || `Booth #${r.booth_info_id}`}
                                                             </span>
                                                             <RequestStatusPill status={r.status} size="sm" />
                                                         </div>
                                                         <p className="mt-0.5 text-xs text-gray-500 truncate">
-                                                            {r.from_operator || "Unassigned"}
+                                                            {r.current_operator || "Unassigned"}
                                                             <span className="mx-1 text-gray-300">→</span>
                                                             <span style={{ color: teal }} className="font-medium">
                                                                 {r.to_operator || "—"}
@@ -891,7 +891,7 @@ export default function OperatorDashboard() {
                                             ))}
                                             <li className="pt-2">
                                                 <Link
-                                                    to="/app/my-pos?tab=request-pos"
+                                                    to="/app/my-outlets"
                                                     className="group inline-flex items-center gap-1 text-xs font-medium transition"
                                                     style={{ color: teal }}
                                                 >

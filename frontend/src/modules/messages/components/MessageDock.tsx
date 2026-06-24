@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useEffect, useRef, useState } from "react";
 import { useAuth } from "../../../context/AuthContext";
 import { MessageCircle, X } from "lucide-react";
 import MessageInput from "./MessageInput";
@@ -66,7 +66,7 @@ export default function MessageDock() {
     const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
     const [unreadMap, setUnreadMap] = useState<Record<number, boolean>>({});
     const isAdmin = authUser?.usertype === "admin";
-    const messagesEndRef = useRef<HTMLDivElement>(null);
+    const messagesContainerRef = useRef<HTMLDivElement>(null);
     // Track whether the current dock conversation has been viewed
     const dockViewedRef = useRef(false);
 
@@ -124,9 +124,11 @@ export default function MessageDock() {
         }
     }, [activeConv, authUser?.id, refreshData]);
 
-    useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, [messages]);
+    useLayoutEffect(() => {
+        if (messagesContainerRef.current) {
+            messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+        }
+    }, [messages, activeConv]);
 
     const handleSend = useCallback(async (text: string, attachmentUrls: string[]) => {
         if (!authUser?.id || sending) return;
@@ -192,7 +194,7 @@ export default function MessageDock() {
             {/* Chat panel - bottom right */}
             {(activeConv || isNewConv) && chatOther && (
                 <div
-                    className="w-80 rounded-2xl border shadow-2xl overflow-hidden"
+                    className="w-96 rounded-2xl border shadow-2xl overflow-hidden"
                     style={{
                         background: "rgba(255,255,255,0.98)",
                         border: "1px solid rgba(146,199,207,0.25)",
@@ -222,7 +224,7 @@ export default function MessageDock() {
                     </div>
 
                     {/* Messages */}
-                    <div className="h-64 overflow-y-auto px-3 py-2 space-y-1">
+                    <div ref={messagesContainerRef} className="h-96 overflow-y-auto px-3 py-2 space-y-1" style={{ overflowAnchor: "none" }}>
                         {messages.length === 0 ? (
                             <div className="flex flex-col items-center justify-center h-full text-slate-400">
                                 <p className="text-xs">No messages yet</p>
@@ -237,7 +239,7 @@ export default function MessageDock() {
                                 return (
                                     <div key={msg.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
                                         <div className={`max-w-[80%] ${isMine ? "items-end" : "items-start"} flex flex-col`}>
-                                            {!isMine && (
+                                            {!isMine && !senderIsAdmin && (
                                                 <div className="flex items-center gap-1 mb-0.5 ml-1">
                                                     {msg.sender.profile_picture ? (
                                                         <img src={resolveAvatar(msg.sender.profile_picture)!} alt={msg.sender.name} className="h-5 w-5 rounded-full object-cover" />
@@ -246,7 +248,7 @@ export default function MessageDock() {
                                                             {msg.sender.name.split(' ').map(p => p[0]).join('').toUpperCase().slice(0, 2)}
                                                         </div>
                                                     )}
-                                                    <span className={`text-[10px] ${senderIsAdmin ? "font-bold text-slate-700 dark:text-gray-200" : "text-slate-500 dark:text-gray-400"}`}>
+                                                    <span className="text-[10px] text-slate-500 dark:text-gray-400">
                                                         {msg.sender.name}
                                                     </span>
                                                 </div>
@@ -269,7 +271,6 @@ export default function MessageDock() {
                                 );
                             })
                         )}
-                        <div ref={messagesEndRef} />
                     </div>
 
                     {/* Input */}
