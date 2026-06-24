@@ -90,9 +90,14 @@ interface PrintTask {
 interface Abstraction {
     newPrintTask(
         name: string,
-        opts: { totalPages: number; statusPollIntervalMs?: number; statusTimeoutMs?: number }
+        opts: {
+            totalPages: number;
+            density?: number;
+            statusPollIntervalMs?: number;
+            statusTimeoutMs?: number;
+            pageTimeoutMs?: number;
+        }
     ): PrintTask;
-    setLabelDensity?(density: number): Promise<void>;
 }
 
 interface NiimbotClient {
@@ -100,6 +105,8 @@ interface NiimbotClient {
     connect(): Promise<void>;
     disconnect(): void | Promise<void>;
     getPrintTaskType?(): string | undefined;
+    /** Model metadata incl. printhead width in pixels (e.g. B21S = 384). */
+    getModelMetadata?(): { printheadPixels?: number } | undefined;
     abstraction: Abstraction;
 }
 
@@ -260,6 +267,40 @@ export async function disconnect(): Promise<void> {
     setState({ status: "disconnected", detectedTask: null, progress: null });
 }
 
+// B21S printhead width in pixels (48mm @203dpi). Used as a fallback when the
+// connected model's metadata isn't available.
+const FALLBACK_PRINTHEAD_PX = 384;
+
+/**
+ * Scale a label canvas down so the dimension that maps across the printhead
+ * never exceeds the head's pixel width. With direction "top" that's the canvas
+ * width; with "left" (rotated 90°) it's the height. The across-head dimension
+ * ends up exactly `headPx` (a multiple of 8, as the encoder requires); the
+ * other dimension scales proportionally to preserve the label's aspect ratio.
+ */
+function fitCanvasToPrinthead(
+    canvas: HTMLCanvasElement,
+    direction: PrintDirection,
+    headPx: number
+): HTMLCanvasElement {
+    const acrossHead = direction === "left" ? canvas.height : canvas.width;
+    if (!headPx || acrossHead <= headPx) return canvas;
+
+    const scale = headPx / acrossHead;
+    const newWidth = direction === "left" ? Math.max(8, Math.round(canvas.width * scale)) : headPx;
+    const newHeight = direction === "left" ? headPx : Math.max(8, Math.round(canvas.height * scale));
+
+    const out = document.createElement("canvas");
+    out.width = newWidth;
+    out.height = newHeight;
+    const ctx = out.getContext("2d");
+    if (!ctx) return canvas;
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, newWidth, newHeight);
+    ctx.drawImage(canvas, 0, 0, newWidth, newHeight);
+    return out;
+}
+
 /**
  * Print a pre-rendered label canvas. The canvas must already be sized to the
  * label stock at the printer resolution (see renderDeviceLabelCanvas).
@@ -274,26 +315,31 @@ export async function printCanvas(canvas: HTMLCanvasElement, quantity = 1): Prom
     const { direction, density, printTaskName } = state.settings;
     setState({ status: "printing", error: null, progress: null });
 
-    const encoded = lib.ImageEncoder.encodeCanvas(canvas, direction);
+    // Clamp the image to the printhead width before encoding. The B21S head is
+    // 384px (48mm @203dpi); a 50mm label renders to 400px. encodeCanvas("top")
+    // maps the canvas WIDTH across the head, so a 400px page is wider than the
+    // head can print — the firmware then emits blank, garbled, or duplicate
+    // labels. Scaling the canvas down to the head fixes all three.
+    const headPx = client.getModelMetadata?.()?.printheadPixels ?? FALLBACK_PRINTHEAD_PX;
+    const printable = fitCanvasToPrinthead(canvas, direction, headPx);
+    const encoded = lib.ImageEncoder.encodeCanvas(printable, direction);
+
     const taskName =
         printTaskName === "auto" ? (client.getPrintTaskType?.() ?? DEFAULT_PRINT_TASK) : printTaskName;
 
+    // Pass density through so the print task actually applies it (printInit
+    // sets density from these options); the previous separate call was
+    // overridden by the task default. Conservative poll/timeout values make the
+    // first print after connecting more reliable.
     const task = client.abstraction.newPrintTask(taskName, {
         totalPages: quantity,
-        statusPollIntervalMs: 100,
-        statusTimeoutMs: 8_000,
+        density,
+        statusPollIntervalMs: 300,
+        statusTimeoutMs: 10_000,
+        pageTimeoutMs: 15_000,
     });
 
     try {
-        // Best-effort density; not all firmware/tasks expose it.
-        if (typeof client.abstraction.setLabelDensity === "function") {
-            try {
-                await client.abstraction.setLabelDensity(density);
-            } catch {
-                // ignore – density is a nice-to-have
-            }
-        }
-
         await task.printInit();
         await task.printPage(encoded, quantity);
         await task.waitForPageFinished();
