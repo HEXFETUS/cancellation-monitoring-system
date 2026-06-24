@@ -25,6 +25,14 @@ async function loadCaller(req) {
     return result.rows[0] ?? null;
 }
 
+const LAST_MESSAGE_PREVIEW_SQL = `
+    CASE
+        WHEN NULLIF(BTRIM(pm.message), '') IS NOT NULL THEN pm.message
+        WHEN jsonb_array_length(COALESCE(NULLIF(pm.attachment_urls, '')::jsonb, '[]'::jsonb)) > 0 THEN 'Image'
+        ELSE pm.message
+    END
+`;
+
 async function getOrCreateSharedAdminConversation(nonAdminId) {
     const existing = await pool.query(
         `SELECT c.id FROM conversations c
@@ -224,7 +232,7 @@ router.get("/users", async (req, res) => {
                 u.usertype,
                 u.profile_picture,
                 (
-                    SELECT pm.message
+                    SELECT ${LAST_MESSAGE_PREVIEW_SQL}
                     FROM private_messages pm
                     JOIN conversations c ON c.id = pm.conversation_id
                     JOIN conversation_participants cp ON cp.conversation_id = c.id
@@ -375,7 +383,7 @@ router.get("/admin-group", async (req, res) => {
 
         const details = await pool.query(
             `SELECT
-                pm.message AS last_message,
+                ${LAST_MESSAGE_PREVIEW_SQL} AS last_message,
                 pm.sender_id AS last_message_sender_id,
                 pm.created_at AS last_message_at
              FROM private_messages pm
@@ -471,7 +479,7 @@ router.get("/conversations", async (req, res) => {
                 c.id AS conversation_id,
                 c.created_at,
                 (
-                    SELECT pm.message
+                    SELECT ${LAST_MESSAGE_PREVIEW_SQL}
                     FROM private_messages pm
                     WHERE pm.conversation_id = c.id
                     ORDER BY pm.created_at DESC
