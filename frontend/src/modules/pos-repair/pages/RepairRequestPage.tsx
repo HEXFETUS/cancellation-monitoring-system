@@ -21,6 +21,7 @@ export default function RepairRequestPage() {
     const [posEligibilityError, setPosEligibilityError] = useState("");
     const [checkingPosEligibility, setCheckingPosEligibility] = useState(false);
     const [diagnosisId, setDiagnosisId] = useState<number | null>(null);
+    const [selectedOperatorId, setSelectedOperatorId] = useState<number | null>(null);
     const [saving, setSaving] = useState(false);
     const [showSaveConfirm, setShowSaveConfirm] = useState(false);
 
@@ -153,6 +154,7 @@ export default function RepairRequestPage() {
         setPosEligibilityError("");
         setSearchResults([]);
         setActiveDropdown(null);
+        setSelectedOperatorId(record.operator_id ?? null);
 
         if (record.status?.trim().toLowerCase() === "not released") {
             const message = "The POS is already being repaired";
@@ -180,6 +182,7 @@ export default function RepairRequestPage() {
 
     const handleSelectOperator = (op: OperatorItem) => {
         setFormData((prev) => ({ ...prev, operator: op.operator }));
+        setSelectedOperatorId(op.id);
         setOperatorResults([]);
         setActiveDropdown(null);
     };
@@ -276,6 +279,7 @@ export default function RepairRequestPage() {
                 date: formData.date,
                 pos_record_id: posRecordId,
                 ntc: formData.accessories.ntc,
+                operator_id: selectedOperatorId,
                 operator_name: formData.operator,
                 diagnosis_id: diagnosisId,
                 delivered_by: "",
@@ -301,6 +305,7 @@ export default function RepairRequestPage() {
             setSelectedPosStatus("");
             setPosEligibilityError("");
             setDiagnosisId(null);
+            setSelectedOperatorId(null);
         } catch (err: unknown) {
             const message = err instanceof Error ? err.message : "Failed to save repair record";
             showToast(message);
@@ -333,6 +338,7 @@ export default function RepairRequestPage() {
         setPosEligibilityError("");
         setCheckingPosEligibility(false);
         setDiagnosisId(null);
+        setSelectedOperatorId(null);
         setSearchResults([]);
         setOperatorResults([]);
         setActiveDropdown(null);

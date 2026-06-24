@@ -61,6 +61,7 @@ export interface CreateRepairRecordPayload {
     date: string;
     pos_record_id: number;
     ntc: boolean;
+    operator_id?: number | null;
     operator_name: string;
     diagnosis_id: number | null;
     delivered_by: string;
