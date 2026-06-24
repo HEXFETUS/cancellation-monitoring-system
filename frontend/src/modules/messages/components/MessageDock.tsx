@@ -63,6 +63,7 @@ export default function MessageDock() {
     const [activeConv, setActiveConv] = useState<number | null>(null);
     const [messages, setMessages] = useState<MessageType[]>([]);
     const [sending, setSending] = useState(false);
+    const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
     const [unreadMap, setUnreadMap] = useState<Record<number, boolean>>({});
     const isAdmin = authUser?.usertype === "admin";
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -256,7 +257,7 @@ export default function MessageDock() {
                                                         {msg.attachment_urls.map((url, i) => {
                                                             const src = resolveAvatar(url);
                                                             if (!src) return null;
-                                                            return <img key={i} src={src} alt="" className="max-w-[200px] max-h-[200px] rounded-lg object-cover mb-1" />;
+                                                            return <img key={i} src={src} alt="" onClick={() => setLightboxUrl(src)} className="max-w-[200px] max-h-[200px] rounded-lg object-cover mb-1 cursor-pointer hover:opacity-90 transition-opacity" />;
                                                         })}
                                                     </div>
                                                 )}
@@ -279,6 +280,12 @@ export default function MessageDock() {
                             placeholder="Reply..."
                         />
                     </div>
+                </div>
+            )}
+            {lightboxUrl && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80" onClick={() => setLightboxUrl(null)}>
+                    <button className="absolute top-4 right-4 text-white/80 hover:text-white text-2xl" onClick={() => setLightboxUrl(null)}>✕</button>
+                    <img src={lightboxUrl} alt="" className="max-w-[90vw] max-h-[90vh] rounded-lg shadow-2xl" onClick={(e) => e.stopPropagation()} />
                 </div>
             )}
 

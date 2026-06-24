@@ -78,6 +78,7 @@ export default function MessagesPage() {
     const [sending, setSending] = useState(false);
     const [userSeenMap, setUserSeenMap] = useState<Record<number, number>>(() => readUserSeenMap(authUser?.id));
     const [newMessageMap, setNewMessageMap] = useState<Record<number, boolean>>({});
+    const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const messagesContainerRef = useRef<HTMLDivElement>(null);
     const hasViewedRef = useRef(false);
@@ -371,7 +372,7 @@ export default function MessagesPage() {
                                                         <span className="text-[11px] font-semibold text-slate-600 dark:text-gray-300">{msg.sender.name}</span>
                                                     </div>)}
                                                     <div className={`rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${isMine ? "bg-[#92C7CF] text-white rounded-br-md" : "bg-slate-100 dark:bg-gray-700 text-slate-700 dark:text-gray-200 rounded-bl-md"}`}>
-                                                        {msg.attachment_urls && msg.attachment_urls.length > 0 && (<div className="mb-1">{msg.attachment_urls.map((url, i) => { const src = resolveAvatar(url); if (!src) return null; return <img key={i} src={src} alt="" className="max-w-[200px] max-h-[200px] rounded-lg object-cover mb-1" />; })}</div>)}
+                                                            {msg.attachment_urls && msg.attachment_urls.length > 0 && (<div className="mb-1">{msg.attachment_urls.map((url, i) => { const src = resolveAvatar(url); if (!src) return null; return <img key={i} src={src} alt="" onClick={() => setLightboxUrl(src)} className="max-w-[200px] max-h-[200px] rounded-lg object-cover mb-1 cursor-pointer hover:opacity-90 transition-opacity" />; })}</div>)}
                                                         {msg.message && <p className="whitespace-pre-wrap break-words">{msg.message}</p>}
                                                         <p className={`text-[10px] mt-1 text-right ${isMine ? "text-white/70" : "text-slate-400 dark:text-gray-500"}`}>{formatTime(msg.created_at)}</p>
                                                     </div>
@@ -416,7 +417,7 @@ export default function MessagesPage() {
                                                         <span className={`text-[11px] ${msg.sender.role === 'admin' ? 'font-bold text-slate-700 dark:text-gray-200' : 'text-slate-500 dark:text-gray-400'}`}>{msg.sender.name}</span>
                                                     </div>)}
                                                     <div className={`rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${isMine ? "bg-[#92C7CF] text-white rounded-br-md" : "bg-slate-100 dark:bg-gray-700 text-slate-700 dark:text-gray-200 rounded-bl-md"} ${isNew ? "ring-1 ring-red-400/50" : ""}`}>
-                                                        {msg.attachment_urls && msg.attachment_urls.length > 0 && (<div className={`${msg.message ? "mb-1" : ""}`}>{msg.attachment_urls.map((url, i) => (<img key={i} src={resolveAvatar(url)!} alt="" className="max-w-[200px] max-h-[200px] rounded-lg object-cover mb-1" />))}</div>)}
+                                                        {msg.attachment_urls && msg.attachment_urls.length > 0 && (<div className={`${msg.message ? "mb-1" : ""}`}>{msg.attachment_urls.map((url, i) => { const src = resolveAvatar(url); if (!src) return null; return <img key={i} src={src} alt="" onClick={() => setLightboxUrl(src)} className="max-w-[200px] max-h-[200px] rounded-lg object-cover mb-1 cursor-pointer hover:opacity-90 transition-opacity" />; })}</div>)}
                                                         {msg.message && <p className={`whitespace-pre-wrap break-words ${isNew ? "font-bold" : ""}`}>{msg.message}</p>}
                                                         <p className={`text-[10px] mt-1 text-right ${isMine ? "text-white/70" : "text-slate-400 dark:text-gray-500"}`}>{formatTime(msg.created_at)}</p>
                                                     </div>
@@ -434,6 +435,12 @@ export default function MessagesPage() {
                     </>
                 ) : null}
             </div>
+            {lightboxUrl && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80" onClick={() => setLightboxUrl(null)}>
+                    <button className="absolute top-4 right-4 text-white/80 hover:text-white text-2xl" onClick={() => setLightboxUrl(null)}>✕</button>
+                    <img src={lightboxUrl} alt="" className="max-w-[90vw] max-h-[90vh] rounded-lg shadow-2xl" onClick={(e) => e.stopPropagation()} />
+                </div>
+            )}
         </div>
     );
 }
