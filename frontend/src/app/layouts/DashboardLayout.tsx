@@ -26,7 +26,6 @@ import {
     Notebook,
     Sun,
     Moon,
-    Star,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useEffect, useRef, useState } from "react";
@@ -1014,12 +1013,10 @@ export default function DashboardLayout() {
 
                         {/* ===== Bottom Section ===== */}
                         <div className="relative space-y-2">
-                            {/* User info — click to toggle user menu popover */}
+                            {/* User info — click avatar/name to toggle user menu popover */}
                             <div className="relative" ref={userMenuRef}>
-                                <button
-                                    type="button"
-                                    onClick={() => setUserMenuOpen((v) => !v)}
-                                    className="flex items-center gap-2.5 w-full text-left rounded-xl px-3 py-2 transition-all duration-300 cursor-pointer hover:opacity-80"
+                                <div
+                                    className="flex items-center gap-2.5 w-full rounded-xl px-3 py-2 transition-all duration-300"
                                     style={{
                                         background: darkMode
                                             ? "rgba(75,85,99,0.15)"
@@ -1029,50 +1026,101 @@ export default function DashboardLayout() {
                                             : "1px solid rgba(146,199,207,0.12)",
                                     }}
                                 >
-                                    {avatarUrl ? (
-                                        <div
-                                            className="h-8 w-8 rounded-xl overflow-hidden shrink-0 ring-1 ring-white/40"
-                                            style={{
-                                                boxShadow: `0 2px 12px rgba(146,199,207,0.30)`,
-                                            }}
-                                        >
-                                            <img
-                                                src={avatarUrl}
-                                                alt={displayName}
-                                                className="h-full w-full object-cover"
-                                            />
+                                    <button
+                                        type="button"
+                                        onClick={() => setUserMenuOpen((v) => !v)}
+                                        className="flex items-center gap-2.5 min-w-0 flex-1 text-left cursor-pointer bg-transparent border-none p-0"
+                                    >
+                                        {avatarUrl ? (
+                                            <div
+                                                className="h-8 w-8 rounded-xl overflow-hidden shrink-0 ring-1 ring-white/40"
+                                                style={{
+                                                    boxShadow: `0 2px 12px rgba(146,199,207,0.30)`,
+                                                }}
+                                            >
+                                                <img
+                                                    src={avatarUrl}
+                                                    alt={displayName}
+                                                    className="h-full w-full object-cover"
+                                                />
+                                            </div>
+                                        ) : (
+                                            <div
+                                                className="flex h-8 w-8 items-center justify-center rounded-xl text-white text-sm font-bold shrink-0"
+                                                style={{
+                                                    background: `linear-gradient(135deg, ${teal}, ${tealLight})`,
+                                                    boxShadow: `0 2px 12px rgba(146,199,207,0.30)`,
+                                                }}
+                                            >
+                                                <User className="h-4 w-4 text-white" />
+                                            </div>
+                                        )}
+                                        <div className="min-w-0 flex-1">
+                                            <p
+                                                className="text-[13px] font-semibold truncate transition-colors duration-300"
+                                                style={{ color: darkMode ? "#E5E7EB" : "#1F2937" }}
+                                            >
+                                                {sidebarDisplayName}
+                                            </p>
+                                            <p
+                                                className="text-[10px] truncate uppercase transition-colors duration-300"
+                                                style={{ color: darkMode ? "#6B7280" : "#9CA3AF" }}
+                                            >
+                                                {displayUserType}
+                                            </p>
                                         </div>
-                                    ) : (
-                                        <div
-                                            className="flex h-8 w-8 items-center justify-center rounded-xl text-white text-sm font-bold shrink-0"
-                                            style={{
-                                                background: `linear-gradient(135deg, ${teal}, ${tealLight})`,
-                                                boxShadow: `0 2px 12px rgba(146,199,207,0.30)`,
-                                            }}
-                                        >
-                                            <User className="h-4 w-4 text-white" />
-                                        </div>
-                                    )}
-                                    <div className="min-w-0 flex-1">
-                                        <p
-                                            className="text-[13px] font-semibold truncate transition-colors duration-300"
-                                            style={{ color: darkMode ? "#E5E7EB" : "#1F2937" }}
-                                        >
-                                            {sidebarDisplayName}
-                                        </p>
-                                        <p
-                                            className="text-[10px] truncate uppercase transition-colors duration-300"
-                                            style={{ color: darkMode ? "#6B7280" : "#9CA3AF" }}
-                                        >
-                                            {displayUserType}
-                                        </p>
-                                    </div>
+                                    </button>
                                     {/* Online status */}
                                     <span
                                         className="inline-block w-2 h-2 rounded-full shrink-0 animate-pulse"
                                         style={{ backgroundColor: "#6BBF6B" }}
                                     />
-                                </button>
+                                    {/* Theme toggle */}
+                                    <div
+                                        role="button"
+                                        tabIndex={0}
+                                        onClick={(e) => { e.stopPropagation(); toggleTheme(); }}
+                                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); toggleTheme(); } }}
+                                        className="relative flex items-center w-12 h-6 rounded-full transition-all duration-500 overflow-hidden focus:outline-none shrink-0 cursor-pointer"
+                                        style={{
+                                            background: darkMode
+                                                ? "linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)"
+                                                : "linear-gradient(135deg, #F97316 0%, #FB923C 50%, #FDBA74 100%)",
+                                            boxShadow: darkMode
+                                                ? "0 2px 10px rgba(15,52,96,0.50), inset 0 1px 0 rgba(255,255,255,0.05)"
+                                                : "0 2px 10px rgba(249,115,22,0.40), inset 0 1px 0 rgba(255,255,255,0.20)",
+                                        }}
+                                    >
+                                        {/* Sun icon */}
+                                        <div
+                                            className="absolute left-1 flex items-center justify-center transition-all duration-500"
+                                            style={{
+                                                opacity: darkMode ? 0 : 1,
+                                                transform: darkMode ? "scale(0.5) rotate(-90deg)" : "scale(1) rotate(0deg)",
+                                            }}
+                                        >
+                                            <Sun className="h-3 w-3 text-white" style={{ filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.2))" }} />
+                                        </div>
+                                        {/* Moon */}
+                                        <div
+                                            className="absolute left-1 flex items-center justify-center transition-all duration-500"
+                                            style={{
+                                                opacity: darkMode ? 1 : 0,
+                                                transform: darkMode ? "scale(1) rotate(0deg)" : "scale(0.5) rotate(90deg)",
+                                            }}
+                                        >
+                                            <Moon className="h-3 w-3 text-white" style={{ filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.4))" }} />
+                                        </div>
+                                        {/* Sliding circle */}
+                                        <div
+                                            className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-md transition-all duration-500 ease-in-out"
+                                            style={{
+                                                transform: darkMode ? "translateX(22px)" : "translateX(1px)",
+                                                boxShadow: "0 1px 4px rgba(0,0,0,0.15)",
+                                            }}
+                                        />
+                                    </div>
+                                </div>
 
                                 {/* User menu popover */}
                                 {userMenuOpen && (
@@ -1186,62 +1234,6 @@ export default function DashboardLayout() {
                             </button>
                         </div>
 
-                        {/* ===== Theme Toggle ===== */}
-                        <div className="relative mt-3 flex justify-center">
-                            <button
-                                onClick={toggleTheme}
-                                className="relative flex items-center w-16 h-8 rounded-full transition-all duration-500 overflow-hidden focus:outline-none"
-                                style={{
-                                    background: darkMode
-                                        ? "linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)"
-                                        : "linear-gradient(135deg, #F97316 0%, #FB923C 50%, #FDBA74 100%)",
-                                    boxShadow: darkMode
-                                        ? "0 4px 20px rgba(15,52,96,0.50), inset 0 1px 0 rgba(255,255,255,0.05)"
-                                        : "0 4px 20px rgba(249,115,22,0.40), inset 0 1px 0 rgba(255,255,255,0.20)",
-                                }}
-                            >
-                                {/* Sun icon (visible in light mode) */}
-                                <div
-                                    className="absolute left-1.5 flex items-center justify-center transition-all duration-500"
-                                    style={{
-                                        opacity: darkMode ? 0 : 1,
-                                        transform: darkMode ? "scale(0.5) rotate(-90deg)" : "scale(1) rotate(0deg)",
-                                    }}
-                                >
-                                    <Sun className="h-3.5 w-3.5 text-white" style={{ filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.2))" }} />
-                                </div>
-
-                                {/* Moon + Stars (visible in dark mode) */}
-                                <div
-                                    className="absolute left-1.5 flex items-center justify-center transition-all duration-500"
-                                    style={{
-                                        opacity: darkMode ? 1 : 0,
-                                        transform: darkMode ? "scale(1) rotate(0deg)" : "scale(0.5) rotate(90deg)",
-                                    }}
-                                >
-                                    <Moon className="h-3.5 w-3.5 text-white" style={{ filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.4))" }} />
-                                    <Star
-                                        className="absolute -top-0.5 right-[-6px] h-1.5 w-1.5 text-white"
-                                        fill="white"
-                                        style={{ filter: "drop-shadow(0 0 2px rgba(255,255,255,0.6))" }}
-                                    />
-                                    <Star
-                                        className="absolute top-1.5 right-[-10px] h-1 w-1 text-white"
-                                        fill="white"
-                                        style={{ filter: "drop-shadow(0 0 2px rgba(255,255,255,0.6))" }}
-                                    />
-                                </div>
-
-                                {/* Sliding circle */}
-                                <div
-                                    className="absolute top-0.5 w-7 h-7 rounded-full bg-white shadow-lg transition-all duration-500 ease-in-out"
-                                    style={{
-                                        transform: darkMode ? "translateX(34px)" : "translateX(2px)",
-                                        boxShadow: "0 1px 6px rgba(0,0,0,0.15)",
-                                    }}
-                                />
-                            </button>
-                        </div>
                     </div>
                 </aside>
 
