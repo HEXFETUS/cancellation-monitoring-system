@@ -58,8 +58,6 @@ async function getOrCreateSharedAdminConversation(nonAdminId) {
     );
     const conversationId = convResult.rows[0].id;
 
-    // Build values array: conversationId first, then each admin id, then the non-admin id.
-    // This ensures $1 = conversationId, $2..$N = admin ids, $N+1 = nonAdminId.
     const values = [conversationId];
     const placeholders = [];
     admins.rows.forEach((admin, i) => {
@@ -78,8 +76,6 @@ async function getOrCreateSharedAdminConversation(nonAdminId) {
 }
 
 async function migrateOldAdminMessages(sharedConvId, nonAdminId) {
-    // Step 1: Capture old conversation IDs BEFORE moving any messages.
-    // After messages are moved, these old conversations will be empty/orphaned.
     const oldConvResult = await pool.query(
         `SELECT DISTINCT cp.conversation_id AS id
          FROM conversation_participants cp
@@ -104,10 +100,9 @@ async function migrateOldAdminMessages(sharedConvId, nonAdminId) {
     const oldConversationIds = oldConvResult.rows.map(r => r.id);
 
     if (oldConversationIds.length === 0) {
-        return; // nothing to migrate
+        return;
     }
 
-    // Step 2: Move messages from old conversations to the shared conversation
     await pool.query(
         `UPDATE private_messages
          SET conversation_id = $1::int
@@ -116,14 +111,12 @@ async function migrateOldAdminMessages(sharedConvId, nonAdminId) {
         [sharedConvId, oldConversationIds]
     );
 
-    // Step 3: Delete participants for old conversations (using captured IDs)
     await pool.query(
         `DELETE FROM conversation_participants
          WHERE conversation_id = ANY($1::int[])`,
         [oldConversationIds]
     );
 
-    // Step 4: Delete old conversations (using captured IDs)
     await pool.query(
         `DELETE FROM conversations
          WHERE id = ANY($1::int[])`,
@@ -131,11 +124,6 @@ async function migrateOldAdminMessages(sharedConvId, nonAdminId) {
     );
 }
 
-// ---------------------------------------------------------------------------
-// GET /api/messages/unread-summary — lightweight unread check for the nav dot.
-// Returns timestamps of the latest unread message per category so the frontend
-// can compare against localStorage seen-timestamps.
-// ---------------------------------------------------------------------------
 router.get("/unread-summary", async (req, res) => {
     try {
         const caller = await loadCaller(req);
@@ -148,7 +136,6 @@ router.get("/unread-summary", async (req, res) => {
         let supportLatestIncomingAt = null;
 
         if (isAdmin) {
-            // 1) Admin Group Chat — latest message timestamp not sent by current admin
             const adminGroup = await pool.query(
                 `SELECT c.id FROM conversations c
                  WHERE c.conversation_type = 'admin_group'
@@ -170,7 +157,6 @@ router.get("/unread-summary", async (req, res) => {
                 }
             }
 
-            // 2) Support conversations — latest incoming message from a non-admin
             const supportResult = await pool.query(
                 `SELECT MAX(pm.created_at) AS latest_at
                  FROM private_messages pm
@@ -192,7 +178,6 @@ router.get("/unread-summary", async (req, res) => {
                 supportLatestIncomingAt = supportResult.rows[0].latest_at;
             }
         } else {
-            // Non-admin: latest admin reply in their shared conversation
             const dockResult = await pool.query(
                 `SELECT pm.created_at
                  FROM private_messages pm
@@ -224,10 +209,6 @@ router.get("/unread-summary", async (req, res) => {
     }
 });
 
-// ---------------------------------------------------------------------------
-// GET /api/messages/users — list of users the admin can chat with.
-// Excludes the caller's own id. Returns users w/ last message preview.
-// ---------------------------------------------------------------------------
 router.get("/users", async (req, res) => {
     try {
         const caller = await loadCaller(req);
@@ -316,44 +297,63 @@ router.get("/users", async (req, res) => {
 // Helpers — Admin Group Chat
 // ---------------------------------------------------------------------------
 
-/** Return the single admin-group conversation ID, creating it if needed. */
 async function getOrCreateAdminGroup() {
-    // Look for existing admin_group conversation
     const existing = await pool.query(
         `SELECT c.id FROM conversations c
          WHERE c.conversation_type = 'admin_group'
          LIMIT 1`
     );
+    let conversationId;
     if (existing.rows.length > 0) {
-        return existing.rows[0].id;
+        conversationId = existing.rows[0].id;
+    } else {
+        const admins = await pool.query("SELECT id FROM users WHERE usertype = 'admin'");
+        if (admins.rows.length === 0) {
+            throw new Error("NO_ADMINS");
+        }
+
+        const convResult = await pool.query(
+            `INSERT INTO conversations (conversation_type) VALUES ('admin_group') RETURNING id`
+        );
+        conversationId = convResult.rows[0].id;
+
+        const values = [conversationId];
+        const placeholders = [];
+        admins.rows.forEach((admin, i) => {
+            placeholders.push(`($1::int, $${i + 2}::int)`);
+            values.push(admin.id);
+        });
+        await pool.query(
+            `INSERT INTO conversation_participants (conversation_id, user_id) VALUES ${placeholders.join(", ")} ON CONFLICT (conversation_id, user_id) DO NOTHING`,
+            values
+        );
     }
 
-    const admins = await pool.query("SELECT id FROM users WHERE usertype = 'admin'");
-    if (admins.rows.length === 0) {
-        throw new Error("NO_ADMINS");
+    const allAdmins = await pool.query("SELECT id FROM users WHERE usertype = 'admin'");
+    if (allAdmins.rows.length > 0) {
+        const existingParticipants = await pool.query(
+            `SELECT user_id FROM conversation_participants WHERE conversation_id = $1::int`,
+            [conversationId]
+        );
+        const existingIds = new Set(existingParticipants.rows.map((r) => r.user_id));
+        const missingAdmins = allAdmins.rows.filter((a) => !existingIds.has(a.id));
+        if (missingAdmins.length > 0) {
+            const values = [conversationId];
+            const placeholders = [];
+            missingAdmins.forEach((admin, i) => {
+                placeholders.push(`($1::int, $${i + 2}::int)`);
+                values.push(admin.id);
+            });
+            await pool.query(
+                `INSERT INTO conversation_participants (conversation_id, user_id) VALUES ${placeholders.join(", ")} ON CONFLICT (conversation_id, user_id) DO NOTHING`,
+                values
+            );
+        }
     }
-
-    const convResult = await pool.query(
-        `INSERT INTO conversations (conversation_type) VALUES ('admin_group') RETURNING id`
-    );
-    const conversationId = convResult.rows[0].id;
-
-    // Add all current admins as participants
-    const values = [conversationId];
-    const placeholders = [];
-    admins.rows.forEach((admin, i) => {
-        placeholders.push(`($1::int, $${i + 2}::int)`);
-        values.push(admin.id);
-    });
-    await pool.query(
-        `INSERT INTO conversation_participants (conversation_id, user_id) VALUES ${placeholders.join(", ")}`,
-        values
-    );
 
     return conversationId;
 }
 
-/** Ensure the caller is an admin. */
 function requireAdmin(caller) {
     if (!caller || caller.usertype !== "admin") {
         const err = new Error("FORBIDDEN");
@@ -362,9 +362,6 @@ function requireAdmin(caller) {
     }
 }
 
-// ---------------------------------------------------------------------------
-// GET /api/messages/admin-group — returns the admin group conversation info.
-// ---------------------------------------------------------------------------
 router.get("/admin-group", async (req, res) => {
     try {
         const caller = await loadCaller(req);
@@ -375,7 +372,6 @@ router.get("/admin-group", async (req, res) => {
 
         const conversationId = await getOrCreateAdminGroup();
 
-        // Fetch last message details
         const details = await pool.query(
             `SELECT
                 pm.message AS last_message,
@@ -406,9 +402,6 @@ router.get("/admin-group", async (req, res) => {
     }
 });
 
-// ---------------------------------------------------------------------------
-// POST /api/messages/admin-group/messages — send a message to the admin group.
-// ---------------------------------------------------------------------------
 router.post("/admin-group/messages", async (req, res) => {
     try {
         const caller = await loadCaller(req);
@@ -462,10 +455,6 @@ router.post("/admin-group/messages", async (req, res) => {
     }
 });
 
-// ---------------------------------------------------------------------------
-// GET /api/messages/conversations — list of conversations for the caller.
-// Each includes participants and the last message preview.
-// ---------------------------------------------------------------------------
 router.get("/conversations", async (req, res) => {
     try {
         const caller = await loadCaller(req);
@@ -523,10 +512,6 @@ router.get("/conversations", async (req, res) => {
     }
 });
 
-// ---------------------------------------------------------------------------
-// POST /api/messages/conversations — create or get existing conversation
-// with another user. Body: { other_user_id: number }
-// ---------------------------------------------------------------------------
 router.post("/conversations", async (req, res) => {
     try {
         const caller = await loadCaller(req);
@@ -542,7 +527,6 @@ router.post("/conversations", async (req, res) => {
             return res.status(400).json({ error: "CANNOT_CHAT_WITH_SELF" });
         }
 
-        // Check the other user exists and get their type
         const otherUser = await pool.query(
             "SELECT id, usertype FROM users WHERE id = $1::int",
             [otherUserId]
@@ -555,7 +539,6 @@ router.post("/conversations", async (req, res) => {
         const isAdminOther = otherUser.rows[0].usertype === "admin";
 
         if (isAdminCaller !== isAdminOther) {
-            // Admin-nonadmin pair — use shared conversation with all admins
             const nonAdminId = isAdminCaller ? otherUserId : caller.id;
             let sharedConvId;
             try {
@@ -567,13 +550,11 @@ router.post("/conversations", async (req, res) => {
                 throw err;
             }
 
-            // Migrate old 1:1 admin-nonadmin messages into the shared conversation
             await migrateOldAdminMessages(sharedConvId, nonAdminId);
 
             return res.json({ conversation_id: sharedConvId });
         }
 
-        // Check if conversation already exists (admin-admin or nonadmin-nonadmin)
         const existing = await pool.query(
             `SELECT c.id
              FROM conversations c
@@ -592,7 +573,6 @@ router.post("/conversations", async (req, res) => {
             return res.json({ conversation_id: existing.rows[0].id });
         }
 
-        // Create new conversation
         const convResult = await pool.query(
             `INSERT INTO conversations DEFAULT VALUES RETURNING id`
         );
@@ -617,10 +597,6 @@ router.post("/conversations", async (req, res) => {
     }
 });
 
-// ---------------------------------------------------------------------------
-// GET /api/messages/conversations/:id — get messages for a conversation.
-// Supports cursor pagination: after_id or before_id.
-// ---------------------------------------------------------------------------
 router.get("/conversations/:id", async (req, res) => {
     try {
         const caller = await loadCaller(req);
@@ -633,7 +609,6 @@ router.get("/conversations/:id", async (req, res) => {
             return res.status(404).json({ error: "NOT_FOUND" });
         }
 
-        // Verify caller is a participant
         const participant = await pool.query(
             `SELECT id FROM conversation_participants
              WHERE conversation_id = $1::int AND user_id = $2::int`,
@@ -728,11 +703,6 @@ router.get("/conversations/:id", async (req, res) => {
     }
 });
 
-// ---------------------------------------------------------------------------
-// POST /api/messages/dock/send — send a dock chat message as a non-admin user.
-// The message is saved into the shared Admin conversation so all admins can see it.
-// Body: { message: string }
-// ---------------------------------------------------------------------------
 router.post("/dock/send", async (req, res) => {
     try {
         const caller = await loadCaller(req);
@@ -740,7 +710,6 @@ router.post("/dock/send", async (req, res) => {
             return res.status(401).json({ error: "UNAUTHENTICATED" });
         }
 
-        // This route is intended for non-admin users only.
         if (caller.usertype === "admin") {
             return res.status(403).json({ error: "FORBIDDEN" });
         }
@@ -753,7 +722,6 @@ router.post("/dock/send", async (req, res) => {
             return res.status(400).json({ error: "MESSAGE_TOO_LONG" });
         }
 
-        // Find or create the shared Admin conversation for this non-admin user.
         let sharedConvId;
         try {
             sharedConvId = await getOrCreateSharedAdminConversation(caller.id);
@@ -764,10 +732,8 @@ router.post("/dock/send", async (req, res) => {
             throw err;
         }
 
-        // Migrate any historic 1:1 Admin-to-nonAdmin conversations into the shared conversation.
         await migrateOldAdminMessages(sharedConvId, caller.id);
 
-        // Save the new message into the shared conversation.
         const insert = await pool.query(
             `INSERT INTO private_messages (conversation_id, sender_id, message)
              VALUES ($1::int, $2::int, $3)
@@ -804,9 +770,6 @@ router.post("/dock/send", async (req, res) => {
     }
 });
 
-// POST /api/messages/conversations/:id/messages — send a message.
-// Body: { message: string }
-// ---------------------------------------------------------------------------
 router.post("/conversations/:id/messages", async (req, res) => {
     try {
         const caller = await loadCaller(req);
@@ -819,7 +782,6 @@ router.post("/conversations/:id/messages", async (req, res) => {
             return res.status(404).json({ error: "NOT_FOUND" });
         }
 
-        // Verify caller is a participant
         const participant = await pool.query(
             `SELECT id FROM conversation_participants
              WHERE conversation_id = $1::int AND user_id = $2::int`,
