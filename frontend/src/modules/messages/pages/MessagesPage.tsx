@@ -561,7 +561,18 @@ export default function MessagesPage() {
                                             return (
                                                 <div key={msg.id} className={`flex ${isMine ? "justify-end" : "justify-start"} mb-2`}>
                                                     <div className={`max-w-[75%] ${isMine ? "order-1" : "order-1"}`}>
-                                                        {!isMine && <p className={`text-[10px] mb-0.5 ml-1 ${isNew ? "text-red-500 font-bold" : "text-slate-400 dark:text-gray-500"}`}>{msg.sender.name}</p>}
+                                                        {!isMine && (
+                                                            <div className="flex items-center gap-1.5 mb-0.5 ml-1">
+                                                                {msg.sender.profile_picture ? (
+                                                                    <img src={resolveAvatar(msg.sender.profile_picture)!} alt={msg.sender.name} className="h-5 w-5 rounded-full object-cover" />
+                                                                ) : (
+                                                                    <div className="h-5 w-5 rounded-full bg-gradient-to-br from-[#92C7CF] to-[#AAD7D9] flex items-center justify-center text-white text-[8px] font-bold">
+                                                                        {userInitials(msg.sender.name)}
+                                                                    </div>
+                                                                )}
+                                                                <span className={`text-[11px] ${msg.sender.role === 'admin' ? 'font-bold text-slate-700 dark:text-gray-200' : 'text-slate-500 dark:text-gray-400'}`}>{msg.sender.name}</span>
+                                                            </div>
+                                                        )}
                                                         <div className={`rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${isMine ? "bg-[#92C7CF] text-white rounded-br-md" : "bg-slate-100 dark:bg-gray-700 text-slate-700 dark:text-gray-200 rounded-bl-md"} ${isNew ? "ring-1 ring-red-400/50" : ""}`}>
                                                             <p className={`whitespace-pre-wrap break-words ${isNew ? "font-bold" : ""}`}>{msg.message}</p>
                                                             <p className={`text-[10px] mt-1 text-right ${isMine ? "text-white/70" : "text-slate-400 dark:text-gray-500"}`}>{formatTime(msg.created_at)}</p>

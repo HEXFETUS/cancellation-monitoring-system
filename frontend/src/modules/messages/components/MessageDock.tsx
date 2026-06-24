@@ -5,6 +5,12 @@ import { MessageCircle, Send, X } from "lucide-react";
 const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 const POLL_INTERVAL_MS = 3000;
 
+function resolveAvatar(p?: string | null) {
+    if (!p) return null;
+    if (/^https?:\/\//i.test(p)) return p;
+    return `${API_BASE_URL}${p}`;
+}
+
 type MessageType = {
     id: number;
     message: string;
@@ -230,11 +236,28 @@ export default function MessageDock() {
                                 const msgTime = new Date(msg.created_at).getTime();
                                 const seen = activeConv && authUser?.id ? readDockSeen(authUser.id, activeConv) : 0;
                                 const isNew = !isMine && msgTime > seen;
+                                const senderIsAdmin = msg.sender.role === 'admin';
                                 return (
                                     <div key={msg.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
-                                        <div className={`max-w-[80%] rounded-2xl px-3 py-1.5 text-sm leading-relaxed ${isMine ? "bg-[#92C7CF] text-white rounded-br-md" : "bg-slate-100 text-slate-600 rounded-bl-md"} ${isNew ? "ring-1 ring-red-400/50" : ""}`}>
-                                            <p className="whitespace-pre-wrap break-words">{msg.message}</p>
-                                            <p className={`text-[9px] mt-0.5 text-right ${isMine ? "text-white/70" : "text-slate-400"}`}>{formatTime(msg.created_at)}</p>
+                                        <div className={`max-w-[80%] ${isMine ? "items-end" : "items-start"} flex flex-col`}>
+                                            {!isMine && (
+                                                <div className="flex items-center gap-1 mb-0.5 ml-1">
+                                                    {msg.sender.profile_picture ? (
+                                                        <img src={resolveAvatar(msg.sender.profile_picture)!} alt={msg.sender.name} className="h-5 w-5 rounded-full object-cover" />
+                                                    ) : (
+                                                        <div className="h-5 w-5 rounded-full bg-gradient-to-br from-[#92C7CF] to-[#AAD7D9] flex items-center justify-center text-white text-[8px] font-bold">
+                                                            {msg.sender.name.split(' ').map(p => p[0]).join('').toUpperCase().slice(0, 2)}
+                                                        </div>
+                                                    )}
+                                                    <span className={`text-[10px] ${senderIsAdmin ? "font-bold text-slate-700 dark:text-gray-200" : "text-slate-500 dark:text-gray-400"}`}>
+                                                        {msg.sender.name}
+                                                    </span>
+                                                </div>
+                                            )}
+                                            <div className={`rounded-2xl px-3 py-1.5 text-sm leading-relaxed ${isMine ? "bg-[#92C7CF] text-white rounded-br-md" : "bg-slate-100 text-slate-600 rounded-bl-md"} ${isNew ? "ring-1 ring-red-400/50" : ""}`}>
+                                                <p className="whitespace-pre-wrap break-words">{msg.message}</p>
+                                                <p className={`text-[9px] mt-0.5 text-right ${isMine ? "text-white/70" : "text-slate-400"}`}>{formatTime(msg.created_at)}</p>
+                                            </div>
                                         </div>
                                     </div>
                                 );
