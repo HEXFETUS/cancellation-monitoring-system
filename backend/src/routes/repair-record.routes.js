@@ -377,6 +377,15 @@ router.post("/", async (req, res) => {
             }
         }
 
+        // Update the POS record's operator_id to match what was assigned
+        // during the repair request intake.
+        if (resolvedOperatorId) {
+            await pool.query(
+                `UPDATE pos_records SET operator_id = $1::int, updated_at = CURRENT_TIMESTAMP WHERE id = $2::int`,
+                [resolvedOperatorId, pos_record_id]
+            );
+        }
+
         // Check if a record exists with forwarded=false and released=true (already released, needs re-repair)
         // If yes, update it instead of creating a new one
         const existingRecord = await pool.query(
