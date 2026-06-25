@@ -80,6 +80,7 @@ const iconMap: Record<string, LucideIcon> = {
     "Released Log": ArrowUpRight,
     "Diagnosis List": Stethoscope,
     Posts: Megaphone,
+    Announcements: Megaphone,
     "Messages": MessageSquare,
     "Request POS": Send,
     Requests: Notebook,
@@ -546,7 +547,7 @@ export default function DashboardLayout() {
             { name: "Dashboard", path: "/app/dashboard" },
             { name: "Devices", path: "/app/my-pos" },
             { name: "Outlets", path: "/app/my-outlets" },
-            { name: "Announcements", path: "/app/bulletin-board" },
+            { name: "Announcements", path: "/app/bulletin-board/view" },
         ]
         : isPurchaser
             ? [
@@ -557,14 +558,13 @@ export default function DashboardLayout() {
                 { name: "Drawcourt", path: "/app/asset-inventory/drawcourt" },
                 { name: "OBS", path: "/app/asset-inventory/obs" },
                 { name: "Asset Coding", path: "/app/asset-inventory/asset-coding" },
-                { name: "Announcements", path: "/app/bulletin-board" },
+                { name: "Announcements", path: "/app/bulletin-board/view" },
             ]
             : isCsr
                 ? [
                     { name: "Dashboard", path: "/app/dashboard" },
                     { name: "POS Repair", path: "/app/csr-pos-repair" },
-                    { name: "Posts", path: "/app/csr-pos-repair/posts" },
-                    { name: "Announcements", path: "/app/bulletin-board" },
+                    { name: "Announcements", path: "/app/bulletin-board/view" },
                 ]
                 : [
                     { name: "Dashboard", path: "/app/dashboard" },
