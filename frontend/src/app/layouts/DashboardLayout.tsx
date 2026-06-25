@@ -105,6 +105,7 @@ export default function DashboardLayout() {
     const [userMenuOpen, setUserMenuOpen] = useState(false);
     const userMenuRef = useRef<HTMLDivElement>(null);
     const isMessagesPage = location.pathname.includes("/messages");
+    const isAnnouncementsPage = location.pathname.includes("/bulletin-board");
 
     // Close the user menu when clicking anywhere outside the popover.
     useEffect(() => {
@@ -364,7 +365,6 @@ export default function DashboardLayout() {
     const isOperator = (sidebarUser?.usertype ?? authUser?.usertype) === "operator";
     const isPurchaser = (sidebarUser?.usertype ?? authUser?.usertype) === "purchaser";
     const isCsr = (sidebarUser?.usertype ?? authUser?.usertype) === "csr";
-
     useEffect(() => {
         if (!authUser?.id) {
             setForCheckingRepairCount(0);
@@ -546,6 +546,7 @@ export default function DashboardLayout() {
             { name: "Dashboard", path: "/app/dashboard" },
             { name: "Devices", path: "/app/my-pos" },
             { name: "Outlets", path: "/app/my-outlets" },
+            { name: "Announcements", path: "/app/bulletin-board" },
         ]
         : isPurchaser
             ? [
@@ -556,12 +557,14 @@ export default function DashboardLayout() {
                 { name: "Drawcourt", path: "/app/asset-inventory/drawcourt" },
                 { name: "OBS", path: "/app/asset-inventory/obs" },
                 { name: "Asset Coding", path: "/app/asset-inventory/asset-coding" },
+                { name: "Announcements", path: "/app/bulletin-board" },
             ]
             : isCsr
                 ? [
                     { name: "Dashboard", path: "/app/dashboard" },
                     { name: "POS Repair", path: "/app/csr-pos-repair" },
                     { name: "Posts", path: "/app/csr-pos-repair/posts" },
+                    { name: "Announcements", path: "/app/bulletin-board" },
                 ]
                 : [
                     { name: "Dashboard", path: "/app/dashboard" },
@@ -1239,9 +1242,9 @@ export default function DashboardLayout() {
 
                 {/* Floating alerts temporarily hidden */}
                 {/* Main Content */}
-                <main className={`flex-1 pt-16 lg:pt-0 ${isMessagesPage ? "overflow-hidden" : "overflow-auto"}`}>
+                <main className={`flex-1 pt-16 lg:pt-0 ${isMessagesPage || isAnnouncementsPage ? "overflow-hidden" : "overflow-auto"}`}>
                     <div
-                        className={`m-3 rounded-3xl border shadow-2xl backdrop-blur-2xl p-4 sm:p-6 lg:m-8 lg:p-10 transition-colors duration-300 ${isMessagesPage ? "h-[calc(100%-1.5rem)] min-h-0 lg:h-[calc(100%-4rem)]" : "min-h-full"}`}
+                        className={`m-3 rounded-3xl border shadow-2xl backdrop-blur-2xl p-4 sm:p-6 lg:m-8 lg:p-10 transition-colors duration-300 ${isMessagesPage || isAnnouncementsPage ? "h-[calc(100%-1.5rem)] min-h-0 lg:h-[calc(100%-4rem)]" : "min-h-full"}`}
                         style={{
                             background: darkMode
                                 ? "rgba(31, 41, 55, 0.60)"
@@ -1256,7 +1259,7 @@ export default function DashboardLayout() {
                             WebkitBackdropFilter: "blur(20px)",
                         }}
                     >
-                        <div className={`main-content-area ${isMessagesPage ? "h-full min-h-0" : ""}`}>
+                        <div className={`main-content-area ${isMessagesPage || isAnnouncementsPage ? "h-full min-h-0" : ""}`}>
                             <Outlet />
                         </div>
                     </div>

@@ -475,6 +475,35 @@ async function initDatabase() {
             "ALTER TABLE announcements ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
         );
 
+        // Migrate announcements table to the new schema
+        await client.query(
+            "ALTER TABLE announcements RENAME COLUMN message TO description"
+        ).catch(() => {}); // column may already be named description
+        await client.query(
+            "ALTER TABLE announcements ADD COLUMN IF NOT EXISTS description TEXT"
+        );
+        await client.query(
+            "ALTER TABLE announcements ADD COLUMN IF NOT EXISTS target_audience TEXT DEFAULT '[]'"
+        );
+        await client.query(
+            "ALTER TABLE announcements ADD COLUMN IF NOT EXISTS display_type VARCHAR(50) DEFAULT 'banner'"
+        );
+        await client.query(
+            "ALTER TABLE announcements ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMP"
+        );
+        await client.query(
+            "ALTER TABLE announcements ADD COLUMN IF NOT EXISTS priority_level VARCHAR(20) DEFAULT 'low'"
+        );
+        await client.query(
+            "ALTER TABLE announcements ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'draft'"
+        );
+        await client.query(
+            "ALTER TABLE announcements ADD COLUMN IF NOT EXISTS published_at TIMESTAMP"
+        );
+        await client.query(
+            "ALTER TABLE announcements ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        );
+
         /* =========================
            messages — general-purpose (bulletin) messages.
            attachment_urls stores a JSON array: e.g. '["/uploads/abc.jpg"]'.
