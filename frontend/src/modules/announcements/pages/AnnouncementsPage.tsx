@@ -391,7 +391,7 @@ export default function AnnouncementsPage() {
                                 <button
                                     type="button"
                                     onClick={() => handleSubmit("published")}
-                                    disabled={submitting}
+                                    disabled={submitting || !form.title.trim() || !form.description.trim()}
                                     className="flex items-center gap-1.5 rounded-xl bg-teal px-4 py-2 text-sm font-semibold text-ink shadow transition hover:bg-teal-dark disabled:opacity-50"
                                 >
                                     <Send size={14} />
@@ -400,7 +400,7 @@ export default function AnnouncementsPage() {
                                 <button
                                     type="button"
                                     onClick={() => handleSubmit("scheduled")}
-                                    disabled={submitting || !form.scheduled_at}
+                                    disabled={submitting || !form.scheduled_at || !form.title.trim() || !form.description.trim()}
                                     className="flex items-center gap-1.5 rounded-xl border border-teal bg-teal/10 px-4 py-2 text-sm font-semibold text-teal-dark transition hover:bg-teal/20 disabled:opacity-50"
                                 >
                                     <Clock size={14} />

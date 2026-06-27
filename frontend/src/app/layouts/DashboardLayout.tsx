@@ -28,6 +28,15 @@ import {
     Moon,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
+import {
+    getSeenAnnouncementIds,
+    getUnseenAnnouncementIds,
+    markAnnouncementsAsSeen,
+    getToastShownAnnouncementIds,
+    getUnshownToastAnnouncementIds,
+    markToastShownAnnouncementIds,
+} from "../../modules/announcements/services/announcementSeenStorage";
+import { Toast } from "../../shared/components";
 import { useEffect, useRef, useState } from "react";
 import hexLogo from "../../assets/HEXLOGO.png";
 
@@ -55,7 +64,8 @@ function resolveAvatarUrl(p?: string | null) {
     return `${API_BASE_URL}${p}`;
 }
 
-const iconMap: Record<string, LucideIcon> = {
+const iconMap: Record<string, LucideIcon>
+ = {
     Dashboard: LayoutDashboard,
     Devices: Monitor,
     "My POS": Monitor,
@@ -102,6 +112,10 @@ export default function DashboardLayout() {
     const [pendingBoothOperatorChangeCount, setPendingBoothOperatorChangeCount] = useState(0);
     const [forCheckingRepairCount, setForCheckingRepairCount] = useState(0);
     const [myAccountModalOpen, setMyAccountModalOpen] = useState(false);
+    const [announcementsUnseen, setAnnouncementsUnseen] = useState(0);
+    const [anncToastOpen, setAnncToastOpen] = useState(false);
+    const latestAnnouncementsRef = useRef<any[]>([]);
+    const toastLogShownRef = useRef(false);
     const [myAccountInitialTab, setMyAccountInitialTab] = useState<"account" | "password">("account");
     const [userMenuOpen, setUserMenuOpen] = useState(false);
     const userMenuRef = useRef<HTMLDivElement>(null);
@@ -421,6 +435,67 @@ export default function DashboardLayout() {
     // so that pre-existing approved/rejected requests from a previous
     // day do not pop a floating toast on login.
     const operatorFirstPollDoneRef = useRef(false);
+
+    // Poll for unseen published announcements (non-admin users)
+    const isNonAdmin = isOperator || isPurchaser || isCsr;
+    useEffect(() => {
+        if (!authUser?.id || !isNonAdmin) {
+            setAnnouncementsUnseen(0);
+            return;
+        }
+        let cancelled = false;
+        const poll = async () => {
+            try {
+                const res = await fetch(`${API_BASE_URL}/api/admin-announcements/view?user_id=${authUser.id}`);
+                if (!res.ok) return;
+                const data = await res.json();
+                const list = data.announcements ?? [];
+                if (!cancelled) {
+                    // Store latest list in ref for event handler
+                    latestAnnouncementsRef.current = list;
+
+                    // Determine unseen IDs (controls nav red dot)
+                    const seenIds = getSeenAnnouncementIds();
+                    const unseenIds = getUnseenAnnouncementIds(list, seenIds);
+                    setAnnouncementsUnseen(unseenIds.length);
+
+                    // Determine unshown toast IDs (controls toast appearance)
+                    // Uses per-ID tracking via toastShownAnnouncementIds — no boolean ref block
+                    const shownToastIds = getToastShownAnnouncementIds();
+                    const unshownToastIds = getUnshownToastAnnouncementIds(list, shownToastIds);
+                    if (unshownToastIds.length > 0) {
+                        console.log("[AnncToast] Unshown toast IDs:", unshownToastIds);
+                        setAnncToastOpen(true);
+                        // Persist BEFORE opening so duplicate polls don't re-trigger
+                        markToastShownAnnouncementIds(unshownToastIds);
+                        if (!toastLogShownRef.current) {
+                            console.log("[AnncToast] Opening announcement toast");
+                            toastLogShownRef.current = true;
+                        }
+                    }
+                }
+            } catch {
+                // ignore network errors
+            }
+        };
+        poll();
+        const interval = setInterval(poll, 15000);
+
+        // Listen for announcements-seen-updated event from AnnouncementsViewPage
+        const handleSeenUpdated = () => {
+            const seenIds = getSeenAnnouncementIds();
+            const currentList = latestAnnouncementsRef.current;
+            const unseenIds = getUnseenAnnouncementIds(currentList, seenIds);
+            setAnnouncementsUnseen(unseenIds.length);
+        };
+        window.addEventListener("announcements-seen-updated", handleSeenUpdated);
+
+        return () => {
+            cancelled = true;
+            clearInterval(interval);
+            window.removeEventListener("announcements-seen-updated", handleSeenUpdated);
+        };
+    }, [authUser?.id, isNonAdmin]);
     useEffect(() => {
         if (!authUser?.id || !isOperator) {
             setOperatorPosApprovedRejectedCount(0);
@@ -585,6 +660,14 @@ export default function DashboardLayout() {
 
     return (
         <>
+            {/* Global floating toast for new announcements */}
+            <Toast
+                open={anncToastOpen}
+                message="New announcement published"
+                type="info"
+                onClose={() => setAnncToastOpen(false)}
+                position="top-center"
+            />
             {/* Global dark-mode overrides for child page content */}
             <style>{`
                 @keyframes blink {
@@ -755,6 +838,8 @@ export default function DashboardLayout() {
                         `,
                 }}
             >
+            {/* Global floating toast for new announcements */}
+            
                 {/* Mobile header bar */}
                 <div className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between p-3 lg:hidden">
                     <button
@@ -887,6 +972,15 @@ export default function DashboardLayout() {
                                             } else if (isOperator && item.name === "My Outlets") {
                                                 handleMarkMyOutletsSeen();
                                             }
+                                            if (item.name === "Announcements") {
+                                                // Mark all currently visible announcements as seen
+                                                const currentList = latestAnnouncementsRef.current;
+                                                if (currentList && currentList.length > 0) {
+                                                    markAnnouncementsAsSeen(currentList.map((a) => a.id));
+                                                }
+                                                setAnnouncementsUnseen(0);
+                                                window.dispatchEvent(new Event("announcements-seen-updated"));
+                                            }
                                         }}
                                         className="group relative flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all duration-300"
                                         style={{
@@ -951,6 +1045,20 @@ export default function DashboardLayout() {
                                                     animation: "blink 1s ease-in-out infinite",
                                                 }}
                                             />
+                                        )}
+
+                                        {/* Blinking red dot for unseen announcements (non-admin only) */}
+                                        {item.name === "Announcements" && announcementsUnseen > 0 && isNonAdmin && (
+                                            <span
+                                                className="relative ml-auto flex h-2.5 w-2.5"
+                                            >
+                                                <span
+                                                    className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75"
+                                                />
+                                                <span
+                                                    className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500"
+                                                />
+                                            </span>
                                         )}
 
                                         {item.name === "Requests" && (pendingBoothRequests > 0 || pendingOperatorChangeCount > 0 || pendingBoothOperatorChangeCount > 0) && (
@@ -1260,6 +1368,7 @@ export default function DashboardLayout() {
                         }}
                     >
                         <div className={`main-content-area ${isMessagesPage || isAnnouncementsPage ? "h-full min-h-0" : ""}`}>
+                            
                             <Outlet />
                         </div>
                     </div>

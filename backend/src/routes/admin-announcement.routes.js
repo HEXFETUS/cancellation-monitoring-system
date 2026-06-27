@@ -8,6 +8,16 @@ router.get("/", async (req, res) => {
         const { user_id } = req.query;
         if (!user_id) return res.status(400).json({ error: "user_id is required" });
 
+        // Publish any scheduled announcements whose time has arrived
+        await pool.query(
+            `UPDATE admin_announcements
+             SET status = 'published',
+                 published_at = COALESCE(published_at, NOW()),
+                 updated_at = NOW()
+             WHERE status = 'scheduled'
+               AND scheduled_at <= NOW()`
+        );
+
         const result = await pool.query(
             `SELECT 
                 a.*,
@@ -28,6 +38,16 @@ router.get("/view", async (req, res) => {
     try {
         const { user_id } = req.query;
         if (!user_id) return res.status(400).json({ error: "user_id is required" });
+
+        // Publish any scheduled announcements whose time has arrived
+        await pool.query(
+            `UPDATE admin_announcements
+             SET status = 'published',
+                 published_at = COALESCE(published_at, NOW()),
+                 updated_at = NOW()
+             WHERE status = 'scheduled'
+               AND scheduled_at <= NOW()`
+        );
 
         const result = await pool.query(
             `SELECT 

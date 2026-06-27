@@ -6,7 +6,10 @@ import {
 import { useAuth } from "../../../context/AuthContext";
 import type { AdminAnnouncement } from "../services/adminAnnouncements";
 import { fetchVisibleAdminAnnouncements } from "../services/adminAnnouncements";
+import {
 
+    markAnnouncementsAsSeen,
+} from "../services/announcementSeenStorage";
 
 export default function AnnouncementsViewPage() {
     const { user } = useAuth();
@@ -23,7 +26,15 @@ export default function AnnouncementsViewPage() {
         const load = async () => {
             try {
                 const data = await fetchVisibleAdminAnnouncements(userId);
-                if (!cancelled) setAnnouncements(data);
+                if (!cancelled) {
+                    setAnnouncements(data);
+
+                    // Mark all visible announcements as seen (clears nav red dot)
+                    markAnnouncementsAsSeen(data.map((a) => a.id));
+
+                    // Notify DashboardLayout to re-check unseen count
+                    window.dispatchEvent(new Event("announcements-seen-updated"));
+                }
             } catch (e) {
                 if (!cancelled) {
                     setError(e instanceof Error ? e.message : "Failed to load announcements");
@@ -45,8 +56,6 @@ export default function AnnouncementsViewPage() {
             month: "short",
             day: "numeric",
             year: "numeric",
-            hour: "2-digit",
-            minute: "2-digit",
         });
     };
 
@@ -101,13 +110,7 @@ export default function AnnouncementsViewPage() {
                                         {a.published_at && (
                                             <span className="flex items-center gap-1.5 rounded-full bg-green-50 px-2.5 py-1 text-green-700">
                                                 <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
-                                                {fmtDate(a.published_at)}
-                                            </span>
-                                        )}
-                                        {a.scheduled_at && (
-                                            <span className="flex items-center gap-1.5 rounded-full bg-sky-50 px-2.5 py-1 text-sky-700">
-                                                <span className="h-1.5 w-1.5 rounded-full bg-sky-500" />
-                                                {fmtDate(a.scheduled_at)}
+                                                Published: {fmtDate(a.published_at)}
                                             </span>
                                         )}
                                     </div>
