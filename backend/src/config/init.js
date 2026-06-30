@@ -25,6 +25,7 @@ const SERIAL_TABLES = [
     "released_logs",
     "lottery_results",
     "announcements",
+    "admin_announcements",
     "messages",
     "asset_media",
     "activity_logs",
@@ -427,36 +428,7 @@ async function initDatabase() {
         `);
 
         /* =========================
-           released_logs
-        ========================= */
-        await client.query(`
-            CREATE TABLE IF NOT EXISTS released_logs (
-                id SERIAL PRIMARY KEY,
-                pos_serial VARCHAR(255) NOT NULL,
-                operator VARCHAR(255),
-                area VARCHAR(255),
-                received_by VARCHAR(255),
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-        `);
-
-        /* =========================
-           lottery_results
-        ========================= */
-        await client.query(`
-            CREATE TABLE IF NOT EXISTS lottery_results (
-                id SERIAL PRIMARY KEY,
-                game VARCHAR(255) NOT NULL,
-                combination VARCHAR(255) NOT NULL,
-                draw_date DATE NOT NULL,
-                created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-        `);
-
-        /* =========================
-           announcements
+           announcements (existing posts feature)
         ========================= */
         await client.query(`
             CREATE TABLE IF NOT EXISTS announcements (
@@ -473,6 +445,81 @@ async function initDatabase() {
         );
         await client.query(
             "ALTER TABLE announcements ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        );
+
+        // Migrate announcements table to the new schema
+        await client.query(
+            "ALTER TABLE announcements RENAME COLUMN message TO description"
+        ).catch(() => {});
+        await client.query(
+            "ALTER TABLE announcements ADD COLUMN IF NOT EXISTS description TEXT"
+        );
+        await client.query(
+            "ALTER TABLE announcements ADD COLUMN IF NOT EXISTS target_audience TEXT DEFAULT '[]'"
+        );
+        await client.query(
+            "ALTER TABLE announcements ADD COLUMN IF NOT EXISTS display_type VARCHAR(50) DEFAULT 'banner'"
+        );
+        await client.query(
+            "ALTER TABLE announcements ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMP"
+        );
+        await client.query(
+            "ALTER TABLE announcements ADD COLUMN IF NOT EXISTS priority_level VARCHAR(20) DEFAULT 'low'"
+        );
+        await client.query(
+            "ALTER TABLE announcements ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'draft'"
+        );
+        await client.query(
+            "ALTER TABLE announcements ADD COLUMN IF NOT EXISTS published_at TIMESTAMP"
+        );
+        await client.query(
+            "ALTER TABLE announcements ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        );
+
+        /* =========================
+           admin_announcements (new standalone announcement system)
+        ========================= */
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS admin_announcements (
+                id SERIAL PRIMARY KEY,
+                title VARCHAR(150) NOT NULL,
+                description TEXT NOT NULL,
+                status VARCHAR(20) NOT NULL DEFAULT 'published',
+                scheduled_at TIMESTAMP NULL,
+                published_at TIMESTAMP NULL,
+                created_by INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        // Migrate announcements table to the new schema
+        await client.query(
+            "ALTER TABLE announcements RENAME COLUMN message TO description"
+        ).catch(() => {}); // column may already be named description
+        await client.query(
+            "ALTER TABLE announcements ADD COLUMN IF NOT EXISTS description TEXT"
+        );
+        await client.query(
+            "ALTER TABLE announcements ADD COLUMN IF NOT EXISTS target_audience TEXT DEFAULT '[]'"
+        );
+        await client.query(
+            "ALTER TABLE announcements ADD COLUMN IF NOT EXISTS display_type VARCHAR(50) DEFAULT 'banner'"
+        );
+        await client.query(
+            "ALTER TABLE announcements ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMP"
+        );
+        await client.query(
+            "ALTER TABLE announcements ADD COLUMN IF NOT EXISTS priority_level VARCHAR(20) DEFAULT 'low'"
+        );
+        await client.query(
+            "ALTER TABLE announcements ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'draft'"
+        );
+        await client.query(
+            "ALTER TABLE announcements ADD COLUMN IF NOT EXISTS published_at TIMESTAMP"
+        );
+        await client.query(
+            "ALTER TABLE announcements ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
         );
 
         /* =========================
