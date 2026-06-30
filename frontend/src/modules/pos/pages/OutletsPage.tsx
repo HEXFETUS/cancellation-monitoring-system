@@ -244,25 +244,20 @@ export default function OutletsPage() {
     const [operatorListPage, setOperatorListPage] = useState(1);
     const OPERATORS_PER_PAGE = 10;
 
-    // Compute booth counts per operator from records
-    const operatorBoothCounts = useMemo(() => {
+    // Build combined operator list with booth counts, sorted alphabetically
+    const operatorsWithCounts = useMemo(() => {
         const counts = new Map<number | null, number>();
         records.forEach((r) => {
             const id = r.operator_id ?? null;
             counts.set(id, (counts.get(id) || 0) + 1);
         });
-        return counts;
-    }, [records]);
-
-    // Build combined operator list with booth counts, sorted alphabetically
-    const operatorsWithCounts = useMemo(() => {
         return [...operators]
             .map((op) => ({
                 ...op,
-                boothCount: operatorBoothCounts.get(op.id) || 0,
+                boothCount: counts.get(op.id) || 0,
             }))
             .sort((a, b) => a.operator.localeCompare(b.operator));
-    }, [operators, operatorBoothCounts]);
+    }, [operators, records]);
 
     // Pagination for operator list
     const operatorListTotalPages = Math.max(1, Math.ceil(operatorsWithCounts.length / OPERATORS_PER_PAGE));
@@ -278,19 +273,17 @@ export default function OutletsPage() {
         }
     }, [isOperatorListModalOpen]);
 
-    const filteredOperators = useMemo(() => {
+    const filteredOperators = (() => {
         const query = addForm.operator.toLowerCase().trim();
         if (!query) return operators;
-
         return operators.filter((item) => item.operator.toLowerCase().includes(query));
-    }, [addForm.operator, operators]);
+    })();
 
-    const filteredEditOperators = useMemo(() => {
+    const filteredEditOperators = (() => {
         const query = editForm.operator.toLowerCase().trim();
         if (!query) return operators;
-
         return operators.filter((item) => item.operator.toLowerCase().includes(query));
-    }, [editForm.operator, operators]);
+    })();
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {

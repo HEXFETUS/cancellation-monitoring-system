@@ -122,6 +122,74 @@ export default function QrScannerModal({ open, onClose }: Props) {
     const [error, setError] = useState<string | null>(null);
     const [result, setResult] = useState<ScanResult | null>(null);
 
+    function stopScanner() {
+        const instance = scannerRef.current;
+        if (!instance) return;
+        (async () => {
+            try {
+                const state = instance.getState?.();
+                if (state === Html5QrcodeScannerState.SCANNING) {
+                    await instance.stop();
+                }
+                await instance.clear();
+            } catch {
+                // best-effort
+            }
+            scannerRef.current = null;
+            setScanning(false);
+        })();
+    }
+
+    function lookup(payload: string) {
+        // Client-side validation first: catches non-asset QRs (URLs, vCards,
+        // random text) without hitting the API. Backend repeats the same
+        // check as defense in depth.
+        const reason = validateScannedItemCode(payload);
+        if (reason) {
+            setResult({
+                payload,
+                code: null,
+                error: itemCodeErrorMessage(reason, payload),
+            });
+            return;
+        }
+
+        setResult({ payload, code: null, error: null });
+        (async () => {
+            try {
+                const res = await fetch(
+                    `${API_BASE_URL}/api/asset-codes/by-item-code/${encodeURIComponent(payload)}`
+                );
+                if (res.status === 400) {
+                    const body = await res.json().catch(() => ({}));
+                    setResult({
+                        payload,
+                        code: null,
+                        error: itemCodeErrorMessage(body?.error ?? "ITEM_CODE_FORMAT_INVALID", payload),
+                    });
+                    return;
+                }
+                if (res.status === 404) {
+                    setResult({
+                        payload,
+                        code: null,
+                        error: "Looks like a valid asset QR, but no matching record exists.",
+                    });
+                    return;
+                }
+                if (!res.ok) throw new Error("Lookup failed");
+                const data: AssetCodeWire = await res.json();
+                setResult({ payload, code: fromWire(data), error: null });
+            } catch (err) {
+                setResult({
+                    payload,
+                    code: null,
+                    error: err instanceof Error ? err.message : "Lookup failed",
+                });
+            }
+        })();
+    }
+
     useEffect(() => {
         if (!open) return;
         if (result) return;
@@ -142,10 +210,10 @@ export default function QrScannerModal({ open, onClose }: Props) {
                             return { width: size, height: size };
                         },
                     },
-                    async (decodedText) => {
+                    (decodedText) => {
                         if (cancelled) return;
-                        await stopScanner();
-                        await lookup(decodedText.trim());
+                        stopScanner();
+                        lookup(decodedText.trim());
                     },
                     () => {
                         // Per-frame decode failures fire constantly; ignore.
@@ -172,22 +240,6 @@ export default function QrScannerModal({ open, onClose }: Props) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open, result]);
 
-    const stopScanner = async () => {
-        const instance = scannerRef.current;
-        if (!instance) return;
-        try {
-            const state = instance.getState?.();
-            if (state === Html5QrcodeScannerState.SCANNING) {
-                await instance.stop();
-            }
-            await instance.clear();
-        } catch {
-            // best-effort
-        }
-        scannerRef.current = null;
-        setScanning(false);
-    };
-
     const handleClose = async () => {
         await stopScanner();
         setResult(null);
@@ -195,64 +247,16 @@ export default function QrScannerModal({ open, onClose }: Props) {
         onClose();
     };
 
-    const lookup = async (payload: string) => {
-        // Client-side validation first: catches non-asset QRs (URLs, vCards,
-        // random text) without hitting the API. Backend repeats the same
-        // check as defense in depth.
-        const reason = validateScannedItemCode(payload);
-        if (reason) {
-            setResult({
-                payload,
-                code: null,
-                error: itemCodeErrorMessage(reason, payload),
-            });
-            return;
-        }
-
-        setResult({ payload, code: null, error: null });
-        try {
-            const res = await fetch(
-                `${API_BASE_URL}/api/asset-codes/by-item-code/${encodeURIComponent(payload)}`
-            );
-            if (res.status === 400) {
-                const body = await res.json().catch(() => ({}));
-                setResult({
-                    payload,
-                    code: null,
-                    error: itemCodeErrorMessage(body?.error ?? "ITEM_CODE_FORMAT_INVALID", payload),
-                });
-                return;
-            }
-            if (res.status === 404) {
-                setResult({
-                    payload,
-                    code: null,
-                    error: "Looks like a valid asset QR, but no matching record exists.",
-                });
-                return;
-            }
-            if (!res.ok) throw new Error("Lookup failed");
-            const data: AssetCodeWire = await res.json();
-            setResult({ payload, code: fromWire(data), error: null });
-        } catch (err) {
-            setResult({
-                payload,
-                code: null,
-                error: err instanceof Error ? err.message : "Lookup failed",
-            });
-        }
-    };
-
     // Bridge between the file-based fallback decoder (inside ScannerPanel)
     // and the parent so a single lookup() pipeline handles both live scans
     // and uploaded photos.
     useEffect(() => {
         if (!open) return;
-        const handler = async (e: Event) => {
+        const handler = (e: Event) => {
             const detail = (e as CustomEvent<string>).detail;
             if (typeof detail === "string" && detail.trim()) {
-                await stopScanner();
-                await lookup(detail.trim());
+                stopScanner();
+                lookup(detail.trim());
             }
         };
         window.addEventListener("qr-scanner:decoded", handler);

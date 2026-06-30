@@ -553,7 +553,7 @@ export default function MyCpPage({ searchQuery: externalSearch = "", refreshKey 
                                 value={historySearch}
                                 onChange={(e) => setHistorySearch(e.target.value)}
                                 placeholder="Search…"
-                                className="h-9 w-44 rounded-xl pl-8 pr-3 text-sm outline-none transition-all duration-200 focus:border-[#92C7CF]/60 focus:ring-2 focus:ring-[#92C7CF]/35 placeholder:text-gray-400 dark:placeholder:text-gray-400"
+                                className="h-9 w-44 rounded-xl pl-8 pr-3 text-sm outline-none transition-all duration-200 focus:border-teal/60 focus:ring-2 focus:ring-teal/35 placeholder:text-gray-400 dark:placeholder:text-gray-400"
                                 style={inputStyle}
                             />
                         </div>
@@ -584,7 +584,7 @@ export default function MyCpPage({ searchQuery: externalSearch = "", refreshKey 
                                 value={opHistorySearch}
                                 onChange={(e) => setOpHistorySearch(e.target.value)}
                                 placeholder="Search…"
-                                className="h-9 w-44 rounded-xl pl-8 pr-3 text-sm outline-none transition-all duration-200 focus:border-[#92C7CF]/60 focus:ring-2 focus:ring-[#92C7CF]/35 placeholder:text-gray-400 dark:placeholder:text-gray-400"
+                                className="h-9 w-44 rounded-xl pl-8 pr-3 text-sm outline-none transition-all duration-200 focus:border-teal/60 focus:ring-2 focus:ring-teal/35 placeholder:text-gray-400 dark:placeholder:text-gray-400"
                                 style={inputStyle}
                             />
                         </div>
