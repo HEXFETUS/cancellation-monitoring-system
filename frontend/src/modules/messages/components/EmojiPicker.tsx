@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 
 const EMOJI_CATEGORIES = [
     {
@@ -23,7 +23,14 @@ const EMOJI_CATEGORIES = [
     },
 ];
 
-export default function EmojiPicker({ onSelect, onClose }: { onSelect: (e: string) => void; onClose: () => void }) {
+type EmojiPickerProps = {
+    onSelect: (e: string) => void;
+    onClose: () => void;
+    className?: string;
+    style?: CSSProperties;
+};
+
+export default function EmojiPicker({ onSelect, onClose, className, style }: EmojiPickerProps) {
     const ref = useRef<HTMLDivElement>(null);
     const [query, setQuery] = useState("");
 
@@ -43,7 +50,11 @@ export default function EmojiPicker({ onSelect, onClose }: { onSelect: (e: strin
     return (
         <div
             ref={ref}
-            className="absolute bottom-full mb-2 right-0 w-80 max-h-80 rounded-2xl border border-slate-200 bg-white shadow-2xl flex flex-col overflow-hidden z-50"
+            className={
+                className ??
+                "absolute bottom-full mb-2 right-0 w-80 max-h-80 rounded-2xl border border-slate-200 bg-white shadow-2xl flex flex-col overflow-hidden z-50"
+            }
+            style={style}
         >
             <div className="p-2 border-b border-slate-100">
                 <input

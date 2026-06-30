@@ -729,20 +729,20 @@ export default function OperatorDashboard() {
 
                         {/* CP Booth Change Requests Card */}
                         <GlassCard className="lg:col-span-1 sm:col-span-2">
-                            <div className="border-b border-white/40 bg-gradient-to-r from-[#92C7CF]/10 to-[#AAD7D9]/10 px-5 py-3">
+                            <div className="border-b border-white/40 bg-linear-to-r from-teal/10 to-teal/10 px-5 py-3">
                                 <div className="flex items-center justify-between">
                                     <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-800">
                                         <Smartphone size={15} />
                                         CP Booth Change Requests
                                     </h3>
-                                    <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-amber-100 px-1.5 text-[10px] font-bold text-amber-700">
+                                    <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-100 px-1.5 text-[10px] font-bold text-amber-700">
                                         {cpRequests.length}
                                     </span>
                                 </div>
                             </div>
                             <div className="p-4">
                                 {recentCpBoothRequests.length === 0 ? (
-                                    <div className="rounded-xl border border-dashed border-[#92C7CF]/20 bg-white/30 px-4 py-6 text-center">
+                                    <div className="rounded-xl border border-dashed border-teal/20 bg-white/30 px-4 py-6 text-center">
                                         <Smartphone size={28} className="mx-auto text-gray-300 mb-2" />
                                         <p className="text-sm text-gray-500">No CP booth change requests yet.</p>
                                     </div>
@@ -788,20 +788,20 @@ export default function OperatorDashboard() {
                         {/* CP Sub-Op Assign Requests — beside CP Booth Change Requests — hidden for sub-operators */}
                         {!loading && !isSubOperator && (
                         <GlassCard>
-                            <div className="border-b border-white/40 bg-gradient-to-r from-[#92C7CF]/10 to-[#AAD7D9]/10 px-5 py-3">
+                            <div className="border-b border-white/40 bg-linear-to-r from-teal/10 to-teal/10 px-5 py-3">
                                 <div className="flex items-center justify-between">
                                     <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-800">
                                         <UserCircle size={15} />
                                         CP Sub-Op Assign Requests
                                     </h3>
-                                    <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-amber-100 px-1.5 text-[10px] font-bold text-amber-700">
+                                    <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-100 px-1.5 text-[10px] font-bold text-amber-700">
                                         {cpOperatorRequests.length}
                                     </span>
                                 </div>
                             </div>
                             <div className="p-4">
                                 {recentCpOperatorRequests.length === 0 ? (
-                                    <div className="rounded-xl border border-dashed border-[#92C7CF]/20 bg-white/30 px-4 py-6 text-center">
+                                    <div className="rounded-xl border border-dashed border-teal/20 bg-white/30 px-4 py-6 text-center">
                                         <UserCircle size={28} className="mx-auto text-gray-300 mb-2" />
                                         <p className="text-sm text-gray-500">No CP sub-op assign requests yet.</p>
                                     </div>
@@ -848,20 +848,20 @@ export default function OperatorDashboard() {
                         {/* POS Sub-Op Assign Requests — hidden for sub-operators */}
                         {!loading && !isSubOperator && (
                             <GlassCard>
-                                <div className="border-b border-white/40 bg-gradient-to-r from-[#92C7CF]/10 to-[#AAD7D9]/10 px-5 py-3">
+                                <div className="border-b border-white/40 bg-linear-to-r from-teal/10 to-teal/10 px-5 py-3">
                                     <div className="flex items-center justify-between">
                                         <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-800">
                                             <UserCircle size={15} />
                                             POS Sub-Op Assign Requests
                                         </h3>
-                                        <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-amber-100 px-1.5 text-[10px] font-bold text-amber-700">
+                                        <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-100 px-1.5 text-[10px] font-bold text-amber-700">
                                             {outletRequests.length}
                                         </span>
                                     </div>
                                 </div>
                                 <div className="p-4">
                                     {recentOutletRequests.length === 0 ? (
-                                        <div className="rounded-xl border border-dashed border-[#92C7CF]/20 bg-white/30 px-4 py-6 text-center">
+                                        <div className="rounded-xl border border-dashed border-teal/20 bg-white/30 px-4 py-6 text-center">
                                             <UserCircle size={28} className="mx-auto text-gray-300 mb-2" />
                                             <p className="text-sm text-gray-500">No POS sub-op assign requests yet.</p>
                                         </div>
