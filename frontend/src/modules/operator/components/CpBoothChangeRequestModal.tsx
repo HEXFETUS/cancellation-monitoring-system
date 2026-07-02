@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
+import Dropdown from "./Dropdown";
 import { useAuth } from "../../../context/AuthContext";
 import type { BoothInfo, OperatorInfo } from "../../pos/types";
 import { createCpBoothChangeRequest } from "../../requests/services/cpBoothChangeRequests";
@@ -142,16 +143,14 @@ export default function CpBoothChangeRequestModal({
         <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 backdrop-blur-sm pt-16 px-4">
             <div className="relative w-full max-w-lg animate-in fade-in zoom-in-95 duration-200 rounded-2xl bg-white shadow-2xl border border-warm overflow-hidden">
                 {/* Header accent bar */}
-                <div className="h-2 bg-linear-to-r from-teal to-teal-dark" />
+                <div className="h-2 bg-gradient-to-r from-teal to-teal-dark" />
 
                 <div className="p-6">
                     {/* Header */}
                     <div className="flex items-center justify-between mb-6">
                         <div>
                             <h2 className="text-lg font-bold text-ink">Request Booth Change</h2>
-                            <p className="text-sm text-ink-muted mt-0.5">
-                                Request to assign this cellphone to a booth
-                            </p>
+                            <p className="text-sm text-ink-muted mt-0.5">Submit a request to move this device to a different booth</p>
                         </div>
                         <button
                             onClick={onClose}
@@ -191,25 +190,18 @@ export default function CpBoothChangeRequestModal({
                         {/* Booth dropdown */}
                         <label className="block">
                             <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-muted">
-                                Assign to Booth <span className="text-red-500">*</span>
+                                Move to Booth <span className="text-red-500">*</span>
                             </span>
-                            <select
-                                value={boothId ?? ""}
-                                onChange={(e) => setBoothId(e.target.value ? Number(e.target.value) : null)}
-                                className="w-full rounded-lg border border-warm bg-card px-3 py-2.5 text-sm text-ink focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal"
-                            >
-                                <option value="">-- Select a booth --</option>
-                                {availableBooths.map((b) => (
-                                    <option key={b.id} value={b.id}>
-                                        {b.booth_code}{b.location ? ` · ${b.location}` : ""}
-                                    </option>
-                                ))}
-                            </select>
-                            {availableBooths.length === 0 && (
-                                <p className="mt-1 text-xs text-ink-muted">
-                                    No booths are available within your operator family.
-                                </p>
-                            )}
+                            <Dropdown
+                                value={boothId}
+                                placeholder="Pick a booth"
+                                emptyMessage="No alternate booths are available within your operator family."
+                                onChange={(v) => setBoothId(v)}
+                                options={availableBooths.map((b) => ({
+                                    value: b.id,
+                                    label: `${b.booth_code}${b.location ? ` · ${b.location}` : ""}`,
+                                }))}
+                            />
                         </label>
 
                         {/* Reason */}
@@ -265,7 +257,13 @@ export default function CpBoothChangeRequestModal({
                     <span className="text-sm font-semibold text-ink">{cellphone.control_no || cellphone.serial_number}</span>
                 </div>
                 <div className="flex items-center justify-between px-4 py-2.5">
-                    <span className="text-xs font-medium text-ink-muted uppercase tracking-wider">To Booth</span>
+                    <span className="text-xs font-medium text-ink-muted uppercase tracking-wider">From</span>
+                    <span className="text-sm font-semibold text-ink">
+                        {currentBooth?.booth_code || "—"}
+                    </span>
+                </div>
+                <div className="flex items-center justify-between px-4 py-2.5">
+                    <span className="text-xs font-medium text-ink-muted uppercase tracking-wider">To</span>
                     <span className="text-sm font-semibold text-teal">
                         {booths.find((b) => b.id === boothId)?.booth_code || "—"}
                     </span>
