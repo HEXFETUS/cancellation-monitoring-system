@@ -111,8 +111,10 @@ export default function RequestPosPage() {
                     : null
             );
 
+            // Fetch all POS records (no user_id filter) so the operator can search
+            // for any device in the system and request it to be added under them.
             const [pos, ops, reqs] = await Promise.all([
-                fetchPosRecords({ user_id: String(user.id) }).catch(() => [] as PosRecord[]),
+                fetchPosRecords().catch(() => [] as PosRecord[]),
                 fetchOperators().catch(() => [] as OperatorInfo[]),
                 listOperatorChangeRequests({ userId: user.id }).catch(
                     () => [] as OperatorChangeRequest[]
@@ -178,7 +180,7 @@ export default function RequestPosPage() {
             const serial = String(
                 r.serial_number || r.serial_no || ""
             ).toLowerCase();
-            return device === needle || serial === needle;
+            return device.includes(needle) || serial.includes(needle);
         });
         if (!found) {
             setMatchedRecord(null);
