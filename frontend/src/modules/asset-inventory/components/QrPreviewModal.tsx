@@ -114,7 +114,7 @@ export default function QrPreviewModal({ open, code, onClose }: Props) {
         <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/50 backdrop-blur-sm pt-8 pb-8">
             <div className="w-full max-w-sm rounded-2xl border border-warm bg-white shadow-2xl">
                 {/* Header */}
-                <div className="flex items-center justify-between border-b border-warm bg-gradient-to-r from-teal-50 to-white px-5 py-3.5">
+                <div className="flex items-center justify-between border-b border-warm bg-linear-to-r from-teal-50 to-white px-5 py-3.5">
                     <div className="flex items-center gap-2.5">
                         <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white shadow-sm ring-1 ring-teal-200">
                             <QrCode size={18} className="text-teal" />
@@ -139,7 +139,7 @@ export default function QrPreviewModal({ open, code, onClose }: Props) {
                     </div>
 
                     {/* WYSIWYG label preview */}
-                    <div className="relative mx-auto w-full max-w-[300px] rounded-xl border-2 border-dashed border-warm bg-white p-2 shadow-inner">
+                    <div className="relative mx-auto w-full max-w-75 rounded-xl border-2 border-dashed border-warm bg-white p-2 shadow-inner">
                         {previewUrl ? (
                             <img
                                 src={previewUrl}

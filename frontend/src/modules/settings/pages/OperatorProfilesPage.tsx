@@ -99,9 +99,9 @@ function ConfirmAddSubModal({
         : [...names.slice(0, 4), `... and ${names.length - 4} more`];
 
     return (
-        <div className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-black/50 backdrop-blur-sm pt-24 px-4">
+        <div className="fixed inset-0 z-60 flex items-start justify-center overflow-y-auto bg-black/50 backdrop-blur-sm pt-24 px-4">
             <div className="w-full max-w-md animate-in fade-in zoom-in-95 duration-200 rounded-2xl bg-white shadow-2xl border border-warm overflow-hidden">
-                <div className="h-2 bg-gradient-to-r from-teal to-teal-dark" />
+                <div className="h-2 bg-linear-to-r from-teal to-teal-dark" />
 
                 <div className="p-6">
                     <div className="flex flex-col items-center gap-4 text-center">
@@ -116,7 +116,7 @@ function ConfirmAddSubModal({
                                 This will add the following sub-operator{names.length !== 1 ? "s" : ""} under{" "}
                                 <span className="font-semibold text-ink">{mainOpName}</span>:
                             </p>
-                            <div className="mt-3 w-full rounded-xl bg-gradient-to-br from-cream to-teal-50/50 border border-warm/70 px-4 py-3 text-left">
+                            <div className="mt-3 w-full rounded-xl bg-linear-to-br from-cream to-teal-50/50 border border-warm/70 px-4 py-3 text-left">
                                 {displayNames.map((name) => (
                                     <p key={name} className="text-sm font-medium text-ink leading-relaxed">
                                         {mainOpName} ({name})
@@ -136,7 +136,7 @@ function ConfirmAddSubModal({
                         <button
                             onClick={onConfirm}
                             autoFocus
-                            className="flex-1 rounded-xl bg-gradient-to-r from-teal to-teal-dark py-3 text-sm font-semibold text-white shadow-lg shadow-teal/25 hover:shadow-xl hover:shadow-teal/30 hover:from-teal-dark hover:to-teal transition-all active:scale-[0.98] cursor-pointer"
+                            className="flex-1 rounded-xl bg-linear-to-r from-teal to-teal-dark py-3 text-sm font-semibold text-white shadow-lg shadow-teal/25 hover:shadow-xl hover:shadow-teal/30 hover:from-teal-dark hover:to-teal transition-all active:scale-[0.98] cursor-pointer"
                         >
                             {type === "single" ? "Add" : `Add all (${names.length})`}
                         </button>
@@ -157,9 +157,9 @@ function ConfirmRemoveModal({
     onCancel: () => void;
 }) {
     return (
-        <div className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-black/50 backdrop-blur-sm pt-24 px-4">
+        <div className="fixed inset-0 z-60 flex items-start justify-center overflow-y-auto bg-black/50 backdrop-blur-sm pt-24 px-4">
             <div className="w-full max-w-md animate-in fade-in zoom-in-95 duration-200 rounded-2xl bg-white shadow-2xl border border-warm overflow-hidden">
-                <div className="h-2 bg-gradient-to-r from-amber-400 to-orange-500" />
+                <div className="h-2 bg-linear-to-r from-amber-400 to-orange-500" />
 
                 <div className="p-6">
                     <div className="flex flex-col items-center gap-4 text-center">
@@ -171,7 +171,7 @@ function ConfirmRemoveModal({
                             <p className="text-sm text-ink-muted mt-1">
                                 This will unlink this sub-operator from its current main operator.
                             </p>
-                            <div className="mt-3 w-full rounded-xl bg-gradient-to-br from-cream to-amber-50/50 border border-warm/70 px-4 py-3">
+                            <div className="mt-3 w-full rounded-xl bg-linear-to-br from-cream to-amber-50/50 border border-warm/70 px-4 py-3">
                                 <p className="text-base font-bold text-ink">{formatOperatorDisplay(subOperator)}</p>
                             </div>
                         </div>
@@ -186,7 +186,7 @@ function ConfirmRemoveModal({
                         </button>
                         <button
                             onClick={onConfirm}
-                            className="flex-1 rounded-xl bg-gradient-to-r from-rose to-rose-dark py-3 text-sm font-semibold text-white shadow-lg shadow-rose/25 hover:shadow-xl hover:shadow-rose/30 hover:from-rose-dark hover:to-rose transition-all active:scale-[0.98] cursor-pointer"
+                            className="flex-1 rounded-xl bg-linear-to-r from-rose to-rose-dark py-3 text-sm font-semibold text-white shadow-lg shadow-rose/25 hover:shadow-xl hover:shadow-rose/30 hover:from-rose-dark hover:to-rose transition-all active:scale-[0.98] cursor-pointer"
                         >
                             Remove
                         </button>

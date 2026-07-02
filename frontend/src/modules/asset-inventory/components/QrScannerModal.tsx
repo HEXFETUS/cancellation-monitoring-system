@@ -281,7 +281,7 @@ export default function QrScannerModal({ open, onClose }: Props) {
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Header */}
-                <div className="flex items-center justify-between border-b border-warm bg-gradient-to-r from-teal-50 to-teal-100/50 px-5 py-3">
+                <div className="flex items-center justify-between border-b border-warm bg-linear-to-r from-teal-50 to-teal-100/50 px-5 py-3">
                     <div className="flex items-center gap-3">
                         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white shadow-sm ring-1 ring-teal-200">
                             <ScanLine size={20} className="text-teal" />
@@ -665,7 +665,7 @@ function AssetEditPanel({
     return (
         <div className="space-y-5">
             {/* Asset code summary */}
-            <section className="relative overflow-hidden rounded-xl border border-teal-200 bg-gradient-to-br from-teal-50 to-white p-5 shadow-sm">
+            <section className="relative overflow-hidden rounded-xl border border-teal-200 bg-linear-to-br from-teal-50 to-white p-5 shadow-sm">
                 <div className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-teal-100">
                     <CheckCircle2 size={18} className="text-teal" />
                 </div>

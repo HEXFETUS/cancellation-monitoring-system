@@ -121,10 +121,10 @@ export default function EditCpModal({ open, cellphone, onClose, onSubmitted, mod
         <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 backdrop-blur-sm pt-16 px-4">
             <div className="relative w-full max-w-lg animate-in fade-in zoom-in-95 duration-200 rounded-2xl bg-white shadow-2xl border border-gray-200/60 overflow-hidden">
                 {/* Header accent bar */}
-                <div className="h-1.5 bg-gradient-to-r from-[#92C7CF] via-[#AAD7D9] to-[#92C7CF]" />
+                <div className="h-1.5 bg-linear-to-r from-teal via-teal-light to-teal" />
 
                 {showDeleteConfirm && (
-                    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                    <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/50 backdrop-blur-sm">
                         <div className="mx-4 w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
                             <h3 className="text-lg font-bold text-gray-800">Delete Cellphone</h3>
                             <p className="mt-2 text-sm text-gray-600">

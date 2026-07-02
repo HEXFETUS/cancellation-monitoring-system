@@ -643,7 +643,7 @@ export default function DashboardLayout() {
                 ]
                 : [
                     { name: "Dashboard", path: "/app/dashboard" },
-                    { name: "POS", path: "/app/pos" },
+                    { name: "Devices", path: "/app/pos" },
                     { name: "POS Repair", path: "/app/pos-repair" },
                     { name: "Cancellation", path: "/app/cancellation" },
                     { name: "Requests", path: "/app/requests" },

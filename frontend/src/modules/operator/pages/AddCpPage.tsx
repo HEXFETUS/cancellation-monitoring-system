@@ -130,7 +130,7 @@ export default function AddCpPage({ onClose, onSuccess }: AddCpPageProps = {}) {
         <div className="w-full">
             <div className="rounded-2xl bg-white shadow-2xl border border-gray-200/60 overflow-hidden">
                 {/* Header accent bar */}
-                <div className="h-1.5 bg-gradient-to-r from-[#92C7CF] via-[#AAD7D9] to-[#92C7CF]" />
+                <div className="h-1.5 bg-linear-to-r from-teal via-teal-light to-teal" />
 
                 <div className="p-6">
                     {/* Header */}

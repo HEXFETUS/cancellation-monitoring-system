@@ -424,7 +424,7 @@ export default function LandingPage() {
                   className="h-full w-full object-cover"
                 />
                 {/* Dark overlay for text readability */}
-                <div className="absolute inset-0 bg-gradient-to-r from-black/50 via-black/25 to-transparent" />
+                <div className="absolute inset-0 bg-linear-to-r from-black/50 via-black/25 to-transparent" />
               </div>
             ))}
           </div>
@@ -789,7 +789,7 @@ export default function LandingPage() {
                               <button
                                 key={i}
                                 onClick={() => setSelectedMedia({ url: `${API_BASE}${url}`, isVideo: true })}
-                                className="w-full block focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#92C7CF]"
+                                className="w-full block focus:outline-none focus:ring-2 focus:ring-inset focus:ring-teal"
                               >
                                 <video
                                   src={`${API_BASE}${url}`}
@@ -802,7 +802,7 @@ export default function LandingPage() {
                               <button
                                 key={i}
                                 onClick={() => setSelectedMedia({ url: `${API_BASE}${url}`, isVideo: false })}
-                                className="w-full block focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#92C7CF]"
+                                className="w-full block focus:outline-none focus:ring-2 focus:ring-inset focus:ring-teal"
                               >
                                 <img
                                   src={`${API_BASE}${url}`}
@@ -920,7 +920,7 @@ export default function LandingPage() {
       {selectedMedia && (
         <div
           ref={lightboxRef}
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+          className="fixed inset-0 z-100 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
           onClick={closeMedia}
         >
           <div

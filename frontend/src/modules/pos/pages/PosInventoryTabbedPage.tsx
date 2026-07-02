@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { Monitor, Activity, Store, BarChart3, FileText, GitBranch, ClipboardList } from "lucide-react";
+import { Monitor, Activity, Store, BarChart3, FileText, GitBranch, ClipboardList, Smartphone } from "lucide-react";
 import AllPosPage from "./AllPosPage";
+import AllCpPage from "./AllCpPage";
 import PosStatusPage from "./PosStatusPage";
 import OutletsPage from "./OutletsPage";
 import ChangeDeviceLogsPage from "./ChangeDeviceLogsPage";
@@ -10,6 +11,7 @@ import { TopTabs } from "../../../shared/components";
 
 const mainTabs = [
     { id: "all-pos", label: "POS", icon: Monitor },
+    { id: "all-cp", label: "CP Devices", icon: Smartphone },
     { id: "pos-status", label: "POS Status", icon: Activity },
     { id: "outlets", label: "Outlets", icon: Store },
     { id: "reports", label: "Reports", icon: BarChart3 },
@@ -79,6 +81,7 @@ export default function PosInventoryTabbedPage() {
 
             <div className="min-w-0">
                 {activeTab === "all-pos" && <AllPosPage />}
+                {activeTab === "all-cp" && <AllCpPage />}
                 {activeTab === "pos-status" && <PosStatusPage />}
                 {activeTab === "outlets" && <OutletsPage />}
                 {activeTab === "reports" && (

@@ -92,7 +92,7 @@ export default function SimpleAssetCodeFormModal({ open, initial, onClose, onSub
             <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/50 backdrop-blur-sm pt-8 pb-8">
                 <div className="w-full max-w-2xl rounded-2xl border border-warm bg-white shadow-2xl">
                     {/* Header */}
-                    <div className="flex items-center justify-between border-b border-warm bg-gradient-to-r from-teal-50 to-white px-6 py-4">
+                    <div className="flex items-center justify-between border-b border-warm bg-linear-to-r from-teal-50 to-white px-6 py-4">
                         <div className="flex items-center gap-3">
                             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white shadow-sm ring-1 ring-teal-200">
                                 {initial ? (

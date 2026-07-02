@@ -267,7 +267,7 @@ export default function AssignCpToSubOperatorModal({
                 {reason.trim() && (
                     <div className="flex items-center justify-between px-4 py-2.5">
                         <span className="text-xs font-medium text-ink-muted uppercase tracking-wider">Reason</span>
-                        <span className="text-sm font-medium text-ink text-right max-w-[200px] truncate">{reason.trim()}</span>
+                        <span className="text-sm font-medium text-ink text-right max-w-50 truncate">{reason.trim()}</span>
                     </div>
                 )}
             </ConfirmationModal>

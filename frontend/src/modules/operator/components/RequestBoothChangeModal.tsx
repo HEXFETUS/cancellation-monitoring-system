@@ -134,7 +134,7 @@ export default function RequestBoothChangeModal({
         <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 backdrop-blur-sm pt-16 px-4">
             <div className="relative w-full max-w-lg animate-in fade-in zoom-in-95 duration-200 rounded-2xl bg-white shadow-2xl border border-warm overflow-hidden">
                 {/* Header accent bar */}
-                <div className="h-2 bg-gradient-to-r from-teal to-teal-dark" />
+                <div className="h-2 bg-linear-to-r from-teal to-teal-dark" />
 
                 <div className="p-6">
                     {/* Header */}
@@ -256,7 +256,7 @@ export default function RequestBoothChangeModal({
                 {reason.trim() && (
                     <div className="flex items-center justify-between px-4 py-2.5">
                         <span className="text-xs font-medium text-ink-muted uppercase tracking-wider">Reason</span>
-                        <span className="text-sm font-medium text-ink text-right max-w-[200px] truncate">{reason.trim()}</span>
+                        <span className="text-sm font-medium text-ink text-right max-w-50 truncate">{reason.trim()}</span>
                     </div>
                 )}
             </ConfirmationModal>

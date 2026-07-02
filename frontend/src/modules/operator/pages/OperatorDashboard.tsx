@@ -10,7 +10,6 @@ import {
     ChevronRight,
     RefreshCw,
     UserCircle,
-    Smartphone,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../../context/AuthContext";
@@ -28,14 +27,6 @@ import {
     listBoothOperatorChangeRequests,
     type BoothOperatorChangeRequest,
 } from "../../requests/services/boothOperatorChangeRequests";
-import {
-    listCpBoothChangeRequests,
-    type CpBoothChangeRequest,
-} from "../../requests/services/cpBoothChangeRequests";
-import {
-    listCpOperatorChangeRequests,
-    type CpOperatorChangeRequest,
-} from "../../requests/services/cpOperatorChangeRequests";
 import RequestBoothChangeModal from "../components/RequestBoothChangeModal";
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
@@ -57,16 +48,6 @@ interface Me {
     parent_operator_id: number | null;
     operator_name: string | null;
     profile_picture?: string | null;
-}
-
-interface CellphoneRecord {
-    id: number;
-    control_no: string;
-    brand: string;
-    model: string;
-    status: string;
-    operator_id: number | null;
-    area: string | null;
 }
 
 type SectionId = "devices" | "requests";
@@ -107,11 +88,8 @@ export default function OperatorDashboard() {
     const { user } = useAuth();
     const [me, setMe] = useState<Me | null>(null);
     const [records, setRecords] = useState<PosRecord[]>([]);
-    const [cpRecords, setCpRecords] = useState<CellphoneRecord[]>([]);
     const [booths, setBooths] = useState<BoothInfo[]>([]);
     const [requests, setRequests] = useState<BoothChangeRequest[]>([]);
-    const [cpRequests, setCpRequests] = useState<CpBoothChangeRequest[]>([]);
-    const [cpOperatorRequests, setCpOperatorRequests] = useState<CpOperatorChangeRequest[]>([]);
     const [operators, setOperators] = useState<OperatorInfo[]>([]);
     const [posRequests, setPosRequests] = useState<OperatorChangeRequest[]>([]);
     const [outletRequests, setOutletRequests] = useState<BoothOperatorChangeRequest[]>([]);
@@ -138,30 +116,16 @@ export default function OperatorDashboard() {
                 }
                 : null;
 
-            const myOperatorId = meSafe?.operator_id ?? null;
-
-            const [pos, reqs, ops, bh, posReqs, outletReqs, cpData, cpReqData, cpOpReqData] = await Promise.all([
+            const [pos, reqs, ops, bh, posReqs, outletReqs] = await Promise.all([
                 fetchPosRecords({ user_id: String(user.id) }),
                 listBoothChangeRequests({ userId: user.id }),
                 fetchOperators().catch(() => [] as OperatorInfo[]),
-                fetchBoothInfo({ user_id: String(user.id) }).catch(() => [] as BoothInfo[]),
-                listOperatorChangeRequests().catch(
+                fetchBoothInfo().catch(() => [] as BoothInfo[]),
+                listOperatorChangeRequests({ userId: user.id }).catch(
                     () => [] as OperatorChangeRequest[]
                 ),
                 listBoothOperatorChangeRequests({ userId: user.id }).catch(
                     () => [] as BoothOperatorChangeRequest[]
-                ),
-                myOperatorId
-                    ? fetch(`${API_BASE_URL}/api/cellphones?operator_id=${myOperatorId}`).then((r) => {
-                        if (!r.ok) return [];
-                        return r.json();
-                    }).catch(() => [] as CellphoneRecord[])
-                    : Promise.resolve([] as CellphoneRecord[]),
-                listCpBoothChangeRequests({ userId: user.id }).catch(
-                    () => [] as CpBoothChangeRequest[]
-                ),
-                listCpOperatorChangeRequests({}).catch(
-                    () => [] as CpOperatorChangeRequest[]
                 ),
             ]);
             setMe(meSafe);
@@ -171,9 +135,6 @@ export default function OperatorDashboard() {
             setBooths(bh);
             setPosRequests(posReqs);
             setOutletRequests(outletReqs);
-            setCpRecords(cpData);
-            setCpRequests(cpReqData);
-            setCpOperatorRequests(cpOpReqData);
         } catch (err) {
             setError(err instanceof Error ? err.message : String(err));
         } finally {
@@ -233,21 +194,12 @@ export default function OperatorDashboard() {
         return { total, active, inactive };
     }
 
-    function computeCpStats(recs: CellphoneRecord[]) {
-        const total = recs.length;
-        const active = recs.filter((r) => (r.status || "").toLowerCase() === "active").length;
-        const inactive = recs.filter((r) => (r.status || "").toLowerCase() === "inactive").length;
-        return { total, active, inactive };
-    }
-
     const combinedStats = useMemo(() => computeStats(allRecords), [allRecords]);
-    const cpStats = useMemo(() => computeCpStats(cpRecords), [cpRecords]);
 
     const operatorBreakdown = useMemo(() => {
         if (!myOperator || isSubOperator) return [];
 
         const counts = new Map<number, ReturnType<typeof computeStats>>();
-        const cpCounts = new Map<number, ReturnType<typeof computeCpStats>>();
         const outletMap = new Map<number, BoothInfo[]>();
         for (const op of [myOperator, ...operators.filter((op) => subOperatorIds.has(Number(op.id)))]) {
             const opId = Number(op.id);
@@ -259,9 +211,6 @@ export default function OperatorDashboard() {
                     .filter((b) => b.operator_id != null && Number(b.operator_id) === opId)
                     .sort((a, b) => String(a.booth_code || "").localeCompare(String(b.booth_code || "")))
             );
-            // CP breakdown by operator_id on cellphone records
-            const opCpRecords = cpRecords.filter((r) => r.operator_id != null && Number(r.operator_id) === opId);
-            cpCounts.set(opId, computeCpStats(opCpRecords));
         }
 
         return [
@@ -270,7 +219,6 @@ export default function OperatorDashboard() {
                 name: myOperator.operator || me?.operator_name || "My operator",
                 role: "main" as const,
                 stats: counts.get(Number(myOperator.id)) ?? { total: 0, active: 0, inactive: 0 },
-                cpStats: cpCounts.get(Number(myOperator.id)) ?? { total: 0, active: 0, inactive: 0 },
                 outlets: outletMap.get(Number(myOperator.id)) ?? [],
             },
             ...operators
@@ -280,11 +228,10 @@ export default function OperatorDashboard() {
                     name: op.operator,
                     role: "sub" as const,
                     stats: counts.get(Number(op.id)) ?? { total: 0, active: 0, inactive: 0 },
-                    cpStats: cpCounts.get(Number(op.id)) ?? { total: 0, active: 0, inactive: 0 },
                     outlets: outletMap.get(Number(op.id)) ?? [],
                 })),
         ];
-    }, [booths, me?.operator_name, myOperator, isSubOperator, operators, records, cpRecords, subOperatorIds]);
+    }, [booths, me?.operator_name, myOperator, isSubOperator, operators, records, subOperatorIds]);
 
     // Total outlets with area breakdown
     const { totalOutlets, cdoCount, misorCount } = useMemo(() => {
@@ -313,8 +260,6 @@ export default function OperatorDashboard() {
     const recentBoothRequests = useMemo(() => requests.slice(0, 5), [requests]);
     const recentPosRequests = useMemo(() => posRequests.slice(0, 5), [posRequests]);
     const recentOutletRequests = useMemo(() => outletRequests.slice(0, 5), [outletRequests]);
-    const recentCpBoothRequests = useMemo(() => cpRequests.slice(0, 5), [cpRequests]);
-    const recentCpOperatorRequests = useMemo(() => cpOperatorRequests.slice(0, 5), [cpOperatorRequests]);
 
     const unavailableBoothIds = useMemo(
         () =>
@@ -398,26 +343,26 @@ export default function OperatorDashboard() {
                 </div>
             </GlassCard>
 
-            {/* ── POS Devices & Outlets section ── */}
+            {/* ── Devices & Outlets section ── */}
             <div>
                 <SectionHeader section="devices" />
-                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                     <DeviceStatCard
-                        label="Total POS Devices"
+                        label="Total Devices"
                         value={loading ? "—" : combinedStats.total}
                         icon={Monitor}
                         color={teal}
                         subtitle={myOperator?.operator || ""}
                     />
                     <DeviceStatCard
-                        label="Active POS"
+                        label="Active"
                         value={loading ? "—" : combinedStats.active}
                         icon={CheckCircle2}
                         color="#6BBF6B"
                         subtitle="Operational"
                     />
                     <DeviceStatCard
-                        label="Inactive POS"
+                        label="Inactive"
                         value={loading ? "—" : combinedStats.inactive}
                         icon={Activity}
                         color="#E8B4B8"
@@ -436,34 +381,9 @@ export default function OperatorDashboard() {
                     />
                 </div>
 
-                {/* ── CP (Cellphone) Device Stats ── */}
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 mt-4">
-                    <DeviceStatCard
-                        label="Total CP Devices"
-                        value={loading ? "—" : cpStats.total}
-                        icon={Smartphone}
-                        color={teal}
-                        subtitle={myOperator?.operator || ""}
-                    />
-                    <DeviceStatCard
-                        label="Active CP"
-                        value={loading ? "—" : cpStats.active}
-                        icon={CheckCircle2}
-                        color="#6BBF6B"
-                        subtitle="Operational"
-                    />
-                    <DeviceStatCard
-                        label="Inactive CP"
-                        value={loading ? "—" : cpStats.inactive}
-                        icon={Activity}
-                        color="#E8B4B8"
-                        subtitle="Needs attention"
-                    />
-                </div>
-
                 {!loading && operatorBreakdown.length > 1 && (
                     <GlassCard className="mt-4">
-                        <div className="border-b border-white/40 bg-gradient-to-r from-[#92C7CF]/10 to-[#AAD7D9]/10 px-5 py-3">
+                        <div className="border-b border-white/40 bg-linear-to-r from-teal/10 to-teal-light/10 px-5 py-3">
                             <div className="flex items-center justify-between gap-3">
                                 <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-800">
                                     <UserCircle size={15} />
@@ -474,19 +394,28 @@ export default function OperatorDashboard() {
                                 </span>
                             </div>
                         </div>
-                        <div className={`overflow-x-auto ${operatorBreakdown.length > 10 ? "max-h-[520px] overflow-y-auto" : ""}`}>
+                        <div className={`overflow-x-auto ${operatorBreakdown.length > 10 ? "max-h-130 overflow-y-auto" : ""}`}>
                             <table className="w-full text-left text-sm">
                                 <thead className={operatorBreakdown.length > 10 ? "sticky top-0 z-10" : ""}>
                                     <tr className="border-b border-white/50 bg-white">
-                                        <th className="whitespace-nowrap px-5 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Operator</th>
-                                        <th className="min-w-[220px] px-5 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Outlets</th>
-                                        <th className="whitespace-nowrap px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Outlets</th>
-                                        <th className="whitespace-nowrap px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">POS Dev</th>
-                                        <th className="whitespace-nowrap px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">POS Active</th>
-                                        <th className="whitespace-nowrap px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">POS Inactive</th>
-                                        <th className="whitespace-nowrap px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">CP Dev</th>
-                                        <th className="whitespace-nowrap px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">CP Active</th>
-                                        <th className="whitespace-nowrap px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">CP Inactive</th>
+                                        <th className="whitespace-nowrap px-5 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
+                                            Operator
+                                        </th>
+                                        <th className="min-w-55 px-5 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
+                                            Outlets
+                                        </th>
+                                        <th className="whitespace-nowrap px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">
+                                            Total Outlets
+                                        </th>
+                                        <th className="whitespace-nowrap px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">
+                                            Devices
+                                        </th>
+                                        <th className="whitespace-nowrap px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">
+                                            Active
+                                        </th>
+                                        <th className="whitespace-nowrap px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">
+                                            Inactive
+                                        </th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -514,7 +443,7 @@ export default function OperatorDashboard() {
                                                         {row.outlets.slice(0, 5).map((outlet) => (
                                                             <span
                                                                 key={outlet.id}
-                                                                className="inline-flex max-w-[150px] items-center rounded-full bg-white/55 px-2 py-1 font-mono text-[11px] font-medium text-gray-700 ring-1 ring-white/60"
+                                                                className="inline-flex max-w-37.5 items-center rounded-full bg-white/55 px-2 py-1 font-mono text-[11px] font-medium text-gray-700 ring-1 ring-white/60"
                                                                 title={[outlet.booth_code, outlet.booth_location].filter(Boolean).join(" - ")}
                                                             >
                                                                 <span className="truncate">{outlet.booth_code || `Booth #${outlet.id}`}</span>
@@ -532,9 +461,6 @@ export default function OperatorDashboard() {
                                             <td className="px-5 py-3 text-right font-semibold text-gray-800">{row.stats.total}</td>
                                             <td className="px-5 py-3 text-right text-gray-600">{row.stats.active}</td>
                                             <td className="px-5 py-3 text-right text-gray-600">{row.stats.inactive}</td>
-                                            <td className="px-5 py-3 text-right font-semibold text-gray-800">{row.cpStats.total}</td>
-                                            <td className="px-5 py-3 text-right text-gray-600">{row.cpStats.active}</td>
-                                            <td className="px-5 py-3 text-right text-gray-600">{row.cpStats.inactive}</td>
                                         </tr>
                                     ))}
                                 </tbody>
@@ -544,28 +470,28 @@ export default function OperatorDashboard() {
                 )}
             </div>
 
-            {/* ── Recent Requests section ── */}
+            {/* ── Recent Requests section — only rendered when at least one card is visible ── */}
             {!loading && (
                 <div>
                     <SectionHeader section="requests" />
                     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                         {/* Request POS History — hidden for sub-operators */}
-                        {!loading && !isSubOperator && (
+                        {!isSubOperator && (
                             <GlassCard>
-                                <div className="border-b border-white/40 bg-gradient-to-r from-[#92C7CF]/10 to-[#AAD7D9]/10 px-5 py-3">
+                                <div className="border-b border-white/40 bg-linear-to-r from-teal/10 to-teal-light/10 px-5 py-3">
                                     <div className="flex items-center justify-between">
                                         <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-800">
                                             <Send size={15} />
                                             Request POS History
                                         </h3>
-                                        <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-amber-100 px-1.5 text-[10px] font-bold text-amber-700">
+                                        <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-100 px-1.5 text-[10px] font-bold text-amber-700">
                                             {posRequests.length}
                                         </span>
                                     </div>
                                 </div>
                                 <div className="p-4">
                                     {recentPosRequests.length === 0 ? (
-                                        <div className="rounded-xl border border-dashed border-[#92C7CF]/20 bg-white/30 px-4 py-6 text-center">
+                                        <div className="rounded-xl border border-dashed border-teal/20 bg-white/30 px-4 py-6 text-center">
                                             <Send size={28} className="mx-auto text-gray-300 mb-2" />
                                             <p className="text-sm text-gray-500">No POS requests yet.</p>
                                         </div>
@@ -595,7 +521,7 @@ export default function OperatorDashboard() {
                                             ))}
                                             <li className="pt-2">
                                                 <Link
-                                                    to="/app/my-pos?tab=request-pos"
+                                                    to="/app/my-pos"
                                                     className="group inline-flex items-center gap-1 text-xs font-medium transition"
                                                     style={{ color: teal }}
                                                 >
@@ -610,22 +536,22 @@ export default function OperatorDashboard() {
                         )}
 
                         {/* Request Outlet History — hidden for sub-operators */}
-                        {!loading && !isSubOperator && (
+                        {!isSubOperator && (
                             <GlassCard>
-                                <div className="border-b border-white/40 bg-gradient-to-r from-[#92C7CF]/10 to-[#AAD7D9]/10 px-5 py-3">
+                                <div className="border-b border-white/40 bg-linear-to-r from-teal/10 to-teal-light/10 px-5 py-3">
                                     <div className="flex items-center justify-between">
                                         <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-800">
                                             <History size={15} />
                                             Request Outlet History
                                         </h3>
-                                        <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-amber-100 px-1.5 text-[10px] font-bold text-amber-700">
+                                        <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-100 px-1.5 text-[10px] font-bold text-amber-700">
                                             {outletRequests.length}
                                         </span>
                                     </div>
                                 </div>
                                 <div className="p-4">
                                     {recentOutletRequests.length === 0 ? (
-                                        <div className="rounded-xl border border-dashed border-[#92C7CF]/20 bg-white/30 px-4 py-6 text-center">
+                                        <div className="rounded-xl border border-dashed border-teal/20 bg-white/30 px-4 py-6 text-center">
                                             <History size={28} className="mx-auto text-gray-300 mb-2" />
                                             <p className="text-sm text-gray-500">No outlet requests yet.</p>
                                         </div>
@@ -669,24 +595,24 @@ export default function OperatorDashboard() {
                             </GlassCard>
                         )}
 
-                        {/* POS Booth Change Requests — always visible */}
-                        <GlassCard className="lg:col-span-1 sm:col-span-2">
-                            <div className="border-b border-white/40 bg-gradient-to-r from-[#92C7CF]/10 to-[#AAD7D9]/10 px-5 py-3">
+                        {/* Booth Change Requests — always visible */}
+                        <GlassCard>
+                            <div className="border-b border-white/40 bg-linear-to-r from-teal/10 to-teal-light/10 px-5 py-3">
                                 <div className="flex items-center justify-between">
                                     <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-800">
                                         <ArrowRightLeft size={15} />
-                                        POS Booth Change Requests
+                                        Booth Change Requests
                                     </h3>
-                                    <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-amber-100 px-1.5 text-[10px] font-bold text-amber-700">
+                                    <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-100 px-1.5 text-[10px] font-bold text-amber-700">
                                         {requests.length}
                                     </span>
                                 </div>
                             </div>
                             <div className="p-4">
                                 {recentBoothRequests.length === 0 ? (
-                                    <div className="rounded-xl border border-dashed border-[#92C7CF]/20 bg-white/30 px-4 py-6 text-center">
+                                    <div className="rounded-xl border border-dashed border-teal/20 bg-white/30 px-4 py-6 text-center">
                                         <ArrowRightLeft size={28} className="mx-auto text-gray-300 mb-2" />
-                                        <p className="text-sm text-gray-500">No POS booth change requests yet.</p>
+                                        <p className="text-sm text-gray-500">No booth change requests yet.</p>
                                     </div>
                                 ) : (
                                     <ul className="divide-y divide-gray-100">
@@ -726,190 +652,12 @@ export default function OperatorDashboard() {
                                 )}
                             </div>
                         </GlassCard>
-
-                        {/* CP Booth Change Requests Card */}
-                        <GlassCard className="lg:col-span-1 sm:col-span-2">
-                            <div className="border-b border-white/40 bg-linear-to-r from-teal/10 to-teal/10 px-5 py-3">
-                                <div className="flex items-center justify-between">
-                                    <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-800">
-                                        <Smartphone size={15} />
-                                        CP Booth Change Requests
-                                    </h3>
-                                    <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-100 px-1.5 text-[10px] font-bold text-amber-700">
-                                        {cpRequests.length}
-                                    </span>
-                                </div>
-                            </div>
-                            <div className="p-4">
-                                {recentCpBoothRequests.length === 0 ? (
-                                    <div className="rounded-xl border border-dashed border-teal/20 bg-white/30 px-4 py-6 text-center">
-                                        <Smartphone size={28} className="mx-auto text-gray-300 mb-2" />
-                                        <p className="text-sm text-gray-500">No CP booth change requests yet.</p>
-                                    </div>
-                                ) : (
-                                    <ul className="divide-y divide-gray-100">
-                                        {recentCpBoothRequests.map((r) => (
-                                            <li key={r.id} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
-                                                <div className="min-w-0 flex-1">
-                                                    <div className="flex items-center gap-1.5">
-                                                        <span className="text-sm font-semibold text-gray-800 truncate">
-                                                            {r.control_no || `CP #${r.cellphone_id}`}
-                                                        </span>
-                                                        <BoothStatusPill status={r.status} />
-                                                    </div>
-                                                    <p className="mt-0.5 text-xs text-gray-500 truncate">
-                                                        <span className="font-mono">{r.control_no ? `CP ${r.control_no}` : `CP #${r.cellphone_id}`}</span>
-                                                        <span className="mx-1 text-gray-300">→</span>
-                                                        <span className="font-mono" style={{ color: teal }}>
-                                                            {r.requested_booth_code || `Booth #${r.requested_booth_id}`}
-                                                        </span>
-                                                    </p>
-                                                    <p className="text-[11px] text-gray-400 mt-0.5">
-                                                        {new Date(r.created_at).toLocaleString()}
-                                                    </p>
-                                                </div>
-                                            </li>
-                                        ))}
-                                        <li className="pt-2">
-                                            <Link
-                                                to="/app/my-pos?tab=my-cp"
-                                                className="group inline-flex items-center gap-1 text-xs font-medium transition"
-                                                style={{ color: teal }}
-                                            >
-                                                View all
-                                                <ChevronRight size={13} className="transition-transform group-hover:translate-x-0.5" />
-                                            </Link>
-                                        </li>
-                                    </ul>
-                                )}
-                            </div>
-                        </GlassCard>
-
-                        {/* CP Sub-Op Assign Requests — beside CP Booth Change Requests — hidden for sub-operators */}
-                        {!loading && !isSubOperator && (
-                        <GlassCard>
-                            <div className="border-b border-white/40 bg-linear-to-r from-teal/10 to-teal/10 px-5 py-3">
-                                <div className="flex items-center justify-between">
-                                    <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-800">
-                                        <UserCircle size={15} />
-                                        CP Sub-Op Assign Requests
-                                    </h3>
-                                    <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-100 px-1.5 text-[10px] font-bold text-amber-700">
-                                        {cpOperatorRequests.length}
-                                    </span>
-                                </div>
-                            </div>
-                            <div className="p-4">
-                                {recentCpOperatorRequests.length === 0 ? (
-                                    <div className="rounded-xl border border-dashed border-teal/20 bg-white/30 px-4 py-6 text-center">
-                                        <UserCircle size={28} className="mx-auto text-gray-300 mb-2" />
-                                        <p className="text-sm text-gray-500">No CP sub-op assign requests yet.</p>
-                                    </div>
-                                ) : (
-                                    <ul className="divide-y divide-gray-100">
-                                        {recentCpOperatorRequests.map((r) => (
-                                            <li key={r.id} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
-                                                <div className="min-w-0 flex-1">
-                                                    <div className="flex items-center gap-1.5">
-                                                        <span className="text-sm font-semibold text-gray-800 truncate">
-                                                            {r.control_no || `CP #${r.cellphone_id}`}
-                                                        </span>
-                                                        <RequestStatusPill status={r.status} size="sm" />
-                                                    </div>
-                                                    <p className="mt-0.5 text-xs text-gray-500 truncate">
-                                                        {r.from_operator || "Unassigned"}
-                                                        <span className="mx-1 text-gray-300">→</span>
-                                                        <span style={{ color: teal }} className="font-medium">
-                                                            {r.to_operator || "—"}
-                                                        </span>
-                                                    </p>
-                                                    <p className="text-[11px] text-gray-400 mt-0.5">
-                                                        {r.created_at ? new Date(r.created_at).toLocaleDateString() : "—"}
-                                                    </p>
-                                                </div>
-                                            </li>
-                                        ))}
-                                        <li className="pt-2">
-                                            <Link
-                                                to="/app/my-pos?tab=my-cp"
-                                                className="group inline-flex items-center gap-1 text-xs font-medium transition"
-                                                style={{ color: teal }}
-                                            >
-                                                View all
-                                                <ChevronRight size={13} className="transition-transform group-hover:translate-x-0.5" />
-                                            </Link>
-                                        </li>
-                                    </ul>
-                                )}
-                            </div>
-                        </GlassCard>
-                        )}
-
-                        {/* POS Sub-Op Assign Requests — hidden for sub-operators */}
-                        {!loading && !isSubOperator && (
-                            <GlassCard>
-                                <div className="border-b border-white/40 bg-linear-to-r from-teal/10 to-teal/10 px-5 py-3">
-                                    <div className="flex items-center justify-between">
-                                        <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-800">
-                                            <UserCircle size={15} />
-                                            POS Sub-Op Assign Requests
-                                        </h3>
-                                        <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-100 px-1.5 text-[10px] font-bold text-amber-700">
-                                            {outletRequests.length}
-                                        </span>
-                                    </div>
-                                </div>
-                                <div className="p-4">
-                                    {recentOutletRequests.length === 0 ? (
-                                        <div className="rounded-xl border border-dashed border-teal/20 bg-white/30 px-4 py-6 text-center">
-                                            <UserCircle size={28} className="mx-auto text-gray-300 mb-2" />
-                                            <p className="text-sm text-gray-500">No POS sub-op assign requests yet.</p>
-                                        </div>
-                                    ) : (
-                                        <ul className="divide-y divide-gray-100">
-                                            {recentOutletRequests.map((r) => (
-                                                <li key={r.id} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
-                                                    <div className="min-w-0 flex-1">
-                                                        <div className="flex items-center gap-1.5">
-                                                            <span className="text-sm font-semibold text-gray-800 truncate">
-                                                                {r.booth_code || `Booth #${r.booth_info_id}`}
-                                                            </span>
-                                                            <RequestStatusPill status={r.status} size="sm" />
-                                                        </div>
-                                                        <p className="mt-0.5 text-xs text-gray-500 truncate">
-                                                            {r.current_operator || "Unassigned"}
-                                                            <span className="mx-1 text-gray-300">→</span>
-                                                            <span style={{ color: teal }} className="font-medium">
-                                                                {r.to_operator || "—"}
-                                                            </span>
-                                                        </p>
-                                                        <p className="text-[11px] text-gray-400 mt-0.5">
-                                                            {r.created_at ? new Date(r.created_at).toLocaleDateString() : "—"}
-                                                        </p>
-                                                    </div>
-                                                </li>
-                                            ))}
-                                            <li className="pt-2">
-                                                <Link
-                                                    to="/app/my-outlets"
-                                                    className="group inline-flex items-center gap-1 text-xs font-medium transition"
-                                                    style={{ color: teal }}
-                                                >
-                                                    View all
-                                                    <ChevronRight size={13} className="transition-transform group-hover:translate-x-0.5" />
-                                                </Link>
-                                            </li>
-                                        </ul>
-                                    )}
-                                </div>
-                            </GlassCard>
-                        )}
                     </div>
                 </div>
             )}
 
             {/* ── Quick action — hidden for sub-operators */}
-            {!loading && !isSubOperator && (
+            {!isSubOperator && (
                 <GlassCard>
                     <div className="p-5 flex flex-col items-center text-center">
                         <span
@@ -920,10 +668,10 @@ export default function OperatorDashboard() {
                         </span>
                         <h3 className="text-base font-semibold text-gray-800">Quick action</h3>
                         <p className="mt-1 text-sm text-gray-500">
-                            Need to request a new POS device or manage CP devices under your account?
+                            Need to request a new POS device under your account?
                         </p>
                         <Link
-                            to="/app/my-pos?tab=request-pos"
+                            to="/app/request-pos?tab=request-pos"
                             className="mt-4 inline-flex w-full max-w-xs items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:opacity-90 active:scale-[0.98]"
                             style={{
                                 background: `linear-gradient(135deg, ${teal}, ${tealLight})`,
@@ -932,17 +680,6 @@ export default function OperatorDashboard() {
                         >
                             <Send size={15} />
                             Assign POS
-                        </Link>
-                        <Link
-                            to="/app/my-pos?tab=my-cp"
-                            className="mt-3 inline-flex w-full max-w-xs items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:opacity-90 active:scale-[0.98]"
-                            style={{
-                                background: `linear-gradient(135deg, #AAD7D9, #b8e2e4)`,
-                                boxShadow: `0 2px 8px rgba(146,199,207,0.25)`,
-                            }}
-                        >
-                            <Smartphone size={15} />
-                            Manage CP
                         </Link>
                     </div>
                 </GlassCard>
@@ -1013,17 +750,15 @@ function DeviceStatCard({
     );
 }
 
-function BoothStatusPill({ status }: { status: string | null | undefined }) {
-    const colors: Record<string, string> = {
+function BoothStatusPill({ status }: { status: BoothChangeRequest["status"] }) {
+    const colors: Record<BoothChangeRequest["status"], string> = {
         pending: "bg-amber-100 text-amber-700",
         approved: "bg-green-100 text-green-700",
         rejected: "bg-red-100 text-red-700",
         cancelled: "bg-gray-100 text-gray-500",
     };
-    const normalized = (status || "").toLowerCase();
-    const cls = colors[normalized] || "bg-gray-100 text-gray-500";
     return (
-        <span className={`inline-block shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${cls}`}>
+        <span className={`inline-block shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${colors[status]}`}>
             {status}
         </span>
     );

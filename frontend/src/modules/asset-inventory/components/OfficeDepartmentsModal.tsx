@@ -175,7 +175,7 @@ export default function OfficeDepartmentsModal({
                         <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-ink-muted">
                             {editingId ? "Edit department" : "Add department"}
                         </h4>
-                        <section className="rounded-xl border border-warm/60 bg-gradient-to-br from-cream/80 to-transparent p-4">
+                        <section className="rounded-xl border border-warm/60 bg-linear-to-br from-cream/80 to-transparent p-4">
                             <div className="grid gap-3">
                                 <div className="grid gap-3 sm:grid-cols-2">
                                     <Field label="Department Code" required>

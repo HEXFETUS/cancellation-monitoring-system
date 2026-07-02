@@ -164,7 +164,7 @@ export default function AssetTable({
 
             {/* Table */}
             <div className="overflow-x-auto rounded-xl border border-warm bg-card shadow-sm">
-                <table className="w-full min-w-[1000px] text-sm">
+                <table className="w-full min-w-250 text-sm">
                     <thead>
                         <tr className="border-b border-warm bg-cream">
                             <Th align="left" style={{ width: "28%" }}>Item Description</Th>
