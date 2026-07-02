@@ -30,7 +30,7 @@ interface CellphoneRecord {
 const ROWS_PER_PAGE = 20;
 
 export default function AllCpPage() {
-    const { user } = useAuth();
+    useAuth();
     const [records, setRecords] = useState<CellphoneRecord[]>([]);
     const [booths, setBooths] = useState<BoothInfo[]>([]);
     const [operators, setOperators] = useState<OperatorInfo[]>([]);
@@ -535,7 +535,7 @@ export default function AllCpPage() {
                                 type="button"
                                 onClick={openConvertAreaConfirm}
                                 disabled={!newArea || convertAreaRecord.area?.toUpperCase() === newArea}
-                                className="rounded-xl bg-gradient-to-r from-teal to-teal-dark px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-teal/25 hover:shadow-xl hover:shadow-teal/30 hover:from-teal-dark hover:to-teal transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none disabled:active:scale-100"
+                                className="rounded-xl bg-linear-to-r from-teal to-teal-dark px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-teal/25 hover:shadow-xl hover:shadow-teal/30 hover:from-teal-dark hover:to-teal transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none disabled:active:scale-100"
                             >
                                 <span className="flex items-center justify-center gap-2">
                                     <Check size={16} />
