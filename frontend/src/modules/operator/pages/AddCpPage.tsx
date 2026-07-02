@@ -1,8 +1,12 @@
-import { useEffect, useState } from "react";
-import { Plus, CheckCircle2, AlertCircle, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Plus, CheckCircle2, AlertCircle, X, Camera, ScanLine } from "lucide-react";
 import { useAuth } from "../../../context/AuthContext";
+import { Html5Qrcode, Html5QrcodeScannerState } from "html5-qrcode";
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
+const SCANNER_REGION_ID = "add-cp-scanner-region";
+
+type ScanTarget = "sn" | "imei1" | "imei2";
 
 interface Me {
     id: number;
@@ -33,6 +37,12 @@ export default function AddCpPage({ onClose, onSuccess }: AddCpPageProps = {}) {
     const [successMessage, setSuccessMessage] = useState("");
     const [errorMessage, setErrorMessage] = useState("");
 
+    // Camera scanner state
+    const [scanTarget, setScanTarget] = useState<ScanTarget | null>(null);
+    const [scannerError, setScannerError] = useState<string | null>(null);
+    const [scannerScanning, setScannerScanning] = useState(false);
+    const scannerRef = useRef<Html5Qrcode | null>(null);
+
     // Auto-detect operator from logged-in user
     useEffect(() => {
         const init = async () => {
@@ -53,6 +63,84 @@ export default function AddCpPage({ onClose, onSuccess }: AddCpPageProps = {}) {
         };
         init();
     }, [user]);
+
+    // Camera scanner lifecycle
+    useEffect(() => {
+        if (!scanTarget) return;
+        let cancelled = false;
+        setScannerError(null);
+
+        const startScanner = async () => {
+            try {
+                const instance = new Html5Qrcode(SCANNER_REGION_ID, { verbose: false });
+                scannerRef.current = instance;
+                await instance.start(
+                    { facingMode: "environment" },
+                    {
+                        fps: 10,
+                        qrbox: (viewW, viewH) => {
+                            const size = Math.floor(Math.min(viewW, viewH) * 0.7);
+                            return { width: size, height: size };
+                        },
+                    },
+                    (decodedText) => {
+                        // Barcode / QR decoded successfully
+                        if (cancelled) return;
+                        stopScanner();
+                        const value = decodedText.trim();
+                        // Fill the target field based on which button was clicked
+                        if (scanTarget === "sn") setSn(value);
+                        else if (scanTarget === "imei1") setImei1(value);
+                        else if (scanTarget === "imei2") setImei2(value);
+                        setScanTarget(null);
+                    },
+                    () => {
+                        // Per-frame decode failures — ignore
+                    }
+                );
+                if (!cancelled) setScannerScanning(true);
+            } catch (err) {
+                if (cancelled) return;
+                setScannerScanning(false);
+                setScannerError(
+                    err instanceof Error
+                        ? err.message
+                        : "Unable to access the camera. Please allow camera permission."
+                );
+            }
+        };
+
+        startScanner();
+
+        return () => {
+            cancelled = true;
+            stopScanner();
+        };
+    }, [scanTarget]);
+
+    function stopScanner() {
+        const instance = scannerRef.current;
+        if (!instance) return;
+        (async () => {
+            try {
+                const state = instance.getState?.();
+                if (state === Html5QrcodeScannerState.SCANNING) {
+                    await instance.stop();
+                }
+                await instance.clear();
+            } catch {
+                // best-effort
+            }
+            scannerRef.current = null;
+            setScannerScanning(false);
+        })();
+    }
+
+    const handleCloseScanner = () => {
+        stopScanner();
+        setScanTarget(null);
+        setScannerError(null);
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -125,6 +213,46 @@ export default function AddCpPage({ onClose, onSuccess }: AddCpPageProps = {}) {
 
     const inputClass = (disabled: boolean) =>
         `w-full rounded-xl px-3 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/30 transition-all border border-gray-300 bg-white ${disabled ? "opacity-60" : ""}`;
+
+    // Shared scanner viewfinder rendered below whichever field triggered it
+    const scannerViewfinder = scanTarget && (
+        <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 p-3">
+            <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-medium text-gray-500 flex items-center gap-1.5">
+                    <ScanLine size={14} className="text-teal" />
+                    Point camera at barcode / QR
+                </span>
+                <button
+                    type="button"
+                    onClick={handleCloseScanner}
+                    className="rounded-lg p-1 text-gray-400 hover:bg-gray-200 hover:text-gray-600 transition"
+                >
+                    <X size={16} />
+                </button>
+            </div>
+            {scannerError ? (
+                <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">
+                    <AlertCircle size={14} className="mt-0.5 shrink-0" />
+                    <div>
+                        <p className="font-medium text-red-700">Camera unavailable</p>
+                        <p className="mt-1 text-red-500">{scannerError}</p>
+                    </div>
+                </div>
+            ) : (
+                <div className="relative aspect-video overflow-hidden rounded-lg bg-slate-900">
+                    <div id={SCANNER_REGION_ID} className="h-full w-full" />
+                    {!scannerScanning && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80">
+                            <div className="flex flex-col items-center gap-2">
+                                <div className="h-8 w-8 animate-spin rounded-full border-2 border-teal border-t-transparent" />
+                                <p className="text-xs text-white/70">Starting camera…</p>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    );
 
     return (
         <div className="w-full">
@@ -232,27 +360,57 @@ export default function AddCpPage({ onClose, onSuccess }: AddCpPageProps = {}) {
                                 <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
                                     SN <span className="text-red-500">*</span>
                                 </label>
-                                <input
-                                    type="text"
-                                    value={sn}
-                                    onChange={(e) => setSn(e.target.value)}
-                                    placeholder="e.g. SN-123456"
-                                    className={inputClass(submitting)}
-                                    disabled={submitting}
-                                />
+                                <div className="flex gap-2">
+                                    <input
+                                        type="text"
+                                        value={sn}
+                                        onChange={(e) => setSn(e.target.value)}
+                                        placeholder="e.g. SN-123456"
+                                        className={`${inputClass(submitting)} flex-1`}
+                                        disabled={submitting}
+                                        autoComplete="off"
+                                    />
+                                    {!scanTarget && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setScanTarget("sn")}
+                                            disabled={submitting}
+                                            title="Scan barcode / QR with camera"
+                                            className="inline-flex items-center justify-center rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-gray-500 transition hover:bg-gray-50 hover:text-teal disabled:opacity-50 shrink-0"
+                                        >
+                                            <Camera size={18} />
+                                        </button>
+                                    )}
+                                </div>
+                                {scanTarget === "sn" && scannerViewfinder}
                             </div>
                             <div>
                                 <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
                                     IMEI1 <span className="text-xs font-normal normal-case text-gray-400">*</span>
                                 </label>
-                                <input
-                                    type="text"
-                                    value={imei1}
-                                    onChange={(e) => setImei1(e.target.value)}
-                                    placeholder="e.g. 123456789012345"
-                                    className={inputClass(submitting)}
-                                    disabled={submitting}
-                                />
+                                <div className="flex gap-2">
+                                    <input
+                                        type="text"
+                                        value={imei1}
+                                        onChange={(e) => setImei1(e.target.value)}
+                                        placeholder="e.g. 123456789012345"
+                                        className={`${inputClass(submitting)} flex-1`}
+                                        disabled={submitting}
+                                        autoComplete="off"
+                                    />
+                                    {!scanTarget && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setScanTarget("imei1")}
+                                            disabled={submitting}
+                                            title="Scan barcode / QR with camera"
+                                            className="inline-flex items-center justify-center rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-gray-500 transition hover:bg-gray-50 hover:text-teal disabled:opacity-50 shrink-0"
+                                        >
+                                            <Camera size={18} />
+                                        </button>
+                                    )}
+                                </div>
+                                {scanTarget === "imei1" && scannerViewfinder}
                             </div>
                         </div>
 
@@ -261,14 +419,29 @@ export default function AddCpPage({ onClose, onSuccess }: AddCpPageProps = {}) {
                             <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
                                 IMEI2 <span className="text-xs font-normal normal-case text-gray-400">(optional)</span>
                             </label>
-                            <input
-                                type="text"
-                                value={imei2}
-                                onChange={(e) => setImei2(e.target.value)}
-                                placeholder="e.g. 123456789012346"
-                                className={inputClass(submitting)}
-                                disabled={submitting}
-                            />
+                            <div className="flex gap-2">
+                                <input
+                                    type="text"
+                                    value={imei2}
+                                    onChange={(e) => setImei2(e.target.value)}
+                                    placeholder="e.g. 123456789012346"
+                                    className={`${inputClass(submitting)} flex-1`}
+                                    disabled={submitting}
+                                    autoComplete="off"
+                                />
+                                {!scanTarget && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setScanTarget("imei2")}
+                                        disabled={submitting}
+                                        title="Scan barcode / QR with camera"
+                                        className="inline-flex items-center justify-center rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-gray-500 transition hover:bg-gray-50 hover:text-teal disabled:opacity-50 shrink-0"
+                                    >
+                                        <Camera size={18} />
+                                    </button>
+                                )}
+                            </div>
+                            {scanTarget === "imei2" && scannerViewfinder}
                         </div>
 
                         {/* Buttons */}
