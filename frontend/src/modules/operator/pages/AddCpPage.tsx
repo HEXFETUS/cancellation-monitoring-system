@@ -64,6 +64,24 @@ export default function AddCpPage({ onClose, onSuccess }: AddCpPageProps = {}) {
         init();
     }, [user]);
 
+    function stopScanner() {
+        const instance = scannerRef.current;
+        if (!instance) return;
+        (async () => {
+            try {
+                const state = instance.getState?.();
+                if (state === Html5QrcodeScannerState.SCANNING) {
+                    await instance.stop();
+                }
+                await instance.clear();
+            } catch {
+                // best-effort
+            }
+            scannerRef.current = null;
+            setScannerScanning(false);
+        })();
+    }
+
     // Camera scanner lifecycle
     useEffect(() => {
         if (!scanTarget) return;
@@ -117,24 +135,6 @@ export default function AddCpPage({ onClose, onSuccess }: AddCpPageProps = {}) {
             stopScanner();
         };
     }, [scanTarget]);
-
-    function stopScanner() {
-        const instance = scannerRef.current;
-        if (!instance) return;
-        (async () => {
-            try {
-                const state = instance.getState?.();
-                if (state === Html5QrcodeScannerState.SCANNING) {
-                    await instance.stop();
-                }
-                await instance.clear();
-            } catch {
-                // best-effort
-            }
-            scannerRef.current = null;
-            setScannerScanning(false);
-        })();
-    }
 
     const handleCloseScanner = () => {
         stopScanner();

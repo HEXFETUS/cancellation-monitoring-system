@@ -114,7 +114,7 @@ export default function DashboardLayout() {
     const [myAccountModalOpen, setMyAccountModalOpen] = useState(false);
     const [announcementsUnseen, setAnnouncementsUnseen] = useState(0);
     const [anncToastOpen, setAnncToastOpen] = useState(false);
-    const latestAnnouncementsRef = useRef<any[]>([]);
+    const latestAnnouncementsRef = useRef<{ id: number | string }[]>([]);
     const toastLogShownRef = useRef(false);
     const [myAccountInitialTab, setMyAccountInitialTab] = useState<"account" | "password">("account");
     const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -237,7 +237,7 @@ export default function DashboardLayout() {
                     const agTime = new Date(data.admin_group_latest_at).getTime();
                     const agSeenKey = `admin_group_seen_${authUser.id}`;
                     let agSeen = 0;
-                    try { agSeen = Number(localStorage.getItem(agSeenKey) ?? 0); } catch {}
+                    try { agSeen = Number(localStorage.getItem(agSeenKey) ?? 0); } catch { /* localStorage unavailable */ }
                     if (agTime > agSeen) hasUnread = true;
                 }
 
@@ -246,7 +246,7 @@ export default function DashboardLayout() {
                     const supportTime = new Date(data.support_latest_incoming_at).getTime();
                     const supportSeenKey = `msg_page_seen_${authUser.id}`;
                     let supportSeen = 0;
-                    try { supportSeen = Number(localStorage.getItem(supportSeenKey) ?? 0); } catch {}
+                    try { supportSeen = Number(localStorage.getItem(supportSeenKey) ?? 0); } catch { /* localStorage unavailable */ }
                     if (supportTime > supportSeen) hasUnread = true;
                 }
 
@@ -596,11 +596,14 @@ export default function DashboardLayout() {
     const handleMarkMessagesSeen = () => {
         setMessagesUnread(0);
         try {
+            // Records the click time; only ever invoked from an onClick handler,
+            // so reading the current time here is safe (not a render-time call).
+            // eslint-disable-next-line react-hooks/purity
             localStorage.setItem(`msg_page_seen_${authUser?.id}`, String(Date.now()));
         } catch { /* localStorage unavailable */ }
     };
     const displayName = sidebarUser?.name?.trim() || authUser?.name?.trim() || "User";
-    let sidebarDisplayName = displayName;
+    const sidebarDisplayName = displayName;
     const displayUserType =
         sidebarUser?.usertype?.trim() || authUser?.usertype?.trim() || "Unknown role";
     const avatarUrl = resolveAvatarUrl(sidebarUser?.profile_picture ?? authUser?.profile_picture);

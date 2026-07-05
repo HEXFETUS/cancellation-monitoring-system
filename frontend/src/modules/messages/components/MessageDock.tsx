@@ -54,7 +54,7 @@ function readDockSeen(userId: number, conversationId: number): number {
 function writeDockSeen(userId: number, conversationId: number, time: number) {
     try {
         localStorage.setItem(dockSeenKey(userId, conversationId), String(time));
-    } catch { }
+    } catch { /* localStorage unavailable */ }
 }
 
 export default function MessageDock() {
@@ -106,8 +106,8 @@ export default function MessageDock() {
                     setMessages(msgData.messages ?? []);
                 }
             }
-        } catch { }
-    }, [authUser?.id, activeConv]);
+        } catch { /* network error — keep existing data */ }
+    }, [authUser, activeConv]);
 
     useEffect(() => { refreshData(); const interval = setInterval(refreshData, POLL_INTERVAL_MS); return () => clearInterval(interval); }, [refreshData]);
 
@@ -150,8 +150,8 @@ export default function MessageDock() {
                 setUnreadMap((prev) => ({ ...prev, [newMsg.conversation_id]: false }));
             }
             refreshData();
-        } catch { } finally { setSending(false); }
-    }, [authUser?.id, sending, refreshData]);
+        } catch { /* network error — send failed silently */ } finally { setSending(false); }
+    }, [authUser, sending, refreshData]);
 
     function getOtherParticipant(conv: ConversationType) {
         if (!conv.participants) return null;

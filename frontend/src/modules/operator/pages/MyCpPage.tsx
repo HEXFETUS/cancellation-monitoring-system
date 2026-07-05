@@ -144,10 +144,6 @@ export default function MyCpPage({ searchQuery: externalSearch = "", refreshKey 
     }, []);
 
     useEffect(() => {
-        if (refreshKey > 0) refetchAll();
-    }, [refreshKey]);
-
-    useEffect(() => {
         if (!user?.id) return;
         fetch(`${API_BASE_URL}/api/users/me?id=${user.id}`)
             .then((res) => (res.ok ? res.json() : null))
@@ -211,9 +207,16 @@ export default function MyCpPage({ searchQuery: externalSearch = "", refreshKey 
         } finally {
             setLoading(false);
         }
-    }, [me, user?.id, showFloatingToast]);
+    }, [me, user, showFloatingToast]);
 
     const refreshData = refetchAll;
+
+    // Re-fetch when the parent bumps refreshKey. Declared after refetchAll so
+    // the callback reference is available (avoids a use-before-declaration).
+    useEffect(() => {
+        if (refreshKey > 0) refetchAll();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [refreshKey]);
 
     useEffect(() => {
         if (!me?.operator_id) {

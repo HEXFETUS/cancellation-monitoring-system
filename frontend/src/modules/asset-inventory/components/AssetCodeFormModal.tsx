@@ -158,7 +158,7 @@ export default function AssetCodeFormModal({ open, initial, locationFilter, onCl
                 .toLowerCase()
                 .includes(q)
         );
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+         
     }, [assets, assetSearch, pickerLocation]);
 
     // Derive matching asset codes from the asset_coding table for OBS filter

@@ -244,7 +244,12 @@ export default function OutletsPage() {
     const [operatorListPage, setOperatorListPage] = useState(1);
     const OPERATORS_PER_PAGE = 10;
 
-    // Build combined operator list with booth counts, sorted alphabetically
+    // Build combined operator list with booth counts, sorted alphabetically.
+    // `operators`/`records` are state we only ever replace via setState (never
+    // mutated in place), and this memo builds a fresh sorted array — so the
+    // memoization is correct. React Compiler's conservative mutation analysis
+    // can't prove that here, so we opt this single memo out of the rule.
+    /* eslint-disable react-hooks/preserve-manual-memoization */
     const operatorsWithCounts = useMemo(() => {
         const counts = new Map<number | null, number>();
         records.forEach((r) => {
@@ -258,6 +263,7 @@ export default function OutletsPage() {
             }))
             .sort((a, b) => a.operator.localeCompare(b.operator));
     }, [operators, records]);
+    /* eslint-enable react-hooks/preserve-manual-memoization */
 
     // Pagination for operator list
     const operatorListTotalPages = Math.max(1, Math.ceil(operatorsWithCounts.length / OPERATORS_PER_PAGE));

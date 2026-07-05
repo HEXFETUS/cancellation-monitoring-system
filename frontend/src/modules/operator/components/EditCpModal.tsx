@@ -29,6 +29,19 @@ interface Props {
     isSubOperator?: boolean;
 }
 
+function ViewField({ label, value }: { label: string; value: string }) {
+    return (
+        <div>
+            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
+                {label}
+            </label>
+            <div className="w-full rounded-xl border border-gray-200/70 bg-gray-50/80 px-3 py-2.5 text-sm text-gray-700">
+                {value || "—"}
+            </div>
+        </div>
+    );
+}
+
 export default function EditCpModal({ open, cellphone, onClose, onSubmitted, mode = "edit", onEditClick, isSubOperator = false }: Props) {
     const [brand, setBrand] = useState("");
     const [model, setModel] = useState("");
@@ -59,19 +72,6 @@ export default function EditCpModal({ open, cellphone, onClose, onSubmitted, mod
 
     const isViewMode = mode === "view";
     const viewerStyle = "border border-gray-300 bg-white";
-
-    function ViewField({ label, value }: { label: string; value: string }) {
-        return (
-            <div>
-                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
-                    {label}
-                </label>
-                <div className="w-full rounded-xl border border-gray-200/70 bg-gray-50/80 px-3 py-2.5 text-sm text-gray-700">
-                    {value || "—"}
-                </div>
-            </div>
-        );
-    }
 
     const handleDelete = async () => {
         setDeleting(true);

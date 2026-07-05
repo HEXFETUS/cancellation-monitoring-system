@@ -186,7 +186,7 @@ export default function OperatorOutletsPage() {
 
     useEffect(() => {
         loadData();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+         
     }, [loadData]);
 
     const isMainOperator =

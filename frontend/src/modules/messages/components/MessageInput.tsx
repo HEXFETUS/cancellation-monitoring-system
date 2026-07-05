@@ -40,8 +40,8 @@ export default function MessageInput({ onSend, sending, disabled, placeholder, o
                     }
                     const data = await res.json();
                     attachmentUrls = [data.url];
-                } catch (err: any) {
-                    onError?.(err.message ?? "Upload failed");
+                } catch (err) {
+                    onError?.(err instanceof Error ? err.message : "Upload failed");
                     setUploading(false);
                     return;
                 }

@@ -45,12 +45,12 @@ const ObsPage = forwardRef<{ refresh: () => void; handleAdd: () => void }, { ext
             refresh();
         }, []);
 
-        useImperativeHandle(ref, () => ({ refresh, handleAdd }));
-
         const handleAdd = () => {
             setEditing(null);
             setFormOpen(true);
         };
+
+        useImperativeHandle(ref, () => ({ refresh, handleAdd }));
 
         // Reset page when search changes
         useEffect(() => { setPage(1); }, [externalSearch]);

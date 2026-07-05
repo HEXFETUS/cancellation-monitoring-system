@@ -237,7 +237,7 @@ export default function QrScannerModal({ open, onClose }: Props) {
             cancelled = true;
             stopScanner();
         };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+         
     }, [open, result]);
 
     const handleClose = async () => {
@@ -261,7 +261,7 @@ export default function QrScannerModal({ open, onClose }: Props) {
         };
         window.addEventListener("qr-scanner:decoded", handler);
         return () => window.removeEventListener("qr-scanner:decoded", handler);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+         
     }, [open]);
 
     const handleRescan = async () => {

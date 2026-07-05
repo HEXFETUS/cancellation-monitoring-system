@@ -96,7 +96,7 @@ export default function MessagesPage() {
     }, [adminGroupSeenKey]);
     const writeAdminGroupSeen = useCallback((time: number) => {
         if (!adminGroupSeenKey) return;
-        try { localStorage.setItem(adminGroupSeenKey, String(time)); } catch { }
+        try { localStorage.setItem(adminGroupSeenKey, String(time)); } catch { /* localStorage unavailable */ }
     }, [adminGroupSeenKey]);
 
     useEffect(() => {
@@ -118,8 +118,8 @@ export default function MessagesPage() {
                 const seen = readAdminGroupSeen();
                 if (lastMsgAt > seen && !adminGroupOpenRef.current) setAdminGroupUnread(true);
             }
-        } catch { }
-    }, [authUser?.id, isAdmin, readAdminGroupSeen]);
+        } catch { /* network error — keep existing data */ }
+    }, [authUser, isAdmin, readAdminGroupSeen]);
 
     const fetchUsers = useCallback(async () => {
         if (!authUser?.id) return;
@@ -138,8 +138,8 @@ export default function MessagesPage() {
                 }
             });
             setNewMessageMap(map);
-        } catch { } finally { setLoading(false); }
-    }, [authUser?.id, selectedUser?.id, userSeenMap]);
+        } catch { /* network error — keep existing data */ } finally { setLoading(false); }
+    }, [authUser, selectedUser, userSeenMap]);
 
     useEffect(() => { fetchUsers(); fetchAdminGroup(); }, [fetchUsers, fetchAdminGroup]);
     useEffect(() => {
@@ -164,8 +164,8 @@ export default function MessagesPage() {
             if (!res.ok) return;
             const data = await res.json();
             setConversationId(data.conversation_id);
-        } catch { }
-    }, [authUser?.id]);
+        } catch { /* network error — conversation not opened */ }
+    }, [authUser]);
 
     const handleOpenAdminGroup = useCallback(async () => {
         setSelectedUser(null);
@@ -183,8 +183,8 @@ export default function MessagesPage() {
             setAdminGroup(data);
             setConversationId(data.conversation_id);
             writeAdminGroupSeen(Date.now());
-        } catch { }
-    }, [authUser?.id, isAdmin, writeAdminGroupSeen]);
+        } catch { /* network error — admin group not opened */ }
+    }, [authUser, isAdmin, writeAdminGroupSeen]);
 
     const fetchMessages = useCallback(async () => {
         if (!conversationId || !authUser?.id) return;
@@ -208,8 +208,8 @@ export default function MessagesPage() {
                     setNewMessageMap((prev) => ({ ...prev, [selectedUser.id]: false }));
                 }
             }
-        } catch { }
-    }, [conversationId, authUser?.id, selectedUser, adminGroupOpen, isAdmin, writeAdminGroupSeen]);
+        } catch { /* network error — keep existing messages */ }
+    }, [conversationId, authUser, selectedUser, adminGroupOpen, isAdmin, writeAdminGroupSeen]);
 
     useEffect(() => { fetchMessages(); }, [fetchMessages]);
     useEffect(() => {
@@ -250,8 +250,8 @@ export default function MessagesPage() {
                 });
                 setNewMessageMap((prev) => ({ ...prev, [selectedUser.id]: false }));
             }
-        } catch { } finally { setSending(false); }
-    }, [conversationId, authUser?.id, sending, selectedUser, adminGroupOpen, isAdmin, writeAdminGroupSeen]);
+        } catch { /* network error — send failed silently */ } finally { setSending(false); }
+    }, [conversationId, authUser, sending, selectedUser, adminGroupOpen, isAdmin, writeAdminGroupSeen]);
 
     const filteredUsers = users.filter(
         (u) => u.name.toLowerCase().includes(searchQuery.toLowerCase()) || u.usertype.toLowerCase().includes(searchQuery.toLowerCase())

@@ -1,3 +1,7 @@
+// This is a route-configuration module, not a component module. It exports the
+// `router` object (plus internal-only helper components), so React Fast Refresh
+// does not apply here. Disable the rule for the whole file.
+/* eslint-disable react-refresh/only-export-components */
 import { lazy, Suspense } from "react";
 import { createBrowserRouter } from "react-router-dom";
 

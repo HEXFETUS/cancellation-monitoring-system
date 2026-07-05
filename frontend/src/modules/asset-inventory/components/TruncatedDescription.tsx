@@ -8,6 +8,7 @@ export default function TruncatedDescription({
     text,
 }: TruncatedDescriptionProps) {
     const [popupOpen, setPopupOpen] = useState(false);
+    const [popupPos, setPopupPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
     const [showTooltip, setShowTooltip] = useState(false);
     const cellRef = useRef<HTMLSpanElement>(null);
     const popupRef = useRef<HTMLDivElement>(null);
@@ -56,6 +57,15 @@ export default function TruncatedDescription({
     }, [popupOpen]);
 
     const handleClick = useCallback(() => {
+        // Compute the popup position here (event handler) rather than reading the
+        // ref during render. Position is only consumed while the popup is open.
+        if (cellRef.current) {
+            const rect = cellRef.current.getBoundingClientRect();
+            setPopupPos({
+                top: Math.min(rect.bottom + 8, window.innerHeight - 200),
+                left: Math.min(rect.left, window.innerWidth - 360),
+            });
+        }
         setPopupOpen((prev) => !prev);
     }, []);
 
@@ -127,19 +137,9 @@ export default function TruncatedDescription({
                         whiteSpace: "normal",
                         wordBreak: "break-word",
                         maxWidth: "min(90vw, 32rem)",
-                        // Position near the clicked cell
-                        top: cellRef.current
-                            ? Math.min(
-                                  cellRef.current.getBoundingClientRect().bottom + 8,
-                                  window.innerHeight - 200
-                              )
-                            : 0,
-                        left: cellRef.current
-                            ? Math.min(
-                                  cellRef.current.getBoundingClientRect().left,
-                                  window.innerWidth - 360
-                              )
-                            : 0,
+                        // Position near the clicked cell (computed on click)
+                        top: popupPos.top,
+                        left: popupPos.left,
                     }}
                     onClick={(e) => e.stopPropagation()}
                 >
