@@ -36,13 +36,63 @@ import {
     getUnshownToastAnnouncementIds,
     markToastShownAnnouncementIds,
 } from "../../modules/announcements/services/announcementSeenStorage";
-import { Toast } from "../../shared/components";
-import { useEffect, useRef, useState } from "react";
+import { Toast, ToastStack } from "../../shared/components";
+import type { StackToast } from "../../shared/components";
+import { useCallback, useEffect, useRef, useState } from "react";
 import hexLogo from "../../assets/HEXLOGO.png";
 
 const teal = "#92C7CF";
 const tealLight = "#AAD7D9";
 const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
+
+// --- Repair notification (show-once) tracking ---------------------------------
+// Persist which "recordId:status" transitions have already been toasted for a
+// user, so each notification pops exactly once — even across polls and reloads.
+function repairToastStorageKey(userId: number | string) {
+    return `repair_toast_shown_${userId}`;
+}
+function getShownRepairToastKeys(userId: number | string): string[] {
+    try {
+        const raw = localStorage.getItem(repairToastStorageKey(userId));
+        const parsed = raw ? JSON.parse(raw) : [];
+        return Array.isArray(parsed) ? parsed.map(String) : [];
+    } catch {
+        return [];
+    }
+}
+function addShownRepairToastKeys(userId: number | string, keys: string[]) {
+    try {
+        const merged = [...new Set([...getShownRepairToastKeys(userId), ...keys])];
+        // Keep the list bounded so it can never grow without limit.
+        localStorage.setItem(repairToastStorageKey(userId), JSON.stringify(merged.slice(-500)));
+    } catch {
+        /* localStorage unavailable */
+    }
+}
+
+// Tracks which repair items the user has already *seen* (by opening the POS
+// Repair page). Drives the nav red dot: it lights up only for records the
+// user hasn't seen yet, and clears once they view the page.
+function repairSeenStorageKey(userId: number | string) {
+    return `repair_seen_${userId}`;
+}
+function getSeenRepairKeys(userId: number | string): string[] {
+    try {
+        const raw = localStorage.getItem(repairSeenStorageKey(userId));
+        const parsed = raw ? JSON.parse(raw) : [];
+        return Array.isArray(parsed) ? parsed.map(String) : [];
+    } catch {
+        return [];
+    }
+}
+function addSeenRepairKeys(userId: number | string, keys: string[]) {
+    try {
+        const merged = [...new Set([...getSeenRepairKeys(userId), ...keys])];
+        localStorage.setItem(repairSeenStorageKey(userId), JSON.stringify(merged.slice(-500)));
+    } catch {
+        /* localStorage unavailable */
+    }
+}
 
 type SidebarUser = {
     id?: number;
@@ -110,7 +160,12 @@ export default function DashboardLayout() {
     const [pendingBoothRequests, setPendingBoothRequests] = useState(0);
     const [pendingOperatorChangeCount, setPendingOperatorChangeCount] = useState(0);
     const [pendingBoothOperatorChangeCount, setPendingBoothOperatorChangeCount] = useState(0);
-    const [forCheckingRepairCount, setForCheckingRepairCount] = useState(0);
+    const [repairHasNew, setRepairHasNew] = useState(false);
+    const latestRepairKeysRef = useRef<string[]>([]);
+    const [repairToasts, setRepairToasts] = useState<StackToast[]>([]);
+    const dismissRepairToast = useCallback((id: string) => {
+        setRepairToasts((prev) => prev.filter((t) => t.id !== id));
+    }, []);
     const [myAccountModalOpen, setMyAccountModalOpen] = useState(false);
     const [announcementsUnseen, setAnnouncementsUnseen] = useState(0);
     const [anncToastOpen, setAnncToastOpen] = useState(false);
@@ -382,7 +437,7 @@ export default function DashboardLayout() {
     const isCsr = (sidebarUser?.usertype ?? authUser?.usertype) === "csr";
     useEffect(() => {
         if (!authUser?.id) {
-            setForCheckingRepairCount(0);
+            setRepairHasNew(false);
             return;
         }
         let cancelled = false;
@@ -395,13 +450,68 @@ export default function DashboardLayout() {
                 const payload = await res.json();
                 const records = Array.isArray(payload) ? payload : payload?.data ?? payload?.rows ?? [];
                 if (!cancelled) {
-                    // CSR counts "For Request" records; admin counts "For Repair" records
-                    const targetStatus = isCsr ? "For Request" : "For Repair";
-                    setForCheckingRepairCount(
-                        Array.isArray(records)
-                            ? records.filter((record) => record?.status === targetStatus).length
-                            : 0
-                    );
+                    // "POS Repair" notifications:
+                    //  - Admin is notified when a CSR request reaches "For Repair"
+                    //    (the CSR forwards their request and it lands in the
+                    //    admin's For Checking queue).
+                    //  - CSR is notified once the admin advances the record to
+                    //    "Undergoing Repair" or "For Release".
+                    const matchesStatus = (record: { status?: string }) =>
+                        isCsr
+                            ? record?.status === "Undergoing Repair" || record?.status === "For Release"
+                            : record?.status === "For Repair";
+
+                    const toKey = (r: { id?: number | string; status?: string }) => `${r.id}:${r.status}`;
+                    const matching = (Array.isArray(records) ? records : []).filter(matchesStatus);
+                    const keys = matching.map(toKey);
+                    latestRepairKeysRef.current = keys;
+
+                    if (authUser?.id) {
+                        // Red blinking dot on the "POS Repair" nav item — shows
+                        // only when there is a NEW (unseen) item. Opening the POS
+                        // Repair page marks the current items as seen, so the dot
+                        // clears and only re-appears for new arrivals.
+                        const onRepairPage = isCsr
+                            ? location.pathname.startsWith("/app/csr-pos-repair")
+                            : location.pathname.startsWith("/app/pos-repair");
+                        if (onRepairPage) {
+                            if (keys.length) addSeenRepairKeys(authUser.id, keys);
+                            setRepairHasNew(false);
+                        } else {
+                            const seenSet = new Set(getSeenRepairKeys(authUser.id));
+                            setRepairHasNew(keys.some((k) => !seenSet.has(k)));
+                        }
+
+                        // Floating toast, fired once per record entering a status
+                        // (mirrors the admin↔operator approved/rejected toast).
+                        // Purely localStorage show-once (no session baseline) so it
+                        // also appears the first time a user opens the app after the
+                        // transition — e.g. an admin logging in after a CSR forwarded
+                        // a request.
+                        const shownSet = new Set(getShownRepairToastKeys(authUser.id));
+                        const freshKeys = keys.filter((k) => !shownSet.has(k));
+
+                        if (freshKeys.length) {
+                            const freshSet = new Set(freshKeys);
+                            const newToasts: StackToast[] = matching
+                                .filter((r) => freshSet.has(toKey(r)))
+                                .map((r): StackToast => {
+                                    const dev = r.device_no || r.serial_number || `#${r.id}`;
+                                    if (isCsr) {
+                                        return r.status === "For Release"
+                                            ? { id: toKey(r), type: "success", message: `Your repair for POS ${dev} is ready for release.` }
+                                            : { id: toKey(r), type: "info", message: `Your repair for POS ${dev} is now undergoing repair.` };
+                                    }
+                                    return { id: toKey(r), type: "info", message: `New repair request: POS ${dev} is ready for checking.` };
+                                });
+                            addShownRepairToastKeys(authUser.id, freshKeys);
+                            setRepairToasts((prev) => {
+                                const existing = new Set(prev.map((t) => t.id));
+                                const additions = newToasts.filter((t) => !existing.has(t.id));
+                                return additions.length ? [...prev, ...additions].slice(-4) : prev;
+                            });
+                        }
+                    }
                 }
             } catch {
                 // Non-fatal — badge just stays at its previous value.
@@ -593,6 +703,12 @@ export default function DashboardLayout() {
         } catch { /* localStorage unavailable */ }
     };
 
+    const handleMarkRepairSeen = () => {
+        const keys = latestRepairKeysRef.current;
+        if (authUser?.id && keys.length) addSeenRepairKeys(authUser.id, keys);
+        setRepairHasNew(false);
+    };
+
     const handleMarkMessagesSeen = () => {
         setMessagesUnread(0);
         try {
@@ -670,6 +786,13 @@ export default function DashboardLayout() {
                 type="info"
                 onClose={() => setAnncToastOpen(false)}
                 position="top-center"
+            />
+            {/* Repair status notifications — admin: new "For Repair"; CSR: "Undergoing Repair" / "For Release". */}
+            <ToastStack
+                toasts={repairToasts}
+                onDismiss={dismissRepairToast}
+                position="top-right"
+                duration={5000}
             />
             {/* Global dark-mode overrides for child page content */}
             <style>{`
@@ -975,6 +1098,9 @@ export default function DashboardLayout() {
                                             } else if (isOperator && item.name === "My Outlets") {
                                                 handleMarkMyOutletsSeen();
                                             }
+                                            if (item.name === "POS Repair") {
+                                                handleMarkRepairSeen();
+                                            }
                                             if (item.name === "Announcements") {
                                                 // Mark all currently visible announcements as seen
                                                 const currentList = latestAnnouncementsRef.current;
@@ -1075,7 +1201,7 @@ export default function DashboardLayout() {
                                             />
                                         )}
 
-                                        {item.name === "POS Repair" && forCheckingRepairCount > 0 && (
+                                        {item.name === "POS Repair" && repairHasNew && (
                                             <span
                                                 className="ml-auto h-2 w-2 rounded-full animate-pulse"
                                                 style={{
@@ -1100,7 +1226,7 @@ export default function DashboardLayout() {
                                         {/* Active dot */}
                                         {isActive &&
                                             !(item.name === "Requests" && (pendingBoothRequests > 0 || pendingOperatorChangeCount > 0 || pendingBoothOperatorChangeCount > 0)) &&
-                                            !(item.name === "POS Repair" && forCheckingRepairCount > 0) &&
+                                            !(item.name === "POS Repair" && repairHasNew) &&
                                             !((item.name === "My POS" && operatorMyPosHasNew) || (item.name === "My Outlets" && operatorMyOutletsHasNew)) && (
                                                 <span
                                                     className="ml-auto w-1.5 h-1.5 rounded-full"

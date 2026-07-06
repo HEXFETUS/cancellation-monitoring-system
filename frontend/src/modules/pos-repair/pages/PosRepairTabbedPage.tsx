@@ -7,6 +7,7 @@ import ReleasedLogPage from "./ReleasedLogPage";
 import DiagnosisListPage from "./DiagnosisListPage";
 import { listRepairRecords } from "../services/repairRecords";
 import { TopTabs } from "../../../shared/components";
+import { useAuth } from "../../../context/AuthContext";
 
 const mainTabs = [
     { id: "repair-request", label: "Repair Request", icon: ClipboardList },
@@ -15,12 +16,37 @@ const mainTabs = [
     { id: "diagnosis", label: "Diagnosis List", icon: FileSearch },
 ];
 
+// Tracks which "For Repair" records the admin has already seen (by viewing the
+// Repair Management tab), so the tab count badge only reflects NEW requests.
+function repairMgmtSeenKey(userId: number | string) {
+    return `repair_mgmt_seen_${userId}`;
+}
+function getSeenForRepairKeys(userId: number | string): string[] {
+    try {
+        const raw = localStorage.getItem(repairMgmtSeenKey(userId));
+        const parsed = raw ? JSON.parse(raw) : [];
+        return Array.isArray(parsed) ? parsed.map(String) : [];
+    } catch {
+        return [];
+    }
+}
+function addSeenForRepairKeys(userId: number | string, keys: string[]) {
+    try {
+        const merged = [...new Set([...getSeenForRepairKeys(userId), ...keys])];
+        localStorage.setItem(repairMgmtSeenKey(userId), JSON.stringify(merged.slice(-500)));
+    } catch {
+        /* localStorage unavailable */
+    }
+}
+
 const subTabs = [
     { id: "repair-logs", label: "Repair Logs" },
     { id: "released-logs", label: "Released Logs" },
 ];
 
 export default function PosRepairTabbedPage() {
+    const { user } = useAuth();
+    const userId = user?.id ?? "anon";
     const [activeTab, setActiveTab] = useState("repair-management");
     const [activeSubTab, setActiveSubTab] = useState("repair-logs");
     const [repairLogSearch, setRepairLogSearch] = useState("");
@@ -33,8 +59,22 @@ export default function PosRepairTabbedPage() {
         const fetchForCheckingCount = async () => {
             try {
                 const records = await listRepairRecords();
-                const count = records.filter((record) => record.status === "For Repair").length;
-                if (!cancelled) setForCheckingCount(count);
+                const forRepairKeys = records
+                    .filter((record) => record.status === "For Repair")
+                    .map((record) => `${record.id}:For Repair`);
+
+                if (cancelled) return;
+
+                if (activeTab === "repair-management") {
+                    // The admin is looking at the queue → treat everything as
+                    // seen so the badge only reappears for later arrivals.
+                    if (forRepairKeys.length) addSeenForRepairKeys(userId, forRepairKeys);
+                    setForCheckingCount(0);
+                } else {
+                    // Otherwise the badge counts only the NEW (unseen) requests.
+                    const seen = new Set(getSeenForRepairKeys(userId));
+                    setForCheckingCount(forRepairKeys.filter((k) => !seen.has(k)).length);
+                }
             } catch {
                 if (!cancelled) setForCheckingCount(0);
             }
@@ -52,7 +92,7 @@ export default function PosRepairTabbedPage() {
             window.clearInterval(interval);
             document.removeEventListener("visibilitychange", onVisibility);
         };
-    }, [activeTab]);
+    }, [activeTab, userId]);
 
     const subSearch = (
         <div className="relative">
