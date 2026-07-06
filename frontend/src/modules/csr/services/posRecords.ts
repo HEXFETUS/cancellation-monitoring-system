@@ -12,8 +12,28 @@ export interface PosRecord {
     operator: string | null;
 }
 
+export interface OperatorItem {
+    id: number;
+    operator: string;
+}
+
 function apiUrl(path: string) {
     return `${API_BASE_URL}${path}`;
+}
+
+export async function searchOperators(query: string): Promise<OperatorItem[]> {
+    if (!query || query.trim().length === 0) return [];
+
+    const params = new URLSearchParams();
+    params.set("q", query);
+    const res = await fetch(apiUrl(`/api/pos/operators?${params.toString()}`));
+    if (!res.ok) {
+        console.error("Failed to search operators:", res.statusText);
+        return [];
+    }
+    const data = await res.json();
+    const rows = Array.isArray(data) ? data : data.data ?? data.rows ?? [];
+    return (rows as OperatorItem[]).filter((op) => op.operator.trim().length > 0);
 }
 
 export async function searchPosRecords(query: string): Promise<PosRecord[]> {
