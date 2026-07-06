@@ -138,7 +138,6 @@ export default function DashboardLayout() {
     const [pendingBoothOperatorChangeCount, setPendingBoothOperatorChangeCount] = useState(0);
     const [forCheckingRepairCount, setForCheckingRepairCount] = useState(0);
     const [repairToasts, setRepairToasts] = useState<StackToast[]>([]);
-    const repairToastInitRef = useRef(false);
     const dismissRepairToast = useCallback((id: string) => {
         setRepairToasts((prev) => prev.filter((t) => t.id !== id));
     }, []);
@@ -444,17 +443,16 @@ export default function DashboardLayout() {
 
                     // Floating toast, fired once per record entering a status
                     // (mirrors the admin↔operator approved/rejected toast).
+                    // We rely purely on localStorage show-once tracking (no
+                    // session baseline) so the notification also appears the
+                    // first time a user opens the app after the transition —
+                    // e.g. an admin who logs in after a CSR forwarded a request.
                     if (authUser?.id) {
                         const toKey = (r: { id?: number | string; status?: string }) => `${r.id}:${r.status}`;
                         const shownSet = new Set(getShownRepairToastKeys(authUser.id));
                         const freshKeys = matching.map(toKey).filter((k) => !shownSet.has(k));
 
-                        if (!repairToastInitRef.current) {
-                            // First poll of the session → baseline existing
-                            // matches as "seen" so we don't toast on login.
-                            repairToastInitRef.current = true;
-                            if (freshKeys.length) addShownRepairToastKeys(authUser.id, freshKeys);
-                        } else if (freshKeys.length) {
+                        if (freshKeys.length) {
                             const freshSet = new Set(freshKeys);
                             const newToasts: StackToast[] = matching
                                 .filter((r) => freshSet.has(toKey(r)))
