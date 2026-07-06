@@ -36,13 +36,39 @@ import {
     getUnshownToastAnnouncementIds,
     markToastShownAnnouncementIds,
 } from "../../modules/announcements/services/announcementSeenStorage";
-import { Toast } from "../../shared/components";
-import { useEffect, useRef, useState } from "react";
+import { Toast, ToastStack } from "../../shared/components";
+import type { StackToast } from "../../shared/components";
+import { useCallback, useEffect, useRef, useState } from "react";
 import hexLogo from "../../assets/HEXLOGO.png";
 
 const teal = "#92C7CF";
 const tealLight = "#AAD7D9";
 const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
+
+// --- Repair notification (show-once) tracking ---------------------------------
+// Persist which "recordId:status" transitions have already been toasted for a
+// user, so each notification pops exactly once — even across polls and reloads.
+function repairToastStorageKey(userId: number | string) {
+    return `repair_toast_shown_${userId}`;
+}
+function getShownRepairToastKeys(userId: number | string): string[] {
+    try {
+        const raw = localStorage.getItem(repairToastStorageKey(userId));
+        const parsed = raw ? JSON.parse(raw) : [];
+        return Array.isArray(parsed) ? parsed.map(String) : [];
+    } catch {
+        return [];
+    }
+}
+function addShownRepairToastKeys(userId: number | string, keys: string[]) {
+    try {
+        const merged = [...new Set([...getShownRepairToastKeys(userId), ...keys])];
+        // Keep the list bounded so it can never grow without limit.
+        localStorage.setItem(repairToastStorageKey(userId), JSON.stringify(merged.slice(-500)));
+    } catch {
+        /* localStorage unavailable */
+    }
+}
 
 type SidebarUser = {
     id?: number;
@@ -111,6 +137,11 @@ export default function DashboardLayout() {
     const [pendingOperatorChangeCount, setPendingOperatorChangeCount] = useState(0);
     const [pendingBoothOperatorChangeCount, setPendingBoothOperatorChangeCount] = useState(0);
     const [forCheckingRepairCount, setForCheckingRepairCount] = useState(0);
+    const [repairToasts, setRepairToasts] = useState<StackToast[]>([]);
+    const repairToastInitRef = useRef(false);
+    const dismissRepairToast = useCallback((id: string) => {
+        setRepairToasts((prev) => prev.filter((t) => t.id !== id));
+    }, []);
     const [myAccountModalOpen, setMyAccountModalOpen] = useState(false);
     const [announcementsUnseen, setAnnouncementsUnseen] = useState(0);
     const [anncToastOpen, setAnncToastOpen] = useState(false);
@@ -395,7 +426,7 @@ export default function DashboardLayout() {
                 const payload = await res.json();
                 const records = Array.isArray(payload) ? payload : payload?.data ?? payload?.rows ?? [];
                 if (!cancelled) {
-                    // "POS Repair" nav red-dot notifications:
+                    // "POS Repair" notifications:
                     //  - Admin is notified when a CSR request reaches "For Repair"
                     //    (the CSR forwards their request and it lands in the
                     //    admin's For Checking queue).
@@ -405,11 +436,45 @@ export default function DashboardLayout() {
                         isCsr
                             ? record?.status === "Undergoing Repair" || record?.status === "For Release"
                             : record?.status === "For Repair";
-                    setForCheckingRepairCount(
-                        Array.isArray(records)
-                            ? records.filter(matchesStatus).length
-                            : 0
-                    );
+
+                    const matching = (Array.isArray(records) ? records : []).filter(matchesStatus);
+
+                    // Persistent red-dot badge on the "POS Repair" nav item.
+                    setForCheckingRepairCount(matching.length);
+
+                    // Floating toast, fired once per record entering a status
+                    // (mirrors the admin↔operator approved/rejected toast).
+                    if (authUser?.id) {
+                        const toKey = (r: { id?: number | string; status?: string }) => `${r.id}:${r.status}`;
+                        const shownSet = new Set(getShownRepairToastKeys(authUser.id));
+                        const freshKeys = matching.map(toKey).filter((k) => !shownSet.has(k));
+
+                        if (!repairToastInitRef.current) {
+                            // First poll of the session → baseline existing
+                            // matches as "seen" so we don't toast on login.
+                            repairToastInitRef.current = true;
+                            if (freshKeys.length) addShownRepairToastKeys(authUser.id, freshKeys);
+                        } else if (freshKeys.length) {
+                            const freshSet = new Set(freshKeys);
+                            const newToasts: StackToast[] = matching
+                                .filter((r) => freshSet.has(toKey(r)))
+                                .map((r): StackToast => {
+                                    const dev = r.device_no || r.serial_number || `#${r.id}`;
+                                    if (isCsr) {
+                                        return r.status === "For Release"
+                                            ? { id: toKey(r), type: "success", message: `Your repair for POS ${dev} is ready for release.` }
+                                            : { id: toKey(r), type: "info", message: `Your repair for POS ${dev} is now undergoing repair.` };
+                                    }
+                                    return { id: toKey(r), type: "info", message: `New repair request: POS ${dev} is ready for checking.` };
+                                });
+                            addShownRepairToastKeys(authUser.id, freshKeys);
+                            setRepairToasts((prev) => {
+                                const existing = new Set(prev.map((t) => t.id));
+                                const additions = newToasts.filter((t) => !existing.has(t.id));
+                                return additions.length ? [...prev, ...additions].slice(-4) : prev;
+                            });
+                        }
+                    }
                 }
             } catch {
                 // Non-fatal — badge just stays at its previous value.
@@ -678,6 +743,13 @@ export default function DashboardLayout() {
                 type="info"
                 onClose={() => setAnncToastOpen(false)}
                 position="top-center"
+            />
+            {/* Repair status notifications — admin: new "For Repair"; CSR: "Undergoing Repair" / "For Release". */}
+            <ToastStack
+                toasts={repairToasts}
+                onDismiss={dismissRepairToast}
+                position="top-right"
+                duration={5000}
             />
             {/* Global dark-mode overrides for child page content */}
             <style>{`
