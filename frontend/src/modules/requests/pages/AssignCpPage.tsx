@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CheckCircle2, XCircle, Search, RefreshCw } from "lucide-react";
+import { CheckCircle2, XCircle, Search, RefreshCw, CalendarDays } from "lucide-react";
 import { useAuth } from "../../../context/AuthContext";
 import { Pagination, Toast, ConfirmationModal } from "../../../shared/components";
 import { EditModal } from "../components";
@@ -12,6 +12,14 @@ import {
 
 const teal = "#92C7CF";
 const PAGE_SIZE = 10;
+
+function getTodayString() {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+}
 
 type StatusFilter = "pending" | "approved" | "rejected" | "cancelled";
 
@@ -32,6 +40,8 @@ export default function AssignCpPage() {
     const [error, setError] = useState("");
     const [search, setSearch] = useState("");
     const [statusFilter, setStatusFilter] = useState<StatusFilter>("pending");
+    const [dateFrom, setDateFrom] = useState("");
+    const [dateTo, setDateTo] = useState("");
     const [page, setPage] = useState(1);
     const [busyId, setBusyId] = useState<number | null>(null);
     const [toast, setToast] = useState<{ open: boolean; message: string; type: "success" | "error" | "info" | "warning" }>({ open: false, message: "", type: "success" });
@@ -63,12 +73,39 @@ export default function AssignCpPage() {
     }, []);
 
     useEffect(() => { load(); }, [load]);
-    useEffect(() => { setPage(1); }, [search, statusFilter]);
+    useEffect(() => { setPage(1); }, [search, statusFilter, dateFrom, dateTo]);
 
     const filteredRequests = useMemo(() => {
         const q = search.trim().toLowerCase();
         return requests.filter((r) => {
             if ((r.status || "").toLowerCase() !== statusFilter) return false;
+
+            // Determine effective date range
+            let effectiveFrom = dateFrom;
+            let effectiveTo = dateTo;
+
+            // For non-pending statuses, default to today if no date range set
+            if (statusFilter !== "pending" && !effectiveFrom && !effectiveTo) {
+                const today = getTodayString();
+                effectiveFrom = today;
+                effectiveTo = today;
+            }
+
+            if (effectiveFrom || effectiveTo) {
+                const createdAt = r.created_at ? new Date(r.created_at).getTime() : null;
+                if (createdAt !== null) {
+                    if (effectiveFrom) {
+                        const fromDate = new Date(effectiveFrom).getTime();
+                        if (createdAt < fromDate) return false;
+                    }
+                    if (effectiveTo) {
+                        // Include the entire "to" day by setting to end of day (23:59:59.999)
+                        const toEnd = new Date(effectiveTo + "T23:59:59.999").getTime();
+                        if (createdAt > toEnd) return false;
+                    }
+                }
+            }
+
             if (!q) return true;
             return (r.brand || "").toLowerCase().includes(q) ||
                 (r.model || "").toLowerCase().includes(q) ||
@@ -80,7 +117,7 @@ export default function AssignCpPage() {
                 (r.requested_by_name || "").toLowerCase().includes(q) ||
                 (r.reason || "").toLowerCase().includes(q);
         });
-    }, [requests, search, statusFilter]);
+    }, [requests, search, statusFilter, dateFrom, dateTo]);
 
     const totalPages = Math.max(1, Math.ceil(filteredRequests.length / PAGE_SIZE));
     const safePage = Math.min(page, totalPages);
@@ -234,7 +271,39 @@ export default function AssignCpPage() {
                         );
                     })}
                 </div>
-                <div className="flex justify-end items-end gap-3 pb-2 xl:pb-1">
+                <div className="flex flex-wrap justify-end items-center gap-3 pb-2 xl:pb-1">
+                    {/* Date range filter - visible for non-pending statuses */}
+                    {statusFilter !== "pending" && (
+                        <div className="flex items-center gap-2">
+                            <CalendarDays size={14} className="text-gray-400 dark:text-gray-500 shrink-0" />
+                            <input
+                                type="date"
+                                value={dateFrom}
+                                onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
+                                className="h-9 rounded-lg border px-2.5 py-1.5 text-xs outline-none transition-all duration-200 focus:border-teal/60 focus:ring-2 focus:ring-teal/35 placeholder:text-gray-400 dark:placeholder:text-gray-400"
+                                style={{ ...inputStyle, width: "auto", minWidth: "140px" }}
+                                title="From date"
+                            />
+                            <span className="text-xs text-gray-400 dark:text-gray-500">—</span>
+                            <input
+                                type="date"
+                                value={dateTo}
+                                onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
+                                className="h-9 rounded-lg border px-2.5 py-1.5 text-xs outline-none transition-all duration-200 focus:border-teal/60 focus:ring-2 focus:ring-teal/35 placeholder:text-gray-400 dark:placeholder:text-gray-400"
+                                style={{ ...inputStyle, width: "auto", minWidth: "140px" }}
+                                title="To date"
+                            />
+                            {(dateFrom || dateTo) && (
+                                <button
+                                    onClick={() => { setDateFrom(""); setDateTo(""); setPage(1); }}
+                                    className="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-xs font-medium text-gray-600 shadow-sm transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                                    title="Clear date filter"
+                                >
+                                    ✕
+                                </button>
+                            )}
+                        </div>
+                    )}
                     <div className="relative w-full sm:w-64">
                         <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" />
                         <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search brand, model, serial, operator..." className="h-9 w-full rounded-lg pl-8 pr-3 text-sm outline-none transition-all duration-200 focus:border-teal/60 focus:ring-2 focus:ring-teal/35 placeholder:text-gray-400 dark:placeholder:text-gray-400" style={inputStyle} />

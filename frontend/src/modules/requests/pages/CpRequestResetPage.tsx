@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CheckCircle2, RefreshCw, XCircle } from "lucide-react";
+import { CheckCircle2, RefreshCw, XCircle, CalendarDays } from "lucide-react";
 import { useAuth } from "../../../context/AuthContext";
 import {
     approveCpBoothChangeRequest,
@@ -14,6 +14,14 @@ import { Pagination, Toast, type ToastType } from "../../../shared/components";
 const teal = "#92C7CF";
 const PAGE_SIZE = 10;
 
+function getTodayString() {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+}
+
 const getRequestedBoothLabel = (request: CpBoothChangeRequest) => request.requested_booth_code || `#${request.requested_booth_id}`;
 
 export default function CpRequestResetPage() {
@@ -22,6 +30,8 @@ export default function CpRequestResetPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [filter, setFilter] = useState<CpRequestStatus>("pending");
+    const [dateFrom, setDateFrom] = useState("");
+    const [dateTo, setDateTo] = useState("");
     const [page, setPage] = useState(1);
     const [darkMode, setDarkMode] = useState(() => {
         return document.documentElement.classList.contains("dark") || localStorage.getItem("theme") === "dark";
@@ -100,7 +110,7 @@ export default function CpRequestResetPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [filter]);
 
-    useEffect(() => { setPage(1); }, [filter]);
+    useEffect(() => { setPage(1); }, [filter, dateFrom, dateTo]);
 
     const counts = useMemo(() => {
         const c = { pending: 0, approved: 0, rejected: 0, cancelled: 0 };
@@ -109,8 +119,37 @@ export default function CpRequestResetPage() {
     }, [requests]);
 
     const filteredRequests = useMemo(() => {
-        return requests.filter((r) => r.status === filter);
-    }, [requests, filter]);
+        return requests.filter((r) => {
+            if (r.status !== filter) return false;
+
+            // Determine effective date range
+            let effectiveFrom = dateFrom;
+            let effectiveTo = dateTo;
+
+            // For non-pending statuses, default to today if no date range set
+            if (filter !== "pending" && !effectiveFrom && !effectiveTo) {
+                const today = getTodayString();
+                effectiveFrom = today;
+                effectiveTo = today;
+            }
+
+            if (effectiveFrom || effectiveTo) {
+                const createdAt = r.created_at ? new Date(r.created_at).getTime() : null;
+                if (createdAt !== null) {
+                    if (effectiveFrom) {
+                        const fromDate = new Date(effectiveFrom).getTime();
+                        if (createdAt < fromDate) return false;
+                    }
+                    if (effectiveTo) {
+                        const toEnd = new Date(effectiveTo + "T23:59:59.999").getTime();
+                        if (createdAt > toEnd) return false;
+                    }
+                }
+            }
+
+            return true;
+        });
+    }, [requests, filter, dateFrom, dateTo]);
 
     const totalPages = Math.max(1, Math.ceil(filteredRequests.length / PAGE_SIZE));
     const safePage = Math.min(page, totalPages);
@@ -263,7 +302,53 @@ export default function CpRequestResetPage() {
                         );
                     })}
                 </div>
-                <div className="flex justify-end items-end gap-3 pb-2 xl:pb-1">
+                <div className="flex flex-wrap justify-end items-center gap-3 pb-2 xl:pb-1">
+                    {/* Date range filter - visible for non-pending statuses */}
+                    {filter !== "pending" && (
+                        <div className="flex items-center gap-2">
+                            <CalendarDays size={14} className="text-gray-400 dark:text-gray-500 shrink-0" />
+                            <input
+                                type="date"
+                                value={dateFrom}
+                                onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
+                                className="h-9 rounded-lg border px-2.5 py-1.5 text-xs outline-none transition-all duration-200 focus:border-teal/60 focus:ring-2 focus:ring-teal/35 placeholder:text-gray-400 dark:placeholder:text-gray-400"
+                                style={{
+                                    background: darkMode ? "rgba(31,41,55,0.70)" : "rgba(255,255,255,0.78)",
+                                    border: darkMode ? "1px solid rgba(75,85,99,0.55)" : "1px solid rgba(146,199,207,0.30)",
+                                    color: darkMode ? "#F3F4F6" : "#1F2937",
+                                    boxShadow: darkMode ? "none" : "inset 0 1px 0 rgba(255,255,255,0.70)",
+                                    width: "auto",
+                                    minWidth: "140px"
+                                }}
+                                title="From date"
+                            />
+                            <span className="text-xs text-gray-400 dark:text-gray-500">—</span>
+                            <input
+                                type="date"
+                                value={dateTo}
+                                onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
+                                className="h-9 rounded-lg border px-2.5 py-1.5 text-xs outline-none transition-all duration-200 focus:border-teal/60 focus:ring-2 focus:ring-teal/35 placeholder:text-gray-400 dark:placeholder:text-gray-400"
+                                style={{
+                                    background: darkMode ? "rgba(31,41,55,0.70)" : "rgba(255,255,255,0.78)",
+                                    border: darkMode ? "1px solid rgba(75,85,99,0.55)" : "1px solid rgba(146,199,207,0.30)",
+                                    color: darkMode ? "#F3F4F6" : "#1F2937",
+                                    boxShadow: darkMode ? "none" : "inset 0 1px 0 rgba(255,255,255,0.70)",
+                                    width: "auto",
+                                    minWidth: "140px"
+                                }}
+                                title="To date"
+                            />
+                            {(dateFrom || dateTo) && (
+                                <button
+                                    onClick={() => { setDateFrom(""); setDateTo(""); setPage(1); }}
+                                    className="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-xs font-medium text-gray-600 shadow-sm transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                                    title="Clear date filter"
+                                >
+                                    ✕
+                                </button>
+                            )}
+                        </div>
+                    )}
                     <button
                         onClick={refresh}
                         disabled={loading}
