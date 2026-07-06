@@ -395,11 +395,19 @@ export default function DashboardLayout() {
                 const payload = await res.json();
                 const records = Array.isArray(payload) ? payload : payload?.data ?? payload?.rows ?? [];
                 if (!cancelled) {
-                    // CSR counts "For Request" records; admin counts "For Repair" records
-                    const targetStatus = isCsr ? "For Request" : "For Repair";
+                    // "POS Repair" nav red-dot notifications:
+                    //  - Admin is notified when a CSR request reaches "For Repair"
+                    //    (the CSR forwards their request and it lands in the
+                    //    admin's For Checking queue).
+                    //  - CSR is notified once the admin advances the record to
+                    //    "Undergoing Repair" or "For Release".
+                    const matchesStatus = (record: { status?: string }) =>
+                        isCsr
+                            ? record?.status === "Undergoing Repair" || record?.status === "For Release"
+                            : record?.status === "For Repair";
                     setForCheckingRepairCount(
                         Array.isArray(records)
-                            ? records.filter((record) => record?.status === targetStatus).length
+                            ? records.filter(matchesStatus).length
                             : 0
                     );
                 }
