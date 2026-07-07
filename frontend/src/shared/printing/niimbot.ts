@@ -7,9 +7,12 @@
 // NOTE: niimbluelib is community-maintained, alpha, and carries a
 // non-commercial-use notice. Keep the version pinned exactly.
 //
-// B21S detail: the printer reports as a "D110"-class device in niimbluelib's
-// model->print-task map, so when auto-detection is unavailable we fall back to
-// the "D110" print task.
+// B21S detail: niimbluelib's auto-detection reports the B21S as a "D110"-class
+// device, but the D110 print task uses a different label/feed protocol and
+// desyncs the page handshake on a B21S — the first print comes out blank and
+// subsequent prints eject one correct label plus a cut-off one. The B21S must
+// use the dedicated "B21_V1" print task, so that is the default here (not
+// "auto", which would pick the broken D110).
 
 import { useSyncExternalStore } from "react";
 
@@ -34,7 +37,7 @@ export const LABEL_PRESETS: LabelPreset[] = [
     { id: "25x25", label: "25 x 25 mm", widthMm: 25, heightMm: 25 },
 ];
 
-export const DEFAULT_PRINT_TASK = "D110"; // B21S
+export const DEFAULT_PRINT_TASK = "B21_V1"; // B21S (D110 auto-detect is wrong; see note above)
 export const PRINT_TASK_OPTIONS = ["auto", "D110", "B21_V1", "B1", "D11_V1", "D110M_V4", "H1S"] as const;
 
 export interface NiimbotSettings {
@@ -47,7 +50,10 @@ export interface NiimbotSettings {
     printTaskName: string;
 }
 
-const SETTINGS_KEY = "niimbot.settings.v2";
+// Bumped v2 -> v3 to discard the stale persisted "auto" print task (which
+// auto-detected to the broken D110 on B21S) so everyone picks up the B21_V1
+// default below.
+const SETTINGS_KEY = "niimbot.settings.v3";
 
 const DEFAULT_SETTINGS: NiimbotSettings = {
     transport: "serial",
@@ -58,7 +64,9 @@ const DEFAULT_SETTINGS: NiimbotSettings = {
     // head. This is correct for landscape stock like 50x30mm. "left" rotates
     // 90deg (use only if your label feeds the other way).
     direction: "top",
-    printTaskName: "auto",
+    // B21_V1 (not "auto") — auto-detection reports the B21S as D110, which
+    // prints blank/duplicate labels. See the note near DEFAULT_PRINT_TASK.
+    printTaskName: "B21_V1",
 };
 
 export interface PrintProgress {
