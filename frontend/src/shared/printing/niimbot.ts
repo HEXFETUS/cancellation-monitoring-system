@@ -220,6 +220,27 @@ function errorMessage(e: unknown): string {
     return "Unknown printer error";
 }
 
+// --- Diagnostic logging (OBSERVE-ONLY, opt-in) --------------------------------
+// Enable in the browser console with:  localStorage.setItem("niimbot.debug","1")
+// then reload. Disable with localStorage.removeItem("niimbot.debug").
+// This never changes print behavior — it only logs, so we can gather evidence
+// (TX packets + the printer's page counter) before deciding on a fix.
+function niimbotDebugEnabled(): boolean {
+    try {
+        return typeof localStorage !== "undefined" && localStorage.getItem("niimbot.debug") === "1";
+    } catch {
+        return false;
+    }
+}
+function dlog(...args: unknown[]): void {
+    if (niimbotDebugEnabled()) console.info("[niimbot]", ...args);
+}
+function hexBytes(data: ArrayLike<number>): string {
+    return Array.from(data)
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join(" ");
+}
+
 export async function connect(transport?: NiimbotTransport): Promise<void> {
     const useTransport = transport ?? state.settings.transport;
     if (transport) updateSettings({ transport });
@@ -255,6 +276,19 @@ export async function connect(transport?: NiimbotTransport): Promise<void> {
         });
         instance.on("printprogress", (e) => {
             setState({ progress: e as PrintProgress });
+        });
+        // OBSERVE-ONLY: log every command sent to the printer (gated by the
+        // niimbot.debug flag). Lets us compare Job 1 vs Job 2 byte-for-byte and
+        // confirm the exact value of setQuantity per job.
+        instance.on("packetsent", (e) => {
+            if (!niimbotDebugEnabled()) return;
+            const ev = e as { packet?: { command?: number; data?: ArrayLike<number> } };
+            const data = ev.packet?.data ?? [];
+            const len = data.length ?? 0;
+            const shown = len <= 24 ? hexBytes(data) : `${hexBytes(Array.from(data).slice(0, 24))} … (+${len - 24})`;
+            console.info(
+                `[niimbot] TX cmd=0x${(ev.packet?.command ?? 0).toString(16)} len=${len} data=[${shown}] t=${Date.now()}`
+            );
         });
 
         await instance.connect();
@@ -359,19 +393,18 @@ export async function printCanvas(canvas: HTMLCanvasElement, quantity = 1): Prom
     // by "[niimbot]" to capture. Remove once the root cause is confirmed.
     const activeClient = client;
     const logStatus = async (label: string) => {
+        if (!niimbotDebugEnabled()) return;
         try {
             const s = await activeClient.abstraction.getPrintStatus?.(2);
             console.info(
-                `[niimbot] ${label}: page=${s?.page} print%=${s?.pagePrintProgress} feed%=${s?.pageFeedProgress}`
+                `[niimbot] ${label}: page=${s?.page} print%=${s?.pagePrintProgress} feed%=${s?.pageFeedProgress} t=${Date.now()}`
             );
         } catch (err) {
             console.info(`[niimbot] ${label}: getPrintStatus failed`, err);
         }
     };
 
-    console.info(
-        `[niimbot] === job start === task=${taskName} quantity=${quantity} totalPages=${quantity}`
-    );
+    dlog(`=== job start === task=${taskName} quantity=${quantity} totalPages=${quantity} t=${Date.now()}`);
     await logStatus("before printInit");
 
     // Pass density through so the print task actually applies it (printInit
@@ -389,7 +422,7 @@ export async function printCanvas(canvas: HTMLCanvasElement, quantity = 1): Prom
     try {
         await task.printInit();
         await task.printPage(encoded, quantity);
-        console.info(`[niimbot] printPage sent (quantity=${quantity})`);
+        dlog(`printPage sent (quantity=${quantity}) t=${Date.now()}`);
         await task.waitForPageFinished();
         await task.waitForFinished();
         await logStatus("after waitForFinished");
@@ -398,23 +431,17 @@ export async function printCanvas(canvas: HTMLCanvasElement, quantity = 1): Prom
         setState({ status: "error", error: errorMessage(e) });
         throw e;
     } finally {
-        // Retry printEnd until acknowledged (only AFTER the print physically
-        // finished — calling it mid-print blanks the label on this unit). Log
-        // each attempt so we can see whether printEnd is refused and whether it
-        // resets the page counter.
-        for (let attempt = 0; attempt < 8; attempt++) {
-            let ended = false;
-            try {
-                ended = await activeClient.abstraction.printEnd();
-            } catch (err) {
-                console.info(`[niimbot] printEnd attempt ${attempt} threw`, err);
-            }
-            console.info(`[niimbot] printEnd attempt ${attempt} -> ${ended}`);
-            if (ended) break;
-            await new Promise((resolve) => setTimeout(resolve, 200));
+        // OBSERVE-ONLY: single printEnd (the original, known-good behavior).
+        // We are NOT changing print behavior while collecting evidence — just
+        // logging its result and the printer's page counter afterward.
+        try {
+            const ended = await activeClient.abstraction.printEnd();
+            dlog(`printEnd -> ${ended} t=${Date.now()}`);
+        } catch (err) {
+            dlog("printEnd threw", err);
         }
         await logStatus("after printEnd");
-        console.info("[niimbot] === job end ===");
+        dlog("=== job end ===");
     }
 }
 
