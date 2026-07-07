@@ -112,6 +112,10 @@ interface Abstraction {
     ): PrintTask;
     /** Ends the print session. Returns true once the printer acknowledges. */
     printEnd(): Promise<boolean>;
+    /** Reads the printer's current print status (page counter + progress). */
+    getPrintStatus?(
+        retries?: number
+    ): Promise<{ page: number; pagePrintProgress: number; pageFeedProgress: number }>;
 }
 
 interface NiimbotClient {
@@ -348,11 +352,33 @@ export async function printCanvas(canvas: HTMLCanvasElement, quantity = 1): Prom
     const taskName =
         printTaskName === "auto" ? (client.getPrintTaskType?.() ?? DEFAULT_PRINT_TASK) : printTaskName;
 
+    // --- Diagnostic instrumentation ---------------------------------------
+    // Logs the printer's page counter at each lifecycle stage + every printEnd
+    // result, so we can VERIFY (not assume) whether the counter accumulates
+    // across jobs and whether printEnd actually resets it. Filter the console
+    // by "[niimbot]" to capture. Remove once the root cause is confirmed.
+    const activeClient = client;
+    const logStatus = async (label: string) => {
+        try {
+            const s = await activeClient.abstraction.getPrintStatus?.(2);
+            console.info(
+                `[niimbot] ${label}: page=${s?.page} print%=${s?.pagePrintProgress} feed%=${s?.pageFeedProgress}`
+            );
+        } catch (err) {
+            console.info(`[niimbot] ${label}: getPrintStatus failed`, err);
+        }
+    };
+
+    console.info(
+        `[niimbot] === job start === task=${taskName} quantity=${quantity} totalPages=${quantity}`
+    );
+    await logStatus("before printInit");
+
     // Pass density through so the print task actually applies it (printInit
     // sets density from these options); the previous separate call was
     // overridden by the task default. Conservative poll/timeout values make the
     // first print after connecting more reliable.
-    const task = client.abstraction.newPrintTask(taskName, {
+    const task = activeClient.abstraction.newPrintTask(taskName, {
         totalPages: quantity,
         density,
         statusPollIntervalMs: 300,
@@ -363,30 +389,32 @@ export async function printCanvas(canvas: HTMLCanvasElement, quantity = 1): Prom
     try {
         await task.printInit();
         await task.printPage(encoded, quantity);
+        console.info(`[niimbot] printPage sent (quantity=${quantity})`);
         await task.waitForPageFinished();
         await task.waitForFinished();
+        await logStatus("after waitForFinished");
         setState({ status: "connected", progress: null });
     } catch (e) {
         setState({ status: "error", error: errorMessage(e) });
         throw e;
     } finally {
-        // Fully end the print session so the printer's copy counter resets to
-        // 0. Otherwise the quantity carries over between separate jobs and the
-        // 2nd print emits 2 labels, the 3rd emits 3, and so on. A single
-        // printEnd can be refused while the printer is still settling, so retry
-        // until it's acknowledged (returns true).
-        //
-        // This runs only AFTER the status poll above confirms the print
-        // physically finished — calling printEnd mid-print blanks the label on
-        // this unit, so we must not end early.
+        // Retry printEnd until acknowledged (only AFTER the print physically
+        // finished — calling it mid-print blanks the label on this unit). Log
+        // each attempt so we can see whether printEnd is refused and whether it
+        // resets the page counter.
         for (let attempt = 0; attempt < 8; attempt++) {
+            let ended = false;
             try {
-                if (await client.abstraction.printEnd()) break;
-            } catch {
-                // printer busy / transient — retry
+                ended = await activeClient.abstraction.printEnd();
+            } catch (err) {
+                console.info(`[niimbot] printEnd attempt ${attempt} threw`, err);
             }
+            console.info(`[niimbot] printEnd attempt ${attempt} -> ${ended}`);
+            if (ended) break;
             await new Promise((resolve) => setTimeout(resolve, 200));
         }
+        await logStatus("after printEnd");
+        console.info("[niimbot] === job end ===");
     }
 }
 
