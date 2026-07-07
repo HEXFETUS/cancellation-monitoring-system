@@ -110,6 +110,12 @@ interface Abstraction {
             pageTimeoutMs?: number;
         }
     ): PrintTask;
+    /**
+     * Waits for the print to finish by polling printEnd() until the printer
+     * acknowledges. Unlike the status-poll strategy, this also cleanly ends the
+     * print session (resetting the printer's page/copy counter).
+     */
+    waitUntilPrintFinishedByPrintEndPoll(pagesToPrint: number, pollIntervalMs?: number): Promise<void>;
 }
 
 interface NiimbotClient {
@@ -361,13 +367,20 @@ export async function printCanvas(canvas: HTMLCanvasElement, quantity = 1): Prom
     try {
         await task.printInit();
         await task.printPage(encoded, quantity);
-        await task.waitForPageFinished();
-        await task.waitForFinished();
+        // Wait for completion by polling printEnd() until the printer
+        // acknowledges. This both waits for the print AND cleanly ends the
+        // print session, which resets the printer's page/copy counter. The
+        // D110 task's default status-poll wait does NOT end the session on this
+        // B21S, so consecutive prints accumulated copies (2nd job printed 2
+        // labels, 3rd printed 3, ...).
+        await client.abstraction.waitUntilPrintFinishedByPrintEndPoll(quantity, 500);
         setState({ status: "connected", progress: null });
     } catch (e) {
         setState({ status: "error", error: errorMessage(e) });
         throw e;
     } finally {
+        // Best-effort end in case printPage threw before the poll above ran
+        // (the poll already ends the session on the success path).
         try {
             await task.printEnd();
         } catch {
