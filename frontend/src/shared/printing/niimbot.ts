@@ -7,12 +7,15 @@
 // NOTE: niimbluelib is community-maintained, alpha, and carries a
 // non-commercial-use notice. Keep the version pinned exactly.
 //
-// B21S detail: niimbluelib's auto-detection reports the B21S as a "D110"-class
-// device, but the D110 print task uses a different label/feed protocol and
-// desyncs the page handshake on a B21S — the first print comes out blank and
-// subsequent prints eject one correct label plus a cut-off one. The B21S must
-// use the dedicated "B21_V1" print task, so that is the default here (not
-// "auto", which would pick the broken D110).
+// B21S detail: niimbluelib detects this printer as a "D110"-class device, and
+// the D110 task is in fact the CORRECT protocol for it. The blank / duplicate /
+// cut-off labels originally seen were NOT a print-task problem — they were
+// caused by sending an over-wide image: a 50mm label renders to 400px, wider
+// than the 384px (48mm) print head. Once the image is clamped to the head width
+// (see printCanvas), the auto-detected D110 task prints correctly.
+//
+// NOTE: the dedicated "B21_V1" task actually prints BLANK on this unit, so do
+// NOT default to it — let auto-detection pick D110.
 
 import { useSyncExternalStore } from "react";
 
@@ -37,7 +40,7 @@ export const LABEL_PRESETS: LabelPreset[] = [
     { id: "25x25", label: "25 x 25 mm", widthMm: 25, heightMm: 25 },
 ];
 
-export const DEFAULT_PRINT_TASK = "B21_V1"; // B21S (D110 auto-detect is wrong; see note above)
+export const DEFAULT_PRINT_TASK = "D110"; // matches this printer's detected model (see note above)
 export const PRINT_TASK_OPTIONS = ["auto", "D110", "B21_V1", "B1", "D11_V1", "D110M_V4", "H1S"] as const;
 
 export interface NiimbotSettings {
@@ -50,10 +53,10 @@ export interface NiimbotSettings {
     printTaskName: string;
 }
 
-// Bumped v2 -> v3 to discard the stale persisted "auto" print task (which
-// auto-detected to the broken D110 on B21S) so everyone picks up the B21_V1
-// default below.
-const SETTINGS_KEY = "niimbot.settings.v3";
+// Bumped to v4 to clear the short-lived "B21_V1" default (which prints blank on
+// this unit) so everyone reverts to auto-detection — which correctly picks the
+// D110 task. The actual print fix is the image-width clamp in printCanvas.
+const SETTINGS_KEY = "niimbot.settings.v4";
 
 const DEFAULT_SETTINGS: NiimbotSettings = {
     transport: "serial",
@@ -64,9 +67,10 @@ const DEFAULT_SETTINGS: NiimbotSettings = {
     // head. This is correct for landscape stock like 50x30mm. "left" rotates
     // 90deg (use only if your label feeds the other way).
     direction: "top",
-    // B21_V1 (not "auto") — auto-detection reports the B21S as D110, which
-    // prints blank/duplicate labels. See the note near DEFAULT_PRINT_TASK.
-    printTaskName: "B21_V1",
+    // "auto" lets niimbluelib detect the model (D110 for this printer, which is
+    // correct). The real print fix was clamping the image to the print-head
+    // width, not the task — see the note near DEFAULT_PRINT_TASK.
+    printTaskName: "auto",
 };
 
 export interface PrintProgress {
