@@ -7,15 +7,24 @@
 // NOTE: niimbluelib is community-maintained, alpha, and carries a
 // non-commercial-use notice. Keep the version pinned exactly.
 //
-// B21S detail: niimbluelib detects this printer as a "D110"-class device, and
-// the D110 task is in fact the CORRECT protocol for it. The blank / duplicate /
-// cut-off labels originally seen were NOT a print-task problem — they were
-// caused by sending an over-wide image: a 50mm label renders to 400px, wider
-// than the 384px (48mm) print head. Once the image is clamped to the head width
-// (see printCanvas), the auto-detected D110 task prints correctly.
+// B21S print-task detail (important — see printCanvas for the routing):
 //
-// NOTE: the dedicated "B21_V1" task actually prints BLANK on this unit, so do
-// NOT default to it — let auto-detection pick D110.
+// niimbluelib maps the B21S to the "D110" print task. Two distinct B21S issues
+// were found and fixed:
+//
+//   1. Clipped / over-wide output — fixed by clamping the image to the 384px
+//      (48mm) print head (see fitCanvasToPrinthead / printCanvas).
+//
+//   2. Consecutive prints accumulate copies (job 1 -> 1 label, job 2 -> 2,
+//      job 3 -> 3, ...) that only a Bluetooth reconnect clears. Root cause:
+//      the D110 task issues `setPageSize4b` + a separate `setPrintQuantity`,
+//      and niimbluelib's own PacketGenerator documents that `setPageSize4b`
+//      makes B1-class firmware "print blank or many copies". This B21S firmware
+//      is B1-class. The B1 task instead uses `setPageSize6b` (copies embedded
+//      per page), which makes each job self-contained — the correct sequence.
+//      So we route a wide-head (B21S) "D110" detection to the B1 task.
+//
+// The older "B21_V1" task prints BLANK on this unit — do not use it.
 
 import { useSyncExternalStore } from "react";
 
@@ -53,10 +62,10 @@ export interface NiimbotSettings {
     printTaskName: string;
 }
 
-// Bumped to v4 to clear the short-lived "B21_V1" default (which prints blank on
-// this unit) so everyone reverts to auto-detection — which correctly picks the
-// D110 task. The actual print fix is the image-width clamp in printCanvas.
-const SETTINGS_KEY = "niimbot.settings.v4";
+// Bumped to v5 so any manually-saved print task from earlier debugging (e.g.
+// "D110"/"B21_V1") is discarded and everyone returns to "auto" — which now
+// routes the B21S to the correct B1 command sequence (see printCanvas).
+const SETTINGS_KEY = "niimbot.settings.v5";
 
 const DEFAULT_SETTINGS: NiimbotSettings = {
     transport: "serial",
@@ -67,9 +76,9 @@ const DEFAULT_SETTINGS: NiimbotSettings = {
     // head. This is correct for landscape stock like 50x30mm. "left" rotates
     // 90deg (use only if your label feeds the other way).
     direction: "top",
-    // "auto" lets niimbluelib detect the model (D110 for this printer, which is
-    // correct). The real print fix was clamping the image to the print-head
-    // width, not the task — see the note near DEFAULT_PRINT_TASK.
+    // "auto" lets niimbluelib detect the model; printCanvas then routes a
+    // B21S (detected as "D110" with a wide print head) to the correct B1
+    // command sequence. See the note at the top of this file.
     printTaskName: "auto",
 };
 
@@ -383,8 +392,18 @@ export async function printCanvas(canvas: HTMLCanvasElement, quantity = 1): Prom
     const printable = fitCanvasToPrinthead(canvas, direction, headPx);
     const encoded = lib.ImageEncoder.encodeCanvas(printable, direction);
 
-    const taskName =
+    // Resolve the print task. niimbluelib maps the B21S to "D110", but the D110
+    // task's setPageSize4b makes this B1-class firmware print duplicate/blank
+    // labels (see the note at the top of this file). The B1 task uses
+    // setPageSize6b (copies embedded per page) and prints correctly — confirmed
+    // on hardware. So when auto-detection lands on "D110" for a wide-head
+    // (48mm/384px) printer — i.e. a B21S, not a real ~12mm D110 — route it to
+    // "B1". A manually chosen task (printTaskName !== "auto") is always kept.
+    let taskName =
         printTaskName === "auto" ? (client.getPrintTaskType?.() ?? DEFAULT_PRINT_TASK) : printTaskName;
+    if (printTaskName === "auto" && taskName === "D110" && reportedHeadPx >= 300) {
+        taskName = "B1";
+    }
 
     // --- Diagnostic instrumentation ---------------------------------------
     // Logs the printer's page counter at each lifecycle stage + every printEnd
