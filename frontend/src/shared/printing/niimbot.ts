@@ -110,6 +110,8 @@ interface Abstraction {
             pageTimeoutMs?: number;
         }
     ): PrintTask;
+    /** Ends the print session. Returns true once the printer acknowledges. */
+    printEnd(): Promise<boolean>;
 }
 
 interface NiimbotClient {
@@ -368,10 +370,22 @@ export async function printCanvas(canvas: HTMLCanvasElement, quantity = 1): Prom
         setState({ status: "error", error: errorMessage(e) });
         throw e;
     } finally {
-        try {
-            await task.printEnd();
-        } catch {
-            // best-effort
+        // Fully end the print session so the printer's copy counter resets to
+        // 0. Otherwise the quantity carries over between separate jobs and the
+        // 2nd print emits 2 labels, the 3rd emits 3, and so on. A single
+        // printEnd can be refused while the printer is still settling, so retry
+        // until it's acknowledged (returns true).
+        //
+        // This runs only AFTER the status poll above confirms the print
+        // physically finished — calling printEnd mid-print blanks the label on
+        // this unit, so we must not end early.
+        for (let attempt = 0; attempt < 8; attempt++) {
+            try {
+                if (await client.abstraction.printEnd()) break;
+            } catch {
+                // printer busy / transient — retry
+            }
+            await new Promise((resolve) => setTimeout(resolve, 200));
         }
     }
 }
