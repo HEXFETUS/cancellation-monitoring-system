@@ -326,9 +326,16 @@ export async function printCanvas(canvas: HTMLCanvasElement, quantity = 1): Prom
     // Clamp the image to the printhead width before encoding. The B21S head is
     // 384px (48mm @203dpi); a 50mm label renders to 400px. encodeCanvas("top")
     // maps the canvas WIDTH across the head, so a 400px page is wider than the
-    // head can print — the firmware then emits blank, garbled, or duplicate
-    // labels. Scaling the canvas down to the head fixes all three.
-    const headPx = client.getModelMetadata?.()?.printheadPixels ?? FALLBACK_PRINTHEAD_PX;
+    // head can print — the firmware then emits blank, garbled, or clipped
+    // labels (e.g. the right-side QR gets cut off). Scaling the canvas down to
+    // the head fixes it.
+    //
+    // The B21S reports a usable width wider than it can actually print, so cap
+    // the reported value at the true printable head (384px). Without the cap
+    // the 400px canvas passes through unscaled and its rightmost ~16px — where
+    // the QR sits on wide (asset-coding) labels — is clipped.
+    const reportedHeadPx = client.getModelMetadata?.()?.printheadPixels ?? FALLBACK_PRINTHEAD_PX;
+    const headPx = Math.min(reportedHeadPx, FALLBACK_PRINTHEAD_PX);
     const printable = fitCanvasToPrinthead(canvas, direction, headPx);
     const encoded = lib.ImageEncoder.encodeCanvas(printable, direction);
 
