@@ -5,7 +5,7 @@ import CreateUserAccountPage from "./CreateUserAccountPage";
 import OperatorProfilesPage from "./OperatorProfilesPage";
 import ActivityLogsPage from "./ActivityLogsPage";
 import AnnouncementsPage from "../../announcements/pages/AnnouncementsPage";
-import EventsNewsAdminPage from "../../events-news/pages/EventsNewsAdminPage";
+import EventsNewsAdminPage from "../../landing-page/pages/EventsNewsAdminPage";
 import { useAuth } from "../../../context/AuthContext";
 import { TopTabs } from "../../../shared/components";
 
