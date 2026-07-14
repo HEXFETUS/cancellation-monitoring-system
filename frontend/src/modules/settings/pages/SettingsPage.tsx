@@ -6,14 +6,20 @@ import OperatorProfilesPage from "./OperatorProfilesPage";
 import ActivityLogsPage from "./ActivityLogsPage";
 import AnnouncementsPage from "../../announcements/pages/AnnouncementsPage";
 import EventsNewsAdminPage from "../../landing-page/pages/EventsNewsAdminPage";
+import ResultsAdminPage from "../../landing-page/pages/ResultsAdminPage";
 import { useAuth } from "../../../context/AuthContext";
 import { TopTabs } from "../../../shared/components";
 
 const mainTabs = [
     { id: "user-accounts", label: "Users", icon: Users },
     { id: "announcements", label: "Announcements", icon: Megaphone },
-    { id: "events-news", label: "Events & News", icon: Newspaper },
+    { id: "landing-page", label: "Landing Page", icon: Newspaper },
     { id: "activity-logs", label: "Activity Logs", icon: Activity },
+];
+
+const landingSubTabs = [
+    { id: "events-news", label: "Events & News" },
+    { id: "results", label: "Results" },
 ];
 
 const userSubTabs = [
@@ -79,6 +85,7 @@ function OperatorSettingsPage() {
 function AdminSettingsPage() {
     const [activeTab, setActiveTab] = useState("user-accounts");
     const [activeUserSubTab, setActiveUserSubTab] = useState("accounts");
+    const [activeLandingSubTab, setActiveLandingSubTab] = useState("events-news");
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
     const [darkMode, setDarkMode] = useState(() => {
         return document.documentElement.classList.contains("dark") || localStorage.getItem("theme") === "dark";
@@ -155,7 +162,19 @@ function AdminSettingsPage() {
                 )}
 
                 {activeTab === "announcements" && <AnnouncementsPage />}
-                {activeTab === "events-news" && <EventsNewsAdminPage />}
+                {activeTab === "landing-page" && (
+                    <div className="flex flex-col gap-5">
+                        <TopTabs
+                            variant="secondary"
+                            tabs={landingSubTabs}
+                            activeId={activeLandingSubTab}
+                            onChange={setActiveLandingSubTab}
+                            ariaLabel="Landing page sub-sections"
+                        />
+                        {activeLandingSubTab === "events-news" && <EventsNewsAdminPage />}
+                        {activeLandingSubTab === "results" && <ResultsAdminPage />}
+                    </div>
+                )}
                 {activeTab === "activity-logs" && <ActivityLogsPage />}
             </div>
         </div>

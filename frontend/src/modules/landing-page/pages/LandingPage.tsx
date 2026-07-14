@@ -85,6 +85,7 @@ interface LotteryResult {
   winning_number: string;
   area: string;
   draw_date: string;
+  game_type: string;
 }
 
 interface Announcement {
@@ -806,6 +807,17 @@ export default function LandingPage() {
                       >
                         {r.area}
                       </span>
+                      {r.game_type && (
+                        <span
+                          className="text-[10px] font-semibold uppercase tracking-wider rounded-full px-2 py-0.5"
+                          style={{
+                            backgroundColor: r.game_type === "3D" ? "rgba(168, 85, 247, 0.1)" : "rgba(146, 199, 207, 0.1)",
+                            color: r.game_type === "3D" ? "#a855f7" : "#92C7CF",
+                          }}
+                        >
+                          {r.game_type}
+                        </span>
+                      )}
                       <p className="mt-1 text-xs font-medium" style={{ color: "#6b6b6b" }}>
                         {r.draw_label}
                       </p>
