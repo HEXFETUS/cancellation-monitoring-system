@@ -30,6 +30,7 @@ import cpBoothChangeRequestRoutes from "./src/routes/cp-booth-change-request.rou
 import cpOperatorChangeRequestRoutes from "./src/routes/cp-operator-change-request.routes.js";
 import messagesRoutes from "./src/routes/messages.routes.js";
 import uploadRoutes from "./src/routes/upload.routes.js";
+import eventsNewsRoutes from "./src/routes/events-news.routes.js";
 import dashboardRoutes from "./src/routes/dashboard.routes.js";
 import initDatabase from "./src/config/init.js";
 import { dbState, pingDatabase } from "./src/config/db.js";
@@ -92,6 +93,7 @@ app.use("/api/cp-booth-change-requests", cpBoothChangeRequestRoutes);
 app.use("/api/cp-operator-change-requests", cpOperatorChangeRequestRoutes);
 app.use("/api/messages", messagesRoutes);
 app.use("/api/upload", uploadRoutes);
+app.use("/api/events-news", eventsNewsRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 
 // Honour the platform-provided PORT in production (Render, Railway, Fly,

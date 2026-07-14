@@ -33,6 +33,7 @@ const SERIAL_TABLES = [
     "conversations",
     "conversation_participants",
     "private_messages",
+    "events_news",
 ];
 
 async function syncSerialSequence(client, tableName) {
@@ -638,6 +639,34 @@ async function initDatabase() {
         );
         await client.query(
             "CREATE INDEX IF NOT EXISTS idx_private_messages_created_at ON private_messages(created_at)"
+        );
+
+        /* =========================
+            events_news — landing-page Events & News posts.
+            media_urls stores a JSON array e.g. '["/uploads/abc.jpg"]'.
+            type is 'event' or 'news'; status is 'published' or 'scheduled'.
+         ========================= */
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS events_news (
+                id SERIAL PRIMARY KEY,
+                title VARCHAR(255),
+                caption TEXT NOT NULL,
+                type VARCHAR(20) NOT NULL DEFAULT 'news' CHECK (type IN ('event', 'news')),
+                media_urls TEXT DEFAULT '[]',
+                location VARCHAR(255) DEFAULT '',
+                status VARCHAR(20) NOT NULL DEFAULT 'published' CHECK (status IN ('published', 'scheduled')),
+                scheduled_at TIMESTAMP,
+                published_at TIMESTAMP,
+                created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        await client.query(
+            "CREATE INDEX IF NOT EXISTS idx_events_news_status ON events_news(status)"
+        );
+        await client.query(
+            "CREATE INDEX IF NOT EXISTS idx_events_news_created_at ON events_news(created_at)"
         );
 
         for (const tableName of SERIAL_TABLES) {

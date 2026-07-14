@@ -1045,7 +1045,8 @@ export default function DashboardLayout() {
                         <div className="relative mb-5 mt-1">
                             <button
                                 type="button"
-                                onClick={() => window.location.reload()}
+                                onClick={() => navigate("/")}
+                                title="Go to landing page"
                                 className="group relative flex w-full items-center gap-3 px-3 py-2.5 rounded-2xl text-left transition-all duration-300"
                                 style={{
                                     background: "linear-gradient(135deg, #92C7CF 0%, #AAD7D9 100%)",
