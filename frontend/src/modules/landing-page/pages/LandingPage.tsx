@@ -89,7 +89,7 @@ interface LotteryResult {
 
 interface Announcement {
   id: number;
-  title: string;
+  title: string | null;
   caption: string;
   type: "event" | "news";
   media_urls: string[];
@@ -143,6 +143,90 @@ const useSlideshow = (images: string[], interval = 5000) => {
   return { current, next, prev, setCurrent };
 };
 
+/* ---------------- MEDIA CAROUSEL (single photo + prev/next) ---------------- */
+function MediaCarousel({
+  urls,
+  alt,
+  onOpen,
+  apiBase,
+}: {
+  urls: string[];
+  alt: string;
+  onOpen: (url: string, isVideo: boolean) => void;
+  apiBase: string;
+}) {
+  const [index, setIndex] = useState(0);
+  const safeIndex = Math.min(index, urls.length - 1);
+  const current = urls[safeIndex];
+  const isVideo = /\.mp4$/i.test(current);
+  const fullUrl = `${apiBase}${current}`;
+  const hasMultiple = urls.length > 1;
+
+  const go = (dir: number) => {
+    setIndex((prev) => (prev + dir + urls.length) % urls.length);
+  };
+
+  return (
+    <div className="relative bg-gray-100">
+      <button
+        type="button"
+        onClick={() => onOpen(fullUrl, isVideo)}
+        className="block w-full focus:outline-none focus:ring-2 focus:ring-inset focus:ring-teal"
+      >
+        {isVideo ? (
+          <video
+            src={fullUrl}
+            preload="metadata"
+            className="w-full h-auto max-h-96 object-contain bg-gray-100"
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpen(fullUrl, true);
+            }}
+          />
+        ) : (
+          <img
+            src={fullUrl}
+            alt={`${alt} (${safeIndex + 1}/${urls.length})`}
+            className="w-full h-auto max-h-96 object-contain bg-gray-100"
+          />
+        )}
+      </button>
+
+      {hasMultiple && (
+        <>
+          <button
+            type="button"
+            onClick={() => go(-1)}
+            className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-black/40 p-1.5 text-white transition hover:bg-black/60"
+            aria-label="Previous photo"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => go(1)}
+            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-black/40 p-1.5 text-white transition hover:bg-black/60"
+            aria-label="Next photo"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
+            {urls.map((_, i) => (
+              <span
+                key={i}
+                className="h-1.5 w-1.5 rounded-full"
+                style={{
+                  backgroundColor: i === safeIndex ? "white" : "rgba(255,255,255,0.5)",
+                }}
+              />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 /* ---------------- COMPONENT ---------------- */
 export default function LandingPage() {
   const { isAuthenticated } = useAuth();
@@ -188,9 +272,9 @@ export default function LandingPage() {
 
   const navItems = [
     { id: "hero", label: "Home" },
-    { id: "social-responsibility", label: "Social Responsibility" },
-    { id: "results", label: "Results" },
     { id: "events-news", label: "Events & News" },
+    { id: "results", label: "Results" },
+    { id: "social-responsibility", label: "Social Responsibility" },
     { id: "about-us", label: "About Us" },
   ];
 
@@ -231,17 +315,17 @@ export default function LandingPage() {
     })();
   }, []);
 
-  // Fetch announcements
+  // Fetch Events & News posts
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch(`${API_BASE}/api/posts/announcements`);
+        const res = await fetch(`${API_BASE}/api/events-news`);
         if (res.ok) {
           const data = await res.json();
           setAnnouncements(data);
         }
       } catch {
-        console.error("Failed to fetch announcements");
+        console.error("Failed to fetch events & news");
       } finally {
         setAnnouncementsLoading(false);
       }
@@ -537,6 +621,216 @@ export default function LandingPage() {
           </div>
         </section>
 
+        {/* ─── EVENTS & NEWS (Dynamic from API) ─── */}
+        <section id="events-news" className="py-24 sm:py-32">
+          <div
+            className={`mx-auto max-w-7xl px-6 lg:px-8 transition-all duration-700 ${inView["events-news"]
+              ? "opacity-100 translate-y-0"
+              : "opacity-0 translate-y-10"
+              }`}
+          >
+            <div className="mx-auto max-w-2xl text-center">
+              <span
+                className="text-xs font-semibold tracking-[0.2em] uppercase"
+                style={{ color: "#92C7CF" }}
+              >
+                Stay Updated
+              </span>
+              <h2 className="mt-3 text-3xl sm:text-4xl font-bold tracking-tight text-gray-800">
+                Events & News
+              </h2>
+              <p className="mt-4 leading-relaxed" style={{ color: "#6b6b6b" }}>
+                Latest announcements, community events, and updates from Hexaprime.
+              </p>
+            </div>
+
+            {(() => {
+              if (announcementsLoading) {
+                return (
+                  <div className="flex items-center justify-center py-16">
+                    <Loader2 className="h-8 w-8 animate-spin" style={{ color: "#92C7CF" }} />
+                  </div>
+                );
+              }
+
+              const threeDaysAgo = new Date();
+              threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+              const recentAnnouncements = announcements.filter(
+                (item) => new Date(item.created_at) >= threeDaysAgo
+              );
+
+              if (recentAnnouncements.length === 0) {
+                return (
+                  <p className="mt-12 text-center text-sm" style={{ color: "#999" }}>
+                    No recent posts in the last 3 days. Check back later.
+                  </p>
+                );
+              }
+
+              return (
+                <div className="mt-16 mx-auto max-w-5xl grid gap-10 md:grid-cols-2">
+                  {recentAnnouncements.map((item) => (
+                    <article
+                      key={item.id}
+                      className="group rounded-2xl overflow-hidden transition-all duration-300 bg-white"
+                      style={{
+                        border: "1px solid #E5E1DA",
+                        boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.borderColor = "#92C7CF";
+                        e.currentTarget.style.boxShadow = "0 12px 40px rgba(146, 199, 207, 0.18)";
+                        e.currentTarget.style.transform = "translateY(-2px)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor = "#E5E1DA";
+                        e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.04)";
+                        e.currentTarget.style.transform = "translateY(0)";
+                      }}
+                    >
+                      {/* Media hero — single-photo carousel */}
+                      {item.media_urls.length > 0 && (
+                        <MediaCarousel
+                          urls={item.media_urls}
+                          alt={item.title || "Events & News media"}
+                          onOpen={(url, isVideo) => setSelectedMedia({ url, isVideo })}
+                          apiBase={API_BASE}
+                        />
+                      )}
+
+                      {/* Content */}
+                      <div className="p-5 sm:p-6 text-center">
+                        <div className="flex items-center justify-center gap-2 flex-wrap">
+                          <span
+                            className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider"
+                            style={{
+                              backgroundColor:
+                                item.type === "event"
+                                  ? "rgba(146, 199, 207, 0.1)"
+                                  : "rgba(229, 225, 218, 0.4)",
+                              color:
+                                item.type === "event" ? "#92C7CF" : "#8a8a8a",
+                            }}
+                          >
+                            {item.type === "event" ? "Event" : "News"}
+                          </span>
+                          <span className="text-xs" style={{ color: "#999" }}>
+                            {new Date(item.created_at).toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric",
+                            })}
+                          </span>
+                        </div>
+
+                        {item.title && (
+                          <h3 className="mt-3 text-lg font-semibold text-gray-800 leading-snug">
+                            {item.title}
+                          </h3>
+                        )}
+
+                        <p className="mt-2 text-sm leading-relaxed whitespace-pre-line" style={{ color: "#6b6b6b" }}>
+                          {item.caption}
+                        </p>
+
+                        {item.location && (
+                          <div className="mt-4 flex items-center justify-center gap-1.5 text-xs" style={{ color: "#999" }}>
+                            <MapPin className="h-3.5 w-3.5" style={{ color: "#92C7CF" }} />
+                            {item.location}
+                          </div>
+                        )}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              );
+            })()}
+          </div>
+        </section>
+
+        {/* ─── RESULTS (Dynamic from API) ─── */}
+        <section id="results" className="py-24 sm:py-32" style={{ backgroundColor: "#E5E1DA" }}>
+          <div
+            className={`mx-auto max-w-7xl px-6 lg:px-8 transition-all duration-700 ${inView.results
+              ? "opacity-100 translate-y-0"
+              : "opacity-0 translate-y-10"
+              }`}
+          >
+            <div className="mx-auto max-w-2xl text-center">
+              <span
+                className="text-xs font-semibold tracking-[0.2em] uppercase"
+                style={{ color: "#92C7CF" }}
+              >
+                Latest Draw
+              </span>
+              <h2 className="mt-3 text-3xl sm:text-4xl font-bold tracking-tight text-gray-800">
+                Today's Result
+              </h2>
+              <p className="mt-4 leading-relaxed" style={{ color: "#6b6b6b" }}>
+                Check the latest winning numbers for our lottery draws.
+              </p>
+            </div>
+
+            {resultsLoading ? (
+              <div className="flex items-center justify-center py-16">
+                <Loader2 className="h-8 w-8 animate-spin" style={{ color: "#92C7CF" }} />
+              </div>
+            ) : results.length === 0 ? (
+              <p className="mt-12 text-center text-sm" style={{ color: "#999" }}>
+                No results posted yet. Check back later.
+              </p>
+            ) : (
+              <div className="mt-12 grid gap-6 md:grid-cols-3 max-w-4xl mx-auto">
+                {["National", "Local CDO", "Local MISOR"].map((area) => {
+                  const areaResults = resultsByArea[area] || [];
+                  return areaResults.slice(0, 3).map((r) => (
+                    <div
+                      key={r.id}
+                      className="rounded-2xl p-3 text-center transition-all"
+                      style={{
+                        backgroundColor: "white",
+                        border: ".5px solid rgba(229, 225, 218, 0.5)",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.boxShadow = "0 8px 30px rgba(146, 199, 207, 0.15)";
+                        e.currentTarget.style.borderColor = "#92C7CF";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.boxShadow = "none";
+                        e.currentTarget.style.borderColor = "rgba(229, 225, 218, 0.5)";
+                      }}
+                    >
+                      <span
+                        className="text-sm font-semibold tracking-wider uppercase"
+                        style={{ color: "#92C7CF" }}
+                      >
+                        {r.area}
+                      </span>
+                      <p className="mt-1 text-xs font-medium" style={{ color: "#6b6b6b" }}>
+                        {r.draw_label}
+                      </p>
+                      <p
+                        className="mt-3 text-5xl sm:text-4xl font-bold tracking-tight"
+                        style={{ color: "#4a4a4a" }}
+                      >
+                        {r.winning_number}
+                      </p>
+                      <p className="mt-4 text-xs" style={{ color: "#999" }}>
+                        Draw Date:{" "}
+                        {new Date(r.draw_date).toLocaleDateString("en-US", {
+                          month: "long",
+                          day: "numeric",
+                          year: "numeric",
+                        })}
+                      </p>
+                    </div>
+                  ));
+                })}
+              </div>
+            )}
+          </div>
+        </section>
+
         {/* ─── SOCIAL RESPONSIBILITY ─── */}
         <section id="social-responsibility" className="py-24 sm:py-32">
           <div
@@ -628,238 +922,6 @@ export default function LandingPage() {
                 </div>
               ))}
             </div>
-          </div>
-        </section>
-
-        {/* ─── RESULTS (Dynamic from API) ─── */}
-        <section id="results" className="py-24 sm:py-32" style={{ backgroundColor: "#E5E1DA" }}>
-          <div
-            className={`mx-auto max-w-7xl px-6 lg:px-8 transition-all duration-700 ${inView.results
-              ? "opacity-100 translate-y-0"
-              : "opacity-0 translate-y-10"
-              }`}
-          >
-            <div className="mx-auto max-w-2xl text-center">
-              <span
-                className="text-xs font-semibold tracking-[0.2em] uppercase"
-                style={{ color: "#92C7CF" }}
-              >
-                Latest Draw
-              </span>
-              <h2 className="mt-3 text-3xl sm:text-4xl font-bold tracking-tight text-gray-800">
-                Today's Result
-              </h2>
-              <p className="mt-4 leading-relaxed" style={{ color: "#6b6b6b" }}>
-                Check the latest winning numbers for our lottery draws.
-              </p>
-            </div>
-
-            {resultsLoading ? (
-              <div className="flex items-center justify-center py-16">
-                <Loader2 className="h-8 w-8 animate-spin" style={{ color: "#92C7CF" }} />
-              </div>
-            ) : results.length === 0 ? (
-              <p className="mt-12 text-center text-sm" style={{ color: "#999" }}>
-                No results posted yet. Check back later.
-              </p>
-            ) : (
-              <div className="mt-12 grid gap-6 md:grid-cols-3 max-w-4xl mx-auto">
-                {["National", "Local CDO", "Local MISOR"].map((area) => {
-                  const areaResults = resultsByArea[area] || [];
-                  return areaResults.slice(0, 3).map((r) => (
-                    <div
-                      key={r.id}
-                      className="rounded-2xl p-3 text-center transition-all"
-                      style={{
-                        backgroundColor: "white",
-                        border: ".5px solid rgba(229, 225, 218, 0.5)",
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.boxShadow = "0 8px 30px rgba(146, 199, 207, 0.15)";
-                        e.currentTarget.style.borderColor = "#92C7CF";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.boxShadow = "none";
-                        e.currentTarget.style.borderColor = "rgba(229, 225, 218, 0.5)";
-                      }}
-                    >
-                      <span
-                        className="text-sm font-semibold tracking-wider uppercase"
-                        style={{ color: "#92C7CF" }}
-                      >
-                        {r.area}
-                      </span>
-                      <p className="mt-1 text-xs font-medium" style={{ color: "#6b6b6b" }}>
-                        {r.draw_label}
-                      </p>
-                      <p
-                        className="mt-3 text-5xl sm:text-4xl font-bold tracking-tight"
-                        style={{ color: "#4a4a4a" }}
-                      >
-                        {r.winning_number}
-                      </p>
-                      <p className="mt-4 text-xs" style={{ color: "#999" }}>
-                        Draw Date:{" "}
-                        {new Date(r.draw_date).toLocaleDateString("en-US", {
-                          month: "long",
-                          day: "numeric",
-                          year: "numeric",
-                        })}
-                      </p>
-                    </div>
-                  ));
-                })}
-              </div>
-            )}
-          </div>
-        </section>
-
-        {/* ─── EVENTS & NEWS (Dynamic from API) ─── */}
-        <section id="events-news" className="py-24 sm:py-32">
-          <div
-            className={`mx-auto max-w-7xl px-6 lg:px-8 transition-all duration-700 ${inView["events-news"]
-              ? "opacity-100 translate-y-0"
-              : "opacity-0 translate-y-10"
-              }`}
-          >
-            <div className="mx-auto max-w-2xl text-center">
-              <span
-                className="text-xs font-semibold tracking-[0.2em] uppercase"
-                style={{ color: "#92C7CF" }}
-              >
-                Stay Updated
-              </span>
-              <h2 className="mt-3 text-3xl sm:text-4xl font-bold tracking-tight text-gray-800">
-                Events & News
-              </h2>
-              <p className="mt-4 leading-relaxed" style={{ color: "#6b6b6b" }}>
-                Latest announcements, community events, and updates from Hexaprime.
-              </p>
-            </div>
-
-            {(() => {
-              if (announcementsLoading) {
-                return (
-                  <div className="flex items-center justify-center py-16">
-                    <Loader2 className="h-8 w-8 animate-spin" style={{ color: "#92C7CF" }} />
-                  </div>
-                );
-              }
-
-              const threeDaysAgo = new Date();
-              threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
-              const recentAnnouncements = announcements.filter(
-                (item) => new Date(item.created_at) >= threeDaysAgo
-              );
-
-              if (recentAnnouncements.length === 0) {
-                return (
-                  <p className="mt-12 text-center text-sm" style={{ color: "#999" }}>
-                    No recent posts in the last 3 days. Check back later.
-                  </p>
-                );
-              }
-
-              return (
-                <div className="mt-16 mx-auto max-w-5xl grid gap-10 md:grid-cols-2">
-                  {recentAnnouncements.map((item) => (
-                    <article
-                      key={item.id}
-                      className="group rounded-2xl overflow-hidden transition-all duration-300 bg-white"
-                      style={{
-                        border: "1px solid #E5E1DA",
-                        boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.borderColor = "#92C7CF";
-                        e.currentTarget.style.boxShadow = "0 12px 40px rgba(146, 199, 207, 0.18)";
-                        e.currentTarget.style.transform = "translateY(-2px)";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.borderColor = "#E5E1DA";
-                        e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.04)";
-                        e.currentTarget.style.transform = "translateY(0)";
-                      }}
-                    >
-                      {/* Media hero */}
-                      {item.media_urls.length > 0 && (
-                        <div>
-                          {item.media_urls.map((url, i) =>
-                            /\.mp4$/i.test(url) ? (
-                              <button
-                                key={i}
-                                onClick={() => setSelectedMedia({ url: `${API_BASE}${url}`, isVideo: true })}
-                                className="w-full block focus:outline-none focus:ring-2 focus:ring-inset focus:ring-teal"
-                              >
-                                <video
-                                  src={`${API_BASE}${url}`}
-                                  preload="metadata"
-                                  className="w-full h-auto max-h-96 object-contain bg-gray-100"
-                                  onClick={(e) => { e.stopPropagation(); setSelectedMedia({ url: `${API_BASE}${url}`, isVideo: true }); }}
-                                />
-                              </button>
-                            ) : (
-                              <button
-                                key={i}
-                                onClick={() => setSelectedMedia({ url: `${API_BASE}${url}`, isVideo: false })}
-                                className="w-full block focus:outline-none focus:ring-2 focus:ring-inset focus:ring-teal"
-                              >
-                                <img
-                                  src={`${API_BASE}${url}`}
-                                  alt={`${item.title} media ${i + 1}`}
-                                  className="w-full h-auto max-h-96 object-contain bg-gray-100"
-                                />
-                              </button>
-                            )
-                          )}
-                        </div>
-                      )}
-
-                      {/* Content */}
-                      <div className="p-5 sm:p-6 text-center">
-                        <div className="flex items-center justify-center gap-2 flex-wrap">
-                          <span
-                            className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider"
-                            style={{
-                              backgroundColor:
-                                item.type === "event"
-                                  ? "rgba(146, 199, 207, 0.1)"
-                                  : "rgba(229, 225, 218, 0.4)",
-                              color:
-                                item.type === "event" ? "#92C7CF" : "#8a8a8a",
-                            }}
-                          >
-                            {item.type === "event" ? "Event" : "News"}
-                          </span>
-                          <span className="text-xs" style={{ color: "#999" }}>
-                            {new Date(item.created_at).toLocaleDateString("en-US", {
-                              month: "short",
-                              day: "numeric",
-                              year: "numeric",
-                            })}
-                          </span>
-                        </div>
-
-                        <h3 className="mt-3 text-lg font-semibold text-gray-800 leading-snug">
-                          {item.title}
-                        </h3>
-
-                        <p className="mt-2 text-sm leading-relaxed" style={{ color: "#6b6b6b" }}>
-                          {item.caption}
-                        </p>
-
-                        {item.location && (
-                          <div className="mt-4 flex items-center justify-center gap-1.5 text-xs" style={{ color: "#999" }}>
-                            <MapPin className="h-3.5 w-3.5" style={{ color: "#92C7CF" }} />
-                            {item.location}
-                          </div>
-                        )}
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              );
-            })()}
           </div>
         </section>
 

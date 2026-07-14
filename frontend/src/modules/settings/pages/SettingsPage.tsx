@@ -1,16 +1,18 @@
 import { useEffect, useState } from "react";
-import { Users, UserPlus, Check, X, Building2, Activity, Megaphone } from "lucide-react";
+import { Users, UserPlus, Check, X, Building2, Activity, Megaphone, Newspaper } from "lucide-react";
 import UserAccountsPage from "./UserAccountsPage";
 import CreateUserAccountPage from "./CreateUserAccountPage";
 import OperatorProfilesPage from "./OperatorProfilesPage";
 import ActivityLogsPage from "./ActivityLogsPage";
 import AnnouncementsPage from "../../announcements/pages/AnnouncementsPage";
+import EventsNewsAdminPage from "../../events-news/pages/EventsNewsAdminPage";
 import { useAuth } from "../../../context/AuthContext";
 import { TopTabs } from "../../../shared/components";
 
 const mainTabs = [
     { id: "user-accounts", label: "Users", icon: Users },
     { id: "announcements", label: "Announcements", icon: Megaphone },
+    { id: "events-news", label: "Events & News", icon: Newspaper },
     { id: "activity-logs", label: "Activity Logs", icon: Activity },
 ];
 
@@ -153,6 +155,7 @@ function AdminSettingsPage() {
                 )}
 
                 {activeTab === "announcements" && <AnnouncementsPage />}
+                {activeTab === "events-news" && <EventsNewsAdminPage />}
                 {activeTab === "activity-logs" && <ActivityLogsPage />}
             </div>
         </div>
