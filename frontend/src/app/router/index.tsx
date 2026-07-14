@@ -19,7 +19,7 @@ import RoleGuard from "../../components/RoleGuard";
 // weighing down users who never see them.
 // ---------------------------------------------------------------------------
 
-const LandingPage = lazy(() => import("../../pages/LandingPage"));
+const LandingPage = lazy(() => import("../../modules/landing-page/pages/LandingPage"));
 const DashboardLayout = lazy(() => import("../../app/layouts/DashboardLayout"));
 const DashboardHome = lazy(() => import("../../pages/dashboard/DashboardHome"));
 

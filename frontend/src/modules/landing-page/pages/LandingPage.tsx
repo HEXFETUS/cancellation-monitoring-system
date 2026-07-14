@@ -11,10 +11,10 @@ import {
   Loader2,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
-import LoginModal from "../components/LoginModal";
-import LogoWithName from "../assets/LogoWithName.webp";
-import LogoOnly from "../assets/LogoOnly.webp";
+import { useAuth } from "../../../context/AuthContext";
+import LoginModal from "../../../components/LoginModal";
+import LogoWithName from "../../../assets/LogoWithName.webp";
+import LogoOnly from "../../../assets/LogoOnly.webp";
 
 const API_BASE = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 
