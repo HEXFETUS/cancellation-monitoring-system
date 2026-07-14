@@ -37,7 +37,7 @@ export default function EventsNewsAdminPage() {
     // Composer state
     const [title, setTitle] = useState("");
     const [caption, setCaption] = useState("");
-    const [type, setType] = useState<"event" | "news">("news");
+    const [type, setType] = useState<"event" | "news">("event");
     const [location, setLocation] = useState("");
     const [scheduledAt, setScheduledAt] = useState("");
     const [media, setMedia] = useState<SelectedMedia[]>([]);
@@ -46,6 +46,10 @@ export default function EventsNewsAdminPage() {
     const [editingId, setEditingId] = useState<number | null>(null);
     const [submitting, setSubmitting] = useState(false);
     const [formError, setFormError] = useState("");
+
+    // Drag-and-drop state for reordering media
+    const [dragIndex, setDragIndex] = useState<number | null>(null);
+    const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
     // Pending action for the confirmation modal
     const [pendingStatus, setPendingStatus] = useState<"published" | "scheduled" | null>(null);
@@ -96,7 +100,7 @@ export default function EventsNewsAdminPage() {
     const resetForm = () => {
         setTitle("");
         setCaption("");
-        setType("news");
+        setType("event");
         setLocation("");
         setScheduledAt("");
         media.forEach((m) => URL.revokeObjectURL(m.preview));
@@ -152,6 +156,26 @@ export default function EventsNewsAdminPage() {
             const target = prev[index];
             if (target) URL.revokeObjectURL(target.preview);
             return prev.filter((_, i) => i !== index);
+        });
+    };
+
+    // Reorder media (new uploads)
+    const reorderMedia = (fromIndex: number, toIndex: number) => {
+        setMedia((prev) => {
+            const next = [...prev];
+            const [moved] = next.splice(fromIndex, 1);
+            next.splice(toIndex, 0, moved);
+            return next;
+        });
+    };
+
+    // Reorder server media
+    const reorderServerMedia = (fromIndex: number, toIndex: number) => {
+        setServerMedia((prev) => {
+            const next = [...prev];
+            const [moved] = next.splice(fromIndex, 1);
+            next.splice(toIndex, 0, moved);
+            return next;
         });
     };
 
@@ -281,11 +305,10 @@ export default function EventsNewsAdminPage() {
                                 key={t}
                                 type="button"
                                 onClick={() => setType(t)}
-                                className={`flex-1 rounded-xl px-3 py-2 text-sm font-semibold capitalize transition ${
-                                    type === t
+                                className={`flex-1 rounded-xl px-3 py-2 text-sm font-semibold capitalize transition ${type === t
                                         ? "bg-teal text-ink shadow"
                                         : "border border-warm bg-card text-ink-muted hover:bg-slate-50"
-                                }`}
+                                    }`}
                             >
                                 {t}
                             </button>
@@ -346,8 +369,35 @@ export default function EventsNewsAdminPage() {
                                 {media.map((m, i) => (
                                     <div
                                         key={m.preview}
-                                        className="group relative aspect-square overflow-hidden rounded-lg border border-warm bg-black/5"
+                                        draggable
+                                        onDragStart={() => setDragIndex(i)}
+                                        onDragOver={(e) => {
+                                            e.preventDefault();
+                                            setDragOverIndex(i);
+                                        }}
+                                        onDragLeave={() => setDragOverIndex(null)}
+                                        onDrop={() => {
+                                            if (dragIndex !== null && dragIndex !== i) {
+                                                reorderMedia(dragIndex, i);
+                                            }
+                                            setDragIndex(null);
+                                            setDragOverIndex(null);
+                                        }}
+                                        onDragEnd={() => {
+                                            setDragIndex(null);
+                                            setDragOverIndex(null);
+                                        }}
+                                        className={`group relative aspect-square cursor-move overflow-hidden rounded-lg border-2 transition ${
+                                            dragIndex === i
+                                                ? "border-teal opacity-50"
+                                                : dragOverIndex === i
+                                                    ? "border-teal"
+                                                    : "border-warm"
+                                        } bg-black/5`}
                                     >
+                                        <div className="absolute left-1 top-1 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-[10px] font-bold text-white">
+                                            {i + 1}
+                                        </div>
                                         {m.file.type.startsWith("video") ? (
                                             <video
                                                 src={m.preview}
@@ -362,7 +412,10 @@ export default function EventsNewsAdminPage() {
                                         )}
                                         <button
                                             type="button"
-                                            onClick={() => removeMedia(i)}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                removeMedia(i);
+                                            }}
                                             className="absolute right-1 top-1 rounded-full bg-black/60 p-1 text-white opacity-0 transition group-hover:opacity-100"
                                             title="Remove"
                                         >
@@ -378,8 +431,35 @@ export default function EventsNewsAdminPage() {
                                 {serverMedia.map((url, i) => (
                                     <div
                                         key={url}
-                                        className="group relative aspect-square overflow-hidden rounded-lg border border-warm bg-black/5"
+                                        draggable
+                                        onDragStart={() => setDragIndex(i)}
+                                        onDragOver={(e) => {
+                                            e.preventDefault();
+                                            setDragOverIndex(i);
+                                        }}
+                                        onDragLeave={() => setDragOverIndex(null)}
+                                        onDrop={() => {
+                                            if (dragIndex !== null && dragIndex !== i) {
+                                                reorderServerMedia(dragIndex, i);
+                                            }
+                                            setDragIndex(null);
+                                            setDragOverIndex(null);
+                                        }}
+                                        onDragEnd={() => {
+                                            setDragIndex(null);
+                                            setDragOverIndex(null);
+                                        }}
+                                        className={`group relative aspect-square cursor-move overflow-hidden rounded-lg border-2 transition ${
+                                            dragIndex === i
+                                                ? "border-teal opacity-50"
+                                                : dragOverIndex === i
+                                                    ? "border-teal"
+                                                    : "border-warm"
+                                        } bg-black/5`}
                                     >
+                                        <div className="absolute left-1 top-1 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-[10px] font-bold text-white">
+                                            {i + 1}
+                                        </div>
                                         {/\.mp4$/i.test(url) ? (
                                             <video
                                                 src={`${API_BASE}${url}`}
@@ -394,7 +474,10 @@ export default function EventsNewsAdminPage() {
                                         )}
                                         <button
                                             type="button"
-                                            onClick={() => removeServerMedia(i)}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                removeServerMedia(i);
+                                            }}
                                             className="absolute right-1 top-1 rounded-full bg-black/60 p-1 text-white opacity-0 transition group-hover:opacity-100"
                                             title="Remove"
                                         >
@@ -406,7 +489,7 @@ export default function EventsNewsAdminPage() {
                         )}
 
                         <p className="mt-1 text-[10px] text-ink-subtle">
-                            Up to 5 images (JPG/PNG) or MP4 videos, 10 MB each.
+                            Up to 5 images (JPG/PNG) or MP4 videos, 10 MB each. Drag to reorder.
                         </p>
                     </div>
 
@@ -518,20 +601,18 @@ export default function EventsNewsAdminPage() {
                                                         </h4>
                                                     )}
                                                     <span
-                                                        className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium capitalize ${
-                                                            p.type === "event"
+                                                        className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium capitalize ${p.type === "event"
                                                                 ? "bg-teal/15 text-teal-dark"
                                                                 : "bg-slate-100 text-slate-600"
-                                                        }`}
+                                                            }`}
                                                     >
                                                         {p.type}
                                                     </span>
                                                     <span
-                                                        className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
-                                                            p.status === "published"
+                                                        className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${p.status === "published"
                                                                 ? "text-green-700 bg-green-100"
                                                                 : "text-blue-700 bg-blue-100"
-                                                        }`}
+                                                            }`}
                                                     >
                                                         {p.status}
                                                     </span>
