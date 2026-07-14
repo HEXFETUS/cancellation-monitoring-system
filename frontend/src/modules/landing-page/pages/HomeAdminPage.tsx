@@ -22,6 +22,11 @@ export default function HomeAdminPage() {
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState("");
 
+    // Saved content (for preview)
+    const [savedTitle, setSavedTitle] = useState("");
+    const [savedDescription, setSavedDescription] = useState("");
+    const [savedImages, setSavedImages] = useState<string[]>([]);
+
     // Form fields
     const [heroTitle, setHeroTitle] = useState("");
     const [heroDescription, setHeroDescription] = useState("");
@@ -53,6 +58,10 @@ export default function HomeAdminPage() {
                 setHeroTitle(data.title || "");
                 setHeroDescription(data.description || "");
                 setServerMedia(data.image_urls || []);
+                // Update preview with saved data
+                setSavedTitle(data.title || "");
+                setSavedDescription(data.description || "");
+                setSavedImages(data.image_urls || []);
             }
         } catch (e) {
             setError(e instanceof Error ? e.message : "Failed to load");
@@ -121,10 +130,13 @@ export default function HomeAdminPage() {
                 userId
             );
             showToast("Home section updated successfully.", "success");
+            // Update preview with new data
+            setSavedTitle(heroTitle.trim());
+            setSavedDescription(heroDescription.trim());
+            setSavedImages([...serverMedia, ...media.map((m) => `/uploads/${m.file.name}`)]);
             setServerMedia((prev) => [...prev, ...media.map((m) => `/uploads/${m.file.name}`)]);
             media.forEach((m) => URL.revokeObjectURL(m.preview));
             setMedia([]);
-            await load();
         } catch (e) {
             setFormError(e instanceof Error ? e.message : "Failed to save");
         } finally {
@@ -137,6 +149,7 @@ export default function HomeAdminPage() {
         try {
             await deleteLandingPageImage("home", url);
             showToast("Image removed.", "success");
+            setSavedImages((prev) => prev.filter((u) => u !== url));
             removeServerMedia(serverMedia.indexOf(url));
         } catch (e) {
             showToast(e instanceof Error ? e.message : "Failed to delete image", "error");
@@ -288,15 +301,15 @@ export default function HomeAdminPage() {
                 {/* Preview panel */}
                 <div className="flex flex-1 flex-col min-h-0 overflow-hidden rounded-2xl border border-warm bg-white/60 p-5 shadow-sm">
                     <h3 className="text-[11px] font-bold uppercase tracking-[0.12em] text-ink-muted/70 mb-3">
-                        Preview
+                        Current Preview
                     </h3>
                     <div className="flex-1 overflow-y-auto">
                         <div className="rounded-xl border border-warm bg-white p-4 shadow-xs">
-                            <h3 className="text-lg font-bold text-ink line-clamp-2">{heroTitle || "Hero Title"}</h3>
-                            <p className="mt-1 text-sm text-ink-muted line-clamp-3">{heroDescription || "Hero description will appear here..."}</p>
-                            {serverMedia.length > 0 && (
+                            <h3 className="text-lg font-bold text-ink line-clamp-2">{savedTitle || "Hero Title"}</h3>
+                            <p className="mt-1 text-sm text-ink-muted line-clamp-3">{savedDescription || "Hero description will appear here..."}</p>
+                            {savedImages.length > 0 && (
                                 <div className="mt-3 flex gap-2 overflow-x-auto">
-                                    {serverMedia.slice(0, 5).map((url) => (
+                                    {savedImages.slice(0, 5).map((url) => (
                                         <img key={url} src={`${API_BASE}${url}`} alt="" className="h-16 w-16 rounded-lg object-cover" />
                                     ))}
                                 </div>

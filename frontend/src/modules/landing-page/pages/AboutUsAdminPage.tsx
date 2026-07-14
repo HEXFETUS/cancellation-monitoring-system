@@ -24,6 +24,11 @@ export default function AboutUsAdminPage() {
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState("");
 
+    // Saved content (for preview)
+    const [savedTitle, setSavedTitle] = useState("");
+    const [savedDescription, setSavedDescription] = useState("");
+    const [savedBadges, setSavedBadges] = useState<Badge[]>(DEFAULT_BADGES);
+
     // Form fields
     const [sectionTitle, setSectionTitle] = useState("");
     const [sectionDescription, setSectionDescription] = useState("");
@@ -65,6 +70,11 @@ export default function AboutUsAdminPage() {
                 } else {
                     setBadges(DEFAULT_BADGES);
                 }
+
+                // Update preview
+                setSavedTitle(data.title || "");
+                setSavedDescription(data.description || "");
+                setSavedBadges(badges);
             }
         } catch (e) {
             setError(e instanceof Error ? e.message : "Failed to load");
@@ -117,6 +127,10 @@ export default function AboutUsAdminPage() {
                 userId
             );
             showToast("About Us section updated successfully.", "success");
+            // Update preview
+            setSavedTitle(sectionTitle.trim());
+            setSavedDescription(sectionDescription.trim());
+            setSavedBadges(validBadges);
             await load();
         } catch (e) {
             setFormError(e instanceof Error ? e.message : "Failed to save");
@@ -239,15 +253,15 @@ export default function AboutUsAdminPage() {
                 {/* Preview panel */}
                 <div className="flex flex-1 flex-col min-h-0 overflow-hidden rounded-2xl border border-warm bg-white/60 p-5 shadow-sm">
                     <h3 className="text-[11px] font-bold uppercase tracking-[0.12em] text-ink-muted/70 mb-3">
-                        Preview
+                        Current Preview
                     </h3>
                     <div className="flex-1 overflow-y-auto">
                         <div className="rounded-xl border border-warm bg-white p-4 shadow-xs">
-                            <h3 className="text-lg font-bold text-ink">{sectionTitle || "Section Title"}</h3>
-                            <p className="mt-1 text-sm text-ink-muted">{sectionDescription || "Section description..."}</p>
+                            <h3 className="text-lg font-bold text-ink">{savedTitle || "Section Title"}</h3>
+                            <p className="mt-1 text-sm text-ink-muted">{savedDescription || "Section description..."}</p>
                             
                             <div className="mt-4 flex flex-wrap gap-2">
-                                {badges.filter(b => b.text).map((badge, i) => (
+                                {savedBadges.filter(b => b.text).map((badge, i) => (
                                     <div
                                         key={i}
                                         className="flex items-center gap-2 rounded-full bg-teal/10 px-3 py-1.5 text-xs font-medium text-ink"
