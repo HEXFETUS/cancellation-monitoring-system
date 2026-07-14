@@ -37,6 +37,12 @@ export default function SocialResponsibilityAdminPage() {
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState("");
 
+    // Saved content (for preview)
+    const [savedTitle, setSavedTitle] = useState("");
+    const [savedDescription, setSavedDescription] = useState("");
+    const [savedImpact, setSavedImpact] = useState<ImpactItem[]>(DEFAULT_IMPACT);
+    const [savedStats, setSavedStats] = useState<Record<string, string>>(DEFAULT_STATS);
+
     // Form fields
     const [sectionTitle, setSectionTitle] = useState("");
     const [sectionDescription, setSectionDescription] = useState("");
@@ -84,6 +90,12 @@ export default function SocialResponsibilityAdminPage() {
                 if (data.stats && typeof data.stats === "object") {
                     setStats((prev) => ({ ...prev, ...data.stats }));
                 }
+
+                // Update preview
+                setSavedTitle(data.title || "");
+                setSavedDescription(data.description || "");
+                setSavedImpact(impactItems);
+                setSavedStats(stats);
             }
         } catch (e) {
             setError(e instanceof Error ? e.message : "Failed to load");
@@ -141,6 +153,11 @@ export default function SocialResponsibilityAdminPage() {
                 userId
             );
             showToast("Social Responsibility section updated successfully.", "success");
+            // Update preview
+            setSavedTitle(sectionTitle.trim());
+            setSavedDescription(sectionDescription.trim());
+            setSavedImpact(validImpact);
+            setSavedStats(stats);
             await load();
         } catch (e) {
             setFormError(e instanceof Error ? e.message : "Failed to save");
@@ -320,15 +337,15 @@ export default function SocialResponsibilityAdminPage() {
                 {/* Preview panel */}
                 <div className="flex flex-1 flex-col min-h-0 overflow-hidden rounded-2xl border border-warm bg-white/60 p-5 shadow-sm">
                     <h3 className="text-[11px] font-bold uppercase tracking-[0.12em] text-ink-muted/70 mb-3">
-                        Preview
+                        Current Preview
                     </h3>
                     <div className="flex-1 overflow-y-auto">
                         <div className="rounded-xl border border-warm bg-white p-4 shadow-xs">
-                            <h3 className="text-lg font-bold text-ink">{sectionTitle || "Section Title"}</h3>
-                            <p className="mt-1 text-sm text-ink-muted">{sectionDescription || "Section description..."}</p>
+                            <h3 className="text-lg font-bold text-ink">{savedTitle || "Section Title"}</h3>
+                            <p className="mt-1 text-sm text-ink-muted">{savedDescription || "Section description..."}</p>
                             
                             <div className="mt-4 space-y-3">
-                                {impactItems.filter(i => i.title).map((item, i) => (
+                                {savedImpact.filter(i => i.title).map((item, i) => (
                                     <div key={i} className="rounded-lg border border-warm bg-card p-3">
                                         <h4 className="text-sm font-semibold text-ink">{item.title}</h4>
                                         <p className="mt-1 text-xs text-ink-muted">{item.description}</p>
@@ -341,7 +358,7 @@ export default function SocialResponsibilityAdminPage() {
                             </div>
 
                             <div className="mt-4 grid grid-cols-2 gap-2">
-                                {Object.entries(stats).filter(([k]) => k && stats[k]).map(([key, value]) => (
+                                {Object.entries(savedStats).filter(([k]) => k && savedStats[k]).map(([key, value]) => (
                                     <div key={key} className="rounded-lg bg-teal/5 p-2 text-center">
                                         <p className="text-lg font-bold text-teal-dark">{value}</p>
                                         <p className="text-[10px] text-ink-muted">{key}</p>
