@@ -7,6 +7,9 @@ import ActivityLogsPage from "./ActivityLogsPage";
 import AnnouncementsPage from "../../announcements/pages/AnnouncementsPage";
 import EventsNewsAdminPage from "../../landing-page/pages/EventsNewsAdminPage";
 import ResultsAdminPage from "../../landing-page/pages/ResultsAdminPage";
+import HomeAdminPage from "../../landing-page/pages/HomeAdminPage";
+import SocialResponsibilityAdminPage from "../../landing-page/pages/SocialResponsibilityAdminPage";
+import AboutUsAdminPage from "../../landing-page/pages/AboutUsAdminPage";
 import { useAuth } from "../../../context/AuthContext";
 import { TopTabs } from "../../../shared/components";
 
@@ -18,8 +21,11 @@ const mainTabs = [
 ];
 
 const landingSubTabs = [
+    { id: "home", label: "Home" },
     { id: "events-news", label: "Events & News" },
     { id: "results", label: "Results" },
+    { id: "social-responsibility", label: "Social Responsibility" },
+    { id: "about-us", label: "About Us" },
 ];
 
 const userSubTabs = [
@@ -85,7 +91,7 @@ function OperatorSettingsPage() {
 function AdminSettingsPage() {
     const [activeTab, setActiveTab] = useState("user-accounts");
     const [activeUserSubTab, setActiveUserSubTab] = useState("accounts");
-    const [activeLandingSubTab, setActiveLandingSubTab] = useState("events-news");
+    const [activeLandingSubTab, setActiveLandingSubTab] = useState("home");
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
     const [darkMode, setDarkMode] = useState(() => {
         return document.documentElement.classList.contains("dark") || localStorage.getItem("theme") === "dark";
@@ -171,6 +177,9 @@ function AdminSettingsPage() {
                             onChange={setActiveLandingSubTab}
                             ariaLabel="Landing page sub-sections"
                         />
+                        {activeLandingSubTab === "home" && <HomeAdminPage />}
+                        {activeLandingSubTab === "social-responsibility" && <SocialResponsibilityAdminPage />}
+                        {activeLandingSubTab === "about-us" && <AboutUsAdminPage />}
                         {activeLandingSubTab === "events-news" && <EventsNewsAdminPage />}
                         {activeLandingSubTab === "results" && <ResultsAdminPage />}
                     </div>
