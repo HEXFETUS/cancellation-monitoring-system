@@ -153,7 +153,7 @@ function MediaCarousel({
 }: {
   urls: string[];
   alt: string;
-  onOpen: (url: string, isVideo: boolean) => void;
+  onOpen: (urls: string[], index: number) => void;
   apiBase: string;
 }) {
   const [index, setIndex] = useState(0);
@@ -171,7 +171,7 @@ function MediaCarousel({
     <div className="relative bg-gray-100">
       <button
         type="button"
-        onClick={() => onOpen(fullUrl, isVideo)}
+        onClick={() => onOpen(urls, safeIndex)}
         className="block w-full focus:outline-none focus:ring-2 focus:ring-inset focus:ring-teal"
       >
         {isVideo ? (
@@ -181,7 +181,7 @@ function MediaCarousel({
             className="w-full h-auto max-h-96 object-contain bg-gray-100"
             onClick={(e) => {
               e.stopPropagation();
-              onOpen(fullUrl, true);
+              onOpen(urls, safeIndex);
             }}
           />
         ) : (
@@ -247,19 +247,19 @@ export default function LandingPage() {
   const [announcementsLoading, setAnnouncementsLoading] = useState(true);
 
   // Media lightbox
-  const [selectedMedia, setSelectedMedia] = useState<{ url: string; isVideo: boolean } | null>(null);
+  const [lightboxState, setLightboxState] = useState<{ urls: string[]; index: number } | null>(null);
   const lightboxRef = useRef<HTMLDivElement>(null);
-  const closeMedia = useCallback(() => setSelectedMedia(null), []);
+  const closeMedia = useCallback(() => setLightboxState(null), []);
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => { if (e.key === "Escape") closeMedia(); };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
   }, [closeMedia]);
   useEffect(() => {
-    if (selectedMedia) document.body.style.overflow = "hidden";
+    if (lightboxState) document.body.style.overflow = "hidden";
     else document.body.style.overflow = "";
     return () => { document.body.style.overflow = ""; };
-  }, [selectedMedia]);
+  }, [lightboxState]);
 
   const slide = useSlideshow(slideshowImages, 4500);
 
@@ -339,6 +339,42 @@ export default function LandingPage() {
     if (!resultsByArea[r.area]) resultsByArea[r.area] = [];
     resultsByArea[r.area].push(r);
   });
+
+  const stlResults = results.filter((r) => r.game_type === "STL");
+  const threeDResults = results.filter((r) => r.game_type === "3D");
+
+  const stlCdoByTime = new Map<string, LotteryResult>();
+  const stlMisorByTime = new Map<string, LotteryResult>();
+  const threeDByTime = new Map<string, LotteryResult>();
+
+  const timeFromLabel = (label: string) => label.replace(/^(STL|3D)\s*/, "").trim();
+
+  results.forEach((r) => {
+    const t = timeFromLabel(r.draw_label);
+    if (r.game_type === "STL" && r.area === "Local CDO") {
+      stlCdoByTime.set(t, r);
+    } else if (r.game_type === "STL" && r.area === "Local MISOR") {
+      stlMisorByTime.set(t, r);
+    } else if (r.game_type === "3D") {
+      threeDByTime.set(t, r);
+    }
+  });
+
+  const stlTimes = ["11AM", "4PM", "8PM"];
+  const threeDTimes = ["1PM", "5PM", "9PM"];
+
+  const todayDrawDate =
+    results.length > 0
+      ? new Date(results[0].draw_date).toLocaleDateString("en-US", {
+          month: "long",
+          day: "numeric",
+          year: "numeric",
+        })
+      : new Date().toLocaleDateString("en-US", {
+          month: "long",
+          day: "numeric",
+          year: "numeric",
+        });
 
   return (
     <div
@@ -654,23 +690,21 @@ export default function LandingPage() {
                 );
               }
 
-              const threeDaysAgo = new Date();
-              threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
-              const recentAnnouncements = announcements.filter(
-                (item) => new Date(item.created_at) >= threeDaysAgo
-              );
+              const sortedAnnouncements = [...announcements]
+                .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                .slice(0, 4);
 
-              if (recentAnnouncements.length === 0) {
+              if (sortedAnnouncements.length === 0) {
                 return (
                   <p className="mt-12 text-center text-sm" style={{ color: "#999" }}>
-                    No recent posts in the last 3 days. Check back later.
+                    No posts yet. Check back later.
                   </p>
                 );
               }
 
               return (
-                <div className="mt-16 mx-auto max-w-5xl grid gap-10 md:grid-cols-2">
-                  {recentAnnouncements.map((item) => (
+                <div className="mt-16 mx-auto max-w-[1400px] grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+                  {sortedAnnouncements.map((item) => (
                     <article
                       key={item.id}
                       className="group rounded-2xl overflow-hidden transition-all duration-300 bg-white"
@@ -694,16 +728,16 @@ export default function LandingPage() {
                         <MediaCarousel
                           urls={item.media_urls}
                           alt={item.title || "Events & News media"}
-                          onOpen={(url, isVideo) => setSelectedMedia({ url, isVideo })}
+                          onOpen={(urls, index) => setLightboxState({ urls, index })}
                           apiBase={API_BASE}
                         />
                       )}
 
                       {/* Content */}
-                      <div className="p-5 sm:p-6 text-center">
+                      <div className="p-4 sm:p-5 text-center">
                         <div className="flex items-center justify-center gap-2 flex-wrap">
                           <span
-                            className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider"
+                            className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider"
                             style={{
                               backgroundColor:
                                 item.type === "event"
@@ -715,28 +749,33 @@ export default function LandingPage() {
                           >
                             {item.type === "event" ? "Event" : "News"}
                           </span>
-                          <span className="text-xs" style={{ color: "#999" }}>
+                          <span className="text-[11px]" style={{ color: "#999" }}>
                             {new Date(item.created_at).toLocaleDateString("en-US", {
                               month: "short",
                               day: "numeric",
-                              year: "numeric",
                             })}
                           </span>
                         </div>
 
                         {item.title && (
-                          <h3 className="mt-3 text-lg font-semibold text-gray-800 leading-snug">
+                          <h3 className="mt-2 text-base font-semibold text-gray-800 leading-snug line-clamp-2">
                             {item.title}
                           </h3>
                         )}
 
-                        <p className="mt-2 text-sm leading-relaxed whitespace-pre-line" style={{ color: "#6b6b6b" }}>
-                          {item.caption}
+                        <p className="mt-1.5 text-xs leading-snug whitespace-pre-line" style={{ color: "#6b6b6b" }}>
+                          {item.caption.split(/(#\w+)/g).map((part, i) => 
+                            part.startsWith('#') ? (
+                              <span key={i} className="font-medium" style={{ color: "#92C7CF" }}>{part}</span>
+                            ) : (
+                              part
+                            )
+                          )}
                         </p>
 
                         {item.location && (
-                          <div className="mt-4 flex items-center justify-center gap-1.5 text-xs" style={{ color: "#999" }}>
-                            <MapPin className="h-3.5 w-3.5" style={{ color: "#92C7CF" }} />
+                          <div className="mt-3 flex items-center justify-center gap-1.5 text-[11px]" style={{ color: "#999" }}>
+                            <MapPin className="h-3 w-3" style={{ color: "#92C7CF" }} />
                             {item.location}
                           </div>
                         )}
@@ -767,6 +806,21 @@ export default function LandingPage() {
               <h2 className="mt-3 text-3xl sm:text-4xl font-bold tracking-tight text-gray-800">
                 Today's Result
               </h2>
+              <div className="mt-4 inline-block">
+                <span
+                  className="inline-flex items-center gap-2 rounded-full px-5 py-2 text-base font-bold tracking-wide"
+                  style={{
+                    backgroundColor: "rgba(146, 199, 207, 0.15)",
+                    color: "#2a5a5a",
+                    border: "1.5px solid rgba(146, 199, 207, 0.3)",
+                  }}
+                >
+                  <svg className="h-5 w-5" style={{ color: "#92C7CF" }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 0 00-2-2H5a2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  {todayDrawDate}
+                </span>
+              </div>
               <p className="mt-4 leading-relaxed" style={{ color: "#6b6b6b" }}>
                 Check the latest winning numbers for our lottery draws.
               </p>
@@ -781,63 +835,90 @@ export default function LandingPage() {
                 No results posted yet. Check back later.
               </p>
             ) : (
-              <div className="mt-12 grid gap-6 md:grid-cols-3 max-w-4xl mx-auto">
-                {["National", "Local CDO", "Local MISOR"].map((area) => {
-                  const areaResults = resultsByArea[area] || [];
-                  return areaResults.slice(0, 3).map((r) => (
-                    <div
-                      key={r.id}
-                      className="rounded-2xl p-3 text-center transition-all"
-                      style={{
-                        backgroundColor: "white",
-                        border: ".5px solid rgba(229, 225, 218, 0.5)",
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.boxShadow = "0 8px 30px rgba(146, 199, 207, 0.15)";
-                        e.currentTarget.style.borderColor = "#92C7CF";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.boxShadow = "none";
-                        e.currentTarget.style.borderColor = "rgba(229, 225, 218, 0.5)";
-                      }}
-                    >
-                      <span
-                        className="text-sm font-semibold tracking-wider uppercase"
-                        style={{ color: "#92C7CF" }}
-                      >
-                        {r.area}
-                      </span>
-                      {r.game_type && (
-                        <span
-                          className="text-[10px] font-semibold uppercase tracking-wider rounded-full px-2 py-0.5"
-                          style={{
-                            backgroundColor: r.game_type === "3D" ? "rgba(168, 85, 247, 0.1)" : "rgba(146, 199, 207, 0.1)",
-                            color: r.game_type === "3D" ? "#a855f7" : "#92C7CF",
-                          }}
-                        >
-                          {r.game_type}
-                        </span>
-                      )}
-                      <p className="mt-1 text-xs font-medium" style={{ color: "#6b6b6b" }}>
-                        {r.draw_label}
-                      </p>
-                      <p
-                        className="mt-3 text-5xl sm:text-4xl font-bold tracking-tight"
-                        style={{ color: "#4a4a4a" }}
-                      >
-                        {r.winning_number}
-                      </p>
-                      <p className="mt-4 text-xs" style={{ color: "#999" }}>
-                        Draw Date:{" "}
-                        {new Date(r.draw_date).toLocaleDateString("en-US", {
-                          month: "long",
-                          day: "numeric",
-                          year: "numeric",
-                        })}
-                      </p>
-                    </div>
-                  ));
-                })}
+              <div className="mt-12 space-y-6 max-w-5xl mx-auto">
+                {/* STL CDO Row */}
+                <div className="rounded-2xl overflow-hidden bg-white shadow-lg transition-all duration-300 hover:shadow-xl" style={{ border: "1.5px solid #E5E1DA" }}>
+                  <div className="px-4 py-2.5 text-center" style={{ background: "linear-gradient(135deg, rgba(146, 199, 207, 0.25) 0%, rgba(146, 199, 207, 0.12) 100%)", borderBottom: "1.5px solid #E5E1DA" }}>
+                    <span className="text-lg font-bold tracking-wider" style={{ color: "#2a5a5a" }}>
+                      STL CDO
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3">
+                    {stlTimes.map((time) => {
+                      const result = stlCdoByTime.get(time);
+                      return (
+                        <div key={time} className="px-3 py-4 text-center border-r last:border-r-0 transition-colors duration-200 hover:bg-gray-50/50" style={{ borderColor: "#E5E1DA" }}>
+                          <p className="text-sm font-bold uppercase tracking-wider mb-2" style={{ color: "#92C7CF" }}>
+                            {time.replace("AM", " AM").replace("PM", " PM")}
+                          </p>
+                          {result ? (
+                            <p className="text-2xl sm:text-xl font-black tracking-tight" style={{ color: "#2a4a4a", textShadow: "0 1px 2px rgba(0,0,0,0.06)" }}>
+                              {result.winning_number}
+                            </p>
+                          ) : (
+                            <p className="text-sm" style={{ color: "#bbb" }}>—</p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* STL MISOR Row */}
+                <div className="rounded-2xl overflow-hidden bg-white shadow-lg transition-all duration-300 hover:shadow-xl" style={{ border: "1.5px solid #E5E1DA" }}>
+                  <div className="px-4 py-2.5 text-center" style={{ background: "linear-gradient(135deg, rgba(232, 168, 56, 0.22) 0%, rgba(232, 168, 56, 0.10) 100%)", borderBottom: "1.5px solid #E5E1DA" }}>
+                    <span className="text-lg font-bold tracking-wider" style={{ color: "#7a4a0a" }}>
+                      STL MISOR
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3">
+                    {stlTimes.map((time) => {
+                      const result = stlMisorByTime.get(time);
+                      return (
+                        <div key={time} className="px-3 py-4 text-center border-r last:border-r-0 transition-colors duration-200 hover:bg-gray-50/50" style={{ borderColor: "#E5E1DA" }}>
+                          <p className="text-sm font-bold uppercase tracking-wider mb-2" style={{ color: "#d97706" }}>
+                            {time.replace("AM", " AM").replace("PM", " PM")}
+                          </p>
+                          {result ? (
+                            <p className="text-2xl sm:text-xl font-black tracking-tight" style={{ color: "#5a3a1a", textShadow: "0 1px 2px rgba(0,0,0,0.06)" }}>
+                              {result.winning_number}
+                            </p>
+                          ) : (
+                            <p className="text-sm" style={{ color: "#bbb" }}>—</p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 3D Row */}
+                <div className="rounded-2xl overflow-hidden bg-white shadow-lg transition-all duration-300 hover:shadow-xl" style={{ border: "1.5px solid #E5E1DA" }}>
+                  <div className="px-4 py-2.5 text-center" style={{ background: "linear-gradient(135deg, rgba(168, 85, 247, 0.15) 0%, rgba(168, 85, 247, 0.06) 100%)", borderBottom: "1.5px solid #E5E1DA" }}>
+                    <span className="text-lg font-bold tracking-wider" style={{ color: "#4a2a5a" }}>
+                      3D
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3">
+                    {threeDTimes.map((time) => {
+                      const result = threeDByTime.get(time);
+                      return (
+                        <div key={time} className="px-3 py-4 text-center border-r last:border-r-0 transition-colors duration-200 hover:bg-gray-50/50" style={{ borderColor: "#E5E1DA" }}>
+                          <p className="text-sm font-bold uppercase tracking-wider mb-2" style={{ color: "#a855f7" }}>
+                            {time.replace("PM", " PM").replace("AM", " AM")}
+                          </p>
+                          {result ? (
+                            <p className="text-2xl sm:text-xl font-black tracking-tight" style={{ color: "#3a2a4a", textShadow: "0 1px 2px rgba(0,0,0,0.06)" }}>
+                              {result.winning_number}
+                            </p>
+                          ) : (
+                            <p className="text-sm" style={{ color: "#bbb" }}>—</p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -991,7 +1072,7 @@ export default function LandingPage() {
       </main>
 
       {/* ─── MEDIA LIGHTBOX ─── */}
-      {selectedMedia && (
+      {lightboxState && (
         <div
           ref={lightboxRef}
           className="fixed inset-0 z-100 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
@@ -1012,16 +1093,42 @@ export default function LandingPage() {
               </svg>
             </button>
 
-            {selectedMedia.isVideo ? (
+            {/* Previous button */}
+            {lightboxState.index > 0 && (
+              <button
+                onClick={() => setLightboxState(prev => prev ? { ...prev, index: prev.index - 1 } : null)}
+                className="absolute left-4 top-1/2 -translate-y-1/2 rounded-full bg-black/40 p-2 text-white transition hover:bg-black/60"
+                aria-label="Previous image"
+              >
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+            )}
+
+            {/* Next button */}
+            {lightboxState.index < lightboxState.urls.length - 1 && (
+              <button
+                onClick={() => setLightboxState(prev => prev ? { ...prev, index: prev.index + 1 } : null)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 rounded-full bg-black/40 p-2 text-white transition hover:bg-black/60"
+                aria-label="Next image"
+              >
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            )}
+
+            {lightboxState.urls[lightboxState.index]?.match(/\.mp4$/i) ? (
               <video
-                src={selectedMedia.url}
+                src={`${API_BASE}${lightboxState.urls[lightboxState.index]}`}
                 controls
                 autoPlay
                 className="w-full max-h-[85vh] rounded-lg object-contain"
               />
             ) : (
               <img
-                src={selectedMedia.url}
+                src={`${API_BASE}${lightboxState.urls[lightboxState.index]}`}
                 alt="Enlarged media"
                 className="w-full max-h-[85vh] rounded-lg object-contain"
               />
