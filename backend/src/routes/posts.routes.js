@@ -55,7 +55,7 @@ function getUserId(req) {
 router.get("/results", async (req, res) => {
     try {
         const result = await pool.query(
-            `SELECT id, draw_label, winning_number, area, draw_date, created_at
+            `SELECT id, draw_label, winning_number, area, draw_date, game_type, created_at
              FROM lottery_results
              WHERE draw_date >= CURRENT_DATE - INTERVAL '3 days'
              ORDER BY draw_date DESC, id DESC`
@@ -75,7 +75,7 @@ router.post("/results", async (req, res) => {
             return res.status(401).json({ error: "User ID is required" });
         }
 
-        const { draw_label, winning_number, area, draw_date } = req.body;
+        const { draw_label, winning_number, area, draw_date, game_type } = req.body;
         if (!draw_label?.trim() || !winning_number?.trim() || !area?.trim()) {
             return res.status(400).json({ error: "draw_label, winning_number, and area are required" });
         }
@@ -85,11 +85,14 @@ router.post("/results", async (req, res) => {
             return res.status(400).json({ error: `area must be one of: ${validAreas.join(", ")}` });
         }
 
+        const validGameTypes = ["STL", "3D"];
+        const finalGameType = validGameTypes.includes(game_type) ? game_type : "STL";
+
         const result = await pool.query(
-            `INSERT INTO lottery_results (draw_label, winning_number, area, draw_date, created_by)
-             VALUES ($1, $2, $3, $4, $5)
-             RETURNING id, draw_label, winning_number, area, draw_date, created_at`,
-            [draw_label.trim(), winning_number.trim(), area, draw_date || new Date().toISOString().split("T")[0], userId]
+            `INSERT INTO lottery_results (draw_label, winning_number, area, draw_date, game_type, created_by)
+             VALUES ($1, $2, $3, $4, $5, $6)
+             RETURNING id, draw_label, winning_number, area, draw_date, game_type, created_at`,
+            [draw_label.trim(), winning_number.trim(), area, draw_date || new Date().toISOString().split("T")[0], finalGameType, userId]
         );
 
         const created = result.rows[0];
