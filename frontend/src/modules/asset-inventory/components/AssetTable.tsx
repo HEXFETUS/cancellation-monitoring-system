@@ -37,8 +37,6 @@ interface AssetTableProps {
     onViewDetails?: (row: AssetRow) => void;
     /** Optional extra buttons rendered next to "Add Asset" in the header. */
     extraHeaderActions?: React.ReactNode;
-    /** Override the column header label for the `department` column. */
-    departmentLabel?: string;
     /** Hide the internal search/action header (when they are moved to tabs row). */
     hideHeader?: boolean;
     /** External search value to use instead of the internal search bar. Works with hideHeader. */
@@ -60,7 +58,6 @@ export default function AssetTable({
     onDelete,
     onViewDetails,
     extraHeaderActions,
-    departmentLabel = "Department",
     hideHeader = false,
     externalSearch,
 }: AssetTableProps) {
@@ -72,8 +69,8 @@ export default function AssetTable({
     const effectiveSearch = externalSearch !== undefined ? externalSearch : internalSearch;
 
     const showActions = Boolean(onViewDetails || onEdit || onDelete);
-    // Columns: Item Description, Department, Space, Qty, Discount, Asset Value, Total Value, Actions
-    const colCount = 7 + (showActions ? 1 : 0);
+    // Columns: Item Description, Space, Qty, Discount, Asset Value, Total Value, Actions
+    const colCount = 6 + (showActions ? 1 : 0);
 
     const filtered = useMemo(() => {
         const q = effectiveSearch.trim().toLowerCase();
@@ -83,7 +80,6 @@ export default function AssetTable({
                 r.itemDescription,
                 r.type,
                 r.serialNumber,
-                r.department,
                 r.space,
                 r.vendor,
                 r.color,
@@ -167,13 +163,12 @@ export default function AssetTable({
                 <table className="w-full min-w-250 text-sm">
                     <thead>
                         <tr className="border-b border-warm bg-cream">
-                            <Th align="left" style={{ width: "28%" }}>Item Description</Th>
-                            <Th align="center" style={{ width: "14%" }}>{departmentLabel}</Th>
-                            <Th align="center" style={{ width: "12%" }}>Space</Th>
+                            <Th align="left" style={{ width: "32%" }}>Item Description</Th>
+                            <Th align="center" style={{ width: "14%" }}>Space</Th>
                             <Th align="center" style={{ width: "8%" }}>Qty</Th>
-                            <Th align="center" style={{ width: "12%" }}>Discount</Th>
-                            <Th align="center" style={{ width: "13%" }}>Asset Value</Th>
-                            <Th align="center" style={{ width: "13%" }}>Total Value</Th>
+                            <Th align="center" style={{ width: "14%" }}>Discount</Th>
+                            <Th align="center" style={{ width: "15%" }}>Asset Value</Th>
+                            <Th align="center" style={{ width: "15%" }}>Total Value</Th>
                             {showActions && <Th align="center" style={{ width: "160px", minWidth: "160px" }}>Actions</Th>}
                         </tr>
                     </thead>
@@ -208,7 +203,6 @@ export default function AssetTable({
                                     <Td align="left" className="font-medium text-ink" style={{ whiteSpace: "normal", overflowWrap: "break-word", verticalAlign: "top" }}>
                                         <TruncatedDescription text={r.itemDescription} />
                                     </Td>
-                                    <Td>{r.department || "—"}</Td>
                                     <Td>{r.space || "—"}</Td>
                                     <Td>{r.quantity}</Td>
                                     <Td>{PHP.format(r.discount)}</Td>
