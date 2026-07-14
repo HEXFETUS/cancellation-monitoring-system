@@ -31,6 +31,7 @@ import cpOperatorChangeRequestRoutes from "./src/routes/cp-operator-change-reque
 import messagesRoutes from "./src/routes/messages.routes.js";
 import uploadRoutes from "./src/routes/upload.routes.js";
 import eventsNewsRoutes from "./src/routes/events-news.routes.js";
+import landingPageRoutes from "./src/routes/landing-page.routes.js";
 import dashboardRoutes from "./src/routes/dashboard.routes.js";
 import initDatabase from "./src/config/init.js";
 import { dbState, pingDatabase } from "./src/config/db.js";
@@ -94,6 +95,7 @@ app.use("/api/cp-operator-change-requests", cpOperatorChangeRequestRoutes);
 app.use("/api/messages", messagesRoutes);
 app.use("/api/upload", uploadRoutes);
 app.use("/api/events-news", eventsNewsRoutes);
+app.use("/api/landing-page", landingPageRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 
 // Honour the platform-provided PORT in production (Render, Railway, Fly,

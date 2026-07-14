@@ -676,6 +676,29 @@ async function initDatabase() {
             "CREATE INDEX IF NOT EXISTS idx_events_news_created_at ON events_news(created_at)"
         );
 
+        /* =========================
+           landing_page_content — editable CMS content for Home,
+           Social Responsibility, and About Us sections.
+           image_urls and stats store JSON arrays/objects.
+        ========================= */
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS landing_page_content (
+                id SERIAL PRIMARY KEY,
+                section VARCHAR(50) NOT NULL UNIQUE,
+                title VARCHAR(255),
+                description TEXT,
+                content TEXT,
+                image_urls TEXT DEFAULT '[]',
+                stats TEXT,
+                created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        await client.query(
+            "CREATE INDEX IF NOT EXISTS idx_landing_page_content_section ON landing_page_content(section)"
+        );
+
         for (const tableName of SERIAL_TABLES) {
             await syncSerialSequence(client, tableName);
         }
