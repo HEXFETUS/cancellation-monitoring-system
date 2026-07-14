@@ -642,6 +642,13 @@ async function initDatabase() {
         );
 
         /* =========================
+           game_type column for lottery_results
+        ========================= */
+        await client.query(
+            "ALTER TABLE lottery_results ADD COLUMN IF NOT EXISTS game_type VARCHAR(10) DEFAULT 'STL'"
+        );
+
+        /* =========================
             events_news — landing-page Events & News posts.
             media_urls stores a JSON array e.g. '["/uploads/abc.jpg"]'.
             type is 'event' or 'news'; status is 'published' or 'scheduled'.
