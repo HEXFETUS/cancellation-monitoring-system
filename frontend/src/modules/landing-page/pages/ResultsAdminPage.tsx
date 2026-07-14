@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
-import { Trash2, Send, Trophy } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Trash2, Send, Trophy, Check } from "lucide-react";
 import { useAuth } from "../../../context/AuthContext";
 import { ConfirmationModal, Toast } from "../../../shared/components";
 import {
@@ -22,8 +22,6 @@ const GAME_TIMES: Record<"STL" | "3D", { value: string; label: string }[]> = {
     ],
 };
 
-const AREAS = ["National", "Local CDO", "Local MISOR"];
-
 export default function ResultsAdminPage() {
     const { user } = useAuth();
     const userId = user?.id;
@@ -34,12 +32,16 @@ export default function ResultsAdminPage() {
 
     const [gameType, setGameType] = useState<"STL" | "3D">("STL");
     const [drawTime, setDrawTime] = useState("11AM");
-    const [area, setArea] = useState(AREAS[0]);
+    const [area, setArea] = useState("");
     const [winningNumber, setWinningNumber] = useState("");
     const [drawDate, setDrawDate] = useState(() => new Date().toISOString().split("T")[0]);
     const [submitting, setSubmitting] = useState(false);
+    const [showSaveConfirm, setShowSaveConfirm] = useState(false);
     const [formError, setFormError] = useState("");
 
+    const todayStr = new Date().toISOString().split("T")[0];
+    const yesterdayStr = new Date(Date.now() - 86400000).toISOString().split("T")[0];
+    const [pastFilterDate, setPastFilterDate] = useState(yesterdayStr);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
 
@@ -75,20 +77,70 @@ export default function ResultsAdminPage() {
     const resetForm = () => {
         setGameType("STL");
         setDrawTime("11AM");
-        setArea(AREAS[0]);
+        setArea("");
         setWinningNumber("");
         setDrawDate(new Date().toISOString().split("T")[0]);
         setFormError("");
     };
 
+    const postedDrawLabels = useMemo(() => {
+        return new Set(
+            results
+                .filter((r) => {
+                    const rDate = r.draw_date
+                        ? new Date(r.draw_date).toLocaleDateString("en-CA")
+                        : "";
+                    return rDate === drawDate && r.game_type === gameType;
+                })
+                .map((r) => r.draw_label)
+        );
+    }, [results, drawDate, gameType]);
+
+    const todayResults = useMemo(() => {
+        return results.filter((r) => {
+            const rDate = r.draw_date
+                ? new Date(r.draw_date).toLocaleDateString("en-CA")
+                : "";
+            return rDate === todayStr;
+        });
+    }, [results, todayStr]);
+
+    const pastResults = useMemo(() => {
+        return results.filter((r) => {
+            const rDate = r.draw_date
+                ? new Date(r.draw_date).toLocaleDateString("en-CA")
+                : "";
+            return rDate === pastFilterDate;
+        });
+    }, [results, pastFilterDate]);
+
+    const areaOptions = useMemo(() => {
+        if (gameType === "3D") return ["National"];
+        return ["Local CDO", "Local MISOR"];
+    }, [gameType]);
+
+    /* Auto-select the first unposted draw time when game type or posted labels change */
+    useEffect(() => {
+        const available = GAME_TIMES[gameType].filter(
+            (t) => !postedDrawLabels.has(`${gameType} ${t.value}`)
+        );
+        if (available.length > 0) {
+            setDrawTime(available[0].value);
+        }
+    }, [gameType, postedDrawLabels]);
+
     const handleGameTypeChange = (gt: "STL" | "3D") => {
         setGameType(gt);
-        setDrawTime(GAME_TIMES[gt][0].value);
+        setArea(gt === "3D" ? "National" : "");
     };
 
     const handleSubmit = async () => {
         if (!winningNumber.trim()) {
             setFormError("Winning number is required.");
+            return;
+        }
+        if (gameType === "STL" && !area) {
+            setFormError("Please select an area.");
             return;
         }
         if (!userId) return;
@@ -111,6 +163,7 @@ export default function ResultsAdminPage() {
             setFormError(e instanceof Error ? e.message : "Failed to save");
         } finally {
             setSubmitting(false);
+            setShowSaveConfirm(false);
         }
     };
 
@@ -187,33 +240,53 @@ export default function ResultsAdminPage() {
                     </div>
 
                     <div className="mb-4">
-                        <label className="mb-1 block text-xs font-medium text-ink">Draw Time</label>
+                        <label className="mb-1 block text-xs font-medium text-ink">
+                            Draw Time <span className="text-red-500">*</span>
+                        </label>
                         <div className="flex flex-wrap gap-2">
-                            {GAME_TIMES[gameType].map((t) => (
-                                <button
-                                    key={t.value}
-                                    type="button"
-                                    onClick={() => setDrawTime(t.value)}
-                                    className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
-                                        drawTime === t.value
-                                            ? "bg-teal-dark text-white shadow"
-                                            : "border border-warm bg-card text-ink-muted hover:bg-slate-50"
-                                    }`}
-                                >
-                                    {t.label}
-                                </button>
-                            ))}
+                            {GAME_TIMES[gameType].map((t) => {
+                                const isPosted = postedDrawLabels.has(`${gameType} ${t.value}`);
+                                return (
+                                    <button
+                                        key={t.value}
+                                        type="button"
+                                        onClick={() => !isPosted && setDrawTime(t.value)}
+                                        disabled={isPosted}
+                                        className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
+                                            drawTime === t.value && !isPosted
+                                                ? "bg-teal-dark text-white shadow"
+                                                : isPosted
+                                                    ? "border border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed line-through"
+                                                    : "border border-warm bg-card text-ink-muted hover:bg-slate-50"
+                                        }`}
+                                    >
+                                        <span className="inline-flex items-center gap-1.5">
+                                            {isPosted && <Check className="h-3 w-3" />}
+                                            {t.label}
+                                            {isPosted && <span className="text-[9px] font-normal normal-case">Posted</span>}
+                                        </span>
+                                    </button>
+                                );
+                            })}
                         </div>
                     </div>
 
                     <div className="mb-4">
-                        <label className="mb-1 block text-xs font-medium text-ink">Area</label>
+                        <label className="mb-1 block text-xs font-medium text-ink">
+                            Area {gameType === "STL" && <span className="text-red-500">*</span>}
+                        </label>
                         <select
                             value={area}
                             onChange={(e) => setArea(e.target.value)}
-                            className="w-full rounded-xl border border-warm bg-card px-3 py-2 text-sm text-ink focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/30"
+                            disabled={gameType === "3D"}
+                            className={`w-full rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal/30 ${
+                                gameType === "3D"
+                                    ? "border-slate-200 bg-slate-100 text-slate-500 cursor-not-allowed"
+                                    : "border-warm bg-card text-ink focus:border-teal"
+                            }`}
                         >
-                            {AREAS.map((a) => (
+                            <option value="" disabled>-- Select Area --</option>
+                            {areaOptions.map((a) => (
                                 <option key={a} value={a}>{a}</option>
                             ))}
                         </select>
@@ -244,7 +317,7 @@ export default function ResultsAdminPage() {
 
                     <button
                         type="button"
-                        onClick={handleSubmit}
+                        onClick={() => setShowSaveConfirm(true)}
                         disabled={submitting || !winningNumber.trim()}
                         className="flex items-center gap-1.5 rounded-xl bg-teal px-4 py-2 text-sm font-semibold text-ink shadow transition hover:bg-teal-dark disabled:opacity-50"
                     >
@@ -253,60 +326,84 @@ export default function ResultsAdminPage() {
                     </button>
                 </div>
 
+                {/* ── Today's Results Panel ── */}
                 <div className="flex flex-1 flex-col min-h-0 overflow-hidden rounded-2xl border border-warm bg-white/60 shadow-sm">
+                    <div className="p-3 border-b border-warm/20">
+                        <h3 className="text-[11px] font-bold uppercase tracking-[0.12em] text-teal-dark">
+                            Today's Results
+                        </h3>
+                    </div>
                     <div className="flex-1 overflow-y-auto p-3">
                         {loading ? (
-                            <div className="flex h-full items-center justify-center">
-                                <div className="h-6 w-6 animate-spin rounded-full border-2 border-teal/30 border-t-teal" />
+                            <div className="flex items-center justify-center py-6">
+                                <div className="h-5 w-5 animate-spin rounded-full border-2 border-teal/30 border-t-teal" />
                             </div>
-                        ) : results.length === 0 ? (
-                            <div className="flex h-full flex-col items-center justify-center gap-2 text-ink-subtle">
-                                <Trophy size={28} className="opacity-30" />
-                                <p className="text-sm">No results yet.</p>
+                        ) : todayResults.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center gap-1.5 py-6 text-ink-subtle">
+                                <Trophy size={22} className="opacity-30" />
+                                <p className="text-xs">No results for today.</p>
                             </div>
                         ) : (
                             <div className="space-y-2">
-                                {results.map((r) => (
-                                    <div
-                                        key={r.id}
-                                        className="rounded-xl border border-warm bg-white p-3 shadow-xs"
-                                    >
-                                        <div className="flex items-start justify-between gap-2">
-                                            <div className="min-w-0 flex-1">
-                                                <div className="flex items-center gap-1.5">
-                                                    <span
-                                                        className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
-                                                            r.game_type === "3D"
-                                                                ? "bg-purple-100 text-purple-700"
-                                                                : "bg-teal/15 text-teal-dark"
-                                                        }`}
-                                                    >
-                                                        {r.game_type}
-                                                    </span>
-                                                    <span className="text-sm font-semibold text-ink">{r.draw_label}</span>
-                                                    <span className="text-[10px] text-ink-subtle">{r.area}</span>
-                                                </div>
-                                                <p className="mt-0.5 text-lg font-bold text-ink-muted">{r.winning_number}</p>
-                                                <div className="mt-1 text-[10px] text-ink-subtle">
-                                                    {fmtDate(r.created_at)}
-                                                </div>
-                                            </div>
-                                            <button
-                                                type="button"
-                                                onClick={() => askDelete(r.id)}
-                                                className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
-                                                title="Delete"
-                                            >
-                                                <Trash2 className="h-3.5 w-3.5" />
-                                            </button>
-                                        </div>
-                                    </div>
+                                {todayResults.map((r) => (
+                                    <ResultCard key={r.id} result={r} onDelete={askDelete} fmtDate={fmtDate} />
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* ── Past Results Panel ── */}
+                <div className="flex flex-1 flex-col min-h-0 overflow-hidden rounded-2xl border border-warm bg-white/60 shadow-sm">
+                    <div className="p-3 border-b border-warm/20 space-y-2">
+                        <h3 className="text-[11px] font-bold uppercase tracking-[0.12em] text-ink-muted/70">
+                            Past Results
+                        </h3>
+                        <input
+                            type="date"
+                            value={pastFilterDate}
+                            onChange={(e) => setPastFilterDate(e.target.value)}
+                            className="h-8 w-full rounded-lg border border-warm bg-card px-2 text-xs text-ink focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/30"
+                        />
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-3">
+                        {loading ? (
+                            <div className="flex items-center justify-center py-6">
+                                <div className="h-5 w-5 animate-spin rounded-full border-2 border-teal/30 border-t-teal" />
+                            </div>
+                        ) : pastResults.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center gap-1.5 py-6 text-ink-subtle">
+                                <Trophy size={22} className="opacity-30" />
+                                <p className="text-xs">No results for this date.</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-2">
+                                {pastResults.map((r) => (
+                                    <ResultCard key={r.id} result={r} onDelete={askDelete} fmtDate={fmtDate} />
                                 ))}
                             </div>
                         )}
                     </div>
                 </div>
             </div>
+
+            <ConfirmationModal
+                open={showSaveConfirm}
+                title="Post this result?"
+                confirmLabel="Post Result"
+                isLoading={submitting}
+                loadingLabel="Posting..."
+                onCancel={() => setShowSaveConfirm(false)}
+                onConfirm={handleSubmit}
+            >
+                <div className="divide-y divide-warm/60">
+                    <SummaryRow label="Game Type" value={gameType} />
+                    <SummaryRow label="Draw Time" value={GAME_TIMES[gameType].find((t) => t.value === drawTime)?.label || drawTime} />
+                    <SummaryRow label="Area" value={area} />
+                    <SummaryRow label="Winning Number" value={winningNumber.trim() || "—"} />
+                    <SummaryRow label="Draw Date" value={drawDate ? new Date(drawDate + "T00:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "—"} />
+                </div>
+            </ConfirmationModal>
 
             <ConfirmationModal
                 open={showDeleteModal}
@@ -329,6 +426,51 @@ export default function ResultsAdminPage() {
                 onClose={hideToast}
                 position="top-center"
             />
+        </div>
+    );
+}
+
+function ResultCard({ result, onDelete, fmtDate }: { result: LotteryResult; onDelete: (id: number) => void; fmtDate: (iso: string | null) => string }) {
+    return (
+        <div className="rounded-xl border border-warm bg-white p-3 shadow-xs">
+            <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                        <span
+                            className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+                                result.game_type === "3D"
+                                    ? "bg-purple-100 text-purple-700"
+                                    : "bg-teal/15 text-teal-dark"
+                            }`}
+                        >
+                            {result.game_type}
+                        </span>
+                        <span className="text-sm font-semibold text-ink">{result.draw_label}</span>
+                        <span className="text-[10px] text-ink-subtle">{result.area}</span>
+                    </div>
+                    <p className="mt-0.5 text-lg font-bold text-ink-muted">{result.winning_number}</p>
+                    <div className="mt-1 text-[10px] text-ink-subtle">
+                        {fmtDate(result.created_at)}
+                    </div>
+                </div>
+                <button
+                    type="button"
+                    onClick={() => onDelete(result.id)}
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                    title="Delete"
+                >
+                    <Trash2 className="h-3.5 w-3.5" />
+                </button>
+            </div>
+        </div>
+    );
+}
+
+function SummaryRow({ label, value }: { label: string; value: string }) {
+    return (
+        <div className="flex items-center justify-between px-4 py-3 text-sm">
+            <span className="font-medium text-ink-muted">{label}</span>
+            <span className="font-semibold text-ink">{value}</span>
         </div>
     );
 }
