@@ -83,7 +83,7 @@ export default function ResultsAdminPage() {
         setFormError("");
     };
 
-    const postedDrawLabels = useMemo(() => {
+    const postedAreaTimeCombinations = useMemo(() => {
         return new Set(
             results
                 .filter((r) => {
@@ -92,7 +92,7 @@ export default function ResultsAdminPage() {
                         : "";
                     return rDate === drawDate && r.game_type === gameType;
                 })
-                .map((r) => r.draw_label)
+                .map((r) => `${r.draw_label}|${r.area}`)
         );
     }, [results, drawDate, gameType]);
 
@@ -121,13 +121,33 @@ export default function ResultsAdminPage() {
 
     /* Auto-select the first unposted draw time when game type or posted labels change */
     useEffect(() => {
-        const available = GAME_TIMES[gameType].filter(
-            (t) => !postedDrawLabels.has(`${gameType} ${t.value}`)
-        );
+        const available = GAME_TIMES[gameType].filter((t) => {
+            const drawLabel = `${gameType} ${t.value}`;
+            const allAreasPosted = areaOptions.every(
+                (area) => postedAreaTimeCombinations.has(`${drawLabel}|${area}`)
+            );
+            return !allAreasPosted;
+        });
         if (available.length > 0) {
-            setDrawTime(available[0].value);
+            const currentStillAvailable = available.some((t) => t.value === drawTime);
+            if (!currentStillAvailable) {
+                setDrawTime(available[0].value);
+            }
         }
-    }, [gameType, postedDrawLabels]);
+    }, [gameType, postedAreaTimeCombinations, areaOptions, drawTime]);
+
+    /* Auto-switch to unposted area when current area is already posted for selected draw time */
+    useEffect(() => {
+        if (!drawTime || areaOptions.length === 0) return;
+        const unpostedAreas = areaOptions.filter(
+            (a) => !postedAreaTimeCombinations.has(`${gameType} ${drawTime}|${a}`)
+        );
+        if (unpostedAreas.length === 1) {
+            setArea(unpostedAreas[0]);
+        } else if (unpostedAreas.length === 0) {
+            setArea("");
+        }
+    }, [gameType, drawTime, areaOptions, postedAreaTimeCombinations]);
 
     const handleGameTypeChange = (gt: "STL" | "3D") => {
         setGameType(gt);
@@ -245,7 +265,11 @@ export default function ResultsAdminPage() {
                         </label>
                         <div className="flex flex-wrap gap-2">
                             {GAME_TIMES[gameType].map((t) => {
-                                const isPosted = postedDrawLabels.has(`${gameType} ${t.value}`);
+                                const drawLabel = `${gameType} ${t.value}`;
+                                const allAreasPosted = areaOptions.every(
+                                    (area) => postedAreaTimeCombinations.has(`${drawLabel}|${area}`)
+                                );
+                                const isPosted = allAreasPosted;
                                 return (
                                     <button
                                         key={t.value}
@@ -278,17 +302,31 @@ export default function ResultsAdminPage() {
                         <select
                             value={area}
                             onChange={(e) => setArea(e.target.value)}
-                            disabled={gameType === "3D"}
+                            disabled={gameType === "3D" || !!areaOptions.find((a) => {
+                                const combination = `${gameType} ${drawTime}|${a}`;
+                                return postedAreaTimeCombinations.has(combination);
+                            })}
                             className={`w-full rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal/30 ${
                                 gameType === "3D"
                                     ? "border-slate-200 bg-slate-100 text-slate-500 cursor-not-allowed"
-                                    : "border-warm bg-card text-ink focus:border-teal"
+                                    : areaOptions.some((a) => {
+                                        const combination = `${gameType} ${drawTime}|${a}`;
+                                        return postedAreaTimeCombinations.has(combination);
+                                    })
+                                        ? "border-slate-200 bg-slate-100 text-slate-500 cursor-not-allowed"
+                                        : "border-warm bg-card text-ink focus:border-teal"
                             }`}
                         >
                             <option value="" disabled>-- Select Area --</option>
-                            {areaOptions.map((a) => (
-                                <option key={a} value={a}>{a}</option>
-                            ))}
+                            {areaOptions.map((a) => {
+                                const combination = `${gameType} ${drawTime}|${a}`;
+                                const isPosted = postedAreaTimeCombinations.has(combination);
+                                return (
+                                    <option key={a} value={a} disabled={isPosted}>
+                                        {a} {isPosted && "(Posted)"}
+                                    </option>
+                                );
+                            })}
                         </select>
                     </div>
 
