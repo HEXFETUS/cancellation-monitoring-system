@@ -10,11 +10,18 @@ import {
   MapPin,
   Loader2,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../../context/AuthContext";
 import LoginModal from "../../../components/LoginModal";
 import LogoWithName from "../../../assets/LogoWithName.webp";
 import LogoOnly from "../../../assets/LogoOnly.webp";
+import { fetchLandingPageContent } from "../services/landingPage";
+
+/* Default hero copy (kept in sync with the live landing page) used as a
+   fallback until the Home section has been saved via the admin editor. */
+const DEFAULT_HERO_TITLE = "Sharing Care Beyond the line with Hexaprime";
+const DEFAULT_HERO_DESCRIPTION =
+  "Building secure, transparent STL systems that uplift communities across the Philippines through responsible gaming and social responsibility.";
 
 const API_BASE = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 
@@ -137,9 +144,10 @@ const useSlideshow = (images: string[], interval = 5000) => {
   }, [images.length]);
 
   useEffect(() => {
+    if (images.length <= 1) return;
     const timer = setInterval(next, interval);
     return () => clearInterval(timer);
-  }, [next, interval]);
+  }, [images.length, next, interval]);
 
   return { current, next, prev, setCurrent };
 };
@@ -261,7 +269,53 @@ export default function LandingPage() {
     return () => { document.body.style.overflow = ""; };
   }, [lightboxState]);
 
-  const slide = useSlideshow(slideshowImages, 4500);
+  // Hero content from API (falls back to the existing landing-page design).
+  const [heroTitle, setHeroTitle] = useState(DEFAULT_HERO_TITLE);
+  const [heroDescription, setHeroDescription] = useState(DEFAULT_HERO_DESCRIPTION);
+  const [savedHeroMedia, setSavedHeroMedia] = useState<string[]>([]);
+  const heroMedia = savedHeroMedia.length > 0
+    ? savedHeroMedia.map((url) => `${API_BASE}${url}`)
+    : slideshowImages;
+  const slide = useSlideshow(heroMedia, 4500);
+  const currentHeroIndex = slide.current % heroMedia.length;
+
+  const loadHero = useCallback(async () => {
+    try {
+      const data = await fetchLandingPageContent("home");
+      if (data) {
+        setHeroTitle(data.title || DEFAULT_HERO_TITLE);
+        setHeroDescription(data.description || DEFAULT_HERO_DESCRIPTION);
+        setSavedHeroMedia((data.image_urls || []).slice(0, 5));
+      } else {
+        setHeroTitle(DEFAULT_HERO_TITLE);
+        setHeroDescription(DEFAULT_HERO_DESCRIPTION);
+        setSavedHeroMedia([]);
+      }
+    } catch {
+      console.error("Failed to fetch home content");
+    }
+  }, []);
+
+  useEffect(() => {
+    loadHero();
+  }, [loadHero]);
+
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") loadHero();
+    };
+    const onFocus = () => loadHero();
+
+    window.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("focus", onFocus);
+
+    return () => {
+      window.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [loadHero]);
+
+  const location = useLocation();
 
   const inView = useIntersectionObserver([
     "hero",
@@ -270,6 +324,12 @@ export default function LandingPage() {
     "events-news",
     "about-us",
   ]);
+
+  useEffect(() => {
+    if (location.pathname === "/") {
+      loadHero();
+    }
+  }, [location.pathname, loadHero]);
 
   const navItems = [
     { id: "hero", label: "Home" },
@@ -530,17 +590,29 @@ export default function LandingPage() {
         >
           {/* Background slideshow */}
           <div className="absolute inset-0">
-            {slideshowImages.map((src, i) => (
+            {heroMedia.map((src, i) => (
               <div
                 key={src}
-                className={`absolute inset-0 transition-opacity duration-1000 ${i === slide.current ? "opacity-100" : "opacity-0"
+                className={`absolute inset-0 transition-opacity duration-1000 ${i === currentHeroIndex ? "opacity-100" : "opacity-0"
                   }`}
               >
-                <img
-                  src={src}
-                  alt={`Slide ${i + 1}`}
-                  className="h-full w-full object-cover"
-                />
+                {/\.mp4(?:$|\?)/i.test(src) ? (
+                  <video
+                    src={src}
+                    className="h-full w-full object-cover"
+                    autoPlay
+                    muted
+                    loop
+                    playsInline
+                    aria-label={`Hero video ${i + 1}`}
+                  />
+                ) : (
+                  <img
+                    src={src}
+                    alt={`Hero media ${i + 1}`}
+                    className="h-full w-full object-cover"
+                  />
+                )}
                 {/* Dark overlay for text readability */}
                 <div className="absolute inset-0 bg-linear-to-r from-black/50 via-black/25 to-transparent" />
               </div>
@@ -572,17 +644,20 @@ export default function LandingPage() {
                 className="mt-8 text-4xl sm:text-5xl lg:text-6xl font-bold leading-tight tracking-tight"
                 style={{ color: "white", textShadow: "0 2px 12px rgba(0,0,0,0.3)" }}
               >
-                Sharing Care Beyond the line with {""}
-                <span style={{ color: "#AAD7D9" }}>Hexaprime</span>
+                {heroTitle.split(/(Hexaprime)/).map((part, i) =>
+                  part === "Hexaprime" ? (
+                    <span key={i} style={{ color: "#AAD7D9" }}>{part}</span>
+                  ) : (
+                    <span key={i}>{part}</span>
+                  )
+                )}
               </h1>
 
               <p
                 className="mt-5 text-base sm:text-lg leading-relaxed max-w-lg"
                 style={{ color: "rgba(255,255,255,0.85)", textShadow: "0 1px 6px rgba(0,0,0,0.2)" }}
               >
-                Building secure, transparent STL systems that uplift communities
-                across the Philippines through responsible gaming and social
-                responsibility.
+                {heroDescription}
               </p>
 
               <div className="mt-8 flex flex-wrap gap-4">
@@ -603,12 +678,12 @@ export default function LandingPage() {
                 >
                   Learn More
                 </button>
-
               </div>
             </div>
           </div>
 
           {/* Slideshow controls */}
+          {heroMedia.length > 1 && (
           <div className="absolute bottom-10 left-1/2 -translate-x-1/2 z-20 flex items-center gap-4">
             <button
               onClick={slide.prev}
@@ -624,16 +699,16 @@ export default function LandingPage() {
             </button>
 
             <div className="flex gap-2">
-              {slideshowImages.map((_, i) => (
+              {heroMedia.map((_, i) => (
                 <button
                   key={i}
                   onClick={() => slide.setCurrent(i)}
                   className="rounded-full transition-all"
                   style={{
-                    width: i === slide.current ? "32px" : "8px",
+                    width: i === currentHeroIndex ? "32px" : "8px",
                     height: "8px",
                     backgroundColor:
-                      i === slide.current ? "#92C7CF" : "rgba(255,255,255,0.5)",
+                      i === currentHeroIndex ? "#92C7CF" : "rgba(255,255,255,0.5)",
                   }}
                   aria-label={`Go to slide ${i + 1}`}
                 />
@@ -653,6 +728,7 @@ export default function LandingPage() {
               <ChevronRight className="h-4 w-4" />
             </button>
           </div>
+          )}
         </section>
 
         {/* ─── EVENTS & NEWS (Dynamic from API) ─── */}

@@ -10,12 +10,19 @@ import {
 
 const API_BASE = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 
+/* Default hero copy that is currently shown on the live landing page.
+   Used as a fallback in the preview so the admin always sees the real
+   "current status" even before the Home section has been saved. */
+const DEFAULT_HERO_TITLE = "Sharing Care Beyond the line with Hexaprime";
+const DEFAULT_HERO_DESCRIPTION =
+    "Building secure, transparent STL systems that uplift communities across the Philippines through responsible gaming and social responsibility.";
+
 interface SelectedMedia {
     file: File;
     preview: string;
 }
 
-export default function HomeAdminPage() {
+export default function HomePage() {
     const { user } = useAuth();
     const userId = user?.id;
 
@@ -31,7 +38,6 @@ export default function HomeAdminPage() {
     const [heroTitle, setHeroTitle] = useState("");
     const [heroDescription, setHeroDescription] = useState("");
     const [media, setMedia] = useState<SelectedMedia[]>([]);
-    const [serverMedia, setServerMedia] = useState<string[]>([]);
     const [formError, setFormError] = useState("");
 
     // UI state
@@ -55,13 +61,13 @@ export default function HomeAdminPage() {
         try {
             const data = await fetchLandingPageContent("home");
             if (data) {
-                setHeroTitle(data.title || "");
-                setHeroDescription(data.description || "");
-                setServerMedia(data.image_urls || []);
-                // Update preview with saved data
                 setSavedTitle(data.title || "");
                 setSavedDescription(data.description || "");
                 setSavedImages(data.image_urls || []);
+            } else {
+                setSavedTitle("");
+                setSavedDescription("");
+                setSavedImages([]);
             }
         } catch (e) {
             setError(e instanceof Error ? e.message : "Failed to load");
@@ -82,6 +88,12 @@ export default function HomeAdminPage() {
 
     const handleFiles = (files: FileList | null) => {
         if (!files) return;
+        const availableSlots = Math.max(0, 5 - savedImages.length - media.length);
+        if (availableSlots === 0) {
+            setFormError("Home media is limited to 5 items. Remove an existing item first.");
+            if (fileInputRef.current) fileInputRef.current.value = "";
+            return;
+        }
         const next: SelectedMedia[] = [];
         for (const file of Array.from(files)) {
             const okImage = /image\/(jpe?g|png)/i.test(file.type);
@@ -90,7 +102,10 @@ export default function HomeAdminPage() {
                 next.push({ file, preview: URL.createObjectURL(file) });
             }
         }
-        setMedia((prev) => [...prev, ...next].slice(0, 10));
+        const accepted = next.slice(0, availableSlots);
+        next.slice(availableSlots).forEach((item) => URL.revokeObjectURL(item.preview));
+        setMedia((previous) => [...previous, ...accepted]);
+        setFormError(next.length > availableSlots ? "Only 5 total Home media items are allowed." : "");
         if (fileInputRef.current) fileInputRef.current.value = "";
     };
 
@@ -102,12 +117,8 @@ export default function HomeAdminPage() {
         });
     };
 
-    const removeServerMedia = (index: number) => {
-        setServerMedia((prev) => prev.filter((_, i) => i !== index));
-    };
-
     const handleSave = async () => {
-        if (!heroTitle.trim() && !heroDescription.trim() && serverMedia.length === 0 && media.length === 0) {
+        if (!heroTitle.trim() && !heroDescription.trim() && media.length === 0) {
             setFormError("Please provide at least some content.");
             return;
         }
@@ -119,23 +130,27 @@ export default function HomeAdminPage() {
         setSaving(true);
         setFormError("");
         try {
-            await updateLandingPageContent(
+            const title = heroTitle.trim();
+            const description = heroDescription.trim();
+            const response = await updateLandingPageContent(
                 "home",
                 {
-                    title: heroTitle.trim(),
-                    description: heroDescription.trim(),
-                    existingImages: serverMedia,
+                    ...(title ? { title } : {}),
+                    ...(description ? { description } : {}),
+                    existingImages: savedImages,
                     images: media.map((m) => m.file),
                 },
                 userId
             );
             showToast("Home section updated successfully.", "success");
-            // Update preview with new data
-            setSavedTitle(heroTitle.trim());
-            setSavedDescription(heroDescription.trim());
-            setSavedImages([...serverMedia, ...media.map((m) => `/uploads/${m.file.name}`)]);
-            setServerMedia((prev) => [...prev, ...media.map((m) => `/uploads/${m.file.name}`)]);
+            // Update preview with new data from backend response
+            setSavedTitle(response.title || "");
+            setSavedDescription(response.description || "");
+            setSavedImages(response.image_urls || []);
             media.forEach((m) => URL.revokeObjectURL(m.preview));
+            // Clear the composer form so the inputs reset after saving
+            setHeroTitle("");
+            setHeroDescription("");
             setMedia([]);
         } catch (e) {
             setFormError(e instanceof Error ? e.message : "Failed to save");
@@ -149,8 +164,7 @@ export default function HomeAdminPage() {
         try {
             await deleteLandingPageImage("home", url);
             showToast("Image removed.", "success");
-            setSavedImages((prev) => prev.filter((u) => u !== url));
-            removeServerMedia(serverMedia.indexOf(url));
+            await load();
         } catch (e) {
             showToast(e instanceof Error ? e.message : "Failed to delete image", "error");
         }
@@ -229,68 +243,36 @@ export default function HomeAdminPage() {
                         </button>
 
                         {media.length > 0 && (
-                            <div className="mt-3 grid grid-cols-3 gap-2">
-                                {media.map((m, i) => (
-                                    <div key={m.preview} className="group relative aspect-square overflow-hidden rounded-lg border-2 border-warm bg-black/5">
-                                        <div className="absolute left-1 top-1 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-[10px] font-bold text-white">
-                                            {i + 1}
-                                        </div>
-                                        {m.file.type.startsWith("video") ? (
-                                            <video src={m.preview} className="h-full w-full object-cover" />
-                                        ) : (
-                                            <img src={m.preview} alt="preview" className="h-full w-full object-cover" />
-                                        )}
-                                        <button
-                                            type="button"
-                                            onClick={() => removeMedia(i)}
-                                            className="absolute right-1 top-1 rounded-full bg-black/60 p-1 text-white opacity-0 transition group-hover:opacity-100"
-                                            title="Remove"
-                                        >
-                                            <X size={12} />
-                                        </button>
-                                    </div>
+                            <div className="mt-3 grid grid-cols-2 gap-2">
+                                {media.map((item, index) => (
+                                <div key={item.preview} className="group relative aspect-video w-full overflow-hidden rounded-lg border-2 border-warm bg-black/5">
+                                    {item.file.type.startsWith("video") ? (
+                                        <video src={item.preview} className="h-full w-full object-contain" controls />
+                                    ) : (
+                                        <img src={item.preview} alt={`New media ${index + 1}`} className="h-full w-full object-contain" />
+                                    )}
+                                    <button
+                                        type="button"
+                                        onClick={() => removeMedia(index)}
+                                        className="absolute right-1 top-1 rounded-full bg-black/60 p-1 text-white opacity-0 transition group-hover:opacity-100"
+                                        title="Remove"
+                                    >
+                                        <X size={12} />
+                                    </button>
+                                </div>
                                 ))}
                             </div>
                         )}
                         <p className="mt-1 text-[10px] text-ink-subtle">
-                            Up to 10 images (JPG/PNG) or MP4 videos, 10 MB each.
+                            Up to 5 total JPG, PNG, or MP4 files, 10 MB each. {savedImages.length}/5 currently saved.
                         </p>
                     </div>
-
-                    {/* Existing server media */}
-                    {serverMedia.length > 0 && (
-                        <div className="mb-4">
-                            <label className="mb-1 block text-xs font-medium text-ink">Current Images</label>
-                            <div className="grid grid-cols-3 gap-2">
-                                {serverMedia.map((url, i) => (
-                                    <div key={url} className="group relative aspect-square overflow-hidden rounded-lg border-2 border-warm bg-black/5">
-                                        <div className="absolute left-1 top-1 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-[10px] font-bold text-white">
-                                            {i + 1}
-                                        </div>
-                                        {/\.mp4$/i.test(url) ? (
-                                            <video src={`${API_BASE}${url}`} className="h-full w-full object-cover" />
-                                        ) : (
-                                            <img src={`${API_BASE}${url}`} alt="current" className="h-full w-full object-cover" />
-                                        )}
-                                        <button
-                                            type="button"
-                                            onClick={() => handleDeleteImage(url)}
-                                            className="absolute right-1 top-1 rounded-full bg-black/60 p-1 text-white opacity-0 transition group-hover:opacity-100"
-                                            title="Remove"
-                                        >
-                                            <X size={12} />
-                                        </button>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
 
                     {/* Action */}
                     <button
                         type="button"
                         onClick={handleSave}
-                        disabled={saving || (!heroTitle.trim() && !heroDescription.trim())}
+                        disabled={saving || (!heroTitle.trim() && !heroDescription.trim() && media.length === 0)}
                         className="flex items-center gap-1.5 rounded-xl bg-teal px-4 py-2 text-sm font-semibold text-ink shadow transition hover:bg-teal-dark disabled:opacity-50"
                     >
                         <Send size={14} />
@@ -301,16 +283,43 @@ export default function HomeAdminPage() {
                 {/* Preview panel */}
                 <div className="flex flex-1 flex-col min-h-0 overflow-hidden rounded-2xl border border-warm bg-white/60 p-5 shadow-sm">
                     <h3 className="text-[11px] font-bold uppercase tracking-[0.12em] text-ink-muted/70 mb-3">
-                        Current Preview
+                        Current Status
                     </h3>
                     <div className="flex-1 overflow-y-auto">
                         <div className="rounded-xl border border-warm bg-white p-4 shadow-xs">
-                            <h3 className="text-lg font-bold text-ink line-clamp-2">{savedTitle || "Hero Title"}</h3>
-                            <p className="mt-1 text-sm text-ink-muted line-clamp-3">{savedDescription || "Hero description will appear here..."}</p>
+                            {/* Hero title — highlight the "Hexaprime" portion in brand teal */}
+                            <h3 className="text-lg font-bold text-ink leading-snug">
+                                {(savedTitle || DEFAULT_HERO_TITLE)
+                                    .split(/(Hexaprime)/)
+                                    .map((part, i) =>
+                                        part === "Hexaprime" ? (
+                                            <span key={i} style={{ color: "#AAD7D9" }}>{part}</span>
+                                        ) : (
+                                            <span key={i}>{part}</span>
+                                        )
+                                    )}
+                            </h3>
+                            <p className="mt-1 text-sm text-ink-muted leading-relaxed">
+                                {savedDescription || DEFAULT_HERO_DESCRIPTION}
+                            </p>
                             {savedImages.length > 0 && (
                                 <div className="mt-3 flex gap-2 overflow-x-auto">
-                                    {savedImages.slice(0, 5).map((url) => (
-                                        <img key={url} src={`${API_BASE}${url}`} alt="" className="h-16 w-16 rounded-lg object-cover" />
+                                    {savedImages.slice(0, 5).map((url, index) => (
+                                        <div key={url} className="group relative h-20 w-24 shrink-0 overflow-hidden rounded-lg bg-black/5">
+                                            {/\.mp4(?:$|\?)/i.test(url) ? (
+                                                <video src={`${API_BASE}${url}`} className="h-full w-full object-cover" muted controls />
+                                            ) : (
+                                                <img src={`${API_BASE}${url}`} alt={`Saved media ${index + 1}`} className="h-full w-full object-cover" />
+                                            )}
+                                            <button
+                                                type="button"
+                                                onClick={() => handleDeleteImage(url)}
+                                                className="absolute right-1 top-1 rounded-full bg-black/60 p-1 text-white opacity-0 transition group-hover:opacity-100"
+                                                title="Remove saved media"
+                                            >
+                                                <X size={12} />
+                                            </button>
+                                        </div>
                                     ))}
                                 </div>
                             )}

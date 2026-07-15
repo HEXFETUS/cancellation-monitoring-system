@@ -51,13 +51,21 @@ function getUserId(req) {
 
 // ─── LOTTERY RESULTS ──────────────────────────────────────────────
 
-// GET /api/posts/results — public, returns last 3 days of results
+// GET /api/posts/results
+// - Public (landing page, no user_id): returns ONLY today's results so the
+//   "Today's Result" tables clear automatically on each new day.
+// - Admin (with user_id, used by ResultsAdminPage "Past Results" panel):
+//   returns the last 3 days so previous draws remain reviewable.
 router.get("/results", async (req, res) => {
     try {
+        const isAdmin = !!req.query?.user_id;
+        const where = isAdmin
+            ? "draw_date >= CURRENT_DATE - INTERVAL '3 days'"
+            : "draw_date = CURRENT_DATE";
         const result = await pool.query(
             `SELECT id, draw_label, winning_number, area, draw_date, game_type, created_at
              FROM lottery_results
-             WHERE draw_date >= CURRENT_DATE - INTERVAL '3 days'
+             WHERE ${where}
              ORDER BY draw_date DESC, id DESC`
         );
         res.json(result.rows);

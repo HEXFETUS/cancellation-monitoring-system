@@ -19,7 +19,9 @@ export interface LandingPageContent {
 
 /** Fetch content for a specific landing page section. */
 export async function fetchLandingPageContent(section: string): Promise<LandingPageContent | null> {
-    const res = await fetch(apiUrl(`/api/landing-page/${section}`));
+    const res = await fetch(`${apiUrl(`/api/landing-page/${section}`)}?t=${Date.now()}`, {
+        cache: "no-store",
+    });
     if (!res.ok) throw new Error("Failed to fetch landing page content");
     return res.json();
 }

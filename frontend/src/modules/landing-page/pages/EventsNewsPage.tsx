@@ -26,7 +26,7 @@ interface SelectedMedia {
     preview: string;
 }
 
-export default function EventsNewsAdminPage() {
+export default function EventsNewsPage() {
     const { user } = useAuth();
     const userId = user?.id;
 

@@ -22,7 +22,7 @@ const GAME_TIMES: Record<"STL" | "3D", { value: string; label: string }[]> = {
     ],
 };
 
-export default function ResultsAdminPage() {
+export default function ResultsPage() {
     const { user } = useAuth();
     const userId = user?.id;
 
