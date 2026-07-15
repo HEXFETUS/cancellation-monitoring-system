@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import {
   ArrowRight,
   ChevronLeft,
@@ -11,11 +11,13 @@ import {
   Loader2,
 } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { motion, useScroll, useTransform, useReducedMotion } from "framer-motion";
 import { useAuth } from "../../../context/AuthContext";
 import LoginModal from "../../../components/LoginModal";
 import LogoWithName from "../../../assets/LogoWithName.webp";
 import LogoOnly from "../../../assets/LogoOnly.webp";
 import { fetchLandingPageContent } from "../services/landingPage";
+import ScrollReveal from "../components/ScrollReveal";
 
 /* Default hero copy (kept in sync with the live landing page) used as a
    fallback until the Home section has been saved via the admin editor. */
@@ -26,9 +28,9 @@ const DEFAULT_HERO_DESCRIPTION =
 const API_BASE = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 
 /* ---------------- COLOR PALETTE ---------------- */
-/* 
+/*
   #92C7CF  – primary teal
-  #AAD7D9  – light teal  
+  #AAD7D9  – light teal
   #FBF9F1  – cream bg
   #E5E1DA  – warm gray
 */
@@ -105,33 +107,50 @@ interface Announcement {
   created_at: string;
 }
 
-/* ---------------- HOOKS ---------------- */
-const useIntersectionObserver = (ids: string[]) => {
-  const [visible, setVisible] = useState<Record<string, boolean>>({});
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            setVisible((prev) => ({ ...prev, [entry.target.id]: true }));
-          }
-        });
-      },
-      { threshold: 0.1, rootMargin: "0px 0px -50px 0px" }
-    );
-
-    ids.forEach((id) => {
-      const el = document.getElementById(id);
-      if (el) observer.observe(el);
-    });
-
-    return () => observer.disconnect();
-  }, [ids]);
-
-  return visible;
+/* ---------------- FRAMER MOTION VARIANTS ---------------- */
+const containerVariants = {
+  hidden: {},
+  visible: {
+    transition: {
+      staggerChildren: 0.1,
+      delayChildren: 0.05,
+    },
+  },
 };
 
+const itemVariants = {
+  hidden: {
+    opacity: 0,
+    y: 24,
+  },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.65,
+      ease: [0.22, 1, 0.36, 1] as const,
+    },
+  },
+};
+
+const cardItemVariants = {
+  hidden: {
+    opacity: 0,
+    y: 20,
+    scale: 0.97,
+  },
+  visible: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    transition: {
+      duration: 0.6,
+      ease: [0.22, 1, 0.36, 1] as const,
+    },
+  },
+};
+
+/* ---------------- HOOKS ---------------- */
 const useSlideshow = (images: string[], interval = 5000) => {
   const [current, setCurrent] = useState(0);
 
@@ -176,7 +195,7 @@ function MediaCarousel({
   };
 
   return (
-    <div className="relative bg-gray-100">
+    <div className="relative bg-gray-100 overflow-hidden">
       <button
         type="button"
         onClick={() => onOpen(urls, safeIndex)}
@@ -196,7 +215,7 @@ function MediaCarousel({
           <img
             src={fullUrl}
             alt={`${alt} (${safeIndex + 1}/${urls.length})`}
-            className="w-full h-auto max-h-96 object-contain bg-gray-100"
+            className="w-full h-auto max-h-96 object-contain bg-gray-100 transition-transform duration-500 group-hover:scale-105"
           />
         )}
       </button>
@@ -240,6 +259,7 @@ function MediaCarousel({
 export default function LandingPage() {
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
+  const prefersReducedMotion = useReducedMotion();
 
   const [loginOpen, setLoginOpen] = useState(false);
   const [pendingRoute, setPendingRoute] = useState<string | null>(null);
@@ -273,13 +293,17 @@ export default function LandingPage() {
   const [heroTitle, setHeroTitle] = useState(DEFAULT_HERO_TITLE);
   const [heroDescription, setHeroDescription] = useState(DEFAULT_HERO_DESCRIPTION);
   const [savedHeroMedia, setSavedHeroMedia] = useState<string[]>([]);
-  const heroMedia = savedHeroMedia.length > 0
-    ? savedHeroMedia.map((url) => `${API_BASE}${url}`)
-    : slideshowImages;
+  const [heroLoading, setHeroLoading] = useState(true);
+  const heroMedia = heroLoading
+    ? []
+    : savedHeroMedia.length > 0
+      ? savedHeroMedia.map((url) => `${API_BASE}${url}`)
+      : slideshowImages;
   const slide = useSlideshow(heroMedia, 4500);
-  const currentHeroIndex = slide.current % heroMedia.length;
+  const currentHeroIndex = heroMedia.length > 0 ? slide.current % heroMedia.length : 0;
 
   const loadHero = useCallback(async () => {
+    setHeroLoading(true);
     try {
       const data = await fetchLandingPageContent("home");
       if (data) {
@@ -293,6 +317,8 @@ export default function LandingPage() {
       }
     } catch {
       console.error("Failed to fetch home content");
+    } finally {
+      setHeroLoading(false);
     }
   }, []);
 
@@ -316,14 +342,6 @@ export default function LandingPage() {
   }, [loadHero]);
 
   const location = useLocation();
-
-  const inView = useIntersectionObserver([
-    "hero",
-    "social-responsibility",
-    "results",
-    "events-news",
-    "about-us",
-  ]);
 
   useEffect(() => {
     if (location.pathname === "/") {
@@ -352,12 +370,33 @@ export default function LandingPage() {
     }
   };
 
+  // Optimized header scroll — uses a single boolean toggle, no heavy state updates
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 60);
-    window.addEventListener("scroll", onScroll);
+    let ticking = false;
+    const onScroll = () => {
+      if (!ticking) {
+        requestAnimationFrame(() => {
+          setScrolled(window.scrollY > 60);
+          ticking = false;
+        });
+        ticking = true;
+      }
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
     onScroll();
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
+  // Hero parallax — only when reduced motion is not preferred
+  const heroRef = useRef<HTMLElement>(null);
+  const { scrollYProgress } = useScroll({
+    target: heroRef,
+    offset: ["start start", "end start"],
+  });
+
+  const backgroundY = useTransform(scrollYProgress, [0, 1], ["0%", "15%"]);
+  const contentY = useTransform(scrollYProgress, [0, 1], [0, -70]);
+  const contentOpacity = useTransform(scrollYProgress, [0, 0.75], [1, 0]);
 
   // Fetch results
   useEffect(() => {
@@ -448,11 +487,10 @@ export default function LandingPage() {
       />
 
       {/* ─── HEADER ─── */}
-      <header
-        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled
-          ? "py-2 shadow-lg"
-          : "py-4"
-          }`}
+      <motion.header
+        className={`fixed top-0 left-0 right-0 z-50 transition-[padding,box-shadow] duration-300 ${
+          scrolled ? "py-2 shadow-lg" : "py-4"
+        }`}
         style={{
           backgroundColor: scrolled ? "rgba(251, 249, 241, 0.85)" : "transparent",
           backdropFilter: scrolled ? "blur(16px)" : "none",
@@ -472,8 +510,7 @@ export default function LandingPage() {
             <img
               src={scrolled ? LogoOnly : LogoWithName}
               alt="Hexaprime"
-              className={`transition-all duration-300 ${scrolled ? "h-8 w-auto" : "h-10 w-auto"
-                }`}
+              className={`transition-all duration-300 ${scrolled ? "h-8 w-auto" : "h-10 w-auto"}`}
             />
           </a>
 
@@ -579,22 +616,27 @@ export default function LandingPage() {
             </button>
           </div>
         )}
-      </header>
+      </motion.header>
 
-      <main>
+      <main style={{ scrollSnapType: "y proximity" }}>
         {/* ─── HERO / SLIDESHOW ─── */}
         <section
           id="hero"
-          className="relative min-h-screen flex items-center overflow-hidden"
-          style={{ backgroundColor: "#E5E1DA" }}
+          ref={heroRef}
+          className="relative min-h-screen flex items-center overflow-hidden snap-start"
+          style={{ backgroundColor: "#E5E1DA", scrollSnapAlign: "start" }}
         >
-          {/* Background slideshow */}
-          <div className="absolute inset-0">
+          {/* Background slideshow with parallax */}
+          <motion.div
+            className="absolute inset-0"
+            style={prefersReducedMotion ? undefined : { y: backgroundY }}
+          >
             {heroMedia.map((src, i) => (
               <div
                 key={src}
-                className={`absolute inset-0 transition-opacity duration-1000 ${i === currentHeroIndex ? "opacity-100" : "opacity-0"
-                  }`}
+                className={`absolute inset-0 transition-opacity duration-1000 ${
+                  i === currentHeroIndex ? "opacity-100" : "opacity-0"
+                }`}
               >
                 {/\.mp4(?:$|\?)/i.test(src) ? (
                   <video
@@ -617,17 +659,22 @@ export default function LandingPage() {
                 <div className="absolute inset-0 bg-linear-to-r from-black/50 via-black/25 to-transparent" />
               </div>
             ))}
-          </div>
+          </motion.div>
 
-          {/* Content */}
-          <div className="relative z-10 mx-auto max-w-7xl px-6 lg:px-8 w-full">
-            <div
-              className={`max-w-2xl transition-all duration-700 ${inView.hero
-                ? "opacity-100 translate-y-0"
-                : "opacity-0 translate-y-8"
-                }`}
-            >
-              <span
+          {/* Content with scroll-based fade/translate */}
+          <motion.div
+            className="relative z-10 mx-auto max-w-7xl px-6 lg:px-8 w-full"
+            style={
+              prefersReducedMotion
+                ? undefined
+                : { y: contentY, opacity: contentOpacity }
+            }
+          >
+            <div className="max-w-2xl">
+              <motion.span
+                initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] as const, delay: 0 }}
                 className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-semibold tracking-wider border"
                 style={{
                   backgroundColor: "rgba(251, 249, 241, 0.2)",
@@ -638,9 +685,12 @@ export default function LandingPage() {
               >
                 <Shield className="h-3.5 w-3.5" style={{ color: "#AAD7D9" }} />
                 Small Town Lottery
-              </span>
+              </motion.span>
 
-              <h1
+              <motion.h1
+                initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] as const, delay: 0.15 }}
                 className="mt-8 text-4xl sm:text-5xl lg:text-6xl font-bold leading-tight tracking-tight"
                 style={{ color: "white", textShadow: "0 2px 12px rgba(0,0,0,0.3)" }}
               >
@@ -651,16 +701,24 @@ export default function LandingPage() {
                     <span key={i}>{part}</span>
                   )
                 )}
-              </h1>
+              </motion.h1>
 
-              <p
+              <motion.p
+                initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] as const, delay: 0.25 }}
                 className="mt-5 text-base sm:text-lg leading-relaxed max-w-lg"
                 style={{ color: "rgba(255,255,255,0.85)", textShadow: "0 1px 6px rgba(0,0,0,0.2)" }}
               >
                 {heroDescription}
-              </p>
+              </motion.p>
 
-              <div className="mt-8 flex flex-wrap gap-4">
+              <motion.div
+                initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] as const, delay: 0.35 }}
+                className="mt-8 flex flex-wrap gap-4"
+              >
                 <button
                   onClick={() => scrollTo("social-responsibility")}
                   className="rounded-full px-7 py-3 text-sm font-semibold transition-all shadow-lg"
@@ -678,9 +736,9 @@ export default function LandingPage() {
                 >
                   Learn More
                 </button>
-              </div>
+              </motion.div>
             </div>
-          </div>
+          </motion.div>
 
           {/* Slideshow controls */}
           {heroMedia.length > 1 && (
@@ -732,413 +790,462 @@ export default function LandingPage() {
         </section>
 
         {/* ─── EVENTS & NEWS (Dynamic from API) ─── */}
-        <section id="events-news" className="py-24 sm:py-32">
-          <div
-            className={`mx-auto max-w-7xl px-6 lg:px-8 transition-all duration-700 ${inView["events-news"]
-              ? "opacity-100 translate-y-0"
-              : "opacity-0 translate-y-10"
-              }`}
-          >
-            <div className="mx-auto max-w-2xl text-center">
-              <span
-                className="text-xs font-semibold tracking-[0.2em] uppercase"
-                style={{ color: "#92C7CF" }}
-              >
-                Stay Updated
-              </span>
-              <h2 className="mt-3 text-3xl sm:text-4xl font-bold tracking-tight text-gray-800">
-                Events & News
-              </h2>
-              <p className="mt-4 leading-relaxed" style={{ color: "#6b6b6b" }}>
-                Latest announcements, community events, and updates from Hexaprime.
-              </p>
-            </div>
-
-            {(() => {
-              if (announcementsLoading) {
-                return (
-                  <div className="flex items-center justify-center py-16">
-                    <Loader2 className="h-8 w-8 animate-spin" style={{ color: "#92C7CF" }} />
-                  </div>
-                );
-              }
-
-              const sortedAnnouncements = [...announcements]
-                .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-                .slice(0, 4);
-
-              if (sortedAnnouncements.length === 0) {
-                return (
-                  <p className="mt-12 text-center text-sm" style={{ color: "#999" }}>
-                    No posts yet. Check back later.
+        <section
+          id="events-news"
+          className="py-16 sm:py-20 snap-start"
+          style={{ scrollMarginTop: 80, scrollSnapAlign: "start" }}
+        >
+          <ScrollReveal direction="up">
+            <div className="mx-auto max-w-7xl px-6 lg:px-8">
+              <div className="mx-auto max-w-2xl text-center">
+                <span
+                  className="text-xs font-semibold tracking-[0.2em] uppercase"
+                  style={{ color: "#92C7CF" }}
+                >
+                  Stay Updated
+                </span>
+                <h2 className="mt-3 text-3xl sm:text-4xl font-bold tracking-tight text-gray-800">
+                  Events & News
+                </h2>
+                <ScrollReveal direction="up" delay={0.1}>
+                  <p className="mt-4 leading-relaxed" style={{ color: "#6b6b6b" }}>
+                    Latest announcements, community events, and updates from Hexaprime.
                   </p>
-                );
-              }
+                </ScrollReveal>
+              </div>
 
-              return (
-                <div className="mt-16 mx-auto max-w-[1400px] grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-                  {sortedAnnouncements.map((item) => (
-                    <article
-                      key={item.id}
-                      className="group rounded-2xl overflow-hidden transition-all duration-300 bg-white"
-                      style={{
-                        border: "1px solid #E5E1DA",
-                        boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.borderColor = "#92C7CF";
-                        e.currentTarget.style.boxShadow = "0 12px 40px rgba(146, 199, 207, 0.18)";
-                        e.currentTarget.style.transform = "translateY(-2px)";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.borderColor = "#E5E1DA";
-                        e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.04)";
-                        e.currentTarget.style.transform = "translateY(0)";
-                      }}
-                    >
-                      {/* Media hero — single-photo carousel */}
-                      {item.media_urls.length > 0 && (
-                        <MediaCarousel
-                          urls={item.media_urls}
-                          alt={item.title || "Events & News media"}
-                          onOpen={(urls, index) => setLightboxState({ urls, index })}
-                          apiBase={API_BASE}
-                        />
-                      )}
+              {(() => {
+                if (announcementsLoading) {
+                  return (
+                    <div className="flex items-center justify-center py-16">
+                      <Loader2 className="h-8 w-8 animate-spin" style={{ color: "#92C7CF" }} />
+                    </div>
+                  );
+                }
 
-                      {/* Content */}
-                      <div className="p-4 sm:p-5 text-center">
-                        <div className="flex items-center justify-center gap-2 flex-wrap">
-                          <span
-                            className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider"
-                            style={{
-                              backgroundColor:
-                                item.type === "event"
-                                  ? "rgba(146, 199, 207, 0.1)"
-                                  : "rgba(229, 225, 218, 0.4)",
-                              color:
-                                item.type === "event" ? "#92C7CF" : "#8a8a8a",
-                            }}
-                          >
-                            {item.type === "event" ? "Event" : "News"}
-                          </span>
-                          <span className="text-[11px]" style={{ color: "#999" }}>
-                            {new Date(item.created_at).toLocaleDateString("en-US", {
-                              month: "short",
-                              day: "numeric",
-                            })}
-                          </span>
-                        </div>
+                const sortedAnnouncements = [...announcements]
+                  .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                  .slice(0, 4);
 
-                        {item.title && (
-                          <h3 className="mt-2 text-base font-semibold text-gray-800 leading-snug line-clamp-2">
-                            {item.title}
-                          </h3>
-                        )}
+                if (sortedAnnouncements.length === 0) {
+                  return (
+                    <p className="mt-12 text-center text-sm" style={{ color: "#999" }}>
+                      No posts yet. Check back later.
+                    </p>
+                  );
+                }
 
-                        <p className="mt-1.5 text-xs leading-snug whitespace-pre-line" style={{ color: "#6b6b6b" }}>
-                          {item.caption.split(/(#\w+)/g).map((part, i) => 
-                            part.startsWith('#') ? (
-                              <span key={i} className="font-medium" style={{ color: "#92C7CF" }}>{part}</span>
-                            ) : (
-                              part
-                            )
-                          )}
-                        </p>
-
-                        {item.location && (
-                          <div className="mt-3 flex items-center justify-center gap-1.5 text-[11px]" style={{ color: "#999" }}>
-                            <MapPin className="h-3 w-3" style={{ color: "#92C7CF" }} />
-                            {item.location}
+                return (
+                  <motion.div
+                    className="mt-16 mx-auto max-w-[1400px] grid gap-6 sm:grid-cols-2 lg:grid-cols-4"
+                    variants={containerVariants}
+                    initial="hidden"
+                    whileInView="visible"
+                    viewport={{ once: false, amount: 0.1, margin: "0px 0px -60px 0px" }}
+                  >
+                    {sortedAnnouncements.map((item) => (
+                      <motion.article
+                        key={item.id}
+                        variants={itemVariants}
+                        className="group rounded-2xl overflow-hidden transition-all duration-300 bg-white"
+                        style={{
+                          border: "1px solid #E5E1DA",
+                          boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+                        }}
+                        whileHover={{
+                          y: -4,
+                          boxShadow: "0 12px 40px rgba(146, 199, 207, 0.18)",
+                          borderColor: "#92C7CF",
+                          transition: { duration: 0.3, ease: "easeOut" },
+                        }}
+                      >
+                        {/* Media hero — single-photo carousel */}
+                        {item.media_urls.length > 0 && (
+                          <div className="overflow-hidden">
+                            <MediaCarousel
+                              urls={item.media_urls}
+                              alt={item.title || "Events & News media"}
+                              onOpen={(urls, index) => setLightboxState({ urls, index })}
+                              apiBase={API_BASE}
+                            />
                           </div>
                         )}
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              );
-            })()}
-          </div>
+
+                        {/* Content */}
+                        <div className="p-4 sm:p-5 text-center">
+                          <div className="flex items-center justify-center gap-2 flex-wrap">
+                            <span
+                              className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider"
+                              style={{
+                                backgroundColor:
+                                  item.type === "event"
+                                    ? "rgba(146, 199, 207, 0.1)"
+                                    : "rgba(229, 225, 218, 0.4)",
+                                color:
+                                  item.type === "event" ? "#92C7CF" : "#8a8a8a",
+                              }}
+                            >
+                              {item.type === "event" ? "Event" : "News"}
+                            </span>
+                            <span className="text-[11px]" style={{ color: "#999" }}>
+                              {new Date(item.created_at).toLocaleDateString("en-US", {
+                                month: "short",
+                                day: "numeric",
+                              })}
+                            </span>
+                          </div>
+
+                          {item.title && (
+                            <h3 className="mt-2 text-base font-semibold text-gray-800 leading-snug line-clamp-2">
+                              {item.title}
+                            </h3>
+                          )}
+
+                          <p className="mt-1.5 text-xs leading-snug whitespace-pre-line" style={{ color: "#6b6b6b" }}>
+                            {item.caption.split(/(#\w+)/g).map((part, i) =>
+                              part.startsWith('#') ? (
+                                <span key={i} className="font-medium" style={{ color: "#92C7CF" }}>{part}</span>
+                              ) : (
+                                part
+                              )
+                            )}
+                          </p>
+
+                          {item.location && (
+                            <div className="mt-3 flex items-center justify-center gap-1.5 text-[11px]" style={{ color: "#999" }}>
+                              <MapPin className="h-3 w-3" style={{ color: "#92C7CF" }} />
+                              {item.location}
+                            </div>
+                          )}
+                        </div>
+                      </motion.article>
+                    ))}
+                  </motion.div>
+                );
+              })()}
+            </div>
+          </ScrollReveal>
         </section>
 
         {/* ─── RESULTS (Dynamic from API) ─── */}
-        <section id="results" className="py-24 sm:py-32" style={{ backgroundColor: "#E5E1DA" }}>
-          <div
-            className={`mx-auto max-w-7xl px-6 lg:px-8 transition-all duration-700 ${inView.results
-              ? "opacity-100 translate-y-0"
-              : "opacity-0 translate-y-10"
-              }`}
-          >
-            <div className="mx-auto max-w-2xl text-center">
-              <span
-                className="text-xs font-semibold tracking-[0.2em] uppercase"
-                style={{ color: "#92C7CF" }}
-              >
-                Latest Draw
-              </span>
-              <h2 className="mt-3 text-3xl sm:text-4xl font-bold tracking-tight text-gray-800">
-                Today's Result
-              </h2>
-              <div className="mt-4 inline-block">
+        <section
+          id="results"
+          className="py-16 sm:py-20 snap-start"
+          style={{ backgroundColor: "#E5E1DA", scrollMarginTop: 80, scrollSnapAlign: "start" }}
+        >
+          <ScrollReveal direction="up">
+            <div className="mx-auto max-w-7xl px-6 lg:px-8">
+              <div className="mx-auto max-w-2xl text-center">
                 <span
-                  className="inline-flex items-center gap-2 rounded-full px-5 py-2 text-base font-bold tracking-wide"
-                  style={{
-                    backgroundColor: "rgba(146, 199, 207, 0.15)",
-                    color: "#2a5a5a",
-                    border: "1.5px solid rgba(146, 199, 207, 0.3)",
-                  }}
+                  className="text-xs font-semibold tracking-[0.2em] uppercase"
+                  style={{ color: "#92C7CF" }}
                 >
-                  <svg className="h-5 w-5" style={{ color: "#92C7CF" }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                  {todayDrawDate}
+                  Latest Draw
                 </span>
+                <h2 className="mt-3 text-3xl sm:text-4xl font-bold tracking-tight text-gray-800">
+                  Today's Result
+                </h2>
+                <ScrollReveal direction="up" delay={0.1}>
+                  <div className="mt-4 inline-block">
+                    <span
+                      className="inline-flex items-center gap-2 rounded-full px-5 py-2 text-base font-bold tracking-wide"
+                      style={{
+                        backgroundColor: "rgba(146, 199, 207, 0.15)",
+                        color: "#2a5a5a",
+                        border: "1.5px solid rgba(146, 199, 207, 0.3)",
+                      }}
+                    >
+                      <svg className="h-5 w-5" style={{ color: "#92C7CF" }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      {todayDrawDate}
+                    </span>
+                  </div>
+                </ScrollReveal>
+                <p className="mt-4 leading-relaxed" style={{ color: "#6b6b6b" }}>
+                  Check the latest winning numbers for our lottery draws.
+                </p>
               </div>
-              <p className="mt-4 leading-relaxed" style={{ color: "#6b6b6b" }}>
-                Check the latest winning numbers for our lottery draws.
-              </p>
+
+              {resultsLoading ? (
+                <div className="flex items-center justify-center py-16">
+                  <Loader2 className="h-8 w-8 animate-spin" style={{ color: "#92C7CF" }} />
+                </div>
+              ) : results.length === 0 ? (
+                <p className="mt-12 text-center text-sm" style={{ color: "#999" }}>
+                  No results posted yet. Check back later.
+                </p>
+              ) : (
+                <motion.div
+                  className="mt-12 space-y-6 max-w-5xl mx-auto"
+                  variants={containerVariants}
+                  initial="hidden"
+                  whileInView="visible"
+                  viewport={{ once: false, amount: 0.1, margin: "0px 0px -60px 0px" }}
+                >
+                  {/* STL CDO Row */}
+                  <motion.div
+                    variants={cardItemVariants}
+                    className="rounded-2xl overflow-hidden bg-white shadow-lg transition-all duration-300 hover:shadow-xl"
+                    style={{ border: "1.5px solid #E5E1DA" }}
+                  >
+                    <div className="px-4 py-2.5 text-center" style={{ background: "linear-gradient(135deg, rgba(146, 199, 207, 0.25) 0%, rgba(146, 199, 207, 0.12) 100%)", borderBottom: "1.5px solid #E5E1DA" }}>
+                      <span className="text-lg font-bold tracking-wider" style={{ color: "#2a5a5a" }}>
+                        STL CDO
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-3">
+                      {stlTimes.map((time) => {
+                        const result = stlCdoByTime.get(time);
+                        return (
+                          <div key={time} className="px-3 py-4 text-center border-r last:border-r-0 transition-colors duration-200 hover:bg-gray-50/50" style={{ borderColor: "#E5E1DA" }}>
+                            <p className="text-sm font-bold uppercase tracking-wider mb-2" style={{ color: "#92C7CF" }}>
+                              {time.replace("AM", " AM").replace("PM", " PM")}
+                            </p>
+                            {result ? (
+                              <p className="text-2xl sm:text-xl font-black tracking-tight" style={{ color: "#2a4a4a", textShadow: "0 1px 2px rgba(0,0,0,0.06)" }}>
+                                {result.winning_number}
+                              </p>
+                            ) : (
+                              <p className="text-sm" style={{ color: "#bbb" }}>—</p>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </motion.div>
+
+                  {/* STL MISOR Row */}
+                  <motion.div
+                    variants={cardItemVariants}
+                    className="rounded-2xl overflow-hidden bg-white shadow-lg transition-all duration-300 hover:shadow-xl"
+                    style={{ border: "1.5px solid #E5E1DA" }}
+                  >
+                    <div className="px-4 py-2.5 text-center" style={{ background: "linear-gradient(135deg, rgba(232, 168, 56, 0.22) 0%, rgba(232, 168, 56, 0.10) 100%)", borderBottom: "1.5px solid #E5E1DA" }}>
+                      <span className="text-lg font-bold tracking-wider" style={{ color: "#7a4a0a" }}>
+                        STL MISOR
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-3">
+                      {stlTimes.map((time) => {
+                        const result = stlMisorByTime.get(time);
+                        return (
+                          <div key={time} className="px-3 py-4 text-center border-r last:border-r-0 transition-colors duration-200 hover:bg-gray-50/50" style={{ borderColor: "#E5E1DA" }}>
+                            <p className="text-sm font-bold uppercase tracking-wider mb-2" style={{ color: "#d97706" }}>
+                              {time.replace("AM", " AM").replace("PM", " PM")}
+                            </p>
+                            {result ? (
+                              <p className="text-2xl sm:text-xl font-black tracking-tight" style={{ color: "#5a3a1a", textShadow: "0 1px 2px rgba(0,0,0,0.06)" }}>
+                                {result.winning_number}
+                              </p>
+                            ) : (
+                              <p className="text-sm" style={{ color: "#bbb" }}>—</p>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </motion.div>
+
+                  {/* 3D Row */}
+                  <motion.div
+                    variants={cardItemVariants}
+                    className="rounded-2xl overflow-hidden bg-white shadow-lg transition-all duration-300 hover:shadow-xl"
+                    style={{ border: "1.5px solid #E5E1DA" }}
+                  >
+                    <div className="px-4 py-2.5 text-center" style={{ background: "linear-gradient(135deg, rgba(168, 85, 247, 0.15) 0%, rgba(168, 85, 247, 0.06) 100%)", borderBottom: "1.5px solid #E5E1DA" }}>
+                      <span className="text-lg font-bold tracking-wider" style={{ color: "#4a2a5a" }}>
+                        3D
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-3">
+                      {threeDTimes.map((time) => {
+                        const result = threeDByTime.get(time);
+                        return (
+                          <div key={time} className="px-3 py-4 text-center border-r last:border-r-0 transition-colors duration-200 hover:bg-gray-50/50" style={{ borderColor: "#E5E1DA" }}>
+                            <p className="text-sm font-bold uppercase tracking-wider mb-2" style={{ color: "#a855f7" }}>
+                              {time.replace("PM", " PM").replace("AM", " AM")}
+                            </p>
+                            {result ? (
+                              <p className="text-2xl sm:text-xl font-black tracking-tight" style={{ color: "#3a2a4a", textShadow: "0 1px 2px rgba(0,0,0,0.06)" }}>
+                                {result.winning_number}
+                              </p>
+                            ) : (
+                              <p className="text-sm" style={{ color: "#bbb" }}>—</p>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </motion.div>
+                </motion.div>
+              )}
             </div>
-
-            {resultsLoading ? (
-              <div className="flex items-center justify-center py-16">
-                <Loader2 className="h-8 w-8 animate-spin" style={{ color: "#92C7CF" }} />
-              </div>
-            ) : results.length === 0 ? (
-              <p className="mt-12 text-center text-sm" style={{ color: "#999" }}>
-                No results posted yet. Check back later.
-              </p>
-            ) : (
-              <div className="mt-12 space-y-6 max-w-5xl mx-auto">
-                {/* STL CDO Row */}
-                <div className="rounded-2xl overflow-hidden bg-white shadow-lg transition-all duration-300 hover:shadow-xl" style={{ border: "1.5px solid #E5E1DA" }}>
-                  <div className="px-4 py-2.5 text-center" style={{ background: "linear-gradient(135deg, rgba(146, 199, 207, 0.25) 0%, rgba(146, 199, 207, 0.12) 100%)", borderBottom: "1.5px solid #E5E1DA" }}>
-                    <span className="text-lg font-bold tracking-wider" style={{ color: "#2a5a5a" }}>
-                      STL CDO
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-3">
-                    {stlTimes.map((time) => {
-                      const result = stlCdoByTime.get(time);
-                      return (
-                        <div key={time} className="px-3 py-4 text-center border-r last:border-r-0 transition-colors duration-200 hover:bg-gray-50/50" style={{ borderColor: "#E5E1DA" }}>
-                          <p className="text-sm font-bold uppercase tracking-wider mb-2" style={{ color: "#92C7CF" }}>
-                            {time.replace("AM", " AM").replace("PM", " PM")}
-                          </p>
-                          {result ? (
-                            <p className="text-2xl sm:text-xl font-black tracking-tight" style={{ color: "#2a4a4a", textShadow: "0 1px 2px rgba(0,0,0,0.06)" }}>
-                              {result.winning_number}
-                            </p>
-                          ) : (
-                            <p className="text-sm" style={{ color: "#bbb" }}>—</p>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* STL MISOR Row */}
-                <div className="rounded-2xl overflow-hidden bg-white shadow-lg transition-all duration-300 hover:shadow-xl" style={{ border: "1.5px solid #E5E1DA" }}>
-                  <div className="px-4 py-2.5 text-center" style={{ background: "linear-gradient(135deg, rgba(232, 168, 56, 0.22) 0%, rgba(232, 168, 56, 0.10) 100%)", borderBottom: "1.5px solid #E5E1DA" }}>
-                    <span className="text-lg font-bold tracking-wider" style={{ color: "#7a4a0a" }}>
-                      STL MISOR
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-3">
-                    {stlTimes.map((time) => {
-                      const result = stlMisorByTime.get(time);
-                      return (
-                        <div key={time} className="px-3 py-4 text-center border-r last:border-r-0 transition-colors duration-200 hover:bg-gray-50/50" style={{ borderColor: "#E5E1DA" }}>
-                          <p className="text-sm font-bold uppercase tracking-wider mb-2" style={{ color: "#d97706" }}>
-                            {time.replace("AM", " AM").replace("PM", " PM")}
-                          </p>
-                          {result ? (
-                            <p className="text-2xl sm:text-xl font-black tracking-tight" style={{ color: "#5a3a1a", textShadow: "0 1px 2px rgba(0,0,0,0.06)" }}>
-                              {result.winning_number}
-                            </p>
-                          ) : (
-                            <p className="text-sm" style={{ color: "#bbb" }}>—</p>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* 3D Row */}
-                <div className="rounded-2xl overflow-hidden bg-white shadow-lg transition-all duration-300 hover:shadow-xl" style={{ border: "1.5px solid #E5E1DA" }}>
-                  <div className="px-4 py-2.5 text-center" style={{ background: "linear-gradient(135deg, rgba(168, 85, 247, 0.15) 0%, rgba(168, 85, 247, 0.06) 100%)", borderBottom: "1.5px solid #E5E1DA" }}>
-                    <span className="text-lg font-bold tracking-wider" style={{ color: "#4a2a5a" }}>
-                      3D
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-3">
-                    {threeDTimes.map((time) => {
-                      const result = threeDByTime.get(time);
-                      return (
-                        <div key={time} className="px-3 py-4 text-center border-r last:border-r-0 transition-colors duration-200 hover:bg-gray-50/50" style={{ borderColor: "#E5E1DA" }}>
-                          <p className="text-sm font-bold uppercase tracking-wider mb-2" style={{ color: "#a855f7" }}>
-                            {time.replace("PM", " PM").replace("AM", " AM")}
-                          </p>
-                          {result ? (
-                            <p className="text-2xl sm:text-xl font-black tracking-tight" style={{ color: "#3a2a4a", textShadow: "0 1px 2px rgba(0,0,0,0.06)" }}>
-                              {result.winning_number}
-                            </p>
-                          ) : (
-                            <p className="text-sm" style={{ color: "#bbb" }}>—</p>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
+          </ScrollReveal>
         </section>
 
         {/* ─── SOCIAL RESPONSIBILITY ─── */}
-        <section id="social-responsibility" className="py-24 sm:py-32">
-          <div
-            className={`mx-auto max-w-7xl px-6 lg:px-8 transition-all duration-700 ${inView["social-responsibility"]
-              ? "opacity-100 translate-y-0"
-              : "opacity-0 translate-y-10"
-              }`}
-          >
-            <div className="mx-auto max-w-2xl text-center">
-              <span
-                className="text-xs font-semibold tracking-[0.2em] uppercase"
-                style={{ color: "#92C7CF" }}
-              >
-                Our Impact
-              </span>
-              <h2 className="mt-3 text-3xl sm:text-4xl font-bold tracking-tight text-gray-800">
-                Social Responsibility
-              </h2>
-              <p className="mt-4 leading-relaxed" style={{ color: "#6b6b6b" }}>
-                Committed to giving back to the communities we serve through
-                meaningful disaster relief and support programs.
-              </p>
-            </div>
+        <section
+          id="social-responsibility"
+          className="py-16 sm:py-20 snap-start"
+          style={{ scrollMarginTop: 80, scrollSnapAlign: "start" }}
+        >
+          <ScrollReveal direction="up">
+            <div className="mx-auto max-w-7xl px-6 lg:px-8">
+              <div className="mx-auto max-w-2xl text-center">
+                <span
+                  className="text-xs font-semibold tracking-[0.2em] uppercase"
+                  style={{ color: "#92C7CF" }}
+                >
+                  Our Impact
+                </span>
+                <h2 className="mt-3 text-3xl sm:text-4xl font-bold tracking-tight text-gray-800">
+                  Social Responsibility
+                </h2>
+                <p className="mt-4 leading-relaxed" style={{ color: "#6b6b6b" }}>
+                  Committed to giving back to the communities we serve through
+                  meaningful disaster relief and support programs.
+                </p>
+              </div>
 
-            <div className="mt-16 grid gap-8 md:grid-cols-3">
-              {socialImpact.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <div
-                    key={item.title}
-                    className="group rounded-2xl p-8 transition-all duration-300"
+              <div className="mt-16 grid gap-8 md:grid-cols-3">
+                {socialImpact.map((item, index) => {
+                  const Icon = item.icon;
+                  return (
+                    <ScrollReveal
+                      key={item.title}
+                      direction={index % 2 === 0 ? "left" : "right"}
+                      delay={index * 0.1}
+                    >
+                      <div
+                        className="group rounded-2xl p-8 transition-all duration-300"
+                        style={{
+                          backgroundColor: "white",
+                          border: "1px solid #E5E1DA",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.borderColor = "#92C7CF";
+                          e.currentTarget.style.boxShadow = "0 8px 30px rgba(146, 199, 207, 0.15)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.borderColor = "#E5E1DA";
+                          e.currentTarget.style.boxShadow = "none";
+                        }}
+                      >
+                        <div
+                          className="mb-5 flex h-12 w-12 items-center justify-center rounded-xl transition-colors"
+                          style={{ backgroundColor: "#FBF9F1", color: "#92C7CF" }}
+                        >
+                          <Icon className="h-6 w-6" />
+                        </div>
+                        <h3 className="text-lg font-semibold text-gray-800">
+                          {item.title}
+                        </h3>
+                        <p className="mt-3 text-sm leading-relaxed" style={{ color: "#6b6b6b" }}>
+                          {item.description}
+                        </p>
+                        <div className="mt-5 pt-5 space-y-1" style={{ borderTop: "1px solid #E5E1DA" }}>
+                          <p className="text-sm">
+                            <span className="font-semibold" style={{ color: "#4a4a4a" }}>Helped:</span>{" "}
+                            <span style={{ color: "#6b6b6b" }}>{item.peopleHelped}</span>
+                          </p>
+                          <p className="text-sm">
+                            <span className="font-semibold" style={{ color: "#4a4a4a" }}>Location:</span>{" "}
+                            <span style={{ color: "#6b6b6b" }}>{item.location}</span>
+                          </p>
+                        </div>
+                      </div>
+                    </ScrollReveal>
+                  );
+                })}
+              </div>
+
+              {/* Stats row */}
+              <motion.div
+                className="mt-20 grid grid-cols-2 md:grid-cols-4 gap-6"
+                variants={containerVariants}
+                initial="hidden"
+                whileInView="visible"
+                viewport={{ once: false, amount: 0.15, margin: "0px 0px -60px 0px" }}
+              >
+                {stats.map((stat) => (
+                  <motion.div
+                    key={stat.label}
+                    variants={itemVariants}
+                    className="rounded-xl p-6 text-center"
                     style={{
-                      backgroundColor: "white",
-                      border: "1px solid #E5E1DA",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = "#92C7CF";
-                      e.currentTarget.style.boxShadow = "0 8px 30px rgba(146, 199, 207, 0.15)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = "#E5E1DA";
-                      e.currentTarget.style.boxShadow = "none";
+                      backgroundColor: "rgba(146, 199, 207, 0.08)",
+                      border: "1px solid rgba(146, 199, 207, 0.15)",
                     }}
                   >
-                    <div
-                      className="mb-5 flex h-12 w-12 items-center justify-center rounded-xl transition-colors"
-                      style={{ backgroundColor: "#FBF9F1", color: "#92C7CF" }}
-                    >
-                      <Icon className="h-6 w-6" />
-                    </div>
-                    <h3 className="text-lg font-semibold text-gray-800">
-                      {item.title}
-                    </h3>
-                    <p className="mt-3 text-sm leading-relaxed" style={{ color: "#6b6b6b" }}>
-                      {item.description}
+                    <p className="text-2xl sm:text-3xl font-bold" style={{ color: "#92C7CF" }}>
+                      {stat.value}
                     </p>
-                    <div className="mt-5 pt-5 space-y-1" style={{ borderTop: "1px solid #E5E1DA" }}>
-                      <p className="text-sm">
-                        <span className="font-semibold" style={{ color: "#4a4a4a" }}>Helped:</span>{" "}
-                        <span style={{ color: "#6b6b6b" }}>{item.peopleHelped}</span>
-                      </p>
-                      <p className="text-sm">
-                        <span className="font-semibold" style={{ color: "#4a4a4a" }}>Location:</span>{" "}
-                        <span style={{ color: "#6b6b6b" }}>{item.location}</span>
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
+                    <p className="mt-1 text-xs font-medium uppercase tracking-wide" style={{ color: "#6b6b6b" }}>
+                      {stat.label}
+                    </p>
+                  </motion.div>
+                ))}
+              </motion.div>
             </div>
-
-            {/* Stats row */}
-            <div className="mt-20 grid grid-cols-2 md:grid-cols-4 gap-6">
-              {stats.map((stat) => (
-                <div
-                  key={stat.label}
-                  className="rounded-xl p-6 text-center"
-                  style={{
-                    backgroundColor: "rgba(146, 199, 207, 0.08)",
-                    border: "1px solid rgba(146, 199, 207, 0.15)",
-                  }}
-                >
-                  <p className="text-2xl sm:text-3xl font-bold" style={{ color: "#92C7CF" }}>
-                    {stat.value}
-                  </p>
-                  <p className="mt-1 text-xs font-medium uppercase tracking-wide" style={{ color: "#6b6b6b" }}>
-                    {stat.label}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
+          </ScrollReveal>
         </section>
 
         {/* ─── ABOUT US ─── */}
-        <section id="about-us" className="py-24 sm:py-32">
-          <div
-            className={`mx-auto max-w-7xl px-6 lg:px-8 transition-all duration-700 ${inView["about-us"]
-              ? "opacity-100 translate-y-0"
-              : "opacity-0 translate-y-10"
-              }`}
-          >
+        <section
+          id="about-us"
+          className="py-16 sm:py-20 snap-start"
+          style={{ scrollMarginTop: 80, scrollSnapAlign: "start" }}
+        >
+          <div className="mx-auto max-w-7xl px-6 lg:px-8">
             <div className="mx-auto max-w-3xl text-center">
-              <span
-                className="text-xs font-semibold tracking-[0.2em] uppercase"
-                style={{ color: "#92C7CF" }}
-              >
-                Who We Are
-              </span>
-              <h2 className="mt-3 text-3xl sm:text-4xl font-bold tracking-tight text-gray-800">
-                About Hexaprime
-              </h2>
-              <p className="mt-6 leading-relaxed text-base sm:text-lg" style={{ color: "#6b6b6b" }}>
-                Hexaprime Inc. builds secure and transparent STL systems across
-                the Philippines. We are dedicated to providing fair, regulated
-                gaming experiences while channeling resources back into
-                community development and disaster response initiatives.
-              </p>
-              <div className="mt-10 flex justify-center gap-3 flex-wrap">
-                <div
-                  className="flex items-center gap-2 rounded-full px-4 py-2 text-sm"
-                  style={{
-                    backgroundColor: "rgba(146, 199, 207, 0.1)",
-                    color: "#4a4a4a",
-                    border: "1px solid rgba(146, 199, 207, 0.2)",
-                  }}
+              <ScrollReveal direction="left">
+                <span
+                  className="text-xs font-semibold tracking-[0.2em] uppercase"
+                  style={{ color: "#92C7CF" }}
                 >
-                  <TrendingUp className="h-4 w-4" style={{ color: "#92C7CF" }} />
-                  Trusted by 15+ LGUs
+                  Who We Are
+                </span>
+              </ScrollReveal>
+              <ScrollReveal direction="left" delay={0.05}>
+                <h2 className="mt-3 text-3xl sm:text-4xl font-bold tracking-tight text-gray-800">
+                  About Hexaprime
+                </h2>
+              </ScrollReveal>
+              <ScrollReveal direction="left" delay={0.1}>
+                <p className="mt-6 leading-relaxed text-base sm:text-lg" style={{ color: "#6b6b6b" }}>
+                  Hexaprime Inc. builds secure and transparent STL systems across
+                  the Philippines. We are dedicated to providing fair, regulated
+                  gaming experiences while channeling resources back into
+                  community development and disaster response initiatives.
+                </p>
+              </ScrollReveal>
+              <ScrollReveal direction="right" delay={0.15}>
+                <div className="mt-10 flex justify-center gap-3 flex-wrap">
+                  <div
+                    className="flex items-center gap-2 rounded-full px-4 py-2 text-sm"
+                    style={{
+                      backgroundColor: "rgba(146, 199, 207, 0.1)",
+                      color: "#4a4a4a",
+                      border: "1px solid rgba(146, 199, 207, 0.2)",
+                    }}
+                  >
+                    <TrendingUp className="h-4 w-4" style={{ color: "#92C7CF" }} />
+                    Trusted by 15+ LGUs
+                  </div>
+                  <div
+                    className="flex items-center gap-2 rounded-full px-4 py-2 text-sm"
+                    style={{
+                      backgroundColor: "rgba(146, 199, 207, 0.1)",
+                      color: "#4a4a4a",
+                      border: "1px solid rgba(146, 199, 207, 0.2)",
+                    }}
+                  >
+                    <Shield className="h-4 w-4" style={{ color: "#92C7CF" }} />
+                    Fully Compliant
+                  </div>
                 </div>
-                <div
-                  className="flex items-center gap-2 rounded-full px-4 py-2 text-sm"
-                  style={{
-                    backgroundColor: "rgba(146, 199, 207, 0.1)",
-                    color: "#4a4a4a",
-                    border: "1px solid rgba(146, 199, 207, 0.2)",
-                  }}
-                >
-                  <Shield className="h-4 w-4" style={{ color: "#92C7CF" }} />
-                  Fully Compliant
-                </div>
-              </div>
+              </ScrollReveal>
             </div>
           </div>
         </section>
