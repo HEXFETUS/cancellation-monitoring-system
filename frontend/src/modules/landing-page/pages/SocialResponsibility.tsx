@@ -1,148 +1,400 @@
-import { Heart, Users, Shield } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { Plus, Trash2, Save, Send } from "lucide-react";
+import { useAuth } from "../../../context/AuthContext";
+import { ConfirmationModal, Toast } from "../../../shared/components";
+import {
+    fetchLandingPageContent,
+    updateLandingPageContent,
+} from "../services/landingPage";
 
-/* ---------------- COLOR PALETTE ---------------- */
-/* 
-  #92C7CF  – primary teal
-  #AAD7D9  – light teal  
-  #FBF9F1  – cream bg
-  #E5E1DA  – warm gray
-*/
-
-/* ---------------- DATA ---------------- */
 interface ImpactItem {
-  title: string;
-  description: string;
-  peopleHelped: string;
-  location: string;
-  icon: React.ElementType;
+    title: string;
+    description: string;
+    peopleHelped: string;
+    location: string;
 }
 
-const socialImpact: ImpactItem[] = [
-  {
-    title: "Typhoon Relief Operations",
-    description:
-      "Distributed food packs and emergency supplies to families affected by severe flooding and strong winds.",
-    peopleHelped: "2,450+ individuals",
-    location: "Davao Region",
-    icon: Heart,
-  },
-  {
-    title: "Flood Evacuation Support",
-    description:
-      "Provided temporary shelter assistance and basic needs for displaced communities during heavy flooding.",
-    peopleHelped: "1,800+ individuals",
-    location: "Mindanao Areas",
-    icon: Users,
-  },
-  {
-    title: "Earthquake Response Aid",
-    description:
-      "Delivered essential kits and medical support to affected barangays after seismic activity.",
-    peopleHelped: "3,120+ individuals",
-    location: "Southern Philippines",
-    icon: Shield,
-  },
+const DEFAULT_IMPACT: ImpactItem[] = [
+    {
+        title: "",
+        description: "",
+        peopleHelped: "",
+        location: "",
+    },
 ];
 
-const stats = [
-  { label: "Communities Served", value: "120+" },
-  { label: "Individuals Helped", value: "7,370+" },
-  { label: "Years of Service", value: "3+" },
-  { label: "Partner LGUs", value: "15+" },
-];
+const DEFAULT_STATS = {
+    "Communities Served": "",
+    "Individuals Helped": "",
+    "Years of Service": "",
+    "Partner LGUs": "",
+};
 
-/* ---------------- COMPONENT ---------------- */
+/* Default copy currently shown on the live landing-page Social Responsibility
+   section. Used as a fallback in the preview so the admin always sees the
+   real "current status" even before the section has been saved. */
+const DEFAULT_SR_TITLE = "Social Responsibility";
+const DEFAULT_SR_DESCRIPTION =
+    "Committed to giving back to the communities we serve through meaningful disaster relief and support programs.";
+
 export default function SocialResponsibility() {
-  return (
-    <>
-      {/* ─── SOCIAL RESPONSIBILITY ─── */}
-      <section id="social-responsibility" className="py-24 sm:py-32">
-        <div className="mx-auto max-w-7xl px-6 lg:px-8">
-          <div className="mx-auto max-w-2xl text-center">
-            <span
-              className="text-xs font-semibold tracking-[0.2em] uppercase"
-              style={{ color: "#92C7CF" }}
-            >
-              Our Impact
-            </span>
-            <h2 className="mt-3 text-3xl sm:text-4xl font-bold tracking-tight text-gray-800">
-              Social Responsibility
-            </h2>
-            <p className="mt-4 leading-relaxed" style={{ color: "#6b6b6b" }}>
-              Committed to giving back to the communities we serve through
-              meaningful disaster relief and support programs.
-            </p>
-          </div>
+    const { user } = useAuth();
+    const userId = user?.id;
 
-          <div className="mt-16 grid gap-8 md:grid-cols-3">
-            {socialImpact.map((item) => {
-              const Icon = item.icon;
-              return (
-                <div
-                  key={item.title}
-                  className="group rounded-2xl p-8 transition-all duration-300"
-                  style={{
-                    backgroundColor: "white",
-                    border: "1px solid #E5E1DA",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = "#92C7CF";
-                    e.currentTarget.style.boxShadow = "0 8px 30px rgba(146, 199, 207, 0.15)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = "#E5E1DA";
-                    e.currentTarget.style.boxShadow = "none";
-                  }}
-                >
-                  <div
-                    className="mb-5 flex h-12 w-12 items-center justify-center rounded-xl transition-colors"
-                    style={{ backgroundColor: "#FBF9F1", color: "#92C7CF" }}
-                  >
-                    <Icon className="h-6 w-6" />
-                  </div>
-                  <h3 className="text-lg font-semibold text-gray-800">
-                    {item.title}
-                  </h3>
-                  <p className="mt-3 text-sm leading-relaxed" style={{ color: "#6b6b6b" }}>
-                    {item.description}
-                  </p>
-                  <div className="mt-5 pt-5 space-y-1" style={{ borderTop: "1px solid #E5E1DA" }}>
-                    <p className="text-sm">
-                      <span className="font-semibold" style={{ color: "#4a4a4a" }}>Helped:</span>{" "}
-                      <span style={{ color: "#6b6b6b" }}>{item.peopleHelped}</span>
-                    </p>
-                    <p className="text-sm">
-                      <span className="font-semibold" style={{ color: "#4a4a4a" }}>Location:</span>{" "}
-                      <span style={{ color: "#6b6b6b" }}>{item.location}</span>
-                    </p>
-                  </div>
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState("");
+
+    // Saved content (for preview)
+    const [savedTitle, setSavedTitle] = useState("");
+    const [savedDescription, setSavedDescription] = useState("");
+    const [savedImpact, setSavedImpact] = useState<ImpactItem[]>(DEFAULT_IMPACT);
+    const [savedStats, setSavedStats] = useState<Record<string, string>>(DEFAULT_STATS);
+
+    // Form fields
+    const [sectionTitle, setSectionTitle] = useState("");
+    const [sectionDescription, setSectionDescription] = useState("");
+    const [impactItems, setImpactItems] = useState<ImpactItem[]>(DEFAULT_IMPACT);
+    const [stats, setStats] = useState<Record<string, string>>(DEFAULT_STATS);
+
+    // UI state
+    const [showConfirm, setShowConfirm] = useState(false);
+    const [formError, setFormError] = useState("");
+    const [toast, setToast] = useState<{ open: boolean; message: string; type: "success" | "error" }>({
+        open: false,
+        message: "",
+        type: "success",
+    });
+
+    const showToast = useCallback((message: string, type: "success" | "error" = "success") => {
+        setToast({ open: true, message, type });
+    }, []);
+    const hideToast = useCallback(() => setToast((p) => ({ ...p, open: false })), []);
+
+    const load = useCallback(async () => {
+        if (!userId) return;
+        setError("");
+        try {
+            const data = await fetchLandingPageContent("social-responsibility");
+            if (data) {
+                setSectionTitle(data.title || "");
+                setSectionDescription(data.description || "");
+
+                // Parse impact items from content if available
+                if (data.content) {
+                    try {
+                        const parsed = JSON.parse(data.content);
+                        if (Array.isArray(parsed)) {
+                            setImpactItems(parsed.length > 0 ? parsed : DEFAULT_IMPACT);
+                        }
+                    } catch {
+                        setImpactItems(DEFAULT_IMPACT);
+                    }
+                } else {
+                    setImpactItems(DEFAULT_IMPACT);
+                }
+
+                // Parse stats
+                if (data.stats && typeof data.stats === "object") {
+                    setStats((prev) => ({ ...prev, ...data.stats }));
+                }
+
+                // Update preview
+                setSavedTitle(data.title || "");
+                setSavedDescription(data.description || "");
+                setSavedImpact(impactItems);
+                setSavedStats(stats);
+            }
+        } catch (e) {
+            setError(e instanceof Error ? e.message : "Failed to load");
+        }
+    }, [userId]);
+
+    useEffect(() => {
+        load();
+    }, [load]);
+
+    const updateImpactItem = (index: number, field: keyof ImpactItem, value: string) => {
+        setImpactItems((prev) => {
+            const next = [...prev];
+            next[index] = { ...next[index], [field]: value };
+            return next;
+        });
+    };
+
+    const addImpactItem = () => {
+        setImpactItems((prev) => [...prev, { ...DEFAULT_IMPACT[0] }]);
+    };
+
+    const removeImpactItem = (index: number) => {
+        setImpactItems((prev) => prev.filter((_, i) => i !== index));
+    };
+
+    const updateStat = (key: string, value: string) => {
+        setStats((prev) => ({ ...prev, [key]: value }));
+    };
+
+    const handleSave = async () => {
+        if (!sectionTitle.trim() && !sectionDescription.trim()) {
+            setFormError("Please provide at least a title or description.");
+            return;
+        }
+        setShowConfirm(true);
+    };
+
+    const confirmSave = async () => {
+        if (!userId) return;
+        setSaving(true);
+        setFormError("");
+        try {
+            // Filter out empty impact items
+            const validImpact = impactItems.filter((item) => item.title.trim() || item.description.trim());
+
+            await updateLandingPageContent(
+                "social-responsibility",
+                {
+                    title: sectionTitle.trim(),
+                    description: sectionDescription.trim(),
+                    content: JSON.stringify(validImpact),
+                    stats: stats,
+                },
+                userId
+            );
+            showToast("Social Responsibility section updated successfully.", "success");
+            // Update preview
+            setSavedTitle(sectionTitle.trim());
+            setSavedDescription(sectionDescription.trim());
+            setSavedImpact(validImpact);
+            setSavedStats(stats);
+            await load();
+        } catch (e) {
+            setFormError(e instanceof Error ? e.message : "Failed to save");
+        } finally {
+            setSaving(false);
+            setShowConfirm(false);
+        }
+    };
+
+    return (
+        <div className="flex h-full min-h-0 flex-col gap-4 overflow-hidden">
+            <div className="flex items-center gap-2">
+                <Save size={20} className="text-teal-dark" />
+                <h1 className="text-lg font-bold text-ink">Social Responsibility Page</h1>
+            </div>
+
+            {error && (
+                <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
+                    <span>{error}</span>
                 </div>
-              );
-            })}
-          </div>
+            )}
 
-          {/* Stats row */}
-          <div className="mt-20 grid grid-cols-2 md:grid-cols-4 gap-6">
-            {stats.map((stat) => (
-              <div
-                key={stat.label}
-                className="rounded-xl p-6 text-center"
-                style={{
-                  backgroundColor: "rgba(146, 199, 207, 0.08)",
-                  border: "1px solid rgba(146, 199, 207, 0.15)",
-                }}
-              >
-                <p className="text-2xl sm:text-3xl font-bold" style={{ color: "#92C7CF" }}>
-                  {stat.value}
-                </p>
-                <p className="mt-1 text-xs font-medium uppercase tracking-wide" style={{ color: "#6b6b6b" }}>
-                  {stat.label}
-                </p>
-              </div>
-            ))}
-          </div>
+            <div className="flex flex-1 min-h-0 gap-4 lg:flex-row flex-col">
+                {/* Composer */}
+                <div className="lg:w-[480px] xl:w-[520px] shrink-0 overflow-y-auto rounded-2xl border border-warm bg-white p-5 shadow-sm">
+                    <h2 className="mb-4 text-sm font-semibold text-ink">Edit Social Responsibility Section</h2>
+
+                    {formError && (
+                        <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">
+                            {formError}
+                        </div>
+                    )}
+
+                    {/* Section Title */}
+                    <div className="mb-4">
+                        <label className="mb-1 block text-xs font-medium text-ink">
+                            Section Title <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                            type="text"
+                            value={sectionTitle}
+                            onChange={(e) => setSectionTitle(e.target.value)}
+                            placeholder="e.g. Social Responsibility"
+                            maxLength={255}
+                            className="w-full rounded-xl border border-warm bg-card px-3 py-2 text-sm text-ink focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/30"
+                        />
+                    </div>
+
+                    {/* Section Description */}
+                    <div className="mb-4">
+                        <label className="mb-1 block text-xs font-medium text-ink">
+                            Section Description <span className="text-red-500">*</span>
+                        </label>
+                        <textarea
+                            value={sectionDescription}
+                            onChange={(e) => setSectionDescription(e.target.value)}
+                            placeholder="Brief description of your social responsibility programs..."
+                            rows={3}
+                            className="w-full resize-y rounded-xl border border-warm bg-card px-3 py-2 text-sm text-ink focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/30"
+                        />
+                    </div>
+
+                    {/* Impact Items */}
+                    <div className="mb-4">
+                        <div className="mb-2 flex items-center justify-between">
+                            <label className="text-xs font-medium text-ink">Impact Stories</label>
+                            <button
+                                type="button"
+                                onClick={addImpactItem}
+                                className="flex items-center gap-1 rounded-lg bg-teal/10 px-2 py-1 text-xs font-semibold text-teal-dark transition hover:bg-teal/20"
+                            >
+                                <Plus size={12} />
+                                Add Story
+                            </button>
+                        </div>
+
+                        {impactItems.map((item, index) => (
+                            <div key={index} className="mb-3 rounded-xl border border-warm bg-card p-3">
+                                <div className="mb-2 flex items-center justify-between">
+                                    <span className="text-xs font-semibold text-ink-muted">Story #{index + 1}</span>
+                                    {impactItems.length > 1 && (
+                                        <button
+                                            type="button"
+                                            onClick={() => removeImpactItem(index)}
+                                            className="rounded-lg p-1 text-slate-400 transition hover:bg-red-50 hover:text-red-600"
+                                            title="Remove"
+                                        >
+                                            <Trash2 size={14} />
+                                        </button>
+                                    )}
+                                </div>
+
+                                <div className="space-y-2">
+                                    <input
+                                        type="text"
+                                        value={item.title}
+                                        onChange={(e) => updateImpactItem(index, "title", e.target.value)}
+                                        placeholder="Title (e.g. Typhoon Relief Operations)"
+                                        className="w-full rounded-lg border border-warm bg-white px-2 py-1.5 text-xs text-ink focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/30"
+                                    />
+                                    <textarea
+                                        value={item.description}
+                                        onChange={(e) => updateImpactItem(index, "description", e.target.value)}
+                                        placeholder="Description..."
+                                        rows={2}
+                                        className="w-full resize-y rounded-lg border border-warm bg-white px-2 py-1.5 text-xs text-ink focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/30"
+                                    />
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <input
+                                            type="text"
+                                            value={item.peopleHelped}
+                                            onChange={(e) => updateImpactItem(index, "peopleHelped", e.target.value)}
+                                            placeholder="People Helped (e.g. 2,450+ individuals)"
+                                            className="rounded-lg border border-warm bg-white px-2 py-1.5 text-xs text-ink focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/30"
+                                        />
+                                        <input
+                                            type="text"
+                                            value={item.location}
+                                            onChange={(e) => updateImpactItem(index, "location", e.target.value)}
+                                            placeholder="Location (e.g. Davao Region)"
+                                            className="rounded-lg border border-warm bg-white px-2 py-1.5 text-xs text-ink focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/30"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Stats */}
+                    <div className="mb-5">
+                        <label className="mb-2 block text-xs font-medium text-ink">Impact Statistics</label>
+                        <div className="space-y-2">
+                            {Object.entries(stats).map(([key, value]) => (
+                                <div key={key} className="flex items-center gap-2">
+                                    <input
+                                        type="text"
+                                        value={key}
+                                        onChange={(e) => {
+                                            const oldKey = key;
+                                            const newKey = e.target.value;
+                                            if (newKey && newKey !== oldKey) {
+                                                setStats((prev) => {
+                                                    const next = { ...prev };
+                                                    delete next[oldKey];
+                                                    next[newKey] = value;
+                                                    return next;
+                                                });
+                                            }
+                                        }}
+                                        placeholder="Label"
+                                        className="flex-1 rounded-lg border border-warm bg-white px-2 py-1.5 text-xs text-ink focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/30"
+                                    />
+                                    <input
+                                        type="text"
+                                        value={value}
+                                        onChange={(e) => updateStat(key, e.target.value)}
+                                        placeholder="Value"
+                                        className="w-24 rounded-lg border border-warm bg-white px-2 py-1.5 text-xs text-ink focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/30"
+                                    />
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Action */}
+                    <button
+                        type="button"
+                        onClick={handleSave}
+                        disabled={saving}
+                        className="flex items-center gap-1.5 rounded-xl bg-teal px-4 py-2 text-sm font-semibold text-ink shadow transition hover:bg-teal-dark disabled:opacity-50"
+                    >
+                        <Send size={14} />
+                        {saving ? "Saving…" : "Save Changes"}
+                    </button>
+                </div>
+
+                {/* Preview panel */}
+                <div className="flex flex-1 flex-col min-h-0 overflow-hidden rounded-2xl border border-warm bg-white/60 p-5 shadow-sm">
+                    <h3 className="text-[11px] font-bold uppercase tracking-[0.12em] text-ink-muted/70 mb-3">
+                        Current Status
+                    </h3>
+                    <div className="flex-1 overflow-y-auto">
+                        <div className="rounded-xl border border-warm bg-white p-4 shadow-xs">
+                            <h3 className="text-lg font-bold text-ink leading-snug">{savedTitle || DEFAULT_SR_TITLE}</h3>
+                            <p className="mt-1 text-sm text-ink-muted leading-relaxed">{savedDescription || DEFAULT_SR_DESCRIPTION}</p>
+
+                            <div className="mt-4 space-y-3">
+                                {savedImpact.filter(i => i.title).map((item, i) => (
+                                    <div key={i} className="rounded-lg border border-warm bg-card p-3">
+                                        <h4 className="text-sm font-semibold text-ink">{item.title}</h4>
+                                        <p className="mt-1 text-xs text-ink-muted">{item.description}</p>
+                                        <div className="mt-2 flex gap-3 text-[10px] text-ink-subtle">
+                                            <span>Helped: {item.peopleHelped || "—"}</span>
+                                            <span>Location: {item.location || "—"}</span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div className="mt-4 grid grid-cols-2 gap-2">
+                                {Object.entries(savedStats).filter(([k]) => k && savedStats[k]).map(([key, value]) => (
+                                    <div key={key} className="rounded-lg bg-teal/5 p-2 text-center">
+                                        <p className="text-lg font-bold text-teal-dark">{value}</p>
+                                        <p className="text-[10px] text-ink-muted">{key}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <ConfirmationModal
+                open={showConfirm}
+                title="Save Changes?"
+                message="This will update the Social Responsibility section of the landing page."
+                confirmLabel="Save"
+                isLoading={saving}
+                loadingLabel="Saving..."
+                onCancel={() => setShowConfirm(false)}
+                onConfirm={confirmSave}
+            />
+
+            <Toast
+                open={toast.open}
+                message={toast.message}
+                type={toast.type}
+                onClose={hideToast}
+                position="top-center"
+            />
         </div>
-      </section>
-    </>
-  );
+    );
 }
