@@ -19,6 +19,7 @@ import LogoOnly from "../../../assets/LogoOnly.webp";
 import { fetchLandingPageContent } from "../services/landingPage";
 import ScrollReveal from "../components/ScrollReveal";
 import FullPageSection from "../components/FullPageSection";
+import LandingPageLoader from "../components/LandingPageLoader";
 
 /* Default hero copy (kept in sync with the live landing page) used as a
    fallback until the Home section has been saved via the admin editor. */
@@ -54,7 +55,7 @@ interface ImpactItem {
   icon: React.ElementType;
 }
 
-const socialImpact: ImpactItem[] = [
+const DEFAULT_SOCIAL_IMPACT: ImpactItem[] = [
   {
     title: "Typhoon Relief Operations",
     description:
@@ -81,12 +82,76 @@ const socialImpact: ImpactItem[] = [
   },
 ];
 
-const stats = [
+const DEFAULT_SOCIAL_STATS = [
   { label: "Communities Served", value: "120+" },
   { label: "Individuals Helped", value: "7,370+" },
   { label: "Years of Service", value: "3+" },
   { label: "Partner LGUs", value: "15+" },
 ];
+
+const DEFAULT_SOCIAL_TITLE = "Social Responsibility";
+const DEFAULT_SOCIAL_DESCRIPTION =
+  "Committed to giving back to the communities we serve through meaningful disaster relief and support programs.";
+const DEFAULT_ABOUT_TITLE = "About Hexaprime";
+const DEFAULT_ABOUT_DESCRIPTION =
+  "Hexaprime Inc. builds secure and transparent STL systems across the Philippines. We are dedicated to providing fair, regulated gaming experiences while channeling resources back into community development and disaster response initiatives.";
+
+interface AboutBadge {
+  icon: "trending" | "shield";
+  text: string;
+}
+
+const DEFAULT_ABOUT_BADGES: AboutBadge[] = [
+  { icon: "trending", text: "Trusted by 15+ LGUs" },
+  { icon: "shield", text: "Fully Compliant" },
+];
+
+const IMPACT_ICONS = [Heart, Users, Shield] as const;
+
+function parseImpactItems(content: string | null): ImpactItem[] | null {
+  if (content === null) return null;
+  try {
+    const parsed: unknown = JSON.parse(content);
+    if (!Array.isArray(parsed)) return null;
+    if (!parsed.every((item) =>
+      typeof item === "object" && item !== null
+      && typeof (item as Record<string, unknown>).title === "string"
+      && typeof (item as Record<string, unknown>).description === "string"
+      && typeof (item as Record<string, unknown>).peopleHelped === "string"
+      && typeof (item as Record<string, unknown>).location === "string"
+    )) return null;
+
+    return parsed.map((item, index) => {
+      const record = item as Record<string, string>;
+      return {
+        title: record.title,
+        description: record.description,
+        peopleHelped: record.peopleHelped,
+        location: record.location,
+        icon: IMPACT_ICONS[index % IMPACT_ICONS.length],
+      };
+    });
+  } catch {
+    return null;
+  }
+}
+
+function parseAboutBadges(content: string | null): AboutBadge[] | null {
+  if (content === null) return null;
+  try {
+    const parsed: unknown = JSON.parse(content);
+    if (!Array.isArray(parsed)) return null;
+    if (!parsed.every((badge) =>
+      typeof badge === "object" && badge !== null
+      && ((badge as Record<string, unknown>).icon === "trending"
+        || (badge as Record<string, unknown>).icon === "shield")
+      && typeof (badge as Record<string, unknown>).text === "string"
+    )) return null;
+    return parsed as AboutBadge[];
+  } catch {
+    return null;
+  }
+}
 
 /* ---------------- TYPES ---------------- */
 interface LotteryResult {
@@ -160,7 +225,7 @@ const cardItemVariants = {
 };
 
 /* ---------------- HOOKS ---------------- */
-const useSlideshow = (images: string[], interval = 5000) => {
+const useSlideshow = (images: string[], interval = 5000, enabled = true) => {
   const [current, setCurrent] = useState(0);
 
   const next = useCallback(() => {
@@ -172,10 +237,10 @@ const useSlideshow = (images: string[], interval = 5000) => {
   }, [images.length]);
 
   useEffect(() => {
-    if (images.length <= 1) return;
+    if (!enabled || images.length <= 1) return;
     const timer = setInterval(next, interval);
     return () => clearInterval(timer);
-  }, [images.length, next, interval]);
+  }, [enabled, images.length, next, interval]);
 
   return { current, next, prev, setCurrent };
 };
@@ -309,15 +374,33 @@ export default function LandingPage() {
   const [heroDescription, setHeroDescription] = useState(DEFAULT_HERO_DESCRIPTION);
   const [savedHeroMedia, setSavedHeroMedia] = useState<string[]>([]);
   const [heroLoading, setHeroLoading] = useState(true);
+  const [heroVisualReady, setHeroVisualReady] = useState(false);
+  const settledHeroMediaRef = useRef<Set<string>>(new Set());
   const heroMedia = heroLoading
     ? []
     : savedHeroMedia.length > 0
       ? savedHeroMedia.map((url) => `${API_BASE}${url}`)
       : slideshowImages;
-  const slide = useSlideshow(heroMedia, 4500);
+  const slide = useSlideshow(heroMedia, 4500, heroVisualReady);
   const currentHeroIndex = heroMedia.length > 0 ? slide.current % heroMedia.length : 0;
+  const currentHeroMedia = heroMedia[currentHeroIndex];
+
+  const handleHeroMediaSettled = useCallback((src: string) => {
+    settledHeroMediaRef.current.add(src);
+    if (src === currentHeroMedia) setHeroVisualReady(true);
+  }, [currentHeroMedia]);
+
+  const [socialTitle, setSocialTitle] = useState(DEFAULT_SOCIAL_TITLE);
+  const [socialDescription, setSocialDescription] = useState(DEFAULT_SOCIAL_DESCRIPTION);
+  const [socialImpactItems, setSocialImpactItems] = useState<ImpactItem[]>(DEFAULT_SOCIAL_IMPACT);
+  const [socialStats, setSocialStats] = useState(DEFAULT_SOCIAL_STATS);
+  const [aboutTitle, setAboutTitle] = useState(DEFAULT_ABOUT_TITLE);
+  const [aboutDescription, setAboutDescription] = useState(DEFAULT_ABOUT_DESCRIPTION);
+  const [aboutBadges, setAboutBadges] = useState<AboutBadge[]>(DEFAULT_ABOUT_BADGES);
 
   const loadHero = useCallback(async () => {
+    settledHeroMediaRef.current.clear();
+    setHeroVisualReady(false);
     setHeroLoading(true);
     try {
       const data = await fetchLandingPageContent("home");
@@ -337,15 +420,67 @@ export default function LandingPage() {
     }
   }, []);
 
+  const loadManagedSections = useCallback(async () => {
+    const [socialResult, aboutResult] = await Promise.allSettled([
+      fetchLandingPageContent("social-responsibility"),
+      fetchLandingPageContent("about-us"),
+    ]);
+
+    if (socialResult.status === "fulfilled") {
+      const data = socialResult.value;
+      if (data) {
+        setSocialTitle(data.title || DEFAULT_SOCIAL_TITLE);
+        setSocialDescription(data.description || DEFAULT_SOCIAL_DESCRIPTION);
+        setSocialImpactItems(parseImpactItems(data.content) ?? DEFAULT_SOCIAL_IMPACT);
+        setSocialStats(
+          data.stats && typeof data.stats === "object" && !Array.isArray(data.stats)
+            ? Object.entries(data.stats)
+              .filter(([label, value]) => label.trim() && typeof value === "string" && value.trim())
+              .map(([label, value]) => ({ label, value }))
+            : DEFAULT_SOCIAL_STATS
+        );
+      } else {
+        setSocialTitle(DEFAULT_SOCIAL_TITLE);
+        setSocialDescription(DEFAULT_SOCIAL_DESCRIPTION);
+        setSocialImpactItems(DEFAULT_SOCIAL_IMPACT);
+        setSocialStats(DEFAULT_SOCIAL_STATS);
+      }
+    } else {
+      console.error("Failed to fetch social responsibility content", socialResult.reason);
+    }
+
+    if (aboutResult.status === "fulfilled") {
+      const data = aboutResult.value;
+      if (data) {
+        setAboutTitle(data.title || DEFAULT_ABOUT_TITLE);
+        setAboutDescription(data.description || DEFAULT_ABOUT_DESCRIPTION);
+        setAboutBadges(parseAboutBadges(data.content) ?? DEFAULT_ABOUT_BADGES);
+      } else {
+        setAboutTitle(DEFAULT_ABOUT_TITLE);
+        setAboutDescription(DEFAULT_ABOUT_DESCRIPTION);
+        setAboutBadges(DEFAULT_ABOUT_BADGES);
+      }
+    } else {
+      console.error("Failed to fetch about us content", aboutResult.reason);
+    }
+  }, []);
+
   useEffect(() => {
     loadHero();
-  }, [loadHero]);
+    loadManagedSections();
+  }, [loadHero, loadManagedSections]);
 
   useEffect(() => {
     const onVisibility = () => {
-      if (document.visibilityState === "visible") loadHero();
+      if (document.visibilityState === "visible") {
+        loadHero();
+        loadManagedSections();
+      }
     };
-    const onFocus = () => loadHero();
+    const onFocus = () => {
+      loadHero();
+      loadManagedSections();
+    };
 
     window.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("focus", onFocus);
@@ -354,15 +489,16 @@ export default function LandingPage() {
       window.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("focus", onFocus);
     };
-  }, [loadHero]);
+  }, [loadHero, loadManagedSections]);
 
   const location = useLocation();
 
   useEffect(() => {
     if (location.pathname === "/") {
       loadHero();
+      loadManagedSections();
     }
-  }, [location.pathname, loadHero]);
+  }, [location.pathname, loadHero, loadManagedSections]);
 
   const navItems = [
     { id: "hero" as SectionId, label: "Home" },
@@ -628,11 +764,15 @@ export default function LandingPage() {
           year: "numeric",
         });
 
+  const showHeroContent = currentSection === 0 && !heroLoading && heroVisualReady;
+
   return (
     <div
       className="relative h-dvh overflow-hidden font-sans antialiased"
       style={{ backgroundColor: "#FBF9F1", color: "#4a4a4a" }}
     >
+      {(heroLoading || !heroVisualReady) && <LandingPageLoader />}
+
       <LoginModal
         open={loginOpen}
         onClose={() => setLoginOpen(false)}
@@ -822,6 +962,8 @@ export default function LandingPage() {
                     muted
                     loop
                     playsInline
+                    onLoadedData={() => handleHeroMediaSettled(src)}
+                    onError={() => handleHeroMediaSettled(src)}
                     aria-label={`Hero video ${i + 1}`}
                   />
                 ) : (
@@ -829,6 +971,8 @@ export default function LandingPage() {
                     src={src}
                     alt={`Hero media ${i + 1}`}
                     className="h-full w-full object-cover"
+                    onLoad={() => handleHeroMediaSettled(src)}
+                    onError={() => handleHeroMediaSettled(src)}
                   />
                 )}
                 {/* Dark overlay for text readability */}
@@ -844,13 +988,13 @@ export default function LandingPage() {
                 initial={prefersReducedMotion ? false : { opacity: 0, y: 30, scale: 0.9 }}
                 animate={prefersReducedMotion
                   ? { opacity: 1, y: 0, scale: 1 }
-                  : currentSection === 0
+                  : showHeroContent
                     ? { opacity: 1, y: 0, scale: 1 }
                     : { opacity: 0, y: 30, scale: 0.9 }}
                 transition={{
-                  duration: prefersReducedMotion ? 0 : currentSection === 0 ? 1.2 : 0.3,
+                  duration: prefersReducedMotion ? 0 : showHeroContent ? 1.2 : 0.3,
                   ease: [0.22, 1, 0.36, 1] as const,
-                  delay: currentSection === 0 && !prefersReducedMotion ? 0.2 : 0,
+                  delay: showHeroContent && !prefersReducedMotion ? 0.2 : 0,
                 }}
                 className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-semibold tracking-wider border"
                 style={{
@@ -868,13 +1012,13 @@ export default function LandingPage() {
                 initial={prefersReducedMotion ? false : { opacity: 0, y: 30 }}
                 animate={prefersReducedMotion
                   ? { opacity: 1, y: 0 }
-                  : currentSection === 0
+                  : showHeroContent
                     ? { opacity: 1, y: 0 }
                     : { opacity: 0, y: 30 }}
                 transition={{
-                  duration: prefersReducedMotion ? 0 : currentSection === 0 ? 1.2 : 0.3,
+                  duration: prefersReducedMotion ? 0 : showHeroContent ? 1.2 : 0.3,
                   ease: [0.22, 1, 0.36, 1] as const,
-                  delay: currentSection === 0 && !prefersReducedMotion ? 0.55 : 0,
+                  delay: showHeroContent && !prefersReducedMotion ? 0.55 : 0,
                 }}
                 className="mt-8 text-4xl sm:text-5xl lg:text-6xl font-bold leading-tight tracking-tight"
                 style={{ color: "white", textShadow: "0 2px 12px rgba(0,0,0,0.3)" }}
@@ -892,13 +1036,13 @@ export default function LandingPage() {
                 initial={prefersReducedMotion ? false : { opacity: 0, y: 30 }}
                 animate={prefersReducedMotion
                   ? { opacity: 1, y: 0 }
-                  : currentSection === 0
+                  : showHeroContent
                     ? { opacity: 1, y: 0 }
                     : { opacity: 0, y: 30 }}
                 transition={{
-                  duration: prefersReducedMotion ? 0 : currentSection === 0 ? 1.2 : 0.3,
+                  duration: prefersReducedMotion ? 0 : showHeroContent ? 1.2 : 0.3,
                   ease: [0.22, 1, 0.36, 1] as const,
-                  delay: currentSection === 0 && !prefersReducedMotion ? 1.1 : 0,
+                  delay: showHeroContent && !prefersReducedMotion ? 1.1 : 0,
                 }}
                 className="mt-5 text-base sm:text-lg leading-relaxed max-w-lg"
                 style={{ color: "rgba(255,255,255,0.85)", textShadow: "0 1px 6px rgba(0,0,0,0.2)" }}
@@ -910,13 +1054,13 @@ export default function LandingPage() {
                 initial={prefersReducedMotion ? false : { opacity: 0, y: 30 }}
                 animate={prefersReducedMotion
                   ? { opacity: 1, y: 0 }
-                  : currentSection === 0
+                  : showHeroContent
                     ? { opacity: 1, y: 0 }
                     : { opacity: 0, y: 30 }}
                 transition={{
-                  duration: prefersReducedMotion ? 0 : currentSection === 0 ? 1.2 : 0.3,
+                  duration: prefersReducedMotion ? 0 : showHeroContent ? 1.2 : 0.3,
                   ease: [0.22, 1, 0.36, 1] as const,
-                  delay: currentSection === 0 && !prefersReducedMotion ? 1.65 : 0,
+                  delay: showHeroContent && !prefersReducedMotion ? 1.65 : 0,
                 }}
                 className="mt-8 flex flex-wrap gap-4"
               >
@@ -1288,9 +1432,10 @@ export default function LandingPage() {
         <FullPageSection
           id="social-responsibility"
           backgroundColor="#FBF9F1"
+          contentClassName="!pt-24 !pb-12"
         >
           <ScrollReveal direction="up">
-            <div className="mx-auto max-w-7xl px-6 lg:px-8">
+            <div className="mx-auto max-w-[90rem] px-5 sm:px-6 lg:px-8">
               <div className="mx-auto max-w-2xl text-center">
                 <span
                   className="text-xs font-semibold tracking-[0.2em] uppercase"
@@ -1299,25 +1444,26 @@ export default function LandingPage() {
                   Our Impact
                 </span>
                 <h2 className="mt-3 text-3xl sm:text-4xl font-bold tracking-tight text-gray-800">
-                  Social Responsibility
+                  {socialTitle}
                 </h2>
                 <p className="mt-4 leading-relaxed" style={{ color: "#6b6b6b" }}>
-                  Committed to giving back to the communities we serve through
-                  meaningful disaster relief and support programs.
+                  {socialDescription}
                 </p>
               </div>
 
-              <div className="mt-16 grid gap-8 md:grid-cols-3">
-                {socialImpact.map((item, index) => {
+              {socialImpactItems.length > 0 && (
+              <div className="mt-10 grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+                {socialImpactItems.map((item, index) => {
                   const Icon = item.icon;
                   return (
                     <ScrollReveal
-                      key={item.title}
+                      key={`${item.title}-${index}`}
                       direction={index % 2 === 0 ? "left" : "right"}
                       delay={index * 0.1}
+                      className="h-full"
                     >
                       <div
-                        className="group rounded-2xl p-8 transition-all duration-300"
+                        className="group flex h-full flex-col rounded-2xl p-5 transition-all duration-300 lg:p-6"
                         style={{
                           backgroundColor: "white",
                           border: "1px solid #E5E1DA",
@@ -1332,52 +1478,56 @@ export default function LandingPage() {
                         }}
                       >
                         <div
-                          className="mb-5 flex h-12 w-12 items-center justify-center rounded-xl transition-colors"
+                          className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl transition-colors"
                           style={{ backgroundColor: "#FBF9F1", color: "#92C7CF" }}
                         >
-                          <Icon className="h-6 w-6" />
+                          <Icon className="h-5 w-5" />
                         </div>
-                        <h3 className="text-lg font-semibold text-gray-800">
+                        <h3 className="text-base font-semibold text-gray-800 lg:text-lg">
                           {item.title}
                         </h3>
-                        <p className="mt-3 text-sm leading-relaxed" style={{ color: "#6b6b6b" }}>
+                        <p className="mt-2 text-sm leading-relaxed" style={{ color: "#6b6b6b" }}>
                           {item.description}
                         </p>
-                        <div className="mt-5 pt-5 space-y-1" style={{ borderTop: "1px solid #E5E1DA" }}>
-                          <p className="text-sm">
-                            <span className="font-semibold" style={{ color: "#4a4a4a" }}>Helped:</span>{" "}
-                            <span style={{ color: "#6b6b6b" }}>{item.peopleHelped}</span>
-                          </p>
-                          <p className="text-sm">
-                            <span className="font-semibold" style={{ color: "#4a4a4a" }}>Location:</span>{" "}
-                            <span style={{ color: "#6b6b6b" }}>{item.location}</span>
-                          </p>
+                        <div className="mt-auto pt-4">
+                          <div className="space-y-1 border-t border-[#E5E1DA] pt-4">
+                            <p className="text-xs leading-relaxed lg:text-sm">
+                              <span className="font-semibold" style={{ color: "#4a4a4a" }}>Helped:</span>{" "}
+                              <span style={{ color: "#6b6b6b" }}>{item.peopleHelped}</span>
+                            </p>
+                            <p className="text-xs leading-relaxed lg:text-sm">
+                              <span className="font-semibold" style={{ color: "#4a4a4a" }}>Location:</span>{" "}
+                              <span style={{ color: "#6b6b6b" }}>{item.location}</span>
+                            </p>
+                          </div>
                         </div>
                       </div>
                     </ScrollReveal>
                   );
                 })}
               </div>
+              )}
 
               {/* Stats row */}
+              {socialStats.length > 0 && (
               <motion.div
-                className="mt-20 grid grid-cols-2 md:grid-cols-4 gap-6"
+                className="mt-10 grid grid-cols-2 gap-4 md:grid-cols-4"
                 variants={containerVariants}
                 initial="hidden"
                 animate={currentSection === 3 ? "visible" : "hidden"}
                 viewport={{ once: false, amount: 0.15, margin: "0px 0px -60px 0px" }}
               >
-                {stats.map((stat) => (
+                {socialStats.map((stat) => (
                   <motion.div
                     key={stat.label}
                     variants={itemVariants}
-                    className="rounded-xl p-6 text-center"
+                    className="rounded-xl p-4 text-center"
                     style={{
                       backgroundColor: "rgba(146, 199, 207, 0.08)",
                       border: "1px solid rgba(146, 199, 207, 0.15)",
                     }}
                   >
-                    <p className="text-2xl sm:text-3xl font-bold" style={{ color: "#92C7CF" }}>
+                    <p className="text-xl font-bold sm:text-2xl" style={{ color: "#92C7CF" }}>
                       {stat.value}
                     </p>
                     <p className="mt-1 text-xs font-medium uppercase tracking-wide" style={{ color: "#6b6b6b" }}>
@@ -1386,6 +1536,7 @@ export default function LandingPage() {
                   </motion.div>
                 ))}
               </motion.div>
+              )}
             </div>
           </ScrollReveal>
         </FullPageSection>
@@ -1407,43 +1558,37 @@ export default function LandingPage() {
               </ScrollReveal>
               <ScrollReveal direction="left" delay={0.05}>
                 <h2 className="mt-3 text-3xl sm:text-4xl font-bold tracking-tight text-gray-800">
-                  About Hexaprime
+                  {aboutTitle}
                 </h2>
               </ScrollReveal>
               <ScrollReveal direction="left" delay={0.1}>
-                <p className="mt-6 leading-relaxed text-base sm:text-lg" style={{ color: "#6b6b6b" }}>
-                  Hexaprime Inc. builds secure and transparent STL systems across
-                  the Philippines. We are dedicated to providing fair, regulated
-                  gaming experiences while channeling resources back into
-                  community development and disaster response initiatives.
+                <p className="mt-6 whitespace-pre-line leading-relaxed text-base sm:text-lg" style={{ color: "#6b6b6b" }}>
+                  {aboutDescription}
                 </p>
               </ScrollReveal>
+              {aboutBadges.length > 0 && (
               <ScrollReveal direction="right" delay={0.15}>
                 <div className="mt-10 flex justify-center gap-3 flex-wrap">
-                  <div
-                    className="flex items-center gap-2 rounded-full px-4 py-2 text-sm"
-                    style={{
-                      backgroundColor: "rgba(146, 199, 207, 0.1)",
-                      color: "#4a4a4a",
-                      border: "1px solid rgba(146, 199, 207, 0.2)",
-                    }}
-                  >
-                    <TrendingUp className="h-4 w-4" style={{ color: "#92C7CF" }} />
-                    Trusted by 15+ LGUs
-                  </div>
-                  <div
-                    className="flex items-center gap-2 rounded-full px-4 py-2 text-sm"
-                    style={{
-                      backgroundColor: "rgba(146, 199, 207, 0.1)",
-                      color: "#4a4a4a",
-                      border: "1px solid rgba(146, 199, 207, 0.2)",
-                    }}
-                  >
-                    <Shield className="h-4 w-4" style={{ color: "#92C7CF" }} />
-                    Fully Compliant
-                  </div>
+                  {aboutBadges.map((badge, index) => {
+                    const Icon = badge.icon === "trending" ? TrendingUp : Shield;
+                    return (
+                      <div
+                        key={`${badge.text}-${index}`}
+                        className="flex items-center gap-2 rounded-full px-4 py-2 text-sm"
+                        style={{
+                          backgroundColor: "rgba(146, 199, 207, 0.1)",
+                          color: "#4a4a4a",
+                          border: "1px solid rgba(146, 199, 207, 0.2)",
+                        }}
+                      >
+                        <Icon className="h-4 w-4" style={{ color: "#92C7CF" }} />
+                        {badge.text}
+                      </div>
+                    );
+                  })}
                 </div>
               </ScrollReveal>
+              )}
             </div>
           </div>
         </FullPageSection>

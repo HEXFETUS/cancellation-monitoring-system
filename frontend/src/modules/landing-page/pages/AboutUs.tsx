@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
-import { TrendingUp, Shield, Save, Send, Plus, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { TrendingUp, Shield, Save, Send, Plus, Trash2, Pencil } from "lucide-react";
 import { useAuth } from "../../../context/AuthContext";
 import { ConfirmationModal, Toast } from "../../../shared/components";
 import {
@@ -47,6 +47,7 @@ export default function AboutUs() {
         message: "",
         type: "success",
     });
+    const sectionTitleInputRef = useRef<HTMLInputElement>(null);
 
     const showToast = useCallback((message: string, type: "success" | "error" = "success") => {
         setToast({ open: true, message, type });
@@ -59,27 +60,22 @@ export default function AboutUs() {
         try {
             const data = await fetchLandingPageContent("about-us");
             if (data) {
-                setSectionTitle(data.title || "");
-                setSectionDescription(data.description || "");
-
                 // Parse badges from content if available
+                let nextBadges = DEFAULT_BADGES.map((badge) => ({ ...badge }));
                 if (data.content) {
                     try {
                         const parsed = JSON.parse(data.content);
                         if (Array.isArray(parsed) && parsed.length > 0) {
-                            setBadges(parsed);
+                            nextBadges = parsed;
                         }
                     } catch {
-                        setBadges(DEFAULT_BADGES);
+                        nextBadges = DEFAULT_BADGES.map((badge) => ({ ...badge }));
                     }
-                } else {
-                    setBadges(DEFAULT_BADGES);
                 }
-
                 // Update preview
                 setSavedTitle(data.title || "");
                 setSavedDescription(data.description || "");
-                setSavedBadges(badges);
+                setSavedBadges(nextBadges);
             }
         } catch (e) {
             setError(e instanceof Error ? e.message : "Failed to load");
@@ -136,13 +132,31 @@ export default function AboutUs() {
             setSavedTitle(sectionTitle.trim());
             setSavedDescription(sectionDescription.trim());
             setSavedBadges(validBadges);
-            await load();
+            setSectionTitle("");
+            setSectionDescription("");
+            setBadges(DEFAULT_BADGES.map((badge) => ({ ...badge })));
         } catch (e) {
             setFormError(e instanceof Error ? e.message : "Failed to save");
         } finally {
             setSaving(false);
             setShowConfirm(false);
         }
+    };
+
+    const handleEditCurrentStatus = () => {
+        setSectionTitle(savedTitle || DEFAULT_ABOUT_TITLE);
+        setSectionDescription(savedDescription);
+        setBadges(
+            savedBadges.length > 0
+                ? savedBadges.map((badge) => ({ ...badge }))
+                : DEFAULT_BADGES.map((badge) => ({ ...badge }))
+        );
+        setFormError("");
+
+        requestAnimationFrame(() => {
+            sectionTitleInputRef.current?.focus();
+            sectionTitleInputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+        });
     };
 
     return (
@@ -175,6 +189,7 @@ export default function AboutUs() {
                             Section Title <span className="text-red-500">*</span>
                         </label>
                         <input
+                            ref={sectionTitleInputRef}
                             type="text"
                             value={sectionTitle}
                             onChange={(e) => setSectionTitle(e.target.value)}
@@ -257,13 +272,25 @@ export default function AboutUs() {
 
                 {/* Preview panel */}
                 <div className="flex flex-1 flex-col min-h-0 overflow-hidden rounded-2xl border border-warm bg-white/60 p-5 shadow-sm">
-                    <h3 className="text-[11px] font-bold uppercase tracking-[0.12em] text-ink-muted/70 mb-3">
-                        Current Status
-                    </h3>
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                        <h3 className="text-[11px] font-bold uppercase tracking-[0.12em] text-ink-muted/70">
+                            Current Status
+                        </h3>
+                        <button
+                            type="button"
+                            onClick={handleEditCurrentStatus}
+                            disabled={saving}
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-teal/10 px-3 py-1.5 text-xs font-semibold text-teal-dark transition hover:bg-teal/20 disabled:cursor-not-allowed disabled:opacity-50"
+                            aria-label="Edit current About Us content"
+                        >
+                            <Pencil size={13} />
+                            Edit
+                        </button>
+                    </div>
                     <div className="flex-1 overflow-y-auto">
                         <div className="rounded-xl border border-warm bg-white p-4 shadow-xs">
                             <h3 className="text-lg font-bold text-ink leading-snug">{savedTitle || DEFAULT_ABOUT_TITLE}</h3>
-                            <p className="mt-1 text-sm text-ink-muted leading-relaxed">{savedDescription || "Section description..."}</p>
+                            <p className="mt-1 whitespace-pre-line text-sm text-ink-muted leading-relaxed">{savedDescription || "Section description..."}</p>
 
                             <div className="mt-4 flex flex-wrap gap-2">
                                 {savedBadges.filter(b => b.text).map((badge, i) => (
