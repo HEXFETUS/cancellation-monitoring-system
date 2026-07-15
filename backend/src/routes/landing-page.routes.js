@@ -92,17 +92,18 @@ router.put("/:section", upload.array("images", 10), async (req, res) => {
 
         const { title, description, content, stats } = req.body;
 
-        // Build image URLs array from uploaded files
+        // Build media URLs in the same order supplied by the editor.
         const newImageUrls = (req.files || []).map((file) => `/uploads/${file.filename}`);
-        let imageUrlsJson = JSON.stringify(newImageUrls);
-
-        // If existing images are provided, merge them
-        if (req.body.existing_images) {
+        let requestedExistingImages;
+        if (req.body.existing_images !== undefined) {
             try {
-                const existing = JSON.parse(req.body.existing_images);
-                imageUrlsJson = JSON.stringify([...existing, ...newImageUrls]);
+                const parsed = JSON.parse(req.body.existing_images);
+                if (!Array.isArray(parsed) || parsed.some((url) => typeof url !== "string")) {
+                    return res.status(400).json({ error: "existing_images must be an array of URLs" });
+                }
+                requestedExistingImages = parsed;
             } catch {
-                // use new images only
+                return res.status(400).json({ error: "Invalid existing_images value" });
             }
         }
 
@@ -118,9 +119,19 @@ router.put("/:section", upload.array("images", 10), async (req, res) => {
 
         // Check if section exists
         const existing = await pool.query(
-            "SELECT id FROM landing_page_content WHERE section = $1",
+            "SELECT id, image_urls FROM landing_page_content WHERE section = $1",
             [section]
         );
+
+        const persistedImages = existing.rows[0]?.image_urls
+            ? JSON.parse(existing.rows[0].image_urls)
+            : [];
+        const retainedImages = requestedExistingImages ?? persistedImages;
+        const imageUrls = [...retainedImages, ...newImageUrls];
+        if (section === "home" && imageUrls.length > 5) {
+            return res.status(400).json({ error: "Home media is limited to 5 items" });
+        }
+        const imageUrlsJson = JSON.stringify(imageUrls);
 
         let result;
         if (existing.rows.length > 0) {
