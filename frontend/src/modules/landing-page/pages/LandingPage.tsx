@@ -11,13 +11,14 @@ import {
   Loader2,
 } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { motion, useScroll, useTransform, useReducedMotion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { useAuth } from "../../../context/AuthContext";
 import LoginModal from "../../../components/LoginModal";
 import LogoWithName from "../../../assets/LogoWithName.webp";
 import LogoOnly from "../../../assets/LogoOnly.webp";
 import { fetchLandingPageContent } from "../services/landingPage";
 import ScrollReveal from "../components/ScrollReveal";
+import FullPageSection from "../components/FullPageSection";
 
 /* Default hero copy (kept in sync with the live landing page) used as a
    fallback until the Home section has been saved via the admin editor. */
@@ -107,6 +108,14 @@ interface Announcement {
   created_at: string;
 }
 
+/* ---------------- SECTION ORDER ---------------- */
+const SECTION_IDS = ["hero", "events-news", "results", "social-responsibility", "about-us"] as const;
+type SectionId = (typeof SECTION_IDS)[number];
+
+const SECTION_TRANSITION_MS = 600;
+const SECTION_INPUT_LOCK_MS = 850;
+const WHEEL_THRESHOLD = 48;
+
 /* ---------------- FRAMER MOTION VARIANTS ---------------- */
 const containerVariants = {
   hidden: {},
@@ -195,17 +204,17 @@ function MediaCarousel({
   };
 
   return (
-    <div className="relative bg-gray-100 overflow-hidden">
+    <div className="relative overflow-hidden bg-gray-100 lg:h-[clamp(9rem,22dvh,13rem)]">
       <button
         type="button"
         onClick={() => onOpen(urls, safeIndex)}
-        className="block w-full focus:outline-none focus:ring-2 focus:ring-inset focus:ring-teal"
+        className="block w-full focus:outline-none focus:ring-2 focus:ring-inset focus:ring-teal lg:h-full"
       >
         {isVideo ? (
           <video
             src={fullUrl}
             preload="metadata"
-            className="w-full h-auto max-h-96 object-contain bg-gray-100"
+            className="h-auto max-h-96 w-full bg-gray-100 object-contain lg:h-full lg:max-h-none"
             onClick={(e) => {
               e.stopPropagation();
               onOpen(urls, safeIndex);
@@ -215,7 +224,7 @@ function MediaCarousel({
           <img
             src={fullUrl}
             alt={`${alt} (${safeIndex + 1}/${urls.length})`}
-            className="w-full h-auto max-h-96 object-contain bg-gray-100 transition-transform duration-500 group-hover:scale-105"
+            className="h-auto max-h-96 w-full bg-gray-100 object-contain transition-transform duration-500 group-hover:scale-105 lg:h-full lg:max-h-none"
           />
         )}
       </button>
@@ -263,8 +272,14 @@ export default function LandingPage() {
 
   const [loginOpen, setLoginOpen] = useState(false);
   const [pendingRoute, setPendingRoute] = useState<string | null>(null);
-  const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Current section index for full-page navigation
+  const [currentSection, setCurrentSection] = useState(0);
+  const currentSectionRef = useRef(0);
+  const transitionLockedRef = useRef(false);
+  const transitionTimerRef = useRef<number | null>(null);
+  const wheelDeltaRef = useRef(0);
 
   // Results from API
   const [results, setResults] = useState<LotteryResult[]>([]);
@@ -350,17 +365,54 @@ export default function LandingPage() {
   }, [location.pathname, loadHero]);
 
   const navItems = [
-    { id: "hero", label: "Home" },
-    { id: "events-news", label: "Events & News" },
-    { id: "results", label: "Results" },
-    { id: "social-responsibility", label: "Social Responsibility" },
-    { id: "about-us", label: "About Us" },
+    { id: "hero" as SectionId, label: "Home" },
+    { id: "events-news" as SectionId, label: "Events & News" },
+    { id: "results" as SectionId, label: "Results" },
+    { id: "social-responsibility" as SectionId, label: "Social Responsibility" },
+    { id: "about-us" as SectionId, label: "About Us" },
   ];
 
-  const scrollTo = (id: string) => {
-    document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+  const startTransitionLock = useCallback(() => {
+    if (transitionTimerRef.current !== null) {
+      window.clearTimeout(transitionTimerRef.current);
+    }
+
+    transitionLockedRef.current = true;
+    transitionTimerRef.current = window.setTimeout(() => {
+      transitionLockedRef.current = false;
+      transitionTimerRef.current = null;
+      wheelDeltaRef.current = 0;
+    }, prefersReducedMotion ? 100 : SECTION_INPUT_LOCK_MS);
+  }, [prefersReducedMotion]);
+
+  const setActiveSection = useCallback((index: number) => {
+    const nextIndex = Math.max(0, Math.min(SECTION_IDS.length - 1, index));
+    if (nextIndex === currentSectionRef.current) return false;
+
+    currentSectionRef.current = nextIndex;
+    setCurrentSection(nextIndex);
     setMobileOpen(false);
-  };
+
+    // Every full-page transition opens the target section from its top.
+    requestAnimationFrame(() => {
+      const section = document.getElementById(SECTION_IDS[nextIndex]);
+      const scrollContainer = section?.querySelector<HTMLElement>(".overflow-y-auto");
+      if (scrollContainer) scrollContainer.scrollTop = 0;
+    });
+
+    return true;
+  }, []);
+
+  const navigateToSection = useCallback((id: SectionId) => {
+    const index = SECTION_IDS.indexOf(id);
+    if (index !== -1 && setActiveSection(index)) startTransitionLock();
+    else setMobileOpen(false);
+  }, [setActiveSection, startTransitionLock]);
+
+  const moveBySection = useCallback((direction: -1 | 1) => {
+    if (transitionLockedRef.current) return;
+    if (setActiveSection(currentSectionRef.current + direction)) startTransitionLock();
+  }, [setActiveSection, startTransitionLock]);
 
   const requireAuth = (path: string) => {
     if (isAuthenticated) navigate(path);
@@ -370,33 +422,137 @@ export default function LandingPage() {
     }
   };
 
-  // Optimized header scroll — uses a single boolean toggle, no heavy state updates
+  // Responsive viewport height
+  const [viewportHeight, setViewportHeight] = useState(() =>
+    typeof window !== "undefined" ? window.innerHeight : 0
+  );
+
   useEffect(() => {
-    let ticking = false;
-    const onScroll = () => {
-      if (!ticking) {
-        requestAnimationFrame(() => {
-          setScrolled(window.scrollY > 60);
-          ticking = false;
-        });
-        ticking = true;
-      }
+    const updateViewportHeight = () => {
+      setViewportHeight(window.innerHeight);
     };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    onScroll();
-    return () => window.removeEventListener("scroll", onScroll);
+
+    updateViewportHeight();
+
+    window.addEventListener("resize", updateViewportHeight);
+    window.visualViewport?.addEventListener("resize", updateViewportHeight);
+
+    return () => {
+      window.removeEventListener("resize", updateViewportHeight);
+      window.visualViewport?.removeEventListener("resize", updateViewportHeight);
+    };
   }, []);
 
-  // Hero parallax — only when reduced motion is not preferred
-  const heroRef = useRef<HTMLElement>(null);
-  const { scrollYProgress } = useScroll({
-    target: heroRef,
-    offset: ["start start", "end start"],
-  });
+  // Lock body scroll while landing page is mounted
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
 
-  const backgroundY = useTransform(scrollYProgress, [0, 1], ["0%", "15%"]);
-  const contentY = useTransform(scrollYProgress, [0, 1], [0, -70]);
-  const contentOpacity = useTransform(scrollYProgress, [0, 0.75], [1, 0]);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, []);
+
+  const getActiveScrollContainer = useCallback(() => {
+    const activeId = SECTION_IDS[currentSectionRef.current];
+    return document
+      .getElementById(activeId)
+      ?.querySelector<HTMLElement>(".overflow-y-auto") ?? null;
+  }, []);
+
+  const canScrollInDirection = useCallback((container: HTMLElement, direction: -1 | 1) => {
+    if (container.scrollHeight <= container.clientHeight + 1) return false;
+    if (direction === 1) {
+      return container.scrollTop + container.clientHeight < container.scrollHeight - 1;
+    }
+    return container.scrollTop > 1;
+  }, []);
+
+  useEffect(() => {
+    const handleWheel = (event: WheelEvent) => {
+      if (loginOpen || lightboxState || mobileOpen || event.ctrlKey) return;
+      if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;
+
+      const direction: -1 | 1 = event.deltaY < 0 ? -1 : 1;
+      const scrollContainer = getActiveScrollContainer();
+
+      // Preserve ordinary scrolling until all of the active section is visible.
+      if (scrollContainer && canScrollInDirection(scrollContainer, direction)) {
+        wheelDeltaRef.current = 0;
+        return;
+      }
+
+      event.preventDefault();
+      if (transitionLockedRef.current) return;
+
+      const deltaMultiplier = event.deltaMode === WheelEvent.DOM_DELTA_LINE
+        ? 16
+        : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+          ? viewportHeight
+          : 1;
+      wheelDeltaRef.current += event.deltaY * deltaMultiplier;
+
+      if (Math.abs(wheelDeltaRef.current) < WHEEL_THRESHOLD) return;
+      const accumulatedDirection: -1 | 1 = wheelDeltaRef.current < 0 ? -1 : 1;
+      wheelDeltaRef.current = 0;
+      moveBySection(accumulatedDirection);
+    };
+
+    window.addEventListener("wheel", handleWheel, { passive: false });
+    return () => window.removeEventListener("wheel", handleWheel);
+  }, [
+    canScrollInDirection,
+    getActiveScrollContainer,
+    lightboxState,
+    loginOpen,
+    mobileOpen,
+    moveBySection,
+    viewportHeight,
+  ]);
+
+  useEffect(() => {
+    const handleSectionKey = (event: KeyboardEvent) => {
+      if (loginOpen || lightboxState || mobileOpen || event.altKey || event.ctrlKey || event.metaKey) return;
+
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("input, textarea, select, button, [contenteditable='true']")) return;
+
+      let direction: -1 | 1 | null = null;
+      if (event.key === "ArrowDown" || event.key === "PageDown") direction = 1;
+      if (event.key === "ArrowUp" || event.key === "PageUp") direction = -1;
+      if (direction === null) return;
+
+      event.preventDefault();
+      const scrollContainer = getActiveScrollContainer();
+      if (scrollContainer && canScrollInDirection(scrollContainer, direction)) {
+        const distance = event.key.startsWith("Page")
+          ? scrollContainer.clientHeight * 0.8
+          : 96;
+        scrollContainer.scrollBy({ top: direction * distance, behavior: "smooth" });
+        return;
+      }
+
+      moveBySection(direction);
+    };
+
+    window.addEventListener("keydown", handleSectionKey);
+    return () => window.removeEventListener("keydown", handleSectionKey);
+  }, [
+    canScrollInDirection,
+    getActiveScrollContainer,
+    lightboxState,
+    loginOpen,
+    mobileOpen,
+    moveBySection,
+  ]);
+
+  useEffect(() => () => {
+    if (transitionTimerRef.current !== null) {
+      window.clearTimeout(transitionTimerRef.current);
+    }
+  }, []);
+
+  const containerY = -currentSection * viewportHeight;
 
   // Fetch results
   useEffect(() => {
@@ -474,7 +630,7 @@ export default function LandingPage() {
 
   return (
     <div
-      className="min-h-screen font-sans antialiased"
+      className="relative h-dvh overflow-hidden font-sans antialiased"
       style={{ backgroundColor: "#FBF9F1", color: "#4a4a4a" }}
     >
       <LoginModal
@@ -489,53 +645,65 @@ export default function LandingPage() {
       {/* ─── HEADER ─── */}
       <motion.header
         className={`fixed top-0 left-0 right-0 z-50 transition-[padding,box-shadow] duration-300 ${
-          scrolled ? "py-2 shadow-lg" : "py-4"
+          currentSection > 0 ? "py-2 shadow-lg" : "py-4"
         }`}
         style={{
-          backgroundColor: scrolled ? "rgba(251, 249, 241, 0.85)" : "transparent",
-          backdropFilter: scrolled ? "blur(16px)" : "none",
-          WebkitBackdropFilter: scrolled ? "blur(16px)" : "none",
-          borderBottom: scrolled ? "1px solid rgba(229, 225, 218, 0.6)" : "none",
+          backgroundColor: currentSection > 0 ? "rgba(251, 249, 241, 0.85)" : "transparent",
+          backdropFilter: currentSection > 0 ? "blur(16px)" : "none",
+          WebkitBackdropFilter: currentSection > 0 ? "blur(16px)" : "none",
+          borderBottom: currentSection > 0 ? "1px solid rgba(229, 225, 218, 0.6)" : "none",
         }}
       >
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 lg:px-8">
-          {/* Logo: switches on scroll */}
+          {/* Logo: switches when not on hero */}
           <a
             href="#hero"
             onClick={(e) => {
               e.preventDefault();
-              scrollTo("hero");
+              navigateToSection("hero");
             }}
           >
             <img
-              src={scrolled ? LogoOnly : LogoWithName}
+              src={currentSection > 0 ? LogoOnly : LogoWithName}
               alt="Hexaprime"
-              className={`transition-all duration-300 ${scrolled ? "h-8 w-auto" : "h-10 w-auto"}`}
+              className={`transition-all duration-300 ${currentSection > 0 ? "h-8 w-auto" : "h-10 w-auto"}`}
             />
           </a>
 
           {/* Desktop nav */}
           <nav className="hidden md:flex items-center gap-8 text-sm">
-            {navItems.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => scrollTo(item.id)}
-                className="transition-colors duration-200 font-medium"
-                style={{
-                  color: scrolled ? "#4a4a4a" : "white",
-                  textShadow: scrolled ? "none" : "0 1px 3px rgba(0,0,0,0.3)",
-                }}
-              >
-                {item.label}
-              </button>
-            ))}
+            {navItems.map((item, index) => {
+              const isActive = item.id !== "hero" && currentSection === index;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => navigateToSection(item.id)}
+                  aria-current={isActive ? "page" : undefined}
+                  className="relative py-2 font-medium transition-colors duration-200"
+                  style={{
+                    color: isActive ? "#2a5a5a" : currentSection > 0 ? "#4a4a4a" : "white",
+                    textShadow: currentSection > 0 ? "none" : "0 1px 3px rgba(0,0,0,0.3)",
+                  }}
+                >
+                  {item.label}
+                  {isActive && (
+                    <motion.span
+                      layoutId="active-landing-nav"
+                      className="absolute inset-x-0 -bottom-0.5 h-0.5 rounded-full"
+                      style={{ backgroundColor: "#92C7CF" }}
+                      transition={{ duration: prefersReducedMotion ? 0 : 0.25 }}
+                    />
+                  )}
+                </button>
+              );
+            })}
             <button
               onClick={() => requireAuth("/app/dashboard")}
               className="ml-4 inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition-all"
               style={{
-                backgroundColor: scrolled ? "#92C7CF" : "rgba(146, 199, 207, 0.9)",
-                color: scrolled ? "#1a2e32" : "white",
-                boxShadow: scrolled
+                backgroundColor: currentSection > 0 ? "#92C7CF" : "rgba(146, 199, 207, 0.9)",
+                color: currentSection > 0 ? "#1a2e32" : "white",
+                boxShadow: currentSection > 0
                   ? "0 2px 8px rgba(146, 199, 207, 0.3)"
                   : "0 2px 8px rgba(0,0,0,0.15)",
               }}
@@ -543,7 +711,7 @@ export default function LandingPage() {
                 e.currentTarget.style.backgroundColor = "#7db8c0";
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = scrolled
+                e.currentTarget.style.backgroundColor = currentSection > 0
                   ? "#92C7CF"
                   : "rgba(146, 199, 207, 0.9)";
               }}
@@ -555,7 +723,7 @@ export default function LandingPage() {
           {/* Mobile toggle */}
           <button
             className="md:hidden p-2 rounded-lg transition-colors"
-            style={{ color: scrolled ? "#4a4a4a" : "white" }}
+            style={{ color: currentSection > 0 ? "#4a4a4a" : "white" }}
             onClick={() => setMobileOpen(!mobileOpen)}
             aria-label="Menu"
           >
@@ -594,16 +762,23 @@ export default function LandingPage() {
               boxShadow: "0 8px 24px rgba(0,0,0,0.08)",
             }}
           >
-            {navItems.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => scrollTo(item.id)}
-                className="block w-full text-left py-2 font-medium transition-colors"
-                style={{ color: "#4a4a4a" }}
-              >
-                {item.label}
-              </button>
-            ))}
+            {navItems.map((item, index) => {
+              const isActive = item.id !== "hero" && currentSection === index;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => navigateToSection(item.id)}
+                  aria-current={isActive ? "page" : undefined}
+                  className="block w-full rounded-lg px-3 py-2 text-left font-medium transition-colors"
+                  style={{
+                    color: isActive ? "#2a5a5a" : "#4a4a4a",
+                    backgroundColor: isActive ? "rgba(146, 199, 207, 0.16)" : "transparent",
+                  }}
+                >
+                  {item.label}
+                </button>
+              );
+            })}
             <button
               onClick={() => {
                 setMobileOpen(false);
@@ -618,19 +793,20 @@ export default function LandingPage() {
         )}
       </motion.header>
 
-      <main style={{ scrollSnapType: "y proximity" }}>
+      {/* ─── SLIDING SECTION CONTAINER ─── */}
+      <motion.div
+        className="w-full will-change-transform"
+        animate={{ y: containerY }}
+        transition={{ duration: prefersReducedMotion ? 0 : SECTION_TRANSITION_MS / 1000, ease: [0.22, 1, 0.36, 1] }}
+      >
         {/* ─── HERO / SLIDESHOW ─── */}
         <section
           id="hero"
-          ref={heroRef}
-          className="relative min-h-screen flex items-center overflow-hidden snap-start"
-          style={{ backgroundColor: "#E5E1DA", scrollSnapAlign: "start" }}
+          className="relative w-full h-dvh min-h-dvh shrink-0 flex items-center overflow-hidden"
+          style={{ backgroundColor: "#E5E1DA" }}
         >
-          {/* Background slideshow with parallax */}
-          <motion.div
-            className="absolute inset-0"
-            style={prefersReducedMotion ? undefined : { y: backgroundY }}
-          >
+          {/* Background slideshow */}
+          <div className="absolute inset-0">
             {heroMedia.map((src, i) => (
               <div
                 key={src}
@@ -659,22 +835,23 @@ export default function LandingPage() {
                 <div className="absolute inset-0 bg-linear-to-r from-black/50 via-black/25 to-transparent" />
               </div>
             ))}
-          </motion.div>
+          </div>
 
-          {/* Content with scroll-based fade/translate */}
-          <motion.div
-            className="relative z-10 mx-auto max-w-7xl px-6 lg:px-8 w-full"
-            style={
-              prefersReducedMotion
-                ? undefined
-                : { y: contentY, opacity: contentOpacity }
-            }
-          >
+          {/* Content with entrance animation */}
+          <div className="relative z-10 mx-auto max-w-7xl px-6 lg:px-8 w-full">
             <div className="max-w-2xl">
               <motion.span
-                initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 30 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] as const, delay: 0 }}
+                initial={prefersReducedMotion ? false : { opacity: 0, y: 30, scale: 0.9 }}
+                animate={prefersReducedMotion
+                  ? { opacity: 1, y: 0, scale: 1 }
+                  : currentSection === 0
+                    ? { opacity: 1, y: 0, scale: 1 }
+                    : { opacity: 0, y: 30, scale: 0.9 }}
+                transition={{
+                  duration: prefersReducedMotion ? 0 : currentSection === 0 ? 1.2 : 0.3,
+                  ease: [0.22, 1, 0.36, 1] as const,
+                  delay: currentSection === 0 && !prefersReducedMotion ? 0.2 : 0,
+                }}
                 className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-semibold tracking-wider border"
                 style={{
                   backgroundColor: "rgba(251, 249, 241, 0.2)",
@@ -688,9 +865,17 @@ export default function LandingPage() {
               </motion.span>
 
               <motion.h1
-                initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 30 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] as const, delay: 0.15 }}
+                initial={prefersReducedMotion ? false : { opacity: 0, y: 30 }}
+                animate={prefersReducedMotion
+                  ? { opacity: 1, y: 0 }
+                  : currentSection === 0
+                    ? { opacity: 1, y: 0 }
+                    : { opacity: 0, y: 30 }}
+                transition={{
+                  duration: prefersReducedMotion ? 0 : currentSection === 0 ? 1.2 : 0.3,
+                  ease: [0.22, 1, 0.36, 1] as const,
+                  delay: currentSection === 0 && !prefersReducedMotion ? 0.55 : 0,
+                }}
                 className="mt-8 text-4xl sm:text-5xl lg:text-6xl font-bold leading-tight tracking-tight"
                 style={{ color: "white", textShadow: "0 2px 12px rgba(0,0,0,0.3)" }}
               >
@@ -704,9 +889,17 @@ export default function LandingPage() {
               </motion.h1>
 
               <motion.p
-                initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 30 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] as const, delay: 0.25 }}
+                initial={prefersReducedMotion ? false : { opacity: 0, y: 30 }}
+                animate={prefersReducedMotion
+                  ? { opacity: 1, y: 0 }
+                  : currentSection === 0
+                    ? { opacity: 1, y: 0 }
+                    : { opacity: 0, y: 30 }}
+                transition={{
+                  duration: prefersReducedMotion ? 0 : currentSection === 0 ? 1.2 : 0.3,
+                  ease: [0.22, 1, 0.36, 1] as const,
+                  delay: currentSection === 0 && !prefersReducedMotion ? 1.1 : 0,
+                }}
                 className="mt-5 text-base sm:text-lg leading-relaxed max-w-lg"
                 style={{ color: "rgba(255,255,255,0.85)", textShadow: "0 1px 6px rgba(0,0,0,0.2)" }}
               >
@@ -714,13 +907,21 @@ export default function LandingPage() {
               </motion.p>
 
               <motion.div
-                initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 30 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] as const, delay: 0.35 }}
+                initial={prefersReducedMotion ? false : { opacity: 0, y: 30 }}
+                animate={prefersReducedMotion
+                  ? { opacity: 1, y: 0 }
+                  : currentSection === 0
+                    ? { opacity: 1, y: 0 }
+                    : { opacity: 0, y: 30 }}
+                transition={{
+                  duration: prefersReducedMotion ? 0 : currentSection === 0 ? 1.2 : 0.3,
+                  ease: [0.22, 1, 0.36, 1] as const,
+                  delay: currentSection === 0 && !prefersReducedMotion ? 1.65 : 0,
+                }}
                 className="mt-8 flex flex-wrap gap-4"
               >
                 <button
-                  onClick={() => scrollTo("social-responsibility")}
+                  onClick={() => navigateToSection("social-responsibility")}
                   className="rounded-full px-7 py-3 text-sm font-semibold transition-all shadow-lg"
                   style={{
                     backgroundColor: "#92C7CF",
@@ -738,7 +939,7 @@ export default function LandingPage() {
                 </button>
               </motion.div>
             </div>
-          </motion.div>
+          </div>
 
           {/* Slideshow controls */}
           {heroMedia.length > 1 && (
@@ -790,13 +991,13 @@ export default function LandingPage() {
         </section>
 
         {/* ─── EVENTS & NEWS (Dynamic from API) ─── */}
-        <section
+        <FullPageSection
           id="events-news"
-          className="py-16 sm:py-20 snap-start"
-          style={{ scrollMarginTop: 80, scrollSnapAlign: "start" }}
+          backgroundColor="#FBF9F1"
+          contentClassName="lg:!py-14"
         >
           <ScrollReveal direction="up">
-            <div className="mx-auto max-w-7xl px-6 lg:px-8">
+            <div className="mx-auto w-[94vw] max-w-[1800px] px-4 sm:px-6 lg:px-8">
               <div className="mx-auto max-w-2xl text-center">
                 <span
                   className="text-xs font-semibold tracking-[0.2em] uppercase"
@@ -837,10 +1038,10 @@ export default function LandingPage() {
 
                 return (
                   <motion.div
-                    className="mt-16 mx-auto max-w-[1400px] grid gap-6 sm:grid-cols-2 lg:grid-cols-4"
+                    className="mx-auto mt-10 grid w-full gap-4 sm:grid-cols-2 lg:mt-8 lg:grid-cols-4 xl:gap-5"
                     variants={containerVariants}
                     initial="hidden"
-                    whileInView="visible"
+                    animate={currentSection === 1 ? "visible" : "hidden"}
                     viewport={{ once: false, amount: 0.1, margin: "0px 0px -60px 0px" }}
                   >
                     {sortedAnnouncements.map((item) => (
@@ -925,13 +1126,12 @@ export default function LandingPage() {
               })()}
             </div>
           </ScrollReveal>
-        </section>
+        </FullPageSection>
 
         {/* ─── RESULTS (Dynamic from API) ─── */}
-        <section
+        <FullPageSection
           id="results"
-          className="py-16 sm:py-20 snap-start"
-          style={{ backgroundColor: "#E5E1DA", scrollMarginTop: 80, scrollSnapAlign: "start" }}
+          backgroundColor="#E5E1DA"
         >
           <ScrollReveal direction="up">
             <div className="mx-auto max-w-7xl px-6 lg:px-8">
@@ -980,7 +1180,7 @@ export default function LandingPage() {
                   className="mt-12 space-y-6 max-w-5xl mx-auto"
                   variants={containerVariants}
                   initial="hidden"
-                  whileInView="visible"
+                  animate={currentSection === 2 ? "visible" : "hidden"}
                   viewport={{ once: false, amount: 0.1, margin: "0px 0px -60px 0px" }}
                 >
                   {/* STL CDO Row */}
@@ -1082,13 +1282,12 @@ export default function LandingPage() {
               )}
             </div>
           </ScrollReveal>
-        </section>
+        </FullPageSection>
 
         {/* ─── SOCIAL RESPONSIBILITY ─── */}
-        <section
+        <FullPageSection
           id="social-responsibility"
-          className="py-16 sm:py-20 snap-start"
-          style={{ scrollMarginTop: 80, scrollSnapAlign: "start" }}
+          backgroundColor="#FBF9F1"
         >
           <ScrollReveal direction="up">
             <div className="mx-auto max-w-7xl px-6 lg:px-8">
@@ -1165,7 +1364,7 @@ export default function LandingPage() {
                 className="mt-20 grid grid-cols-2 md:grid-cols-4 gap-6"
                 variants={containerVariants}
                 initial="hidden"
-                whileInView="visible"
+                animate={currentSection === 3 ? "visible" : "hidden"}
                 viewport={{ once: false, amount: 0.15, margin: "0px 0px -60px 0px" }}
               >
                 {stats.map((stat) => (
@@ -1189,13 +1388,12 @@ export default function LandingPage() {
               </motion.div>
             </div>
           </ScrollReveal>
-        </section>
+        </FullPageSection>
 
         {/* ─── ABOUT US ─── */}
-        <section
+        <FullPageSection
           id="about-us"
-          className="py-16 sm:py-20 snap-start"
-          style={{ scrollMarginTop: 80, scrollSnapAlign: "start" }}
+          backgroundColor="#FBF9F1"
         >
           <div className="mx-auto max-w-7xl px-6 lg:px-8">
             <div className="mx-auto max-w-3xl text-center">
@@ -1248,8 +1446,26 @@ export default function LandingPage() {
               </ScrollReveal>
             </div>
           </div>
-        </section>
-      </main>
+        </FullPageSection>
+      </motion.div>
+
+      {/* ─── FOOTER (only visible on last section) ─── */}
+      {currentSection === SECTION_IDS.length - 1 && (
+        <footer
+          className="absolute bottom-0 left-0 right-0 z-40 border-t py-4"
+          style={{ backgroundColor: "#FBF9F1", borderColor: "#E5E1DA" }}
+        >
+          <div className="mx-auto max-w-7xl px-6 lg:px-8">
+            <div className="flex flex-col items-center gap-2 sm:flex-row sm:justify-between">
+              <img src={LogoWithName} alt="Hexaprime" className="h-6 w-auto" />
+              <p className="text-xs text-gray-400">
+                &copy; {new Date().getFullYear()} Hexaprime Inc. All rights
+                reserved.
+              </p>
+            </div>
+          </div>
+        </footer>
+      )}
 
       {/* ─── MEDIA LIGHTBOX ─── */}
       {lightboxState && (
@@ -1316,22 +1532,6 @@ export default function LandingPage() {
           </div>
         </div>
       )}
-
-      {/* ─── FOOTER ─── */}
-      <footer
-        className="border-t py-10"
-        style={{ backgroundColor: "#FBF9F1", borderColor: "#E5E1DA" }}
-      >
-        <div className="mx-auto max-w-7xl px-6 lg:px-8">
-          <div className="flex flex-col items-center gap-4 sm:flex-row sm:justify-between">
-            <img src={LogoWithName} alt="Hexaprime" className="h-8 w-auto" />
-            <p className="text-xs text-gray-400">
-              &copy; {new Date().getFullYear()} Hexaprime Inc. All rights
-              reserved.
-            </p>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }
