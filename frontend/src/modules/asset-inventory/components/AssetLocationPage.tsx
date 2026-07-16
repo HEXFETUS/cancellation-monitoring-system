@@ -182,33 +182,6 @@ export default function AssetLocationPage({
         }
     };
 
-    /**
-     * Replace the row's `department` field with a meaningful display string.
-     * Payout → "CDO — Cagayan de Oro"
-     * Office → "IT — Information Technology"
-     */
-    const displayRows: AssetRow[] = (() => {
-        if (isPayout) {
-            return rows.map((r) => {
-                const station = stations.find((s) => s.id === r.payoutStationId);
-                return {
-                    ...r,
-                    department: station?.name || r.department || "—",
-                };
-            });
-        }
-        if (isOffice) {
-            return rows.map((r) => {
-                const dept = departments.find((d) => d.id === r.officeDepartmentId);
-                return {
-                    ...r,
-                    department: dept?.name || r.department || "—",
-                };
-            });
-        }
-        return rows;
-    })();
-
     // We hide the internal header if externalSearch is provided (controls in tabs row)
     const hideHeader = externalSearch !== undefined;
 
@@ -217,14 +190,11 @@ export default function AssetLocationPage({
             <AssetTable
                 title={title}
                 description={description}
-                rows={displayRows}
+                rows={rows}
                 loading={loading}
                 error={error || stationsError || deptsError}
                 onAdd={!hideHeader ? handleAdd : undefined}
                 onViewDetails={handleViewDetails}
-                departmentLabel={
-                    isPayout ? "Payout Station" : isOffice ? "Department" : undefined
-                }
                 hideHeader={hideHeader}
                 externalSearch={hideHeader ? externalSearch : undefined}
                 extraHeaderActions={

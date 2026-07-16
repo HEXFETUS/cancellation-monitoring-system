@@ -7,6 +7,7 @@ import { createBrowserRouter } from "react-router-dom";
 
 import ProtectedRoute from "../../components/ProtectedRoute";
 import RoleGuard from "../../components/RoleGuard";
+import LandingPageLoader from "../../modules/landing-page/components/LandingPageLoader";
 
 // ---------------------------------------------------------------------------
 // Route-level code splitting.
@@ -136,17 +137,10 @@ function RouteFallback() {
     );
 }
 
-// Wrap a lazy element in a Suspense boundary so individual routes get their
-// own fallback instead of unmounting the parent layout. react-router-dom
-// already handles the outlet rendering — Suspense just gates the children.
-function lazyRoute(node: React.ReactNode) {
-    return <Suspense fallback={<RouteFallback />}>{node}</Suspense>;
-}
-
 export const router = createBrowserRouter([
     {
         path: "/",
-        element: lazyRoute(<LandingPage />),
+        element: <Suspense fallback={<LandingPageLoader />}><LandingPage /></Suspense>,
     },
     {
         path: "/app",

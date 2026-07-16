@@ -82,6 +82,8 @@ export default function MessagesPage() {
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const messagesContainerRef = useRef<HTMLDivElement>(null);
     const hasViewedRef = useRef(false);
+    const isNearBottomRef = useRef(true);
+    const prevMessageCountRef = useRef(0);
 
     const isAdmin = authUser?.usertype === "admin";
     const [adminGroup, setAdminGroup] = useState<AdminGroupInfo | null>(null);
@@ -218,7 +220,20 @@ export default function MessagesPage() {
         return () => clearInterval(interval);
     }, [conversationId, fetchMessages]);
 
-    useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+    const handleScroll = useCallback(() => {
+        const container = messagesContainerRef.current;
+        if (!container) return;
+        const threshold = 100;
+        const nearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < threshold;
+        isNearBottomRef.current = nearBottom;
+    }, []);
+
+    useEffect(() => {
+        prevMessageCountRef.current = messages.length;
+        if (isNearBottomRef.current) {
+            messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        }
+    }, [messages]);
 
     const handleSend = useCallback(async (text: string, attachmentUrls: string[]) => {
         if (!conversationId || !authUser?.id || sending) return;
@@ -356,7 +371,7 @@ export default function MessagesPage() {
                                 <p className="text-[10px] text-slate-400 dark:text-gray-500">All administrators</p>
                             </div>
                         </div>
-                        <div ref={messagesContainerRef} className="flex-1 overflow-y-auto px-5 py-4 space-y-1">
+                        <div ref={messagesContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-5 py-4 space-y-1">
                             {messages.length === 0 ? (<div className="flex flex-col items-center justify-center h-full text-slate-400 dark:text-gray-500"><Users className="h-10 w-10 mb-2 opacity-30" /><p className="text-sm">No messages yet in Admin Group Chat.</p></div>)
                             : groupedMessages.map((group, gi) => (
                                 <div key={gi}>
@@ -398,7 +413,7 @@ export default function MessagesPage() {
                             <div className="min-w-0 flex-1"><p className="text-sm font-semibold text-slate-800 dark:text-gray-200 truncate">{selectedUser.name}</p></div>
                             {hasUnseenIncoming && (<span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-500 text-[10px] font-bold text-white shadow"><span className="h-1.5 w-1.5 rounded-full bg-white" />New</span>)}
                         </div>
-                        <div ref={messagesContainerRef} className="flex-1 overflow-y-auto px-5 py-4 space-y-1">
+                        <div ref={messagesContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-5 py-4 space-y-1">
                             {messages.length === 0 ? (<div className="flex flex-col items-center justify-center h-full text-slate-400 dark:text-gray-500"><MessageSquare className="h-10 w-10 mb-2 opacity-30" /><p className="text-sm">No messages yet. Say hello!</p></div>)
                             : groupedMessages.map((group, gi) => (
                                 <div key={gi}>
