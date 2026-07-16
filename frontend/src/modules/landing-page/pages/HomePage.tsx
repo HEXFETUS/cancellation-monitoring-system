@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ImagePlus, X, Send, Save } from "lucide-react";
+import { ImagePlus, Pencil, X, Send, Save } from "lucide-react";
 import { useAuth } from "../../../context/AuthContext";
 import { ConfirmationModal, Toast } from "../../../shared/components";
 import {
@@ -49,6 +49,7 @@ export default function HomePage() {
     });
 
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const heroTitleInputRef = useRef<HTMLInputElement>(null);
 
     const showToast = useCallback((message: string, type: "success" | "error" = "success") => {
         setToast({ open: true, message, type });
@@ -114,6 +115,17 @@ export default function HomePage() {
             const target = prev[index];
             if (target) URL.revokeObjectURL(target.preview);
             return prev.filter((_, i) => i !== index);
+        });
+    };
+
+    const handleEditCurrentStatus = () => {
+        setHeroTitle(savedTitle || DEFAULT_HERO_TITLE);
+        setHeroDescription(savedDescription || DEFAULT_HERO_DESCRIPTION);
+        setFormError("");
+
+        requestAnimationFrame(() => {
+            heroTitleInputRef.current?.focus();
+            heroTitleInputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
         });
     };
 
@@ -200,6 +212,7 @@ export default function HomePage() {
                             Hero Title <span className="text-red-500">*</span>
                         </label>
                         <input
+                            ref={heroTitleInputRef}
                             type="text"
                             value={heroTitle}
                             onChange={(e) => setHeroTitle(e.target.value)}
@@ -282,9 +295,21 @@ export default function HomePage() {
 
                 {/* Preview panel */}
                 <div className="flex flex-1 flex-col min-h-0 overflow-hidden rounded-2xl border border-warm bg-white/60 p-5 shadow-sm">
-                    <h3 className="text-[11px] font-bold uppercase tracking-[0.12em] text-ink-muted/70 mb-3">
-                        Current Status
-                    </h3>
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                        <h3 className="text-[11px] font-bold uppercase tracking-[0.12em] text-ink-muted/70">
+                            Current Status
+                        </h3>
+                        <button
+                            type="button"
+                            onClick={handleEditCurrentStatus}
+                            disabled={saving}
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-teal/10 px-3 py-1.5 text-xs font-semibold text-teal-dark transition hover:bg-teal/20 disabled:cursor-not-allowed disabled:opacity-50"
+                            aria-label="Edit current Home content"
+                        >
+                            <Pencil size={13} />
+                            Edit
+                        </button>
+                    </div>
                     <div className="flex-1 overflow-y-auto">
                         <div className="rounded-xl border border-warm bg-white p-4 shadow-xs">
                             {/* Hero title — highlight the "Hexaprime" portion in brand teal */}

@@ -5,11 +5,11 @@ import CreateUserAccountPage from "./CreateUserAccountPage";
 import OperatorProfilesPage from "./OperatorProfilesPage";
 import ActivityLogsPage from "./ActivityLogsPage";
 import AnnouncementsPage from "../../announcements/pages/AnnouncementsPage";
-import EventsNewsAdminPage from "../../landing-page/pages/EventsNewsAdminPage";
-import ResultsAdminPage from "../../landing-page/pages/ResultsAdminPage";
-import HomeAdminPage from "../../landing-page/pages/HomeAdminPage";
-import SocialResponsibilityAdminPage from "../../landing-page/pages/SocialResponsibilityAdminPage";
-import AboutUsAdminPage from "../../landing-page/pages/AboutUsAdminPage";
+import EventsNewsPage from "../../landing-page/pages/EventsNewsPage";
+import ResultsPage from "../../landing-page/pages/ResultsPage";
+import HomePage from "../../landing-page/pages/HomePage";
+import SocialResponsibility from "../../landing-page/pages/SocialResponsibility";
+import AboutUs from "../../landing-page/pages/AboutUs";
 import { useAuth } from "../../../context/AuthContext";
 import { TopTabs } from "../../../shared/components";
 
@@ -177,11 +177,11 @@ function AdminSettingsPage() {
                             onChange={setActiveLandingSubTab}
                             ariaLabel="Landing page sub-sections"
                         />
-                        {activeLandingSubTab === "home" && <HomeAdminPage />}
-                        {activeLandingSubTab === "social-responsibility" && <SocialResponsibilityAdminPage />}
-                        {activeLandingSubTab === "about-us" && <AboutUsAdminPage />}
-                        {activeLandingSubTab === "events-news" && <EventsNewsAdminPage />}
-                        {activeLandingSubTab === "results" && <ResultsAdminPage />}
+                        {activeLandingSubTab === "home" && <HomePage />}
+                        {activeLandingSubTab === "events-news" && <EventsNewsPage />}
+                        {activeLandingSubTab === "results" && <ResultsPage />}
+                        {activeLandingSubTab === "social-responsibility" && <SocialResponsibility />}
+                        {activeLandingSubTab === "about-us" && <AboutUs />}
                     </div>
                 )}
                 {activeTab === "activity-logs" && <ActivityLogsPage />}

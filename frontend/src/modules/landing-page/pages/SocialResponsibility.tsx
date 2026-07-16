@@ -5,6 +5,7 @@ import { ConfirmationModal, Toast } from "../../../shared/components";
 import {
     fetchLandingPageContent,
     updateLandingPageContent,
+    type LandingPageContent,
 } from "../services/landingPage";
 
 interface ImpactItem {
@@ -12,6 +13,12 @@ interface ImpactItem {
     description: string;
     peopleHelped: string;
     location: string;
+}
+
+interface StatItem {
+    id: string;
+    label: string;
+    value: string;
 }
 
 const DEFAULT_IMPACT: ImpactItem[] = [
@@ -37,6 +44,85 @@ const DEFAULT_SR_TITLE = "Social Responsibility";
 const DEFAULT_SR_DESCRIPTION =
     "Committed to giving back to the communities we serve through meaningful disaster relief and support programs.";
 
+function getDefaultImpact(): ImpactItem[] {
+    return DEFAULT_IMPACT.map((item) => ({ ...item }));
+}
+
+function normalizeImpactItems(content: string | null): ImpactItem[] {
+    if (!content) return getDefaultImpact();
+
+    try {
+        const parsed: unknown = JSON.parse(content);
+        if (!Array.isArray(parsed) || parsed.length === 0) return getDefaultImpact();
+
+        return parsed.map((item) => {
+            const impact = item && typeof item === "object"
+                ? item as Partial<Record<keyof ImpactItem, unknown>>
+                : {};
+
+            return {
+                title: typeof impact.title === "string" ? impact.title : "",
+                description: typeof impact.description === "string" ? impact.description : "",
+                peopleHelped: typeof impact.peopleHelped === "string" ? impact.peopleHelped : "",
+                location: typeof impact.location === "string" ? impact.location : "",
+            };
+        });
+    } catch {
+        return getDefaultImpact();
+    }
+}
+
+function getDefaultStats(): StatItem[] {
+    return Object.entries(DEFAULT_STATS).map(([label, value], index) => ({
+        id: `default-stat-${index}`,
+        label,
+        value,
+    }));
+}
+
+function normalizeStats(value: LandingPageContent["stats"]): StatItem[] {
+    const rows = value && typeof value === "object" && !Array.isArray(value)
+        ? Object.entries(value)
+            .filter((entry): entry is [string, string] => typeof entry[1] === "string")
+            .map(([label, statValue], index) => ({
+                id: `saved-stat-${index}`,
+                label,
+                value: statValue,
+            }))
+        : [];
+
+    const usedLabels = new Set(rows.map((row) => row.label.trim().toLocaleLowerCase()));
+    for (const defaultRow of getDefaultStats()) {
+        if (rows.length >= Object.keys(DEFAULT_STATS).length) break;
+
+        const normalizedLabel = defaultRow.label.toLocaleLowerCase();
+        if (!usedLabels.has(normalizedLabel)) {
+            rows.push(defaultRow);
+            usedLabels.add(normalizedLabel);
+        }
+    }
+
+    return rows;
+}
+
+function statsToRecord(items: StatItem[]): Record<string, string> {
+    return Object.fromEntries(items.map((item) => [item.label.trim(), item.value]));
+}
+
+function validateStats(items: StatItem[]): string | null {
+    const labels = items.map((item) => item.label.trim());
+    if (labels.some((label) => !label)) {
+        return "Each impact statistic must have a label.";
+    }
+
+    const normalizedLabels = labels.map((label) => label.toLocaleLowerCase());
+    if (new Set(normalizedLabels).size !== normalizedLabels.length) {
+        return "Impact statistic labels must be unique.";
+    }
+
+    return null;
+}
+
 export default function SocialResponsibility() {
     const { user } = useAuth();
     const userId = user?.id;
@@ -48,13 +134,13 @@ export default function SocialResponsibility() {
     const [savedTitle, setSavedTitle] = useState("");
     const [savedDescription, setSavedDescription] = useState("");
     const [savedImpact, setSavedImpact] = useState<ImpactItem[]>(DEFAULT_IMPACT);
-    const [savedStats, setSavedStats] = useState<Record<string, string>>(DEFAULT_STATS);
+    const [savedStats, setSavedStats] = useState<StatItem[]>(getDefaultStats);
 
     // Form fields
     const [sectionTitle, setSectionTitle] = useState("");
     const [sectionDescription, setSectionDescription] = useState("");
     const [impactItems, setImpactItems] = useState<ImpactItem[]>(DEFAULT_IMPACT);
-    const [stats, setStats] = useState<Record<string, string>>(DEFAULT_STATS);
+    const [stats, setStats] = useState<StatItem[]>(getDefaultStats);
 
     // UI state
     const [showConfirm, setShowConfirm] = useState(false);
@@ -70,44 +156,34 @@ export default function SocialResponsibility() {
     }, []);
     const hideToast = useCallback(() => setToast((p) => ({ ...p, open: false })), []);
 
+    const applyContent = useCallback((data: LandingPageContent) => {
+        const loadedImpact = normalizeImpactItems(data.content);
+        const loadedStats = normalizeStats(data.stats);
+        const loadedTitle = data.title || "";
+        const loadedDescription = data.description || "";
+
+        setSectionTitle(loadedTitle);
+        setSectionDescription(loadedDescription);
+        setImpactItems(loadedImpact);
+        setStats(loadedStats);
+        setSavedTitle(loadedTitle);
+        setSavedDescription(loadedDescription);
+        setSavedImpact(loadedImpact);
+        setSavedStats(loadedStats);
+    }, []);
+
     const load = useCallback(async () => {
         if (!userId) return;
         setError("");
         try {
             const data = await fetchLandingPageContent("social-responsibility");
             if (data) {
-                setSectionTitle(data.title || "");
-                setSectionDescription(data.description || "");
-
-                // Parse impact items from content if available
-                if (data.content) {
-                    try {
-                        const parsed = JSON.parse(data.content);
-                        if (Array.isArray(parsed)) {
-                            setImpactItems(parsed.length > 0 ? parsed : DEFAULT_IMPACT);
-                        }
-                    } catch {
-                        setImpactItems(DEFAULT_IMPACT);
-                    }
-                } else {
-                    setImpactItems(DEFAULT_IMPACT);
-                }
-
-                // Parse stats
-                if (data.stats && typeof data.stats === "object") {
-                    setStats((prev) => ({ ...prev, ...data.stats }));
-                }
-
-                // Update preview
-                setSavedTitle(data.title || "");
-                setSavedDescription(data.description || "");
-                setSavedImpact(impactItems);
-                setSavedStats(stats);
+                applyContent(data);
             }
         } catch (e) {
             setError(e instanceof Error ? e.message : "Failed to load");
         }
-    }, [userId]);
+    }, [applyContent, userId]);
 
     useEffect(() => {
         load();
@@ -129,8 +205,10 @@ export default function SocialResponsibility() {
         setImpactItems((prev) => prev.filter((_, i) => i !== index));
     };
 
-    const updateStat = (key: string, value: string) => {
-        setStats((prev) => ({ ...prev, [key]: value }));
+    const updateStat = (id: string, field: "label" | "value", value: string) => {
+        setStats((prev) => prev.map((item) => (
+            item.id === id ? { ...item, [field]: value } : item
+        )));
     };
 
     const handleSave = async () => {
@@ -138,6 +216,12 @@ export default function SocialResponsibility() {
             setFormError("Please provide at least a title or description.");
             return;
         }
+        const statsError = validateStats(stats);
+        if (statsError) {
+            setFormError(statsError);
+            return;
+        }
+        setFormError("");
         setShowConfirm(true);
     };
 
@@ -146,26 +230,27 @@ export default function SocialResponsibility() {
         setSaving(true);
         setFormError("");
         try {
+            const statsError = validateStats(stats);
+            if (statsError) {
+                setFormError(statsError);
+                return;
+            }
+
             // Filter out empty impact items
             const validImpact = impactItems.filter((item) => item.title.trim() || item.description.trim());
 
-            await updateLandingPageContent(
+            const updatedContent = await updateLandingPageContent(
                 "social-responsibility",
                 {
                     title: sectionTitle.trim(),
                     description: sectionDescription.trim(),
                     content: JSON.stringify(validImpact),
-                    stats: stats,
+                    stats: statsToRecord(stats),
                 },
                 userId
             );
+            applyContent(updatedContent);
             showToast("Social Responsibility section updated successfully.", "success");
-            // Update preview
-            setSavedTitle(sectionTitle.trim());
-            setSavedDescription(sectionDescription.trim());
-            setSavedImpact(validImpact);
-            setSavedStats(stats);
-            await load();
         } catch (e) {
             setFormError(e instanceof Error ? e.message : "Failed to save");
         } finally {
@@ -297,30 +382,19 @@ export default function SocialResponsibility() {
                     <div className="mb-5">
                         <label className="mb-2 block text-xs font-medium text-ink">Impact Statistics</label>
                         <div className="space-y-2">
-                            {Object.entries(stats).map(([key, value]) => (
-                                <div key={key} className="flex items-center gap-2">
+                            {stats.map((item) => (
+                                <div key={item.id} className="flex items-center gap-2">
                                     <input
                                         type="text"
-                                        value={key}
-                                        onChange={(e) => {
-                                            const oldKey = key;
-                                            const newKey = e.target.value;
-                                            if (newKey && newKey !== oldKey) {
-                                                setStats((prev) => {
-                                                    const next = { ...prev };
-                                                    delete next[oldKey];
-                                                    next[newKey] = value;
-                                                    return next;
-                                                });
-                                            }
-                                        }}
+                                        value={item.label}
+                                        onChange={(e) => updateStat(item.id, "label", e.target.value)}
                                         placeholder="Label"
                                         className="flex-1 rounded-lg border border-warm bg-white px-2 py-1.5 text-xs text-ink focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/30"
                                     />
                                     <input
                                         type="text"
-                                        value={value}
-                                        onChange={(e) => updateStat(key, e.target.value)}
+                                        value={item.value}
+                                        onChange={(e) => updateStat(item.id, "value", e.target.value)}
                                         placeholder="Value"
                                         className="w-24 rounded-lg border border-warm bg-white px-2 py-1.5 text-xs text-ink focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/30"
                                     />
@@ -365,10 +439,10 @@ export default function SocialResponsibility() {
                             </div>
 
                             <div className="mt-4 grid grid-cols-2 gap-2">
-                                {Object.entries(savedStats).filter(([k]) => k && savedStats[k]).map(([key, value]) => (
-                                    <div key={key} className="rounded-lg bg-teal/5 p-2 text-center">
-                                        <p className="text-lg font-bold text-teal-dark">{value}</p>
-                                        <p className="text-[10px] text-ink-muted">{key}</p>
+                                {savedStats.filter((item) => item.label && item.value).map((item) => (
+                                    <div key={item.id} className="rounded-lg bg-teal/5 p-2 text-center">
+                                        <p className="text-lg font-bold text-teal-dark">{item.value}</p>
+                                        <p className="text-[10px] text-ink-muted">{item.label}</p>
                                     </div>
                                 ))}
                             </div>
