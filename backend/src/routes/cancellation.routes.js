@@ -5,7 +5,7 @@ const router = express.Router();
 
 const GOOGLE_SHEET_DEPLOYMENT_ID =
     process.env.CANCELLATION_SHEET_DEPLOYMENT_ID ||
-    "AKfycbxt3n1C0srFJXxBZ0rpHWdMw_Ps8lih3HkU3DExmy-EageSW4-Ic-gBZN_zXXI979agmQ";
+    "AKfycbz8nIomzUIzRnzj3rRlfr9fs4dXljcY4OhOmAmQfWaVGbm-JFPtXNdoEiyXg3JfwGlYng";
 
 const GOOGLE_SHEET_URL =
     process.env.CANCELLATION_SHEET_URL ||
@@ -113,7 +113,7 @@ function extractRows(payload) {
     return [];
 }
 
-async function fetchJson(url) {
+export async function fetchJson(url) {
     let response;
     try {
         response = await fetch(url);
@@ -149,7 +149,20 @@ async function fetchJson(url) {
     }
 
     try {
-        return JSON.parse(text);
+        let payload = JSON.parse(text);
+
+        // Some Apps Script deployments return JSON that has itself been
+        // JSON-encoded. Accept one such wrapper while keeping malformed
+        // responses visible instead of silently treating them as no rows.
+        if (typeof payload === "string") {
+            payload = JSON.parse(payload);
+        }
+
+        if (!payload || (typeof payload !== "object" && !Array.isArray(payload))) {
+            throw new Error("Response payload is not a JSON object or array");
+        }
+
+        return payload;
     } catch {
         throw new Error(
             `Google Sheet endpoint did not return JSON rows. It returned: "${text.slice(0, 200)}"`
@@ -157,7 +170,7 @@ async function fetchJson(url) {
     }
 }
 
-async function fetchSheetRows() {
+export async function fetchSheetRows() {
     const url = new URL(GOOGLE_SHEET_URL);
     url.searchParams.set("sheets", Array.from(ALLOWED_SHEET_NAMES).join(","));
 
@@ -178,6 +191,12 @@ async function fetchSheetRows() {
                 ...row,
                 AREA: getField(row, SHEET_COLUMNS.area) || sheetName,
             }))
+        );
+    }
+
+    if (perSheetRows.length === 0) {
+        throw new Error(
+            "Google Sheet endpoint returned no rows for the CDO or MISOR sheets"
         );
     }
 
