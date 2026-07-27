@@ -3,7 +3,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
-import { globalLimiter, authLimiter } from "./src/middleware/rate-limiter.js";
+import { authLimiter } from "./src/middleware/rate-limiter.js";
 
 import healthRoutes from "./src/routes/health.routes.js";
 import userRoutes from "./src/routes/user.routes.js";
@@ -51,9 +51,6 @@ const __dirname = path.dirname(__filename);
 
 app.use(cors());
 app.use(express.json());
-
-// Apply global rate limiter to all /api/* routes
-app.use("/api", globalLimiter);
 
 // Serve uploaded files from the same directory used by the multer routes.
 app.use("/uploads", express.static(path.join(__dirname, "src", "public", "uploads")));
