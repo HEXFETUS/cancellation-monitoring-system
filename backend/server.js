@@ -40,6 +40,12 @@ import { dbState, pingDatabase } from "./src/config/db.js";
 dotenv.config();
 
 const app = express();
+
+// Trust the first proxy (Render's load balancer) so that req.ip reflects
+// the real client IP instead of the proxy's internal address. Required by
+// express-rate-limit to correctly identify visitors behind a reverse proxy.
+app.set("trust proxy", 1);
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
