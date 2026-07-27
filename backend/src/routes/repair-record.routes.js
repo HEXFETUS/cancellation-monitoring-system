@@ -25,7 +25,7 @@ const REPAIR_SELECT = `
         ${operatorDisplay("ol", "parent_ol")} AS operator_name,
         dl.name AS diagnosis_name,
         pd.repaired_by,
-        pd.remarks,
+        pd.remarks AS diagnosis_remarks,
         bt.billing_code,
         bt.received_by
     FROM repair_records rr
