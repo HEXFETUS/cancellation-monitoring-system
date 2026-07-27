@@ -68,6 +68,7 @@ export interface CreateRepairRecordPayload {
     with_charger: boolean;
     with_box: boolean;
     status?: string;
+    remarks?: string;
 }
 
 export interface UpdateRepairRecordPayload {

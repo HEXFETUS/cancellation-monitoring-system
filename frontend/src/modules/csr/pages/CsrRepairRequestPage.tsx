@@ -34,6 +34,7 @@ export default function CsrRepairRequestPage() {
         diagnosis: "",
         accessories: { ntc: false, withCharger: false, withBox: false },
         deliveredBy: "",
+        remarks: "",
     });
 
     // Toast state
@@ -290,6 +291,7 @@ export default function CsrRepairRequestPage() {
                 with_charger: formData.accessories.withCharger,
                 with_box: formData.accessories.withBox,
                 status: "For Request",
+                remarks: formData.remarks.trim() || undefined,
             });
             const message = response.isUpdate
                 ? "Repair record updated successfully!"
@@ -305,6 +307,7 @@ export default function CsrRepairRequestPage() {
                 diagnosis: "",
                 accessories: { ntc: false, withCharger: false, withBox: false },
                 deliveredBy: "",
+                remarks: "",
             });
             setPosRecordId(null);
             setSelectedPosStatus("");
@@ -338,6 +341,7 @@ export default function CsrRepairRequestPage() {
             diagnosis: "",
             accessories: { ntc: false, withCharger: false, withBox: false },
             deliveredBy: "",
+            remarks: "",
         });
         setPosRecordId(null);
         setSelectedPosStatus("");
@@ -689,6 +693,19 @@ export default function CsrRepairRequestPage() {
                             className={inputClass}
                             style={inputStyle}
                             placeholder="Delivered by"
+                        />
+                    </div>
+
+                    {/* Row 6: Remarks */}
+                    <div>
+                        <label className={labelClass}>Remarks</label>
+                        <textarea
+                            value={formData.remarks}
+                            onChange={(e) => handleChange("remarks", e.target.value)}
+                            className={`${inputClass} min-h-[80px] resize-y py-2.5`}
+                            style={inputStyle}
+                            placeholder="Optional notes or additional information"
+                            rows={3}
                         />
                     </div>
 

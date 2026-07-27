@@ -317,6 +317,7 @@ router.post("/", async (req, res) => {
             with_charger,
             with_box,
             status,
+            remarks,
         } = req.body;
 
         if (!date) {
@@ -411,11 +412,12 @@ router.post("/", async (req, res) => {
                     with_charger = $6,
                     with_box = $7,
                     status = $8,
+                    remarks = $9,
                     forwarded = false,
                     released = false,
                     re_repair = true,
                     updated_at = CURRENT_TIMESTAMP
-                WHERE id = $9
+                WHERE id = $10
                 RETURNING *
                 `,
                 [
@@ -427,6 +429,7 @@ router.post("/", async (req, res) => {
                     with_charger ?? false,
                     with_box ?? false,
                     initialStatus,
+                    remarks?.trim() || null,
                     existingId,
                 ]
             );
@@ -436,8 +439,8 @@ router.post("/", async (req, res) => {
                 `
                 INSERT INTO repair_records (
                     date, pos_record_id, ntc, operator_id, diagnosis_id,
-                    delivered_by, with_charger, with_box, status
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                    delivered_by, with_charger, with_box, status, remarks
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
                 RETURNING *
                 `,
                 [
@@ -450,6 +453,7 @@ router.post("/", async (req, res) => {
                     with_charger ?? false,
                     with_box ?? false,
                     initialStatus,
+                    remarks?.trim() || null,
                 ]
             );
         }

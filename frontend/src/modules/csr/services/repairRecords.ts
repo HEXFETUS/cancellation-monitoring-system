@@ -41,6 +41,7 @@ export interface CreateRepairRecordPayload {
     with_charger: boolean;
     with_box: boolean;
     status?: "For Request" | "For Repair";
+    remarks?: string;
 }
 
 export interface ReceivedByOption {

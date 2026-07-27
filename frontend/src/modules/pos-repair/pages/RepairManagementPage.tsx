@@ -547,6 +547,7 @@ export default function RepairManagementPage() {
                                                     <div className="flex items-center justify-center gap-1">
                                                         {activeStatusTab === "for-checking" && (
                                                             <>
+                                                                <span className="rounded-lg p-1.5" title={record.remarks || "No remarks"} style={{ color: "#F59E0B" }}><AlertTriangle className="h-4 w-4" /></span>
                                                                 <button onClick={() => handleForReleased(record)} className="rounded-lg p-1.5 transition-colors hover:bg-blue-50" title="For Release" style={{ color: "#2563EB" }}><ArrowUpRight className="h-4 w-4" /></button>
                                                                 <button onClick={() => handleProceed(record)} className="rounded-lg p-1.5 transition-colors hover:bg-green-50" title="For Repair" style={{ color: "#16A34A" }}><Wrench className="h-4 w-4" /></button>
                                                             </>

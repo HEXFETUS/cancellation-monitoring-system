@@ -536,7 +536,10 @@ export default function CsrRepairManagementPage() {
                                                 <td className="px-4 py-3.5">
                                                     <div className="flex items-center justify-center gap-1">
                                                         {activeStatusTab === "request" && (
-                                                            <button onClick={() => handleProceed(record)} className="rounded-lg p-1.5 transition-colors hover:bg-green-50" title="Proceed" style={{ color: "#16A34A" }}><CheckCircle2 className="h-4 w-4" /></button>
+                                                            <>
+                                                                <span className="rounded-lg p-1.5" title={record.remarks || "No remarks"} style={{ color: "#F59E0B" }}><AlertTriangle className="h-4 w-4" /></span>
+                                                                <button onClick={() => handleProceed(record)} className="rounded-lg p-1.5 transition-colors hover:bg-green-50" title="Proceed" style={{ color: "#16A34A" }}><CheckCircle2 className="h-4 w-4" /></button>
+                                                            </>
                                                         )}
                                                         {activeStatusTab === "for-release" && (
                                                             <button onClick={() => handleRelease(record)} className="rounded-lg p-1.5 transition-colors hover:bg-blue-50" title="Release" style={{ color: "#2563EB" }}><ArrowUpRight className="h-4 w-4" /></button>
