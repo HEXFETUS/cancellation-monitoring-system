@@ -77,6 +77,11 @@ router.post("/login", async (req, res) => {
             profile_picture: user.profile_picture,
             user_log_id: logResult.rows[0].id,
         });
+
+        // Reset the rate-limit counter on successful login so a user who
+        // mistyped their password a couple of times doesn't stay at risk
+        // of being blocked for the rest of the 3-minute window.
+        req.rateLimit?.deleteKey();
     } catch (err) {
         console.error("Error during login:", err.message);
         res.status(500).json({ error: "Authentication failed" });
