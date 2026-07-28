@@ -312,6 +312,7 @@ export async function connect(transport?: NiimbotTransport): Promise<void> {
         setState({ status: "connected", error: null, detectedTask: detected });
     } catch (e) {
         client = null;
+        console.error("[niimbot] Bluetooth connect failed:", e);
         setState({ status: "error", error: errorMessage(e) });
     }
 }
