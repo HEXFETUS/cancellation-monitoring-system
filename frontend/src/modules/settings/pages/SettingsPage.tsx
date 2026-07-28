@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { Users, UserPlus, Check, X, Building2, Activity, Megaphone, Newspaper } from "lucide-react";
+import { Users, UserPlus, Check, X, Building2, Activity, Megaphone, Newspaper, Printer } from "lucide-react";
 import UserAccountsPage from "./UserAccountsPage";
 import CreateUserAccountPage from "./CreateUserAccountPage";
 import OperatorProfilesPage from "./OperatorProfilesPage";
 import ActivityLogsPage from "./ActivityLogsPage";
+import ExternalPrintPage from "./ExternalPrintPage";
 import AnnouncementsPage from "../../announcements/pages/AnnouncementsPage";
 import EventsNewsPage from "../../landing-page/pages/EventsNewsPage";
 import ResultsPage from "../../landing-page/pages/ResultsPage";
@@ -18,6 +19,7 @@ const mainTabs = [
     { id: "announcements", label: "Announcements", icon: Megaphone },
     { id: "landing-page", label: "Landing Page", icon: Newspaper },
     { id: "activity-logs", label: "Activity Logs", icon: Activity },
+    { id: "external-print", label: "External Print", icon: Printer },
 ];
 
 const landingSubTabs = [
@@ -185,6 +187,7 @@ function AdminSettingsPage() {
                     </div>
                 )}
                 {activeTab === "activity-logs" && <ActivityLogsPage />}
+                {activeTab === "external-print" && <ExternalPrintPage />}
             </div>
         </div>
     );
