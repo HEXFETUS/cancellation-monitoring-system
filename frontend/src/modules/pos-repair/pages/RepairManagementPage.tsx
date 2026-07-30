@@ -582,10 +582,14 @@ export default function RepairManagementPage() {
                                                             <button onClick={() => handleRelease(record)} className="rounded-lg p-1.5 transition-colors hover:bg-blue-50" title="Release" style={{ color: "#2563EB" }}><ArrowUpRight className="h-4 w-4" /></button>
                                                         )}
                                                         {activeStatusTab === "undergoing-repair" && (
-                                                            <button onClick={() => setRecordToReceive(record)} className="rounded-lg p-1.5 transition-colors hover:bg-green-50" title="Received" style={{ color: "#16A34A" }}><CheckCircle2 className="h-4 w-4" /></button>
+                                                            <>
+                                                                <button onClick={(e) => handleRemarksClick(e, record)} className="rounded-lg p-1.5 cursor-pointer" title={record.remarks || "No remarks"} style={{ color: "#F59E0B" }}><AlertTriangle className="h-4 w-4" /></button>
+                                                                <button onClick={() => setRecordToReceive(record)} className="rounded-lg p-1.5 transition-colors hover:bg-green-50" title="Received" style={{ color: "#16A34A" }}><CheckCircle2 className="h-4 w-4" /></button>
+                                                            </>
                                                         )}
                                                         {activeStatusTab === "for-repair" && (
                                                             <>
+                                                                <button onClick={(e) => handleRemarksClick(e, record)} className="rounded-lg p-1.5 cursor-pointer" title={record.remarks || "No remarks"} style={{ color: "#F59E0B" }}><AlertTriangle className="h-4 w-4" /></button>
                                                                 <button onClick={() => setRecordToReset(record)} className="rounded-lg p-1.5 transition-colors hover:bg-red-50" title="Reset" style={{ color: "#EF4444" }}><RotateCcw className="h-4 w-4" /></button>
                                                                 <button onClick={() => setRecordToTechnician(record)} className="rounded-lg p-1.5 transition-colors hover:bg-green-50" title="Proceed" style={{ color: "#16A34A" }}><CheckCircle2 className="h-4 w-4" /></button>
                                                             </>
@@ -709,6 +713,7 @@ export default function RepairManagementPage() {
             {remarksRecord && bubblePos && createPortal(
                 <div
                     ref={bubbleRef}
+
                     className="fixed z-70 animate-in fade-in zoom-in-95 duration-150"
                     style={{ bottom: bubblePos.bottom, left: bubblePos.left, transform: "translateX(-50%)" }}
                 >

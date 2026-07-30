@@ -242,7 +242,7 @@ export default function CsrRepairManagementPage() {
     const showActions = !noActionTabs.includes(activeStatusTab);
     const showAccessories = activeStatusTab === "request";
     const showRepairedBy = activeStatusTab === "for-repair" || activeStatusTab === "undergoing-repair" || activeStatusTab === "for-release" || activeStatusTab === "released";
-    const showRemarks = activeStatusTab === "for-release" || activeStatusTab === "released";
+    const showRemarks = activeStatusTab === "for-release" || activeStatusTab === "released" || activeStatusTab === "for-repair" || activeStatusTab === "pending" || activeStatusTab === "undergoing-repair";
     const showBillingInfo = activeStatusTab === "released";
     const isReleased = activeStatusTab === "released";
 
