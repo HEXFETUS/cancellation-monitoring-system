@@ -48,7 +48,7 @@ const tabStatusMap: Record<string, string> = {
     "released": "Released",
 };
 
-const noActionTabs = ["for-repair", "undergoing-repair"];
+const noActionTabs: string[] = [];
 
 function filterRecordsByTab(records: RepairRecord[], tabId: string): RepairRecord[] {
     const status = tabStatusMap[tabId];
@@ -570,7 +570,10 @@ export default function CsrRepairManagementPage() {
                                                         {activeStatusTab === "for-release" && (
                                                             <button onClick={() => handleRelease(record)} className="rounded-lg p-1.5 transition-colors hover:bg-blue-50" title="Release" style={{ color: "#2563EB" }}><ArrowUpRight className="h-4 w-4" /></button>
                                                         )}
-                                                        {activeStatusTab !== "for-release" && (
+                                                        {(activeStatusTab === "for-repair" || activeStatusTab === "undergoing-repair") && (
+                                                            <button onClick={(e) => handleRemarksClick(e, record)} className="rounded-lg p-1.5 cursor-pointer" title={record.remarks || "No remarks"} style={{ color: "#F59E0B" }}><AlertTriangle className="h-4 w-4" /></button>
+                                                        )}
+                                                        {activeStatusTab !== "for-release" && activeStatusTab !== "for-repair" && activeStatusTab !== "undergoing-repair" && (
                                                             <>
                                                                 <button onClick={() => handleEdit(record)} className="rounded-lg p-1.5 transition-colors hover:bg-amber-50" title="Edit" style={{ color: "#F59E0B" }}><Edit className="h-4 w-4" /></button>
                                                                 <button onClick={() => handleDelete(record)} className="rounded-lg p-1.5 transition-colors hover:bg-red-50" title="Delete" style={{ color: "#EF4444" }}><Trash2 className="h-4 w-4" /></button>
