@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import {
     Wrench,
     ClipboardList,
@@ -133,7 +134,7 @@ function EditModal({ record, diagnoses, onClose, onSave, showToast }: EditModalP
     return (
         <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 backdrop-blur-sm pt-16 px-4">
             <div className="relative w-full max-w-md animate-in fade-in zoom-in-95 duration-200 rounded-2xl bg-white shadow-2xl border border-warm overflow-hidden">
-                <div className="h-2 bg-gradient-to-r from-teal to-teal-dark" />
+                <div className="h-2 bg-linear-to-r from-teal to-teal-dark" />
                 <div className="p-6">
                     <div className="flex items-center justify-between mb-6">
                         <div><h2 className="text-lg font-bold text-ink">Edit Repair Record</h2><p className="text-sm text-ink-muted mt-0.5">POS #: {record.device_no || record.id}</p></div>
@@ -170,7 +171,7 @@ function EditModal({ record, diagnoses, onClose, onSave, showToast }: EditModalP
                     </div>
                     <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-warm/60">
                         <button onClick={onClose} className="rounded-xl border-2 border-gray-200 px-6 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-all active:scale-[0.98]">Cancel</button>
-                        <button onClick={handleSave} disabled={saving} className="rounded-xl bg-gradient-to-r from-teal to-teal-dark px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-teal/25 hover:shadow-xl hover:shadow-teal/30 hover:from-teal-dark hover:to-teal transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none disabled:active:scale-100">
+                        <button onClick={handleSave} disabled={saving} className="rounded-xl bg-linear-to-r from-teal to-teal-dark px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-teal/25 hover:shadow-xl hover:shadow-teal/30 hover:from-teal-dark hover:to-teal transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none disabled:active:scale-100">
                             {saving ? <span className="inline-flex items-center gap-2"><div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />Saving...</span> : <span className="inline-flex items-center gap-2"><Save className="h-4 w-4" />Save Changes</span>}
                         </button>
                     </div>
@@ -222,6 +223,9 @@ export default function CsrRepairManagementPage() {
     const [showRepairTransmittal, setShowRepairTransmittal] = useState(false);
     const [expandedReleasedIds, setExpandedReleasedIds] = useState<Set<number>>(new Set());
     const [batchProcessing, setBatchProcessing] = useState(false);
+    const [remarksRecord, setRemarksRecord] = useState<RepairRecord | null>(null);
+    const [bubblePos, setBubblePos] = useState<{ bottom: number; left: number } | null>(null);
+    const bubbleRef = useRef<HTMLDivElement>(null);
     const [toastOpen, setToastOpen] = useState(false);
     const [toastMessage, setToastMessage] = useState("");
     const [toastType, setToastType] = useState<"error" | "success">("error");
@@ -343,6 +347,28 @@ export default function CsrRepairManagementPage() {
     const groupTotalPages = Math.ceil(releasedGroups.length / pageSize);
     const pagedGroups = releasedGroups.slice((page - 1) * pageSize, page * pageSize);
 
+    const handleRemarksClick = useCallback((e: React.MouseEvent<HTMLButtonElement>, record: RepairRecord) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        setBubblePos({ bottom: window.innerHeight - rect.top + 6, left: rect.left + rect.width / 2 });
+        setRemarksRecord(record);
+    }, []);
+
+    const closeRemarksBubble = useCallback(() => {
+        setRemarksRecord(null);
+        setBubblePos(null);
+    }, []);
+
+    useEffect(() => {
+        if (!remarksRecord) return;
+        const handleClickOutside = (e: MouseEvent) => {
+            if (bubbleRef.current && !bubbleRef.current.contains(e.target as Node)) {
+                closeRemarksBubble();
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, [remarksRecord, closeRemarksBubble]);
+
     const colCount = 7 + (showAccessories ? 3 : 0) + (showActions ? 1 : 0) + (showRepairedBy ? 1 : 0) + (showRemarks ? 1 : 0) + (showBillingInfo ? 2 : 0);
 
     const batchAction = activeStatusTab === "request" ? (
@@ -438,7 +464,7 @@ export default function CsrRepairManagementPage() {
                                                     <CreditCard className="h-4 w-4 text-[#3B82A0]" />
                                                     Billing Code: {firstRecord.billing_code || "-"}
                                                 </span>
-                                                <span className="inline-flex items-center rounded-full bg-[#92C7CF]/20 px-2 py-0.5 text-xs font-bold text-[#1F2937]">
+                                                <span className="inline-flex items-center rounded-full bg-teal/20 px-2 py-0.5 text-xs font-bold text-[#1F2937]">
                                                     {group.records.length} POS
                                                 </span>
                                                 {isExpanded ? (
@@ -537,7 +563,7 @@ export default function CsrRepairManagementPage() {
                                                     <div className="flex items-center justify-center gap-1">
                                                         {activeStatusTab === "request" && (
                                                             <>
-                                                                <span className="rounded-lg p-1.5" title={record.remarks || "No remarks"} style={{ color: "#F59E0B" }}><AlertTriangle className="h-4 w-4" /></span>
+                                                                <button onClick={(e) => handleRemarksClick(e, record)} className="rounded-lg p-1.5 cursor-pointer" title={record.remarks || "No remarks"} style={{ color: "#F59E0B" }}><AlertTriangle className="h-4 w-4" /></button>
                                                                 <button onClick={() => handleProceed(record)} className="rounded-lg p-1.5 transition-colors hover:bg-green-50" title="Proceed" style={{ color: "#16A34A" }}><CheckCircle2 className="h-4 w-4" /></button>
                                                             </>
                                                         )}
@@ -618,6 +644,24 @@ export default function CsrRepairManagementPage() {
                     onClose={() => setShowRepairTransmittal(false)}
                     showToast={showToast}
                 />
+            )}
+
+            {remarksRecord && bubblePos && createPortal(
+                <div
+                    ref={bubbleRef}
+                    className="fixed z-70 animate-in fade-in zoom-in-95 duration-150"
+                    style={{ bottom: bubblePos.bottom, left: bubblePos.left, transform: "translateX(-50%)" }}
+                >
+                    <div className="rounded-xl bg-white shadow-xl border border-amber-200 p-3 max-w-xs">
+                        <p className="text-xs text-ink-muted mb-1">
+                            POS No: <span className="font-semibold text-ink">{remarksRecord.device_no || "-"}</span>
+                        </p>
+                        <p className="text-sm text-ink">{remarksRecord.remarks || "No remarks"}</p>
+                    </div>
+                    {/* Arrow pointing up toward the icon below */}
+                    <div className="mx-auto h-0 w-0 border-l-8 border-r-8 border-t-8 border-l-transparent border-r-transparent" style={{ borderTopColor: "#F59E0B" }} />
+                </div>,
+                document.body
             )}
         </div>
     );

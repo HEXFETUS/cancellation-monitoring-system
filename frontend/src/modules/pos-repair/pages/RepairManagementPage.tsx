@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import {
     Wrench,
     ClipboardList,
@@ -132,6 +133,9 @@ export default function RepairManagementPage() {
     const [expandedReleasedIds, setExpandedReleasedIds] = useState<Set<number>>(new Set());
     const [batchModal, setBatchModal] = useState<"for-repair" | "checked" | "received" | "release" | null>(null);
     const [batchProcessing, setBatchProcessing] = useState(false);
+    const [remarksRecord, setRemarksRecord] = useState<RepairRecord | null>(null);
+    const [bubblePos, setBubblePos] = useState<{ bottom: number; left: number } | null>(null);
+    const bubbleRef = useRef<HTMLDivElement>(null);
     const [toastOpen, setToastOpen] = useState(false);
     const [toastMessage, setToastMessage] = useState("");
     const [toastType, setToastType] = useState<"error" | "success">("error");
@@ -371,6 +375,28 @@ export default function RepairManagementPage() {
         });
     }, [filteredRecords]);
 
+    const handleRemarksClick = useCallback((e: React.MouseEvent<HTMLButtonElement>, record: RepairRecord) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        setBubblePos({ bottom: window.innerHeight - rect.top + 6, left: rect.left + rect.width / 2 });
+        setRemarksRecord(record);
+    }, []);
+
+    const closeRemarksBubble = useCallback(() => {
+        setRemarksRecord(null);
+        setBubblePos(null);
+    }, []);
+
+    useEffect(() => {
+        if (!remarksRecord) return;
+        const handleClickOutside = (e: MouseEvent) => {
+            if (bubbleRef.current && !bubbleRef.current.contains(e.target as Node)) {
+                closeRemarksBubble();
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, [remarksRecord, closeRemarksBubble]);
+
     const colCount = isForChecking || isForRepair ? 7 : isUndergoingRepair ? 8 : isForRelease ? 9 : 7 + (showAccessories ? 3 : 0) + (showActions ? 1 : 0) + (showRepairedBy ? 1 : 0) + (showRemarks ? 1 : 0) + (showBillingInfo ? 2 : 0);
 
     return (
@@ -450,7 +476,7 @@ export default function RepairManagementPage() {
                                                 <CreditCard className="h-4 w-4 text-[#3B82A0]" />
                                                 Billing Code: {firstRecord.billing_code || "-"}
                                             </span>
-                                            <span className="inline-flex items-center rounded-full bg-[#92C7CF]/20 px-2 py-0.5 text-xs font-bold text-[#1F2937]">
+                                            <span className="inline-flex items-center rounded-full bg-teal/20 px-2 py-0.5 text-xs font-bold text-[#1F2937]">
                                                 {group.records.length} POS
                                             </span>
                                             {isExpanded ? (
@@ -547,7 +573,7 @@ export default function RepairManagementPage() {
                                                     <div className="flex items-center justify-center gap-1">
                                                         {activeStatusTab === "for-checking" && (
                                                             <>
-                                                                <span className="rounded-lg p-1.5" title={record.remarks || "No remarks"} style={{ color: "#F59E0B" }}><AlertTriangle className="h-4 w-4" /></span>
+                                                                <button onClick={(e) => handleRemarksClick(e, record)} className="rounded-lg p-1.5 cursor-pointer" title={record.remarks || "No remarks"} style={{ color: "#F59E0B" }}><AlertTriangle className="h-4 w-4" /></button>
                                                                 <button onClick={() => handleForReleased(record)} className="rounded-lg p-1.5 transition-colors hover:bg-blue-50" title="For Release" style={{ color: "#2563EB" }}><ArrowUpRight className="h-4 w-4" /></button>
                                                                 <button onClick={() => handleProceed(record)} className="rounded-lg p-1.5 transition-colors hover:bg-green-50" title="For Repair" style={{ color: "#16A34A" }}><Wrench className="h-4 w-4" /></button>
                                                             </>
@@ -679,6 +705,24 @@ export default function RepairManagementPage() {
 
             <RepairConfirmationModal open={recordToReset !== null} title="Reset repair record?" message={recordToReset ? `This will move POS #${recordToReset.device_no || recordToReset.id} back to For Repair status.` : undefined} confirmLabel="Reset" loading={resetting} onCancel={() => setRecordToReset(null)} onConfirm={handleResetToForRepair} />
             <RepairConfirmationModal open={recordToDelete !== null} title="Delete repair record?" message="Are you sure you want to delete this repair record? This action cannot be undone." confirmLabel="Delete Record" loading={deleting} variant="delete" onCancel={() => setRecordToDelete(null)} onConfirm={handleConfirmDelete} />
+
+            {remarksRecord && bubblePos && createPortal(
+                <div
+                    ref={bubbleRef}
+                    className="fixed z-70 animate-in fade-in zoom-in-95 duration-150"
+                    style={{ bottom: bubblePos.bottom, left: bubblePos.left, transform: "translateX(-50%)" }}
+                >
+                    <div className="rounded-xl bg-white shadow-xl border border-amber-200 p-3 max-w-xs">
+                        <p className="text-xs text-ink-muted mb-1">
+                            POS No: <span className="font-semibold text-ink">{remarksRecord.device_no || "-"}</span>
+                        </p>
+                        <p className="text-sm text-ink">{remarksRecord.remarks || "No remarks"}</p>
+                    </div>
+                    {/* Arrow pointing up toward the icon below */}
+                    <div className="mx-auto h-0 w-0 border-l-8 border-r-8 border-t-8 border-l-transparent border-r-transparent" style={{ borderTopColor: "#F59E0B" }} />
+                </div>,
+                document.body
+            )}
         </div>
     );
 }
