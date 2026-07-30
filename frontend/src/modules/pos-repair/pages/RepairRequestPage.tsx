@@ -643,7 +643,7 @@ export default function RepairRequestPage() {
                     </div>
 
                     {/* Row 4: Accessories (checkboxes) */}
-                    <div className="rounded-xl border border-[#92C7CF]/18 bg-white/30 p-3">
+                    <div className="rounded-xl border border-teal/18 bg-white/30 p-3">
                         <label className={labelClass}>Accessories</label>
                         <div className="flex flex-wrap gap-2 mt-1">
                             {[
@@ -667,7 +667,7 @@ export default function RepairRequestPage() {
                                         type="checkbox"
                                         checked={formData.accessories[item.key]}
                                         onChange={() => handleCheckbox(item.key)}
-                                        className="w-4 h-4 rounded accent-[#92C7CF]"
+                                        className="w-4 h-4 rounded accent-teal"
                                     />
                                     <span className="text-sm font-medium text-gray-700">{item.label}</span>
                                 </label>
@@ -681,7 +681,7 @@ export default function RepairRequestPage() {
                         <textarea
                             value={formData.remarks}
                             onChange={(e) => handleChange("remarks", e.target.value)}
-                            className={`${inputClass} min-h-[80px] resize-y py-2.5`}
+                            className={`${inputClass} min-h-20 resize-y py-2.5`}
                             style={inputStyle}
                             placeholder="Optional notes or additional information"
                             rows={3}

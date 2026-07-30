@@ -48,7 +48,7 @@ const tabStatusMap: Record<string, string> = {
     "released": "Released",
 };
 
-const noActionTabs = ["for-repair", "undergoing-repair"];
+const noActionTabs = ["for-repair", "undergoing-repair", "pending"];
 
 function filterRecordsByTab(records: RepairRecord[], tabId: string): RepairRecord[] {
     const status = tabStatusMap[tabId];
