@@ -555,7 +555,7 @@ export default function CsrRepairManagementPage() {
                                                 </>
                                             )}
                                             <td className="px-4 py-3.5 text-gray-700">{record.delivered_by || "-"}</td>
-                                            {showRepairedBy && <td className="px-4 py-3.5 text-gray-700">{record.repaired_by || "-"}</td>}
+                                            {showRepairedBy && <td className="px-4 py-3.5 text-gray-700">{activeStatusTab === "for-release" && record.billing_code ? `${record.repaired_by} (${record.billing_code})` : (record.repaired_by || "-")}</td>}
                                             {showRemarks && <td className="px-4 py-3.5 text-gray-700">{record.remarks || "-"}</td>}
                                             {showBillingInfo && <td className="px-4 py-3.5 text-gray-700">{record.received_by || "-"}</td>}
                                             {showActions && (

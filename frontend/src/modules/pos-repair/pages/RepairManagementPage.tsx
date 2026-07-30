@@ -565,7 +565,7 @@ export default function RepairManagementPage() {
                                                 </>
                                             )}
                                             {!isForChecking && !isForRepair && !isUndergoingRepair && !isForRelease && <td className="px-4 py-3.5 text-gray-700">{record.delivered_by || "-"}</td>}
-                                            {showRepairedBy && <td className="px-4 py-3.5 text-gray-700">{record.repaired_by || "-"}</td>}
+                                            {showRepairedBy && <td className="px-4 py-3.5 text-gray-700">{isForRelease && record.billing_code ? `${record.repaired_by} (${record.billing_code})` : (record.repaired_by || "-")}</td>}
                                             {showRemarks && <td className="px-4 py-3.5 text-gray-700">{record.remarks || "-"}</td>}
                                             {showBillingInfo && <td className="px-4 py-3.5 text-gray-700">{record.received_by || "-"}</td>}
                                             {showActions && (
