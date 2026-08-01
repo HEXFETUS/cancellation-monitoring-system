@@ -60,11 +60,18 @@ const configuredOrigins = (process.env.CLIENT_ORIGIN || "http://localhost:5173")
     .split(",")
     .map((origin) => origin.trim())
     .filter(Boolean);
+const isDevelopment = process.env.NODE_ENV !== "production";
+const isLocalDevelopmentOrigin = (origin) =>
+    /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin);
 app.use(cors({
     origin(origin, callback) {
         // Non-browser clients have no Origin header and must still present a token.
-        if (!origin || configuredOrigins.includes(origin)) return callback(null, true);
-        return callback(new Error("Origin not allowed"));
+        if (!origin || configuredOrigins.includes(origin) || (isDevelopment && isLocalDevelopmentOrigin(origin))) {
+            return callback(null, true);
+        }
+        const error = new Error("Origin not allowed");
+        error.statusCode = 403;
+        return callback(error);
     },
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
     allowedHeaders: ["Content-Type", "Authorization"],
@@ -192,6 +199,9 @@ app.use("/api/dashboard", dashboardRoutes);
 // Do not return framework stack traces or route details to external clients.
 app.use((err, _req, res, _next) => {
     console.error("Request failed:", err.message);
+    if (err.message === "Origin not allowed") {
+        return res.status(403).json({ error: "origin_not_allowed" });
+    }
     res.status(err.statusCode || 500).json({ error: "request_failed" });
 });
 
