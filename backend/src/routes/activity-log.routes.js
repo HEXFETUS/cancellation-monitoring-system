@@ -3,11 +3,9 @@ import pool from "../config/db.js";
 
 const router = express.Router();
 
-// Resolve the caller from the x-user-id header. Kept distinct from
-// query.user_id because that param is a row filter ("show only this user's
-// activity"), and the two would clash if we shared them.
+// Authentication supplies the caller; query.user_id remains only a row filter.
 async function loadAdminCaller(req) {
-    const raw = req.headers?.["x-user-id"];
+    const raw = req.user?.id;
     if (raw === undefined || raw === null || raw === "") return null;
     const id = Number(raw);
     if (!Number.isFinite(id)) return null;

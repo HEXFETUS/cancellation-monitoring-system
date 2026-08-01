@@ -10,7 +10,7 @@ const router = express.Router();
 // ---------------------------------------------------------------------------
 
 function getUserId(req) {
-    return req.body?.user_id ?? req.query?.user_id ?? req.headers?.["x-user-id"];
+    return req.user?.id ?? null;
 }
 
 async function loadCaller(req) {

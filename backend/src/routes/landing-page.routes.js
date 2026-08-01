@@ -39,7 +39,7 @@ const upload = multer({
 const router = express.Router();
 
 function getUserId(req) {
-    return req.body?.user_id ?? req.query?.user_id ?? req.headers?.["x-user-id"];
+    return req.user?.id ?? null;
 }
 
 // GET /api/landing-page/:section - Get content for a specific section

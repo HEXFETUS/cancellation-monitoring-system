@@ -46,7 +46,7 @@ const router = express.Router();
 // Pull the caller identity from the same places the rest of the app does
 // (no real auth middleware yet). The bulletin routes always require it.
 function getUserId(req) {
-    return req.body?.user_id ?? req.query?.user_id ?? req.headers?.["x-user-id"];
+    return req.user?.id ?? null;
 }
 
 async function loadCaller(req) {

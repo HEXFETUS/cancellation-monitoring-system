@@ -7,8 +7,8 @@ import pool from "../config/db.js";
  * audit logging should never take down the user-facing request that
  * triggered it. Failures are logged to stderr and swallowed.
  *
- * Pull the actor's user id from the same shim the rest of the API uses:
- * body.user_id ?? query.user_id ?? header x-user-id. NULL when unknown.
+ * Pull the actor's identity from authentication middleware. Client-provided
+ * IDs are not trustworthy and must never be used for audit attribution.
  *
  * @param {object} req - Express request (used to extract the actor id).
  * @param {object} entry
@@ -47,11 +47,7 @@ export async function recordActivity(req, entry) {
 }
 
 function extractUserId(req) {
-    const raw =
-        req?.body?.user_id ??
-        req?.query?.user_id ??
-        req?.headers?.["x-user-id"] ??
-        null;
+    const raw = req?.user?.id ?? null;
     if (raw === null || raw === undefined || raw === "") return null;
     const n = Number(raw);
     return Number.isFinite(n) ? n : null;

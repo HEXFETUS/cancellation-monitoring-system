@@ -13,6 +13,7 @@ type AuthUser = {
 type StoredAuth = {
     user: AuthUser;
     logId: string;
+    token: string;
     remembered: boolean;
     lastOpenedAt: number;
 };
@@ -37,13 +38,8 @@ function apiUrl(path: string) {
 }
 
 // ─── Global fetch interceptor ───────────────────────────────────────────
-// Auto-attaches the signed-in user's id to every same-origin /api/ request
-// as `x-user-id`. The backend uses this header to attribute activity-log
-// rows to the actor. Without it, admin actions like creating/editing users
-// or assets get logged with user_id=NULL and show as "Unknown user" in the
-// admin Activity Logs view. Installs once per browser session at module
-// load. Skips requests that already supply x-user-id so explicit overrides
-// (e.g. tests) still win.
+// Auto-attaches the signed-in user's short-lived session token to every API
+// request. Identity is now verified server-side; x-user-id is not trusted.
 let fetchInterceptorInstalled = false;
 function installFetchInterceptor() {
     if (fetchInterceptorInstalled || typeof window === "undefined") return;
@@ -69,22 +65,22 @@ function installFetchInterceptor() {
             // Read auth fresh on each request so we pick up post-login state
             // without re-installing the interceptor.
             const stored = readStoredAuth();
-            const userId = stored?.user?.id;
-            if (!userId) {
+            const token = stored?.token;
+            if (!token) {
                 return originalFetch(input, init);
             }
 
             // Build a Headers object that carries through whatever the caller
             // passed in (whether init.headers or Request.headers), then add
-            // x-user-id only if it isn't already set.
+            // Authorization only if a caller has not explicitly supplied it.
             const baseHeaders = new Headers(
                 init?.headers ??
                     (typeof input !== "string" && !(input instanceof URL)
                         ? (input as Request).headers
                         : undefined)
             );
-            if (!baseHeaders.has("x-user-id")) {
-                baseHeaders.set("x-user-id", String(userId));
+            if (!baseHeaders.has("Authorization")) {
+                baseHeaders.set("Authorization", `Bearer ${token}`);
             }
 
             return originalFetch(input, { ...init, headers: baseHeaders });
@@ -107,6 +103,21 @@ function readStoredAuth(): StoredAuth | null {
 
     try {
         const parsed = JSON.parse(stored) as StoredAuth;
+
+        // Sessions created before token authentication are deliberately not
+        // migrated: an unsigned browser record must never become a credential.
+        const tokenParts = parsed.token?.split(".");
+        if (tokenParts?.length !== 3) {
+            localStorage.removeItem(AUTH_STORAGE_KEY);
+            sessionStorage.removeItem(AUTH_STORAGE_KEY);
+            return null;
+        }
+        const tokenPayload = JSON.parse(atob(tokenParts[1].replace(/-/g, "+").replace(/_/g, "/"))) as { exp?: number };
+        if (!tokenPayload.exp || tokenPayload.exp * 1000 <= Date.now()) {
+            localStorage.removeItem(AUTH_STORAGE_KEY);
+            sessionStorage.removeItem(AUTH_STORAGE_KEY);
+            return null;
+        }
 
         if (parsed.remembered && Date.now() - parsed.lastOpenedAt > REMEMBERED_EXPIRY_MS) {
             expiredAuthToRecord = parsed;
@@ -167,6 +178,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const storedAuth: StoredAuth = {
                 user: userData,
                 logId: String(data.user_log_id),
+                token: data.token,
                 remembered: rememberMe,
                 lastOpenedAt: Date.now(),
             };

@@ -468,8 +468,7 @@ router.post("/:id/media", mediaUpload.array("media", 10), async (req, res) => {
         }
 
         const caption = nullable(req.body?.caption);
-        const userIdRaw = req.body?.user_id;
-        const userId = userIdRaw ? Number(userIdRaw) : null;
+        const userId = req.user?.id ?? null;
 
         const inserted = [];
         for (const f of files) {

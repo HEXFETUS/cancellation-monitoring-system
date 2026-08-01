@@ -4,6 +4,8 @@ import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
 import { authLimiter } from "./src/middleware/rate-limiter.js";
+import { authenticate, authorizeRole } from "./src/middleware/auth.js";
+import rateLimit from "express-rate-limit";
 
 import healthRoutes from "./src/routes/health.routes.js";
 import userRoutes from "./src/routes/user.routes.js";
@@ -39,6 +41,10 @@ import { dbState, pingDatabase } from "./src/config/db.js";
 
 dotenv.config();
 
+if (process.env.NODE_ENV === "production" && !process.env.SESSION_SECRET) {
+    throw new Error("SESSION_SECRET must be set in production");
+}
+
 const app = express();
 
 // Trust the first proxy (Render's load balancer) so that req.ip reflects
@@ -49,8 +55,37 @@ app.set("trust proxy", 1);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-app.use(cors());
-app.use(express.json());
+const configuredOrigins = (process.env.CLIENT_ORIGIN || "http://localhost:5173")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+app.use(cors({
+    origin(origin, callback) {
+        // Non-browser clients have no Origin header and must still present a token.
+        if (!origin || configuredOrigins.includes(origin)) return callback(null, true);
+        return callback(new Error("Origin not allowed"));
+    },
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    maxAge: 86_400,
+}));
+app.use((req, res, next) => {
+    res.set({
+        "X-Content-Type-Options": "nosniff",
+        "X-Frame-Options": "DENY",
+        "Referrer-Policy": "no-referrer",
+        "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+    });
+    next();
+});
+app.use(express.json({ limit: "1mb" }));
+app.use("/api", rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 1_000,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "rate_limited", message: "Too many requests. Please try again later." },
+}));
 
 // Serve uploaded files from the same directory used by the multer routes.
 app.use("/uploads", express.static(path.join(__dirname, "src", "public", "uploads")));
@@ -76,8 +111,19 @@ app.use("/api", (req, res, next) => {
 
 // Routes
 app.use("/api/health", healthRoutes);
-app.use("/api/users", userRoutes);
 app.use("/api/auth", authLimiter, authRoutes);
+// The public home page intentionally reads only its published content. Its
+// write operations still pass through authentication and the admin-only
+// default role policy below.
+app.use("/api/landing-page", (req, res, next) => {
+    if (req.method === "GET") return next();
+    return authenticate(req, res, () => authorizeRole(req, res, next));
+}, landingPageRoutes);
+// Default deny: all application APIs require a valid, signed, expiring session.
+// Login and the minimal health probe above are the only deliberate exceptions.
+app.use("/api", authenticate);
+app.use("/api", authorizeRole);
+app.use("/api/users", userRoutes);
 app.use("/api/pos", posRoutes);
 app.use("/api/cancellation", cancellationRoutes);
 app.use("/api/assets", assetRoutes);
@@ -102,8 +148,13 @@ app.use("/api/cp-operator-change-requests", cpOperatorChangeRequestRoutes);
 app.use("/api/messages", messagesRoutes);
 app.use("/api/upload", uploadRoutes);
 app.use("/api/events-news", eventsNewsRoutes);
-app.use("/api/landing-page", landingPageRoutes);
 app.use("/api/dashboard", dashboardRoutes);
+
+// Do not return framework stack traces or route details to external clients.
+app.use((err, _req, res, _next) => {
+    console.error("Request failed:", err.message);
+    res.status(err.statusCode || 500).json({ error: "request_failed" });
+});
 
 // Honour the platform-provided PORT in production (Render, Railway, Fly,
 // Heroku, etc. all inject one) and fall back to 5050 for local dev so the

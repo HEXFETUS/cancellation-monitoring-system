@@ -102,10 +102,7 @@ router.get("/", async (req, res) => {
 // GET /api/users/me - Get current authenticated user (with linked operator profile, if any)
 router.get("/me", async (req, res) => {
     try {
-        const userId = req.query.id;
-        if (!userId) {
-            return res.status(400).json({ error: "User ID is required" });
-        }
+        const userId = req.user.id;
         const result = await pool.query(
             `SELECT u.id, u.name, u.email, u.usertype, u.position, u.department, u.profile_picture,
                     ol.id AS operator_id, ${operatorDisplay("ol", "parent")} AS operator_name,

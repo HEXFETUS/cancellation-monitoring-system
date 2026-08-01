@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import pool from "../config/db.js";
 import { recordActivity } from "../utils/activity-log.js";
 import { authLimiter } from "../middleware/rate-limiter.js";
+import { authenticate, createSessionToken } from "../middleware/auth.js";
 
 const router = express.Router();
 
@@ -59,7 +60,7 @@ router.post("/login", async (req, res) => {
 
         // Return user info (excluding password)
         await recordActivity(
-            { body: { user_id: user.id } },
+            { user: { id: user.id } },
             {
                 action: "login",
                 entity: "session",
@@ -82,6 +83,7 @@ router.post("/login", async (req, res) => {
             department: user.department,
             profile_picture: user.profile_picture,
             user_log_id: logResult.rows[0].id,
+            token: createSessionToken(user),
         });
     } catch (err) {
         console.error("Error during login:", err.message);
@@ -90,9 +92,10 @@ router.post("/login", async (req, res) => {
 });
 
 // POST /api/auth/logout - Record the current user's logout time
-router.post("/logout", async (req, res) => {
+router.post("/logout", authenticate, async (req, res) => {
     try {
-        const { userId, logId } = req.body;
+        const { logId } = req.body;
+        const userId = req.user.id;
 
         if (!userId || !logId) {
             return res.status(400).json({ error: "User ID and log ID are required" });

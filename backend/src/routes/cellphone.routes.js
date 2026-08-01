@@ -22,10 +22,29 @@ function validate(body) {
     return null;
 }
 
+// Operators may work only with mobile devices assigned to their own operator
+// profile. Admin access is handled by the central role policy.
+router.use(async (req, res, next) => {
+    if (req.user?.usertype !== "operator") return next();
+    try {
+        const result = await pool.query(
+            "SELECT id FROM operator_list WHERE user_id = $1::int LIMIT 1",
+            [req.user.id]
+        );
+        const operatorId = result.rows[0]?.id;
+        if (!operatorId) return res.status(403).json({ error: "operator_profile_required" });
+        req.operatorId = operatorId;
+        return next();
+    } catch (err) {
+        console.error("operator profile lookup failed:", err.message);
+        return res.status(503).json({ error: "authorization_unavailable" });
+    }
+});
+
 // GET /api/cellphones
 router.get("/", async (req, res) => {
     try {
-        const { operator_id } = req.query;
+        const operator_id = req.user?.usertype === "operator" ? req.operatorId : req.query.operator_id;
         let query = `SELECT ${COLUMNS} FROM cellphone_list`;
         const params = [];
 
@@ -51,8 +70,8 @@ router.get("/:id", async (req, res) => {
 
     try {
         const result = await pool.query(
-            `SELECT ${COLUMNS} FROM cellphone_list WHERE id = $1`,
-            [id]
+            `SELECT ${COLUMNS} FROM cellphone_list WHERE id = $1${req.operatorId ? " AND operator_id = $2" : ""}`,
+            req.operatorId ? [id, req.operatorId] : [id]
         );
         if (result.rows.length === 0) {
             return res.status(404).json({ error: "Cellphone not found" });
@@ -84,8 +103,8 @@ INSERT INTO cellphone_list (brand, model, specs, serial_number, imei1, imei2, co
                 nullable(req.body.imei1),
                 nullable(req.body.imei2),
                 req.body.controlNo.trim(),
-                req.body.operatorId ?? null,
-                req.body.addedByUserId ?? null,
+                req.operatorId ?? req.body.operatorId ?? null,
+                req.user?.id ?? null,
                 req.body.status ?? 'Inactive',
             ]
         );
@@ -119,7 +138,7 @@ router.put("/:id", async (req, res) => {
                 imei2 = $6,
                 control_no = $7,
                 updated_at = CURRENT_TIMESTAMP
-            WHERE id = $8
+            WHERE id = $8${req.operatorId ? " AND operator_id = $9" : ""}
             RETURNING ${COLUMNS}
             `,
             [
@@ -131,6 +150,7 @@ router.put("/:id", async (req, res) => {
                 nullable(req.body.imei2),
                 req.body.controlNo.trim(),
                 id,
+                ...(req.operatorId ? [req.operatorId] : []),
             ]
         );
         if (result.rows.length === 0) {
@@ -166,9 +186,9 @@ router.post("/:id/convert-area", async (req, res) => {
              SET area = $1,
                  booth_id = NULL,
                  updated_at = CURRENT_TIMESTAMP
-             WHERE id = $2
+             WHERE id = $2${req.operatorId ? " AND operator_id = $3" : ""}
              RETURNING ${COLUMNS}`,
-            [new_area.toUpperCase(), id]
+            req.operatorId ? [new_area.toUpperCase(), id, req.operatorId] : [new_area.toUpperCase(), id]
         );
         if (result.rows.length === 0) {
             return res.status(404).json({ error: "Cellphone not found" });
@@ -187,8 +207,8 @@ router.delete("/:id", async (req, res) => {
 
     try {
         const result = await pool.query(
-            "DELETE FROM cellphone_list WHERE id = $1 RETURNING id",
-            [id]
+            `DELETE FROM cellphone_list WHERE id = $1${req.operatorId ? " AND operator_id = $2" : ""} RETURNING id`,
+            req.operatorId ? [id, req.operatorId] : [id]
         );
         if (result.rows.length === 0) {
             return res.status(404).json({ error: "Cellphone not found" });

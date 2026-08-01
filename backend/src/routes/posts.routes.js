@@ -46,7 +46,7 @@ const router = express.Router();
 
 // Helper: get user ID from request (matches auth pattern)
 function getUserId(req) {
-    return req.body?.user_id ?? req.query?.user_id ?? req.headers?.["x-user-id"];
+    return req.user?.id ?? null;
 }
 
 // ─── LOTTERY RESULTS ──────────────────────────────────────────────
