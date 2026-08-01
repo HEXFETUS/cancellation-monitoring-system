@@ -4,7 +4,7 @@ import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
 import { authLimiter } from "./src/middleware/rate-limiter.js";
-import { authenticate, authorizeRole } from "./src/middleware/auth.js";
+import { authenticate, authorizeRole, createPrivateUploadUrl } from "./src/middleware/auth.js";
 import rateLimit from "express-rate-limit";
 
 import healthRoutes from "./src/routes/health.routes.js";
@@ -36,6 +36,7 @@ import uploadRoutes from "./src/routes/upload.routes.js";
 import eventsNewsRoutes from "./src/routes/events-news.routes.js";
 import landingPageRoutes from "./src/routes/landing-page.routes.js";
 import dashboardRoutes from "./src/routes/dashboard.routes.js";
+import fileAccessRoutes from "./src/routes/file-access.routes.js";
 import initDatabase from "./src/config/init.js";
 import { dbState, pingDatabase } from "./src/config/db.js";
 
@@ -88,7 +89,28 @@ app.use("/api", rateLimit({
 }));
 
 // Serve uploaded files from the same directory used by the multer routes.
-app.use("/uploads", express.static(path.join(__dirname, "src", "public", "uploads")));
+const uploadsDirectory = path.join(__dirname, "src", "public", "uploads");
+const publicUploads = express.static(uploadsDirectory);
+app.use("/uploads", async (req, res, next) => {
+    const filename = path.basename(req.path);
+    const rawUrl = `/uploads/${filename}`;
+    if (/^(msg|bulletin)-[\w.-]+$/i.test(filename)) return res.sendStatus(404);
+    try {
+        // Asset media can contain internal inventory evidence; never expose it
+        // through a guessable static filename. It is served only by the signed
+        // endpoint below. Existing public landing/profile assets still work.
+        const asset = await (await import("./src/config/db.js")).default.query(
+            "SELECT 1 FROM asset_media WHERE url = $1 LIMIT 1", [rawUrl]
+        );
+        if (asset.rows.length) return res.sendStatus(404);
+        return publicUploads(req, res, next);
+    } catch (err) {
+        // Fail closed: serving an unknown upload while the media lookup is
+        // unavailable could disclose a protected asset by filename.
+        console.error("upload access check failed:", err.message);
+        return res.status(503).json({ error: "file_access_unavailable" });
+    }
+});
 
 // Lightweight gate for routes that need the DB. We attach this to /api/*
 // (after the static handler) so it short-circuits any handler that would
@@ -112,6 +134,7 @@ app.use("/api", (req, res, next) => {
 // Routes
 app.use("/api/health", healthRoutes);
 app.use("/api/auth", authLimiter, authRoutes);
+app.use("/api/files", fileAccessRoutes);
 // The public home page intentionally reads only its published content. Its
 // write operations still pass through authentication and the admin-only
 // default role policy below.
@@ -123,6 +146,22 @@ app.use("/api/landing-page", (req, res, next) => {
 // Login and the minimal health probe above are the only deliberate exceptions.
 app.use("/api", authenticate);
 app.use("/api", authorizeRole);
+app.use("/api", (req, res, next) => {
+    const sendJson = res.json.bind(res);
+    const replacePrivateUrls = (value) => {
+        if (typeof value === "string") {
+            const match = /^\/uploads\/((?:msg|bulletin)-[\w.-]+)$/i.exec(value);
+            return match ? createPrivateUploadUrl(match[1]) : value;
+        }
+        if (Array.isArray(value)) return value.map(replacePrivateUrls);
+        if (value && typeof value === "object") {
+            return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, replacePrivateUrls(item)]));
+        }
+        return value;
+    };
+    res.json = (body) => sendJson(replacePrivateUrls(body));
+    next();
+});
 app.use("/api/users", userRoutes);
 app.use("/api/pos", posRoutes);
 app.use("/api/cancellation", cancellationRoutes);

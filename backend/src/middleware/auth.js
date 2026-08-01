@@ -28,6 +28,46 @@ function sign(encodedPayload) {
         .digest("base64url");
 }
 
+export function createAssetFileSignature(mediaId, expiresAt) {
+    return crypto.createHmac("sha256", sessionSecret())
+        .update(`asset-file.${mediaId}.${expiresAt}`)
+        .digest("base64url");
+}
+
+export function createAssetFileUrl(mediaId) {
+    const expiresAt = Math.floor(Date.now() / 1000) + 5 * 60;
+    const signature = createAssetFileSignature(mediaId, expiresAt);
+    return `/api/files/assets/${mediaId}?expires=${expiresAt}&signature=${signature}`;
+}
+
+export function verifyAssetFileSignature(mediaId, expiresAt, signature) {
+    if (!Number.isSafeInteger(Number(mediaId)) || !Number.isSafeInteger(Number(expiresAt)) ||
+        Number(expiresAt) < Math.floor(Date.now() / 1000) || typeof signature !== "string") return false;
+    const expected = createAssetFileSignature(mediaId, expiresAt);
+    const supplied = Buffer.from(signature, "base64url");
+    const expectedBuffer = Buffer.from(expected, "base64url");
+    return supplied.length === expectedBuffer.length && crypto.timingSafeEqual(supplied, expectedBuffer);
+}
+
+export function createPrivateUploadUrl(filename) {
+    const expiresAt = Math.floor(Date.now() / 1000) + 5 * 60;
+    const signature = crypto.createHmac("sha256", sessionSecret())
+        .update(`private-upload.${filename}.${expiresAt}`)
+        .digest("base64url");
+    return `/api/files/private/${encodeURIComponent(filename)}?expires=${expiresAt}&signature=${signature}`;
+}
+
+export function verifyPrivateUploadSignature(filename, expiresAt, signature) {
+    if (!/^(msg|bulletin)-[\w.-]+$/i.test(filename) || !Number.isSafeInteger(Number(expiresAt)) ||
+        Number(expiresAt) < Math.floor(Date.now() / 1000) || typeof signature !== "string") return false;
+    const expected = crypto.createHmac("sha256", sessionSecret())
+        .update(`private-upload.${filename}.${expiresAt}`)
+        .digest("base64url");
+    const supplied = Buffer.from(signature, "base64url");
+    const expectedBuffer = Buffer.from(expected, "base64url");
+    return supplied.length === expectedBuffer.length && crypto.timingSafeEqual(supplied, expectedBuffer);
+}
+
 /** Create a short-lived, tamper-evident bearer token for an authenticated user. */
 export function createSessionToken(user) {
     const now = Math.floor(Date.now() / 1000);
@@ -96,7 +136,7 @@ export function authorizeRole(req, res, next) {
     const method = req.method;
     if (role === "admin") return next();
 
-    const isOwnUserEndpoint = /^\/users\/(\d+)\/(name|profile-picture)$/.exec(path);
+    const isOwnUserEndpoint = /^\/users\/(\d+)\/(name|profile-picture|password)$/.exec(path);
     if (path === "/users/me" || (isOwnUserEndpoint && Number(isOwnUserEndpoint[1]) === req.user.id)) {
         return next();
     }
@@ -130,10 +170,48 @@ export function authorizeRole(req, res, next) {
         path.startsWith("/cellphones") ||
         (path.startsWith("/pos") && isRead)
     )) {
+        if (isOperatorRequestRoute(path)) {
+            return enforceOperatorRequestScope(req, res, next);
+        }
         return enforceOperatorIdentity(req, res, next);
     }
 
     return res.status(403).json({ error: "role_not_authorized" });
+}
+
+function isOperatorRequestRoute(path) {
+    return [
+        "/booth-change-requests",
+        "/operator-change-requests",
+        "/booth-operator-change-requests",
+        "/cp-booth-change-requests",
+        "/cp-operator-change-requests",
+    ].some((prefix) => path.startsWith(prefix));
+}
+
+function enforceOperatorRequestScope(req, res, next) {
+    // Decision endpoints are exclusively administrative, even though they
+    // share the same route family as an operator's submit/cancel endpoints.
+    if (/\/(approve|reject)$/.test(req.path)) {
+        return res.status(403).json({ error: "role_not_authorized" });
+    }
+
+    if (req.method === "GET") {
+        const requestedId = req.query?.userId ?? req.query?.user_id;
+        if (requestedId === undefined || Number(requestedId) !== req.user.id) {
+            return res.status(403).json({ error: "ownership_required" });
+        }
+        return next();
+    }
+
+    if (req.method === "POST") {
+        const body = req.body || {};
+        const requestedId = body.user_id ?? body.userId ?? body.requested_by_user_id ?? body.requestedByUserId;
+        if (requestedId === undefined || Number(requestedId) !== req.user.id) {
+            return res.status(403).json({ error: "ownership_required" });
+        }
+    }
+    return next();
 }
 
 function enforceOperatorIdentity(req, res, next) {

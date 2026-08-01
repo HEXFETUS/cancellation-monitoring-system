@@ -5,6 +5,7 @@ import fs from "fs";
 import { fileURLToPath } from "url";
 import pool from "../config/db.js";
 import { blockRoles } from "../middleware/role-guard.js";
+import { createAssetFileUrl } from "../middleware/auth.js";
 import { recordActivity } from "../utils/activity-log.js";
 import { syncAssetInventoryFromGoogleSheets } from "../services/googleSheets.service.js";
 
@@ -177,7 +178,7 @@ router.get("/", async (req, res) => {
             params
         );
 
-        res.json(result.rows);
+        res.json(result.rows.map((row) => ({ ...row, url: createAssetFileUrl(row.id) })));
     } catch (err) {
         console.error("GET /api/assets error:", err.message);
         res.status(500).json({ error: "Failed to fetch assets" });

@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import express from "express";
 import request from "supertest";
-import { authenticate, createSessionToken, requireRoles } from "../src/middleware/auth.js";
+import { authenticate, authorizeRole, createSessionToken, requireRoles } from "../src/middleware/auth.js";
 
 const app = express();
 app.get("/protected", authenticate, (req, res) => res.json({ user: req.user }));
 app.get("/admin", authenticate, requireRoles("admin"), (_req, res) => res.sendStatus(204));
+app.post("/operator-change-requests/:id/approve", authenticate, authorizeRole, (_req, res) => res.sendStatus(204));
+app.get("/operator-change-requests", authenticate, authorizeRole, (_req, res) => res.sendStatus(204));
 
 describe("session authentication", () => {
     it("rejects a request without a bearer token", async () => {
@@ -38,5 +40,18 @@ describe("session authentication", () => {
             .set("Authorization", `Bearer ${token}`)
             .set("x-user-id", "1");
         expect(response.status).toBe(403);
+    });
+
+    it("prevents operators from approving requests or listing another operator's requests", async () => {
+        const token = createSessionToken({ id: 7, usertype: "operator" });
+        const approve = await request(app)
+            .post("/operator-change-requests/2/approve")
+            .set("Authorization", `Bearer ${token}`)
+            .send({ user_id: 7 });
+        const list = await request(app)
+            .get("/operator-change-requests?userId=8")
+            .set("Authorization", `Bearer ${token}`);
+        expect(approve.status).toBe(403);
+        expect(list.status).toBe(403);
     });
 });
