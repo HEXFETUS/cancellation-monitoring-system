@@ -120,6 +120,69 @@ router.get("/", async (_req, res) => {
 });
 
 /* =========================
+   GET REPAIR NOTIFICATIONS (LIGHTWEIGHT)
+   ---------------------------------------------------------------
+   Returns only the fields needed by the dashboard notification
+   badge/toast logic (id, status, device_no, serial_number) instead
+   of the full record set with 6 joins + 2 LATERAL subqueries.
+   Supports optional filters:
+     ?status=For Repair            (single status)
+     ?statuses=A,B                 (comma-separated list, OR)
+     ?since=<ISO timestamp>        (only records updated after this)
+     ?after_id=<id>                (only records with id greater)
+   The full GET / endpoint remains untouched for pages that need
+   the complete record payload.
+========================= */
+router.get("/notifications", async (req, res) => {
+    try {
+        const { status, statuses, since, after_id } = req.query;
+
+        const statusList = statuses
+            ? String(statuses).split(",").map((s) => s.trim()).filter(Boolean)
+            : status
+                ? [String(status).trim()]
+                : [];
+
+        const conditions = ["rr.status IS NOT NULL"];
+        const params = [];
+
+        if (statusList.length > 0) {
+            params.push(statusList);
+            conditions.push(`rr.status = ANY($${params.length}::text[])`);
+        }
+
+        if (since && String(since).trim() !== "") {
+            params.push(String(since).trim());
+            conditions.push(`rr.updated_at > $${params.length}::timestamp`);
+        }
+
+        if (after_id) {
+            const afterId = Number(after_id);
+            if (!Number.isFinite(afterId)) {
+                return res.status(400).json({ error: "Invalid after_id" });
+            }
+            params.push(afterId);
+            conditions.push(`rr.id > $${params.length}::int`);
+        }
+
+        const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+        const result = await pool.query(
+            `SELECT rr.id, rr.status, pr.device_no, pr.serial_number
+             FROM repair_records rr
+             LEFT JOIN pos_records pr ON rr.pos_record_id = pr.id
+             ${where}
+             ORDER BY rr.id DESC`,
+            params
+        );
+
+        res.json(result.rows);
+    } catch (err) {
+        console.error("GET repair_records/notifications error:", err.message);
+        res.status(500).json({ error: "Failed to fetch repair notifications" });
+    }
+});
+
+/* =========================
    GET RECORDS BY BILLING CODE
 ========================= */
 router.get("/billing-code/:billingCode", async (req, res) => {

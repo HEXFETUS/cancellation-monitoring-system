@@ -6,6 +6,9 @@ dist
 .vite-cache/
 frontend/.vite-cache/
 
+# Local device agent - not for repository
+HF-Device-Agent/
+
 # Ignore local documentation and migration guides
 *.md
 *.sql

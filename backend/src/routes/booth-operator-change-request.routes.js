@@ -39,6 +39,49 @@ const SELECT_COLUMNS = `
 `;
 
 /**
+ * GET /api/booth-operator-change-requests/count
+ * Lightweight count endpoint for dashboard badges. Returns only
+ * `{ count }` instead of full rows with 8 joins. Supports the same
+ * filters as the full GET endpoint. The full endpoint remains
+ * untouched for pages that need the complete payload.
+ */
+router.get("/count", async (req, res) => {
+    try {
+        const { status, userId, booth_id } = req.query;
+        const conditions = [];
+        const params = [];
+
+        if (status) {
+            const statusList = Array.isArray(status)
+                ? status.map((s) => String(s)).filter(Boolean)
+                : [String(status)];
+            if (statusList.length > 0) {
+                params.push(statusList);
+                conditions.push(`obr.status = ANY($${params.length}::text[])`);
+            }
+        }
+        if (userId) {
+            params.push(Number(userId));
+            conditions.push(`obr.user_id = $${params.length}`);
+        }
+        if (booth_id) {
+            params.push(Number(booth_id));
+            conditions.push(`obr.booth_info_id = $${params.length}`);
+        }
+
+        const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+        const result = await pool.query(
+            `SELECT COUNT(*)::int AS count FROM operator_booth_requests obr ${where}`,
+            params
+        );
+        res.json({ count: result.rows[0].count });
+    } catch (err) {
+        console.error("GET booth-operator-change-requests/count error:", err.message);
+        res.status(500).json({ error: "Failed to count booth operator change requests" });
+    }
+});
+
+/**
  * GET /api/booth-operator-change-requests
  * Query params:
  *   status=pending|approved|rejected|cancelled

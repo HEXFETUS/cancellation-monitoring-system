@@ -146,7 +146,8 @@ export function authorizeRole(req, res, next) {
         path.startsWith("/messages") ||
         path.startsWith("/bulletin") ||
         path === "/announcements" ||
-        path.startsWith("/admin-announcements/view");
+        path.startsWith("/admin-announcements/view") ||
+        path.startsWith("/admin-announcements/summary");
     if (common) return next();
 
     if (role === "purchaser" && (

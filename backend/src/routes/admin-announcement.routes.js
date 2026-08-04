@@ -3,6 +3,49 @@ import pool from "../config/db.js";
 
 const router = express.Router();
 
+/**
+ * GET /api/admin-announcements/summary
+ * Lightweight summary for dashboard badges. Returns only the slim
+ * metadata fields (id, status, timestamps) needed to compute unseen
+ * counts — no title/description body content. The full endpoints
+ * remain untouched for pages that display announcement content.
+ */
+router.get("/summary", async (req, res) => {
+    try {
+        const { user_id } = req.query;
+        if (!user_id) return res.status(400).json({ error: "user_id is required" });
+
+        // Publish any scheduled announcements whose time has arrived
+        await pool.query(
+            `UPDATE admin_announcements
+             SET status = 'published',
+                 published_at = COALESCE(published_at, NOW()),
+                 updated_at = NOW()
+             WHERE status = 'scheduled'
+               AND scheduled_at <= NOW()`
+        );
+
+        const result = await pool.query(
+            `SELECT
+                a.id,
+                a.status,
+                a.published_at,
+                a.scheduled_at,
+                a.created_at
+             FROM admin_announcements a
+             WHERE
+                a.status = 'published'
+                OR (a.status = 'scheduled' AND a.scheduled_at <= NOW())
+             ORDER BY
+                COALESCE(a.published_at, a.scheduled_at, a.created_at) DESC`
+        );
+        res.json({ announcements: result.rows });
+    } catch (err) {
+        console.error("getAdminAnnouncementsSummary error:", err);
+        res.status(500).json({ error: "Failed to fetch announcement summary" });
+    }
+});
+
 router.get("/", async (req, res) => {
     try {
         const { user_id } = req.query;

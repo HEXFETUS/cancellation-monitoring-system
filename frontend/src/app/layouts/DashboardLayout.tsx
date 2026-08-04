@@ -312,7 +312,7 @@ export default function DashboardLayout() {
         };
 
         fetchMessagesUnread();
-        const interval = window.setInterval(fetchMessagesUnread, 5000);
+        const interval = window.setInterval(fetchMessagesUnread, 15000);
         const onVisibility = () => {
             if (document.visibilityState === "visible") fetchMessagesUnread();
         };
@@ -335,11 +335,11 @@ export default function DashboardLayout() {
         const fetchPendingBoothRequests = async () => {
             if (cancelled) return;
             try {
-                const res = await fetch(`${API_BASE_URL}/api/booth-change-requests?status=pending`);
+                const res = await fetch(`${API_BASE_URL}/api/booth-change-requests/count?status=pending`);
                 if (!res.ok) return;
                 const data = await res.json();
                 if (!cancelled) {
-                    setPendingBoothRequests(Array.isArray(data) ? data.length : 0);
+                    setPendingBoothRequests(Number(data?.count ?? 0));
                 }
             } catch {
                 // Non-fatal — badge just stays at its previous value.
@@ -347,7 +347,7 @@ export default function DashboardLayout() {
         };
 
         fetchPendingBoothRequests();
-        const interval = window.setInterval(fetchPendingBoothRequests, 8000);
+        const interval = window.setInterval(fetchPendingBoothRequests, 30000);
         const onVisibility = () => {
             if (document.visibilityState === "visible") fetchPendingBoothRequests();
         };
@@ -371,11 +371,11 @@ export default function DashboardLayout() {
         const fetchPendingOperatorChanges = async () => {
             if (cancelled) return;
             try {
-                const res = await fetch(`${API_BASE_URL}/api/operator-change-requests?status=pending`);
+                const res = await fetch(`${API_BASE_URL}/api/operator-change-requests/count?status=pending`);
                 if (!res.ok) return;
                 const data = await res.json();
                 if (!cancelled) {
-                    setPendingOperatorChangeCount(Array.isArray(data) ? data.length : 0);
+                    setPendingOperatorChangeCount(Number(data?.count ?? 0));
                 }
             } catch {
                 // Non-fatal — badge just stays at its previous value.
@@ -383,7 +383,7 @@ export default function DashboardLayout() {
         };
 
         fetchPendingOperatorChanges();
-        const interval = window.setInterval(fetchPendingOperatorChanges, 8000);
+        const interval = window.setInterval(fetchPendingOperatorChanges, 30000);
         const onVisibility = () => {
             if (document.visibilityState === "visible") fetchPendingOperatorChanges();
         };
@@ -407,11 +407,11 @@ export default function DashboardLayout() {
         const fetchPendingBoothOperatorChanges = async () => {
             if (cancelled) return;
             try {
-                const res = await fetch(`${API_BASE_URL}/api/booth-operator-change-requests?status=pending`);
+                const res = await fetch(`${API_BASE_URL}/api/booth-operator-change-requests/count?status=pending`);
                 if (!res.ok) return;
                 const data = await res.json();
                 if (!cancelled) {
-                    setPendingBoothOperatorChangeCount(Array.isArray(data) ? data.length : 0);
+                    setPendingBoothOperatorChangeCount(Number(data?.count ?? 0));
                 }
             } catch {
                 // Non-fatal — badge just stays at its previous value.
@@ -419,7 +419,7 @@ export default function DashboardLayout() {
         };
 
         fetchPendingBoothOperatorChanges();
-        const interval = window.setInterval(fetchPendingBoothOperatorChanges, 8000);
+        const interval = window.setInterval(fetchPendingBoothOperatorChanges, 30000);
         const onVisibility = () => {
             if (document.visibilityState === "visible") fetchPendingBoothOperatorChanges();
         };
@@ -445,7 +445,7 @@ export default function DashboardLayout() {
         const fetchForCheckingRepairCount = async () => {
             if (cancelled) return;
             try {
-                const res = await fetch(`${API_BASE_URL}/api/repair-records`);
+                const res = await fetch(`${API_BASE_URL}/api/repair-records/notifications`);
                 if (!res.ok) return;
                 const payload = await res.json();
                 const records = Array.isArray(payload) ? payload : payload?.data ?? payload?.rows ?? [];
@@ -519,7 +519,7 @@ export default function DashboardLayout() {
         };
 
         fetchForCheckingRepairCount();
-        const interval = window.setInterval(fetchForCheckingRepairCount, 8000);
+        const interval = window.setInterval(fetchForCheckingRepairCount, 30000);
         const onVisibility = () => {
             if (document.visibilityState === "visible") fetchForCheckingRepairCount();
         };
@@ -556,7 +556,7 @@ export default function DashboardLayout() {
         let cancelled = false;
         const poll = async () => {
             try {
-                const res = await fetch(`${API_BASE_URL}/api/admin-announcements/view?user_id=${authUser.id}`);
+                const res = await fetch(`${API_BASE_URL}/api/admin-announcements/summary?user_id=${authUser.id}`);
                 if (!res.ok) return;
                 const data = await res.json();
                 const list = data.announcements ?? [];
@@ -589,7 +589,7 @@ export default function DashboardLayout() {
             }
         };
         poll();
-        const interval = setInterval(poll, 15000);
+        const interval = setInterval(poll, 60000);
 
         // Listen for announcements-seen-updated event from AnnouncementsViewPage
         const handleSeenUpdated = () => {
@@ -619,27 +619,17 @@ export default function DashboardLayout() {
             try {
                 const [posRes, outletRes] = await Promise.all([
                     fetch(
-                        `${API_BASE_URL}/api/booth-change-requests?userId=${authUser.id}`
+                        `${API_BASE_URL}/api/booth-change-requests/count?userId=${authUser.id}&status=approved&status=rejected`
                     ),
                     fetch(
-                        `${API_BASE_URL}/api/booth-operator-change-requests?userId=${authUser.id}`
+                        `${API_BASE_URL}/api/booth-operator-change-requests/count?userId=${authUser.id}&status=approved&status=rejected`
                     ),
                 ]);
-                const posData = posRes.ok ? await posRes.json() : [];
-                const outletData = outletRes.ok ? await outletRes.json() : [];
+                const posData = posRes.ok ? await posRes.json() : { count: 0 };
+                const outletData = outletRes.ok ? await outletRes.json() : { count: 0 };
                 if (cancelled) return;
-                const posCount = Array.isArray(posData)
-                    ? posData.filter(
-                        (r: { status?: string }) =>
-                            r.status === "approved" || r.status === "rejected"
-                    ).length
-                    : 0;
-                const outletCount = Array.isArray(outletData)
-                    ? outletData.filter(
-                        (r: { status?: string }) =>
-                            r.status === "approved" || r.status === "rejected"
-                    ).length
-                    : 0;
+                const posCount = Number(posData?.count ?? 0);
+                const outletCount = Number(outletData?.count ?? 0);
                 setOperatorPosApprovedRejectedCount(posCount);
                 setOperatorOutletApprovedRejectedCount(outletCount);
 
@@ -665,7 +655,7 @@ export default function DashboardLayout() {
         };
 
         fetchOperatorRequestCounts();
-        const interval = window.setInterval(fetchOperatorRequestCounts, 8000);
+        const interval = window.setInterval(fetchOperatorRequestCounts, 30000);
         const onVisibility = () => {
             if (document.visibilityState === "visible") fetchOperatorRequestCounts();
         };
