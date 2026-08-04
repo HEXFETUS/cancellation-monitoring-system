@@ -56,6 +56,25 @@ export async function listBoothOperatorChangeRequests(params: {
     return await res.json();
 }
 
+export async function countBoothOperatorChangeRequests(params: {
+    status?: BoothOperatorRequestStatus;
+    userId?: number;
+    boothId?: number;
+} = {}): Promise<number> {
+    const qs = new URLSearchParams();
+    if (params.status) qs.set("status", params.status);
+    if (params.userId) qs.set("userId", String(params.userId));
+    if (params.boothId) qs.set("booth_id", String(params.boothId));
+    const url = qs.toString()
+        ? `/api/booth-operator-change-requests/count?${qs.toString()}`
+        : "/api/booth-operator-change-requests/count";
+
+    const res = await fetch(apiUrl(url));
+    if (!res.ok) throw new Error(await getErrorMessage(res, "Failed to count requests"));
+    const data = await res.json();
+    return Number(data?.count ?? 0);
+}
+
 export async function createBoothOperatorChangeRequest(input: {
     user_id: number;
     booth_id: number;

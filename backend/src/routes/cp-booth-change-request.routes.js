@@ -53,6 +53,49 @@ function manilaTimestamp(date = new Date()) {
 }
 
 /**
+ * GET /api/cp-booth-change-requests/count
+ * Lightweight count endpoint for dashboard badges. Returns only
+ * `{ count }` instead of full rows with 4 joins. Supports the same
+ * filters as the full GET endpoint. The full endpoint remains
+ * untouched for pages that need the complete payload.
+ */
+router.get("/count", async (req, res) => {
+    try {
+        const { status, userId, cellphone_id } = req.query;
+        const conditions = [];
+        const params = [];
+
+        if (status) {
+            const statusList = Array.isArray(status)
+                ? status.map((s) => String(s)).filter(Boolean)
+                : [String(status)];
+            if (statusList.length > 0) {
+                params.push(statusList);
+                conditions.push(`cpbcr.status = ANY($${params.length}::text[])`);
+            }
+        }
+        if (userId) {
+            params.push(Number(userId));
+            conditions.push(`cpbcr.requested_by_user_id = $${params.length}`);
+        }
+        if (cellphone_id) {
+            params.push(Number(cellphone_id));
+            conditions.push(`cpbcr.cellphone_id = $${params.length}`);
+        }
+
+        const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+        const result = await pool.query(
+            `SELECT COUNT(*)::int AS count FROM cp_booth_change_requests cpbcr ${where}`,
+            params
+        );
+        res.json({ count: result.rows[0].count });
+    } catch (err) {
+        console.error("GET cp-booth-change-requests/count error:", err.message);
+        res.status(500).json({ error: "Failed to count CP booth change requests" });
+    }
+});
+
+/**
  * GET /api/cp-booth-change-requests
  * Query params:
  *   status=pending|approved|rejected|cancelled

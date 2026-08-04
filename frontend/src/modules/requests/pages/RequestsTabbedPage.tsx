@@ -5,11 +5,11 @@ import AssignOutletPage from "./AssignOutletPage";
 import RequestResetPage from "./RequestResetPage";
 import CpRequestResetPage from "./CpRequestResetPage";
 import AssignCpPage from "./AssignCpPage";
-import { listBoothChangeRequests } from "../services/boothChangeRequests";
-import { listOperatorChangeRequests } from "../services/operatorChangeRequests";
-import { listBoothOperatorChangeRequests } from "../services/boothOperatorChangeRequests";
-import { listCpBoothChangeRequests } from "../services/cpBoothChangeRequests";
-import { listCpOperatorChangeRequests } from "../services/cpOperatorChangeRequests";
+import { countBoothChangeRequests } from "../services/boothChangeRequests";
+import { countOperatorChangeRequests } from "../services/operatorChangeRequests";
+import { countBoothOperatorChangeRequests } from "../services/boothOperatorChangeRequests";
+import { countCpBoothChangeRequests } from "../services/cpBoothChangeRequests";
+import { countCpOperatorChangeRequests } from "../services/cpOperatorChangeRequests";
 import { TopTabs } from "../../../shared/components";
 
 type TabId = "assign-pos" | "assign-outlet" | "request-reset" | "cp-request-reset" | "assign-cp";
@@ -35,8 +35,8 @@ export default function RequestsTabbedPage() {
 
         const fetchPendingCount = async () => {
             try {
-                const pending = await listBoothChangeRequests({ status: "pending" });
-                if (!cancelled) setPendingRequestCount(pending.length);
+                const count = await countBoothChangeRequests({ status: "pending" });
+                if (!cancelled) setPendingRequestCount(count);
             } catch {
                 if (!cancelled) setPendingRequestCount(0);
             }
@@ -62,8 +62,8 @@ export default function RequestsTabbedPage() {
 
         const fetchPendingAssignPos = async () => {
             try {
-                const pending = await listOperatorChangeRequests({ status: "pending" });
-                if (!cancelled) setPendingAssignPosCount(pending.length);
+                const count = await countOperatorChangeRequests({ status: "pending" });
+                if (!cancelled) setPendingAssignPosCount(count);
             } catch {
                 if (!cancelled) setPendingAssignPosCount(0);
             }
@@ -89,8 +89,8 @@ export default function RequestsTabbedPage() {
 
         const fetchPendingCpCount = async () => {
             try {
-                const pending = await listCpBoothChangeRequests({ status: "pending" });
-                if (!cancelled) setPendingCpRequestCount(pending.length);
+                const count = await countCpBoothChangeRequests({ status: "pending" });
+                if (!cancelled) setPendingCpRequestCount(count);
             } catch {
                 if (!cancelled) setPendingCpRequestCount(0);
             }
@@ -116,8 +116,8 @@ export default function RequestsTabbedPage() {
 
         const fetchPendingCpAssign = async () => {
             try {
-                const pending = await listCpOperatorChangeRequests({ status: "pending" });
-                if (!cancelled) setPendingCpAssignCount(pending.length);
+                const count = await countCpOperatorChangeRequests({ status: "pending" });
+                if (!cancelled) setPendingCpAssignCount(count);
             } catch {
                 if (!cancelled) setPendingCpAssignCount(0);
             }
@@ -143,8 +143,8 @@ export default function RequestsTabbedPage() {
 
         const fetchPendingAssignOutlet = async () => {
             try {
-                const pending = await listBoothOperatorChangeRequests({ status: "pending" });
-                if (!cancelled) setPendingAssignOutletCount(pending.length);
+                const count = await countBoothOperatorChangeRequests({ status: "pending" });
+                if (!cancelled) setPendingAssignOutletCount(count);
             } catch {
                 if (!cancelled) setPendingAssignOutletCount(0);
             }

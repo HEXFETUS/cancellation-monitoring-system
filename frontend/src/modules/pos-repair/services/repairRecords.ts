@@ -126,6 +126,20 @@ export async function listRepairRecords(): Promise<RepairRecord[]> {
     return Array.isArray(payload) ? payload : payload.data ?? payload.rows ?? [];
 }
 
+export interface RepairNotification {
+    id: number;
+    status: string;
+    device_no: string | null;
+    serial_number: string | null;
+}
+
+export async function listRepairNotifications(): Promise<RepairNotification[]> {
+    const res = await fetch(apiUrl("/api/repair-records/notifications"));
+    if (!res.ok) throw new Error(await getErrorMessage(res, "Failed to load repair notifications"));
+    const payload = await res.json();
+    return Array.isArray(payload) ? payload : payload.data ?? payload.rows ?? [];
+}
+
 export async function listRepairRecordsByBillingCode(billingCode: string): Promise<BillingCodeRepairRecord[]> {
     const res = await fetch(apiUrl(`/api/repair-records/billing-code/${encodeURIComponent(billingCode)}`));
     if (!res.ok) throw new Error(await getErrorMessage(res, "Failed to load billing code records"));

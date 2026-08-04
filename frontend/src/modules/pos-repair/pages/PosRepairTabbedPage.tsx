@@ -5,7 +5,7 @@ import RepairManagementPage from "./RepairManagementPage";
 import RepairLogPage from "./RepairLogPage";
 import ReleasedLogPage from "./ReleasedLogPage";
 import DiagnosisListPage from "./DiagnosisListPage";
-import { listRepairRecords } from "../services/repairRecords";
+import { listRepairNotifications } from "../services/repairRecords";
 import { TopTabs } from "../../../shared/components";
 import { useAuth } from "../../../context/AuthContext";
 
@@ -58,7 +58,7 @@ export default function PosRepairTabbedPage() {
 
         const fetchForCheckingCount = async () => {
             try {
-                const records = await listRepairRecords();
+                const records = await listRepairNotifications();
                 const forRepairKeys = records
                     .filter((record) => record.status === "For Repair")
                     .map((record) => `${record.id}:For Repair`);

@@ -6,7 +6,7 @@ import RequestPosPage from "../components/RequestPosPage";
 import AddCpPage from "./AddCpPage";
 import MyCpPage from "./MyCpPage";
 import { useAuth } from "../../../context/AuthContext";
-import { listOperatorChangeRequests } from "../../requests/services/operatorChangeRequests";
+import { countOperatorChangeRequests } from "../../requests/services/operatorChangeRequests";
 import { TopTabs } from "../../../shared/components";
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
@@ -89,8 +89,8 @@ export default function OperatorTabbedPage() {
     const fetchCount = useCallback(async () => {
         if (!user?.id) return;
         try {
-            const reqs = await listOperatorChangeRequests({ status: "pending", userId: user.id });
-            setPendingRequestCount(reqs.length);
+            const count = await countOperatorChangeRequests({ status: "pending", userId: user.id });
+            setPendingRequestCount(count);
         } catch {
             setPendingRequestCount(0);
         }
