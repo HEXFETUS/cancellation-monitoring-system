@@ -391,7 +391,7 @@ router.post("/", async (req, res) => {
         }
 
         const posRecord = await pool.query(
-            `SELECT id, status FROM pos_records WHERE id = $1::int LIMIT 1`,
+            `SELECT id, status, operator_id FROM pos_records WHERE id = $1::int LIMIT 1`,
             [pos_record_id]
         );
 
@@ -429,8 +429,25 @@ router.post("/", async (req, res) => {
         const createStatuses = new Set(["For Request", "For Repair"]);
         const initialStatus = createStatuses.has(status) ? status : "For Repair";
 
-        // Resolve operator_id from operator_name if not provided directly
+        // Resolve operator_id. Priority:
+        //   1. explicit operator_id from the request (dropdown selection) — validated below
+        //   2. operator_name lookup in operator_list (CSR typed the actual operator)
+        //   3. selected POS record's operator_id (fallback — may be stale master data)
+        //   4. 400 if nothing resolves
         let resolvedOperatorId = operator_id || null;
+
+        if (resolvedOperatorId) {
+            const opResult = await pool.query(
+                `SELECT id FROM operator_list WHERE id = $1::int LIMIT 1`,
+                [resolvedOperatorId]
+            );
+            if (opResult.rows.length === 0) {
+                return res.status(400).json({
+                    error: "Operator not found. Please select a valid operator.",
+                });
+            }
+        }
+
         if (!resolvedOperatorId && operator_name?.trim()) {
             const opResult = await pool.query(
                 `SELECT id FROM operator_list WHERE LOWER(TRIM(operator)) = LOWER($1) LIMIT 1`,
@@ -438,7 +455,21 @@ router.post("/", async (req, res) => {
             );
             if (opResult.rows.length > 0) {
                 resolvedOperatorId = opResult.rows[0].id;
+            } else {
+                return res.status(400).json({
+                    error: "Operator not found. Please select a valid operator.",
+                });
             }
+        }
+
+        if (!resolvedOperatorId && posRecord.rows[0]?.operator_id) {
+            resolvedOperatorId = posRecord.rows[0].operator_id;
+        }
+
+        if (!resolvedOperatorId) {
+            return res.status(400).json({
+                error: "Operator is required. Select a valid operator before saving.",
+            });
         }
 
         // Update the POS record's operator_id to match what was assigned

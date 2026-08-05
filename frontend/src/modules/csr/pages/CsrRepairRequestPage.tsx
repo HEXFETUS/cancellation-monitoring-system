@@ -576,7 +576,23 @@ export default function CsrRepairRequestPage() {
                                 value={formData.operator}
                                 onChange={(e) => {
                                     handleChange("operator", e.target.value);
+                                    // Typing = free-text intent. Clear the auto-captured
+                                    // operator_id so the CSR's typed operator takes
+                                    // precedence over the (possibly stale) POS record's.
+                                    setSelectedOperatorId(null);
                                     handleOperatorSearch(e.target.value);
+                                }}
+                                onBlur={(e) => {
+                                    // Auto-select on exact match (case-insensitive) so
+                                    // most requests send a proper operator_id instead of
+                                    // relying on backend name lookup.
+                                    const typed = e.target.value.trim();
+                                    if (typed && operatorResults.length > 0) {
+                                        const exactMatch = operatorResults.find(
+                                            (op) => op.operator.trim().toLowerCase() === typed.toLowerCase()
+                                        );
+                                        if (exactMatch) handleSelectOperator(exactMatch);
+                                    }
                                 }}
                                 onFocus={() => {
                                     if (formData.operator.trim() && operatorResults.length > 0) {
