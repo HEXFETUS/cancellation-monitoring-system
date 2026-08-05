@@ -356,6 +356,7 @@ router.get("/:id", async (req, res) => {
    CREATE REPAIR RECORD
 ========================= */
 router.post("/", async (req, res) => {
+    const client = await pool.connect();
     try {
         const {
             date,
@@ -378,7 +379,7 @@ router.post("/", async (req, res) => {
             return res.status(400).json({ error: "POS record is required" });
         }
 
-        const posRecord = await pool.query(
+        const posRecord = await client.query(
             `SELECT id, status, operator_id FROM pos_records WHERE id = $1::int LIMIT 1`,
             [pos_record_id]
         );
@@ -395,7 +396,7 @@ router.post("/", async (req, res) => {
         // request frees the device for a new request. The row itself is kept
         // for activity-log history. Condition mirrors the eligibility check
         // above (a POS is free only once its latest real record is released).
-        const latestRepairRecord = await pool.query(
+        const latestRepairRecord = await client.query(
             `
             SELECT id, forwarded, released
             FROM repair_records
@@ -417,15 +418,22 @@ router.post("/", async (req, res) => {
         const createStatuses = new Set(["For Request", "For Repair"]);
         const initialStatus = createStatuses.has(status) ? status : "For Repair";
 
+        // Normalize the typed operator name: trim and collapse inner spaces so
+        // "  Hinterlands  " and "hinterlands" resolve to the same operator, and
+        // any newly created operator is stored cleanly.
+        const normalizedOperatorName =
+            typeof operator_name === "string" ? operator_name.trim().replace(/\s+/g, " ") : "";
+
         // Resolve operator_id. Priority:
         //   1. explicit operator_id from the request (dropdown selection) — validated below
-        //   2. operator_name lookup in operator_list (CSR typed the actual operator)
+        //   2. operator_name lookup by display name (handles sub-operators); if not
+        //      found, auto-create the operator from the CSR's typed input
         //   3. selected POS record's operator_id (fallback — may be stale master data)
-        //   4. 400 if nothing resolves
+        //   4. 400 only if no operator information was provided at all
         let resolvedOperatorId = operator_id || null;
 
         if (resolvedOperatorId) {
-            const opResult = await pool.query(
+            const opResult = await client.query(
                 `SELECT id FROM operator_list WHERE id = $1::int LIMIT 1`,
                 [resolvedOperatorId]
             );
@@ -436,8 +444,12 @@ router.post("/", async (req, res) => {
             }
         }
 
-        if (!resolvedOperatorId && operator_name?.trim()) {
-            const opResult = await pool.query(
+        // Begin the transaction only after validation passes, so the operator
+        // creation, the POS patch, and the repair insert/update are atomic.
+        await client.query("BEGIN");
+
+        if (!resolvedOperatorId && normalizedOperatorName) {
+            const opResult = await client.query(
                 `
                 SELECT o.id
                 FROM operator_list o
@@ -445,14 +457,18 @@ router.post("/", async (req, res) => {
                 WHERE LOWER(TRIM(${operatorDisplay("o", "parent_o")})) = LOWER($1)
                 LIMIT 1
                 `,
-                [operator_name.trim()]
+                [normalizedOperatorName]
             );
             if (opResult.rows.length > 0) {
                 resolvedOperatorId = opResult.rows[0].id;
             } else {
-                return res.status(400).json({
-                    error: "Operator not found. Please select a valid operator.",
-                });
+                // Operator not in master data → create it from the CSR's input so
+                // the typed operator becomes the actual operator.
+                const inserted = await client.query(
+                    `INSERT INTO operator_list (operator) VALUES ($1) RETURNING id`,
+                    [normalizedOperatorName]
+                );
+                resolvedOperatorId = inserted.rows[0].id;
             }
         }
 
@@ -461,15 +477,17 @@ router.post("/", async (req, res) => {
         }
 
         if (!resolvedOperatorId) {
+            await client.query("ROLLBACK");
             return res.status(400).json({
                 error: "Operator is required. Select a valid operator before saving.",
             });
         }
 
-        // Update the POS record's operator_id to match what was assigned
-        // during the repair request intake.
+        // Update the POS record's operator_id to match what was assigned during
+        // the repair request intake. This gradually corrects stale POS master
+        // data to the operator the CSR actually entered.
         if (resolvedOperatorId) {
-            await pool.query(
+            await client.query(
                 `UPDATE pos_records SET operator_id = $1::int, updated_at = CURRENT_TIMESTAMP WHERE id = $2::int`,
                 [resolvedOperatorId, pos_record_id]
             );
@@ -477,7 +495,7 @@ router.post("/", async (req, res) => {
 
         // Check if a record exists with forwarded=false and released=true (already released, needs re-repair)
         // If yes, update it instead of creating a new one
-        const existingRecord = await pool.query(
+        const existingRecord = await client.query(
             `SELECT id, released FROM repair_records 
              WHERE pos_record_id = $1 AND forwarded = false AND released = true
              ORDER BY id DESC
@@ -489,7 +507,7 @@ router.post("/", async (req, res) => {
         if (existingRecord.rows.length > 0) {
             // Update existing record (re-repair case: was released, now needs repair again)
             const existingId = existingRecord.rows[0].id;
-            result = await pool.query(
+            result = await client.query(
                 `
                 UPDATE repair_records SET
                     date = $1,
@@ -523,7 +541,7 @@ router.post("/", async (req, res) => {
             );
         } else {
             // Create new record
-            result = await pool.query(
+            result = await client.query(
                 `
                 INSERT INTO repair_records (
                     date, pos_record_id, ntc, operator_id, diagnosis_id,
@@ -547,13 +565,18 @@ router.post("/", async (req, res) => {
         }
 
         // Fetch the full record with joins
-        const full = await pool.query(`${REPAIR_SELECT} WHERE rr.id = $1::int`, [result.rows[0].id]);
+        const full = await client.query(`${REPAIR_SELECT} WHERE rr.id = $1::int`, [result.rows[0].id]);
         const responseData = full.rows[0];
         responseData.isUpdate = existingRecord.rows.length > 0;
+
+        await client.query("COMMIT");
         res.status(201).json(responseData);
     } catch (err) {
+        await client.query("ROLLBACK").catch(() => {});
         console.error("POST repair_record error:", err.message);
         res.status(500).json({ error: "Failed to create repair record" });
+    } finally {
+        client.release();
     }
 });
 
