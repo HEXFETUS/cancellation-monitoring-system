@@ -161,7 +161,14 @@ app.use("/api", (req, res, next) => {
             return match ? createPrivateUploadUrl(match[1]) : value;
         }
         if (Array.isArray(value)) return value.map(replacePrivateUrls);
-        if (value && typeof value === "object") {
+        // Only recurse into plain objects. Date, Buffer, Map, Set, etc.
+        // pass through untouched so the JSON serializer converts them
+        // correctly (e.g. Date → ISO string) instead of collapsing to {}.
+        if (
+            value &&
+            typeof value === "object" &&
+            Object.getPrototypeOf(value) === Object.prototype
+        ) {
             return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, replacePrivateUrls(item)]));
         }
         return value;

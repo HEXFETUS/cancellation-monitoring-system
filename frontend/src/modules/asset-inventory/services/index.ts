@@ -52,6 +52,9 @@ async function getErrorMessage(res: Response, fallback: string) {
 function toIsoDate(value: string | null): string {
     if (!value) return "";
     // Postgres returns "2024-03-12T00:00:00.000Z"; we want "2024-03-12".
+    // Guard against non-string values (e.g. a Date object that slipped
+    // through serialization) so one bad row can't crash the whole page.
+    if (typeof value !== "string") return "";
     return value.slice(0, 10);
 }
 

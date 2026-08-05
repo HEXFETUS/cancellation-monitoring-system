@@ -57,18 +57,39 @@ const AssetCodingPageInner = ({ search, onSearchChange }: AssetCodingPageProps, 
         try {
             setLoading(true);
             setError("");
-            const [codes, allAssets, allStations, allDepartments] = await Promise.all([
-                listAssetCodes(),
-                listAllAssets(),
-                listPayoutStations(),
-                listOfficeDepartments(),
+            // Run each fetch independently so a failure in one dataset
+            // (e.g. assets) doesn't blank out the asset-code list.
+            const [codesSettled, assetsSettled, stationsSettled, departmentsSettled] = await Promise.all([
+                listAssetCodes().then(
+                    (value) => ({ ok: true as const, value }),
+                    (error) => ({ ok: false as const, error })
+                ),
+                listAllAssets().then(
+                    (value) => ({ ok: true as const, value }),
+                    (error) => ({ ok: false as const, error })
+                ),
+                listPayoutStations().then(
+                    (value) => ({ ok: true as const, value }),
+                    (error) => ({ ok: false as const, error })
+                ),
+                listOfficeDepartments().then(
+                    (value) => ({ ok: true as const, value }),
+                    (error) => ({ ok: false as const, error })
+                ),
             ]);
-            setItems(codes);
-            setAssets(allAssets);
-            setStations(allStations);
-            setDepartments(allDepartments);
+
+            setItems(codesSettled.ok ? codesSettled.value : []);
+            setAssets(assetsSettled.ok ? assetsSettled.value : []);
+            setStations(stationsSettled.ok ? stationsSettled.value : []);
+            setDepartments(departmentsSettled.ok ? departmentsSettled.value : []);
+
+            const firstFailure = [codesSettled, assetsSettled, stationsSettled, departmentsSettled]
+                .find((r): r is { ok: false; error: unknown } => !r.ok);
+            if (firstFailure) {
+                setError(firstFailure.error instanceof Error ? firstFailure.error.message : String(firstFailure.error));
+            }
         } catch (e) {
-            setError(e instanceof Error ? (e instanceof Error ? e.message : String(e)) : "Could not load asset codes");
+            setError(e instanceof Error ? e.message : String(e));
         } finally {
             setLoading(false);
         }
