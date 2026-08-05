@@ -1,20 +1,8 @@
 import express from "express";
 import pool from "../config/db.js";
+import { operatorDisplay } from "../utils/operator-display.js";
 
 const router = express.Router();
-
-const operatorDisplay = (alias, parentAlias) => `
-    COALESCE(
-        NULLIF(TRIM(${alias}.operator), ''),
-        CASE
-            WHEN ${alias}.parent_operator_id IS NOT NULL
-             AND UPPER(TRIM(COALESCE(${alias}.sub_op_name, ''))) NOT IN ('', 'EMPTY', 'NULL')
-            THEN COALESCE(NULLIF(TRIM(${parentAlias}.operator), ''), ${parentAlias}.operator)
-                || ' (' || TRIM(${alias}.sub_op_name) || ')'
-            ELSE NULL
-        END
-    )
-`;
 
 const POS_SELECT = `
     SELECT 

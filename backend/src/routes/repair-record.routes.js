@@ -1,20 +1,8 @@
 import express from "express";
 import pool from "../config/db.js";
+import { operatorDisplay } from "../utils/operator-display.js";
 
 const router = express.Router();
-
-const operatorDisplay = (alias, parentAlias) => `
-    COALESCE(
-        NULLIF(TRIM(${alias}.operator), ''),
-        CASE
-            WHEN ${alias}.parent_operator_id IS NOT NULL
-             AND UPPER(TRIM(COALESCE(${alias}.sub_op_name, ''))) NOT IN ('', 'EMPTY', 'NULL')
-            THEN COALESCE(NULLIF(TRIM(${parentAlias}.operator), ''), ${parentAlias}.operator)
-                || ' (' || TRIM(${alias}.sub_op_name) || ')'
-            ELSE NULL
-        END
-    )
-`;
 
 const REPAIR_SELECT = `
     SELECT
@@ -450,7 +438,13 @@ router.post("/", async (req, res) => {
 
         if (!resolvedOperatorId && operator_name?.trim()) {
             const opResult = await pool.query(
-                `SELECT id FROM operator_list WHERE LOWER(TRIM(operator)) = LOWER($1) LIMIT 1`,
+                `
+                SELECT o.id
+                FROM operator_list o
+                LEFT JOIN operator_list parent_o ON parent_o.id = o.parent_operator_id
+                WHERE LOWER(TRIM(${operatorDisplay("o", "parent_o")})) = LOWER($1)
+                LIMIT 1
+                `,
                 [operator_name.trim()]
             );
             if (opResult.rows.length > 0) {
@@ -590,7 +584,13 @@ router.put("/:id", async (req, res) => {
         let resolvedOperatorId = operator_id || null;
         if (!resolvedOperatorId && operator_name?.trim()) {
             const opResult = await pool.query(
-                `SELECT id FROM operator_list WHERE LOWER(TRIM(operator)) = LOWER($1) LIMIT 1`,
+                `
+                SELECT o.id
+                FROM operator_list o
+                LEFT JOIN operator_list parent_o ON parent_o.id = o.parent_operator_id
+                WHERE LOWER(TRIM(${operatorDisplay("o", "parent_o")})) = LOWER($1)
+                LIMIT 1
+                `,
                 [operator_name.trim()]
             );
             if (opResult.rows.length > 0) {
