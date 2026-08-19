@@ -10,7 +10,6 @@ interface TransmittalModalProps {
     records?: RepairRecord[];
     mode?: "forwarded" | "release";
     userId?: number | null;
-    issuedBy?: string;
     initialPreview?: boolean;
     initialBillingCode?: string;
     initialReceivedBy?: string;
@@ -50,7 +49,6 @@ export default function TransmittalModal({
     records: recordsProp,
     mode = "forwarded",
     userId,
-    issuedBy,
     initialPreview = false,
     initialBillingCode,
     initialReceivedBy,
@@ -84,7 +82,7 @@ export default function TransmittalModal({
     const selectedRecords = filteredRecords.filter((item) => selectedIds.has(item.id));
     const selectedOperatorNames = selectedRecords.map((item) => (item.operator_name || "").trim()).filter(Boolean);
     const selectedOperatorConflict = new Set(selectedOperatorNames).size > 1;
-    const canPrint = selectedRecords.length > 0 && !selectedOperatorConflict;
+    const canPrint = selectedRecords.length > 0;
 
     const toggleAll = (checked: boolean) => {
         setSelectedIds(checked ? new Set(filteredRecords.map((item) => item.id)) : new Set());
@@ -205,14 +203,12 @@ export default function TransmittalModal({
     const handlePrint = () => {
         if (!canPrint) return;
 
-        const printOperator = selectedRecords[0]?.operator_name || operatorFilter || "-";
         const printDateReceived = formatDateNumeric(selectedRecords[0]?.date || records[0]?.date || "");
-        const printDeliveredBy = selectedRecords[0]?.delivered_by || "-";
-        const printReceivedBy = issuedBy || "-";
 
         const rows = selectedRecords
             .map((item) => `
                 <tr>
+                    <td class="operator-col">${escapeHtml(item.operator_name || "-")}</td>
                     <td>${escapeHtml(item.device_no || "-")}</td>
                     <td>${escapeHtml(item.serial_number || "-")}</td>
                     <td>${escapeHtml(item.area || "-")}</td>
@@ -342,6 +338,22 @@ export default function TransmittalModal({
                             background: #f8fafc;
                             font-weight: 700;
                         }
+                        .operator-col,
+                        .operator-col-head {
+                            text-align: left;
+                            font-weight: 700;
+                        }
+                        .received-by {
+                            display: inline-flex;
+                            align-items: baseline;
+                            gap: 8px;
+                        }
+                        .signature-line {
+                            display: inline-block;
+                            width: 200px;
+                            height: 18px;
+                            border-bottom: 1px solid #111827;
+                        }
                         .address {
                             text-align: center;
                             line-height: 1.6;
@@ -382,13 +394,14 @@ export default function TransmittalModal({
                             <img src="${logoWithName}" />
                         </div>
                         <h2 class="title">Repair Transmittal Form</h2>
-                        <div class="info-row">
-                            <span><span class="label">Operator:</span> ${escapeHtml(printOperator)}</span>
-                            <span><span class="label">Delivered By:</span> ${escapeHtml(printDeliveredBy)}</span>
+                        <div class="info-row" style="margin-bottom:10px;">
+                            <span><span class="label">Date Received:</span> ${escapeHtml(printDateReceived)}</span>
+                            <span class="received-by"><span class="label">Received By:</span> <span class="signature-line"></span></span>
                         </div>
                         <table>
                             <thead>
                                 <tr>
+                                    <th class="operator-col-head">Operator</th>
                                     <th>POS No</th>
                                     <th>Serial</th>
                                     <th>Area</th>
@@ -397,10 +410,6 @@ export default function TransmittalModal({
                             </thead>
                             <tbody>${rows}</tbody>
                         </table>
-                        <div class="info-row" style="margin-top:12px;margin-bottom:0;">
-                            <span><span class="label">Date Received:</span> ${escapeHtml(printDateReceived)}</span>
-                            <span><span class="label">Received By:</span> ${escapeHtml(printReceivedBy)}</span>
-                        </div>
                         <div class="address">
                             3F, VLC Tower 1, Business Park Pueblo de Oro<br />
                             Carmen, Cagayan de Oro City, 9000<br />
@@ -739,8 +748,8 @@ export default function TransmittalModal({
                     </div>
 
                     {selectedOperatorConflict && (
-                        <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                            Selected records must all belong to the same operator.
+                        <div className="rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+                            Multiple operators selected — a separate transmittal page will be printed for each operator.
                         </div>
                     )}
 

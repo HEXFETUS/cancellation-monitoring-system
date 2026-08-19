@@ -650,7 +650,6 @@ export default function RepairManagementPage() {
                     mode="release"
                     record={recordToRelease}
                     userId={user?.id ?? null}
-                    issuedBy={user?.name ?? user?.email ?? ""}
                     onReleased={handleTransmittalReleased}
                     showToast={showToast}
                     onClose={() => setRecordToRelease(null)}
@@ -661,7 +660,6 @@ export default function RepairManagementPage() {
                     mode="release"
                     records={batchReleasePreview.records}
                     userId={user?.id ?? null}
-                    issuedBy={user?.name ?? user?.email ?? ""}
                     initialBillingCode={batchReleasePreview.billingCode}
                     initialReceivedBy={batchReleasePreview.receivedBy}
                     initialPreview
