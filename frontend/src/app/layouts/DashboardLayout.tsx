@@ -26,6 +26,7 @@ import {
     Notebook,
     Sun,
     Moon,
+    Newspaper,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import {
@@ -141,6 +142,7 @@ const iconMap: Record<string, LucideIcon>
     "Diagnosis List": Stethoscope,
     Posts: Megaphone,
     Announcements: Megaphone,
+    "Landing Page": Newspaper,
     "Messages": MessageSquare,
     "Request POS": Send,
     Requests: Notebook,
@@ -724,7 +726,7 @@ export default function DashboardLayout() {
     // Operators get a slim sidebar with only their own POS view.
     // Purchasers get one sidebar entry per asset section (instead of
     // a single "Assets" link that hid the sub-tabs inside).
-    // CSR gets only Dashboard and POS Repair.
+    // CSR gets Dashboard, POS Repair, and Landing Page.
     // Admin see the full menu.
     const navItems = isOperator
         ? [
@@ -748,7 +750,7 @@ export default function DashboardLayout() {
                 ? [
                     { name: "Dashboard", path: "/app/dashboard" },
                     { name: "POS Repair", path: "/app/csr-pos-repair" },
-                    { name: "Announcements", path: "/app/bulletin-board/view" },
+                    { name: "Landing Page", path: "/app/csr-pos-repair/posts" },
                 ]
                 : [
                     { name: "Dashboard", path: "/app/dashboard" },
