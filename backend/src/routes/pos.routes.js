@@ -1051,7 +1051,7 @@ router.post("/:id/change-booth", async (req, res) => {
 
         // Get current record (including operator info)
         const currentRecord = await pool.query(
-            `SELECT id, device_no, serial_number, booth_id, operator_id FROM pos_records WHERE id = $1::int`,
+            `SELECT id, device_no, serial_number, booth_id, operator_id, area FROM pos_records WHERE id = $1::int`,
             [id]
         );
 
@@ -1064,9 +1064,9 @@ router.post("/:id/change-booth", async (req, res) => {
             ? (await pool.query(`SELECT booth_code FROM booth_info WHERE id = $1::int`, [record.booth_id])).rows[0]?.booth_code || "Unknown"
             : "N/A";
 
-        // Get the new booth's operator
+        // Get the new booth's operator and code (used for area alignment)
         const newBoothResult = await pool.query(
-            `SELECT operator_id FROM booth_info WHERE id = $1::int`,
+            `SELECT operator_id, booth_code FROM booth_info WHERE id = $1::int`,
             [booth_id]
         );
         if (newBoothResult.rows.length === 0) {
@@ -1074,30 +1074,24 @@ router.post("/:id/change-booth", async (req, res) => {
         }
         const newBoothOperatorId = newBoothResult.rows[0].operator_id;
 
-        // Validate operator: if device already has an operator assigned,
-        // the new booth's operator must match
-        if (record.operator_id && newBoothOperatorId && record.operator_id !== newBoothOperatorId) {
-            // Get operator names for the error message
-            const currentOpResult = await pool.query(
-                `SELECT
-                    ${operatorDisplay("o", "parent_o")} AS operator
-                 FROM operator_list o
-                 LEFT JOIN operator_list parent_o ON parent_o.id = o.parent_operator_id
-                 WHERE o.id = $1::int`,
-                [record.operator_id]
-            );
-            const newOpResult = await pool.query(
-                `SELECT
-                    ${operatorDisplay("o", "parent_o")} AS operator
-                 FROM operator_list o
-                 LEFT JOIN operator_list parent_o ON parent_o.id = o.parent_operator_id
-                 WHERE o.id = $1::int`,
-                [newBoothOperatorId]
-            );
-            const currentOperator = currentOpResult.rows[0]?.operator || "Unknown";
-            const newOperator = newOpResult.rows[0]?.operator || "Unknown";
+        // The operator is a property of the booth, not the POS, so any device
+        // may be assigned to any booth regardless of operator. We only enforce
+        // area alignment: a device in CDO or MISOR must first be converted to
+        // the booth's area before it can be placed there. A device with no area
+        // yet may be freely assigned to any booth.
+        const newBoothCode = newBoothResult.rows[0].booth_code;
+        const deviceArea = record.area ? String(record.area).trim().toUpperCase() : null;
+        const upperBoothCode = String(newBoothCode || "").trim().toUpperCase();
+        const boothArea = upperBoothCode.startsWith("MOE-") || upperBoothCode.startsWith("MOW-")
+            ? "MISOR"
+            : upperBoothCode.startsWith("CDO-") || upperBoothCode.startsWith("CD0-")
+                ? "CDO"
+                : null;
+        if (deviceArea && boothArea && boothArea !== deviceArea) {
             return res.status(400).json({
-                error: `Operator mismatch: Device is assigned to operator "${currentOperator}" but the selected booth is assigned to operator "${newOperator}". Only the same operator can be assigned to the device number.`
+                error:
+                    `Area mismatch: the device is in area "${deviceArea}" but the selected booth "${newBoothCode}" is in area "${boothArea}". ` +
+                    "The device must first be changed to this area before it can be assigned to this booth.",
             });
         }
 
@@ -1111,7 +1105,7 @@ router.post("/:id/change-booth", async (req, res) => {
         await pool.query(
             `INSERT INTO booth_change_logs (pos_record_id, old_booth_code, new_booth_code, changed_by)
              VALUES ($1, $2, $3, $4)`,
-            [record.device_no, oldBoothCode, booth_code.trim(), changed_by || null]
+            [record.id, oldBoothCode, booth_code.trim(), changed_by || null]
         );
 
         const result = await pool.query(`${POS_SELECT} WHERE p.id = $1::int`, [id]);

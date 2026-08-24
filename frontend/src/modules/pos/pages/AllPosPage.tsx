@@ -150,12 +150,13 @@ export default function AllPosPage() {
             setSuccessMessage(`Booth for device ${changeBoothRecord.device_no} successfully changed to ${newBoothCode.trim()}`);
             setTimeout(() => setSuccessMessage(null), 4000);
         } catch (err) {
-            // Show operator mismatch error as inline toast below the New Booth Code input
-            if ((err instanceof Error ? err.message : String(err))?.toLowerCase().includes("operator mismatch")) {
+            // Show operator/area mismatch errors as inline toast below the New Booth Code input
+            const message = err instanceof Error ? err.message : String(err);
+            if (message.toLowerCase().includes("operator mismatch") || message.toLowerCase().includes("area mismatch")) {
                 closeConfirmModal();
-                setErrorBoothMessage((err instanceof Error ? err.message : String(err)));
+                setErrorBoothMessage(message);
             } else {
-                alert(err instanceof Error ? (err instanceof Error ? err.message : String(err)) : "Failed to change booth");
+                alert(err instanceof Error ? err.message : String(err) || "Failed to change booth");
             }
         }
     };
