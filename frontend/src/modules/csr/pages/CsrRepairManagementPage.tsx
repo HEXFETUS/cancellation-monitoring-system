@@ -600,7 +600,6 @@ export default function CsrRepairManagementPage() {
                     mode="release"
                     record={recordToRelease}
                     userId={user?.id ?? null}
-                    issuedBy={user?.name ?? user?.email ?? ""}
                     onReleased={handleTransmittalReleased}
                     showToast={showToast}
                     onClose={() => setRecordToRelease(null)}
@@ -611,7 +610,6 @@ export default function CsrRepairManagementPage() {
                     mode="release"
                     records={batchReleasePreview.records}
                     userId={user?.id ?? null}
-                    issuedBy={user?.name ?? user?.email ?? ""}
                     initialBillingCode={batchReleasePreview.billingCode}
                     initialReceivedBy={batchReleasePreview.receivedBy}
                     initialPreview
@@ -640,7 +638,6 @@ export default function CsrRepairManagementPage() {
                 <TransmittalModal
                     records={filteredRecords}
                     userId={user?.id ?? null}
-                    issuedBy={user?.name ?? user?.email ?? ""}
                     onClose={() => setShowRepairTransmittal(false)}
                     showToast={showToast}
                 />
