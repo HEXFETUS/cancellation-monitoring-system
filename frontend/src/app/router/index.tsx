@@ -298,6 +298,16 @@ export const router = createBrowserRouter([
                     </RoleGuard>
                 ),
             },
+            {
+                path: "csr-landing",
+                element: (
+                    <RoleGuard allow={["csr"]} fallback="/app/dashboard">
+                        <Suspense fallback={<RouteFallback />}>
+                            <CsrPostsTabbedPage />
+                        </Suspense>
+                    </RoleGuard>
+                ),
+            },
 
             {
                 path: "cancellation",

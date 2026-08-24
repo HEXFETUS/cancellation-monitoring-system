@@ -56,6 +56,15 @@ const SCHEMA_DDL = `
         sticker BOOLEAN DEFAULT false
     );
 
+    CREATE TABLE booth_change_logs (
+        id SERIAL PRIMARY KEY,
+        pos_record_id INTEGER REFERENCES pos_records(id) ON DELETE CASCADE,
+        old_booth_code VARCHAR(255),
+        new_booth_code VARCHAR(255),
+        changed_by VARCHAR(255),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
     -- repair_records and diagnosis_logs are created by init.js in production
     -- (see backend/src/config/init.js). The GET /api/pos query LEFT JOINs
     -- them via a nested LATERAL to surface the latest diagnosis status.
