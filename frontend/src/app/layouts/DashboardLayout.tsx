@@ -750,7 +750,7 @@ export default function DashboardLayout() {
                 ? [
                     { name: "Dashboard", path: "/app/dashboard" },
                     { name: "POS Repair", path: "/app/csr-pos-repair" },
-                    { name: "Landing Page", path: "/app/csr-pos-repair/posts" },
+                    { name: "Landing Page", path: "/app/csr-landing" },
                 ]
                 : [
                     { name: "Dashboard", path: "/app/dashboard" },
