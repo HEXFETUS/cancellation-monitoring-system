@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ClipboardList, Save, RotateCcw } from "lucide-react";
+import { Save, RotateCcw } from "lucide-react";
 import { listDiagnoses, type DiagnosisItem } from "../services/diagnosisList";
 import { searchPosRecordsBySerial, searchPosRecordsByDevice, type PosRecord, searchOperators, type OperatorItem } from "../services/posRecords";
 import { checkRepairRequestEligibility, createRepairRecord } from "../services/repairRecords";
-import { ConfirmationModal, Toast } from "../../../shared/components";
+import { ConfirmationModal, ExistingRepairRequestBanner, Toast } from "../../../shared/components";
 
 const teal = "#92C7CF";
 const tealLight = "#AAD7D9";
@@ -19,6 +19,9 @@ export default function RepairRequestPage() {
     const [posRecordId, setPosRecordId] = useState<number | null>(null);
     const [selectedPosStatus, setSelectedPosStatus] = useState("");
     const [posEligibilityError, setPosEligibilityError] = useState("");
+    const [activeRepair, setActiveRepair] = useState<{ id: number; status: string } | null>(null);
+    const [showEligibilityBanner, setShowEligibilityBanner] = useState(false);
+    const [eligibilityController, setEligibilityController] = useState<AbortController | null>(null);
     const [checkingPosEligibility, setCheckingPosEligibility] = useState(false);
     const [diagnosisId, setDiagnosisId] = useState<number | null>(null);
     const [selectedOperatorId, setSelectedOperatorId] = useState<number | null>(null);
@@ -134,15 +137,22 @@ export default function RepairRequestPage() {
     }, []);
 
     const handleFieldChange = (field: "serialNumber" | "posNumber", value: string) => {
+        eligibilityController?.abort();
+        setEligibilityController(null);
         handleChange(field, value);
         setPosRecordId(null);
         setSelectedPosStatus("");
         setPosEligibilityError("");
+        setActiveRepair(null);
+        setShowEligibilityBanner(false);
         setCheckingPosEligibility(false);
         handleSearch(value, field);
     };
 
     const handleSelectRecord = async (record: PosRecord) => {
+        eligibilityController?.abort();
+        const controller = new AbortController();
+        setEligibilityController(controller);
         setFormData((prev) => ({
             ...prev,
             serialNumber: record.serial_number || "",
@@ -153,31 +163,33 @@ export default function RepairRequestPage() {
         setPosRecordId(record.id);
         setSelectedPosStatus(record.status || "");
         setPosEligibilityError("");
+        setActiveRepair(null);
+        setShowEligibilityBanner(false);
         setSearchResults([]);
         setActiveDropdown(null);
         setSelectedOperatorId(record.operator_id ?? null);
 
-        if (record.status?.trim().toLowerCase() === "not released") {
-            const message = "The POS is already being repaired";
-            setPosEligibilityError(message);
-            showToast(message);
-            return;
-        }
-
         setCheckingPosEligibility(true);
         try {
-            const result = await checkRepairRequestEligibility(record.id);
+            const result = await checkRepairRequestEligibility(record.id, controller.signal);
             if (!result.eligible) {
                 const message = result.error || "The POS is already being repaired";
                 setPosEligibilityError(message);
-                showToast(message);
+                setActiveRepair(result.activeRepair);
+                setShowEligibilityBanner(true);
             }
         } catch (err: unknown) {
+            if (controller.signal.aborted) return;
             const message = err instanceof Error ? err.message : "Failed to check POS repair eligibility";
             setPosEligibilityError(message);
+            setActiveRepair(null);
+            setShowEligibilityBanner(false);
             showToast(message);
         } finally {
-            setCheckingPosEligibility(false);
+            if (!controller.signal.aborted) {
+                setCheckingPosEligibility(false);
+                setEligibilityController(null);
+            }
         }
     };
 
@@ -233,11 +245,6 @@ export default function RepairRequestPage() {
     const validateForm = () => {
         if (!posRecordId) {
             showToast("Please select a POS record by searching in Serial Number or POS Number.");
-            return false;
-        }
-
-        if (selectedPosStatus.trim().toLowerCase() === "not released") {
-            showToast("The POS is already being repaired");
             return false;
         }
 
@@ -305,8 +312,12 @@ export default function RepairRequestPage() {
                 remarks: "",
             });
             setPosRecordId(null);
+            eligibilityController?.abort();
+            setEligibilityController(null);
             setSelectedPosStatus("");
             setPosEligibilityError("");
+            setActiveRepair(null);
+            setShowEligibilityBanner(false);
             setDiagnosisId(null);
             setSelectedOperatorId(null);
         } catch (err: unknown) {
@@ -327,6 +338,8 @@ export default function RepairRequestPage() {
     }, []);
 
     const handleCancel = () => {
+        eligibilityController?.abort();
+        setEligibilityController(null);
         setFormData({
             date: new Date().toISOString().split("T")[0],
             serialNumber: "",
@@ -340,6 +353,8 @@ export default function RepairRequestPage() {
         setPosRecordId(null);
         setSelectedPosStatus("");
         setPosEligibilityError("");
+        setActiveRepair(null);
+        setShowEligibilityBanner(false);
         setCheckingPosEligibility(false);
         setDiagnosisId(null);
         setSelectedOperatorId(null);
@@ -446,42 +461,19 @@ export default function RepairRequestPage() {
     return (
         <div className="w-full max-w-5xl space-y-5">
             {/* Header */}
-            <div className="relative rounded-2xl p-5 border border-white/50 backdrop-blur-xl bg-white/30 shadow-lg overflow-hidden">
-                <div
-                    className="absolute -top-10 -right-10 w-40 h-40 rounded-full opacity-15 blur-3xl pointer-events-none"
-                    style={{ background: teal }}
-                />
-                <div className="relative flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                        <div
-                            className="flex h-11 w-11 items-center justify-center rounded-xl shadow-md transition-transform duration-300 hover:scale-110"
-                            style={{
-                                background: `linear-gradient(135deg, ${teal}20, ${tealLight}20)`,
-                                color: teal,
-                            }}
-                        >
-                            <ClipboardList className="h-5 w-5" />
-                        </div>
-                        <div>
-                            <h1 className="text-lg font-bold text-gray-800">New Repair Record</h1>
-                            <p className="text-sm text-gray-600">Create a POS repair intake record</p>
-                        </div>
-                    </div>
-                    <span
-                        className="hidden rounded-full px-3 py-1 text-xs font-semibold text-gray-600 sm:inline-flex"
-                        style={{
-                            background: posRecordId ? "rgba(107,191,107,0.14)" : "rgba(255,255,255,0.45)",
-                            border: posRecordId
-                                ? "1px solid rgba(107,191,107,0.22)"
-                                : "1px solid rgba(146,199,207,0.18)",
-                        }}
-                    >
-                        {posRecordId ? "POS selected" : "Search POS first"}
-                    </span>
-                </div>
-            </div>
+
 
             <Toast open={toastOpen} message={toastMessage} type={toastType} onClose={hideToast} />
+
+            {showEligibilityBanner && posEligibilityError && (
+                <ExistingRepairRequestBanner
+                    posNumber={formData.posNumber}
+                    serialNumber={formData.serialNumber}
+                    status={activeRepair?.status || selectedPosStatus}
+                    darkMode={darkMode}
+                    onClose={() => setShowEligibilityBanner(false)}
+                />
+            )}
 
             {/* Form Card */}
             <div className="relative rounded-2xl border border-white/50 backdrop-blur-xl bg-white/25 shadow-lg overflow-visible">

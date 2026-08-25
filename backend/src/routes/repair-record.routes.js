@@ -287,7 +287,11 @@ router.get("/pos/:posRecordId/request-eligibility", async (req, res) => {
         const posRecordIdNum = Number(posRecordId);
 
         if (!Number.isFinite(posRecordIdNum)) {
-            return res.status(400).json({ error: "Invalid POS record ID" });
+            return res.status(400).json({
+                eligible: false,
+                error: "Invalid POS record ID",
+                activeRepair: null,
+            });
         }
 
         // Check if POS record exists
@@ -297,12 +301,11 @@ router.get("/pos/:posRecordId/request-eligibility", async (req, res) => {
         );
 
         if (posRecord.rows.length === 0) {
-            return res.status(404).json({ eligible: false, error: "POS record not found" });
-        }
-
-        // Check if POS status is "not released" (already being repaired)
-        if (String(posRecord.rows[0].status || "").trim().toLowerCase() === "not released") {
-            return res.json({ eligible: false, error: "The POS is already being repaired" });
+            return res.status(404).json({
+                eligible: false,
+                error: "POS record not found",
+                activeRepair: null,
+            });
         }
 
         // Check the latest repair record. Cleared rows (status IS NULL) are
@@ -311,7 +314,7 @@ router.get("/pos/:posRecordId/request-eligibility", async (req, res) => {
         // could never be requested again after a "delete" on For Checking.
         const latestRepairRecord = await pool.query(
             `
-                SELECT id, forwarded, released
+                SELECT id, status, forwarded, released
                 FROM repair_records
                 WHERE pos_record_id = $1::int
                   AND status IS NOT NULL
@@ -324,14 +327,33 @@ router.get("/pos/:posRecordId/request-eligibility", async (req, res) => {
         if (latestRepairRecord.rows.length > 0) {
             const latest = latestRepairRecord.rows[0];
             if (latest.forwarded !== false || latest.released !== true) {
-                return res.json({ eligible: false, error: "The POS is already being repaired" });
+                return res.json({
+                    eligible: false,
+                    error: "The POS is already being repaired",
+                    activeRepair: { id: latest.id, status: latest.status },
+                });
             }
         }
 
-        res.json({ eligible: true, error: null });
+        // A legacy/stale POS master record may still say "not released" even
+        // when no active repair row can be identified. Keep blocking it, but
+        // leave activeRepair null so clients can fall back to the POS status.
+        if (String(posRecord.rows[0].status || "").trim().toLowerCase() === "not released") {
+            return res.json({
+                eligible: false,
+                error: "The POS is already being repaired",
+                activeRepair: null,
+            });
+        }
+
+        res.json({ eligible: true, error: null, activeRepair: null });
     } catch (err) {
         console.error("GET repair_records/pos/:posRecordId/request-eligibility error:", err.message);
-        res.status(500).json({ eligible: false, error: "Failed to check POS repair eligibility" });
+        res.status(500).json({
+            eligible: false,
+            error: "Failed to check POS repair eligibility",
+            activeRepair: null,
+        });
     }
 });
 
