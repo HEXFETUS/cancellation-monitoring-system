@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ClipboardList, Save, RotateCcw } from "lucide-react";
+import { Save, RotateCcw } from "lucide-react";
 import { listDiagnoses, type DiagnosisItem } from "../services/diagnosisList";
 import { searchPosRecordsBySerial, searchPosRecordsByDevice, type PosRecord, searchOperators, type OperatorItem } from "../services/posRecords";
 import { checkRepairRequestEligibility, createRepairRecord } from "../services/repairRecords";
