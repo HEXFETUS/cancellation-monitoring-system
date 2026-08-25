@@ -8,3 +8,5 @@ export type { ConfirmationVariant, ConfirmationModalProps } from "./Confirmation
 export { default as TopTabs } from "./TopTabs";
 export type { TopTabItem, TopTabsProps } from "./TopTabs";
 export { default as FloatingAlert } from "./FloatingAlert";
+export { default as ExistingRepairRequestBanner } from "./ExistingRepairRequestBanner";
+export type { ExistingRepairRequestBannerProps } from "./ExistingRepairRequestBanner";
