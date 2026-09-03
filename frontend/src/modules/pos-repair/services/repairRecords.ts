@@ -20,6 +20,7 @@ export interface RepairRecord {
     received_by: string | null;
     created_at: string;
     updated_at: string;
+    released_at: string | null;
     // Joined fields
     serial_number: string;
     device_no: string;

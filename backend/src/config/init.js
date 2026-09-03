@@ -396,6 +396,34 @@ async function initDatabase() {
         await client.query(
             "ALTER TABLE repair_records ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
         );
+        await client.query(
+            "ALTER TABLE repair_records ADD COLUMN IF NOT EXISTS released_at TIMESTAMP"
+        );
+
+        // Historical release times live in released_logs.  Preserve them when
+        // introducing the dedicated repair-record timestamp.
+        await client.query(`
+            DO $$
+            BEGIN
+                IF to_regclass('public.released_logs') IS NOT NULL THEN
+                    UPDATE repair_records rr
+                    SET released_at = (
+                        SELECT rl.created_at
+                        FROM released_logs rl
+                        WHERE rl.repair_record_id = rr.id
+                        ORDER BY rl.created_at DESC, rl.id DESC
+                        LIMIT 1
+                    )
+                    WHERE rr.status = 'Released'
+                      AND rr.released_at IS NULL
+                      AND EXISTS (
+                        SELECT 1
+                        FROM released_logs rl
+                        WHERE rl.repair_record_id = rr.id
+                    );
+                END IF;
+            END $$;
+        `);
 
         /* =========================
            diagnosis_logs

@@ -15,6 +15,7 @@ import {
     Plus,
     ListChecks,
     Printer,
+    X,
 } from "lucide-react";
 import { useAuth } from "../../../context/AuthContext";
 import { listRepairRecords, updateRepairRecord, clearRepairRecord, proceedRepairRecord, moveRepairRecordToForRelease, moveRepairRecordToUndergoingRepair, receiveRepairRecord } from "../services/repairRecords";
@@ -47,19 +48,20 @@ const tabStatusMap: Record<string, string> = {
 
 const noActionTabs: string[] = [];
 
+function localDateKey(dateStr: string | null | undefined): string | null {
+    if (!dateStr) return null;
+    const date = new Date(dateStr);
+    if (Number.isNaN(date.getTime())) return null;
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
 function filterRecordsByTab(records: RepairRecord[], tabId: string): RepairRecord[] {
     const status = tabStatusMap[tabId];
     if (!status) return [];
     if (tabId === "released") {
         const now = new Date();
         const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-        return records.filter((r) => {
-            if (r.status !== status) return false;
-            if (!r.date) return false;
-            const d = new Date(r.date);
-            const logStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-            return logStr === todayStr;
-        });
+        return records.filter((r) => r.status === status && localDateKey(r.released_at) === todayStr);
     }
     if (tabId === "for-checking" || tabId === "for-release") {
         return records.filter((r) => r.status === status);
@@ -139,6 +141,7 @@ export default function RepairManagementPage() {
     const [toastOpen, setToastOpen] = useState(false);
     const [toastMessage, setToastMessage] = useState("");
     const [toastType, setToastType] = useState<"error" | "success">("error");
+    const [releaseDateFilter, setReleaseDateFilter] = useState("");
 
     const showToast = (message: string, type: "error" | "success" = "error") => {
         setToastMessage(message);
@@ -167,7 +170,18 @@ export default function RepairManagementPage() {
     const fetchDiagnoses = async () => { try { const data = await listDiagnoses(); setDiagnoses(data); } catch (err) { console.error("Failed to fetch diagnoses:", err); } };
 
     useEffect(() => { fetchRecords(); fetchDiagnoses(); }, []);
-    useEffect(() => { setFilteredRecords(filterRecordsByTab(records, activeStatusTab)); }, [records, activeStatusTab]);
+    useEffect(() => {
+        let next: RepairRecord[] = [];
+        if (activeStatusTab === "released" && releaseDateFilter) {
+            // Date filter active → base = ALL released records (not just today's), then narrow by release date
+            next = records.filter((r) => r.status === "Released" && localDateKey(r.released_at) === releaseDateFilter);
+        } else {
+            // No date picked → EXACTLY current behavior on every tab (incl. released = today default)
+            next = filterRecordsByTab(records, activeStatusTab);
+        }
+        setFilteredRecords(next);
+    }, [records, activeStatusTab, releaseDateFilter]);
+    useEffect(() => { setReleaseDateFilter(""); }, [activeStatusTab]);
 
     const handleEdit = (record: RepairRecord) => setEditingRecord(record);
     const handleEditClose = () => setEditingRecord(null);
@@ -459,6 +473,24 @@ export default function RepairManagementPage() {
                     </div>
                 ) : isReleased ? (
                     <div className="space-y-4 p-3">
+                        <div className="flex flex-wrap items-center gap-2 mb-3 px-1">
+                            <label className="text-sm font-semibold text-ink-muted">Filter by release date:</label>
+                            <input
+                                type="date"
+                                value={releaseDateFilter}
+                                onChange={(e) => setReleaseDateFilter(e.target.value)}
+                                className="rounded-lg border border-warm bg-card px-3 py-1.5 text-sm text-ink"
+                            />
+                            {releaseDateFilter && (
+                                <button
+                                    type="button"
+                                    onClick={() => setReleaseDateFilter("")}
+                                    className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold text-ink-muted hover:text-ink"
+                                >
+                                    <X className="h-3.5 w-3.5" /> Clear & restore default
+                                </button>
+                            )}
+                        </div>
                         {filteredRecords.length === 0 ? (
                             <div className="px-4 py-10 text-center text-gray-400">No records found in this category.</div>
                         ) : (
@@ -504,7 +536,7 @@ export default function RepairManagementPage() {
                                                     <tbody>
                                                         {group.records.map((record) => (
                                                             <tr key={record.id} className="text-ink transition hover:bg-cream/50">
-                                                                <td className="px-4 py-3.5">{formatDateNumeric(record.date)}</td>
+                                                                <td className="px-4 py-3.5">{formatDateNumeric(record.released_at || "")}</td>
                                                                 <td className="px-4 py-3.5 font-medium">{record.device_no || "-"}</td>
                                                                 <td className="px-4 py-3.5">{record.serial_number || "-"}</td>
                                                                 <td className="px-4 py-3.5">{record.area || "-"}</td>
