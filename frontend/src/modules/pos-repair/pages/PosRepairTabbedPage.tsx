@@ -1,13 +1,15 @@
-import { useEffect, useState } from "react";
-import { Wrench, ClipboardList, BarChart3, FileSearch, Search } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Wrench, ClipboardList, BarChart3, FileSearch, Search, Plus } from "lucide-react";
 import RepairRequestPage from "./RepairRequestPage";
 import RepairManagementPage from "./RepairManagementPage";
 import RepairLogPage from "./RepairLogPage";
 import ReleasedLogPage from "./ReleasedLogPage";
-import DiagnosisListPage from "./DiagnosisListPage";
+import DiagnosisListPage, { type PosDiagnosisListPageHandle } from "./DiagnosisListPage";
 import { listRepairNotifications } from "../services/repairRecords";
 import { TopTabs } from "../../../shared/components";
 import { useAuth } from "../../../context/AuthContext";
+
+const teal = "#92C7CF";
 
 const mainTabs = [
     { id: "repair-request", label: "Repair Request", icon: ClipboardList },
@@ -52,6 +54,7 @@ export default function PosRepairTabbedPage() {
     const [repairLogSearch, setRepairLogSearch] = useState("");
     const [releasedLogSearch, setReleasedLogSearch] = useState("");
     const [forCheckingCount, setForCheckingCount] = useState(0);
+    const diagnosisRef = useRef<PosDiagnosisListPageHandle>(null);
 
     useEffect(() => {
         let cancelled = false;
@@ -111,6 +114,21 @@ export default function PosRepairTabbedPage() {
         </div>
     );
 
+    const rightSlot = activeTab === "diagnosis" ? (
+        <button
+            type="button"
+            onClick={() => diagnosisRef.current?.openCreate()}
+            className="group inline-flex shrink-0 h-10 items-center gap-2 rounded-xl px-5 text-sm font-semibold text-white transition-all duration-200 hover:shadow-xl hover:scale-[1.03] active:scale-[0.97]"
+            style={{
+                background: `linear-gradient(135deg, ${teal}, #AAD7D9)`,
+                boxShadow: "0 4px 16px rgba(146,199,207,0.30)",
+            }}
+        >
+            <Plus className="h-4 w-4 transition-transform duration-200 group-hover:scale-110" />
+            New Diagnosis
+        </button>
+    ) : undefined;
+
     return (
         <div className="flex flex-col gap-5">
             <TopTabs
@@ -121,13 +139,14 @@ export default function PosRepairTabbedPage() {
                 }))}
                 activeId={activeTab}
                 onChange={setActiveTab}
+                rightSlot={rightSlot}
                 ariaLabel="POS repair sections"
             />
 
             <div className="min-w-0">
                 {activeTab === "repair-request" && <RepairRequestPage />}
                 {activeTab === "repair-management" && <RepairManagementPage />}
-                {activeTab === "diagnosis" && <DiagnosisListPage />}
+                {activeTab === "diagnosis" && <DiagnosisListPage ref={diagnosisRef} />}
                 {activeTab === "reports" && (
                     <div className="flex flex-col gap-5">
                         <TopTabs
