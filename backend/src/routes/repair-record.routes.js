@@ -1110,6 +1110,7 @@ router.patch("/:id/release", async (req, res) => {
                 status = 'Released',
                 forwarded = false,
                 released = true,
+                released_at = CURRENT_TIMESTAMP,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = $1::int
             `,

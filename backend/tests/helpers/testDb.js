@@ -90,6 +90,7 @@ const SCHEMA_DDL = `
         forwarded BOOLEAN DEFAULT false,
         released BOOLEAN DEFAULT false,
         re_repair BOOLEAN DEFAULT false,
+        released_at TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );

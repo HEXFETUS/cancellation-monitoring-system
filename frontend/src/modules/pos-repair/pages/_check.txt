@@ -1,4 +1,4 @@
-import { useState, useEffect, forwardRef, useImperativeHandle } from "react";
+﻿import { useState, useEffect, forwardRef, useImperativeHandle } from "react";
 import {
     Edit,
     Trash2,
@@ -21,7 +21,7 @@ import { Pagination } from "../../../shared/components";
 const teal = "#92C7CF";
 
 
-/* ─── Create / Edit Modal ─── */
+/* â”€â”€â”€ Create / Edit Modal â”€â”€â”€ */
 interface FormModalProps {
     mode: "create" | "edit";
     initialName?: string;
@@ -116,7 +116,7 @@ function FormModal({ mode, initialName = "", onClose, onSave, saving, error }: F
     );
 }
 
-/* ─── Main Page ─── */
+/* â”€â”€â”€ Main Page â”€â”€â”€ */
 export interface PosDiagnosisListPageHandle {
     openCreate: () => void;
 }
@@ -149,7 +149,7 @@ export default forwardRef<PosDiagnosisListPageHandle>(function DiagnosisListPage
     };
     const hideToast = () => setToastOpen(false);
 
-    /* ─── Fetch ─── */
+    /* â”€â”€â”€ Fetch â”€â”€â”€ */
     const fetchItems = async () => {
         try {
             setLoading(true);
@@ -168,7 +168,7 @@ export default forwardRef<PosDiagnosisListPageHandle>(function DiagnosisListPage
         fetchItems();
     }, []);
 
-    /* ─── Create ─── */
+    /* â”€â”€â”€ Create â”€â”€â”€ */
     const handleCreate = () => {
         setFormMode("create");
         setEditingItem(null);
@@ -178,7 +178,7 @@ export default forwardRef<PosDiagnosisListPageHandle>(function DiagnosisListPage
 
     useImperativeHandle(ref, () => ({ openCreate: handleCreate }), [handleCreate]);
 
-    /* ─── Edit ─── */
+    /* â”€â”€â”€ Edit â”€â”€â”€ */
     const handleEdit = (item: DiagnosisItem) => {
         setFormMode("edit");
         setEditingItem(item);
@@ -186,7 +186,7 @@ export default forwardRef<PosDiagnosisListPageHandle>(function DiagnosisListPage
         setShowForm(true);
     };
 
-    /* ─── Save (create or edit) ─── */
+    /* â”€â”€â”€ Save (create or edit) â”€â”€â”€ */
     const handleSave = async (name: string) => {
         if (!name.trim()) {
             setFormError("Name is required");
@@ -217,7 +217,7 @@ export default forwardRef<PosDiagnosisListPageHandle>(function DiagnosisListPage
         }
     };
 
-    /* ─── Delete ─── */
+    /* â”€â”€â”€ Delete â”€â”€â”€ */
     const handleDelete = (item: DiagnosisItem) => setDeletingItem(item);
 
     const handleConfirmDelete = async () => {
@@ -236,13 +236,13 @@ export default forwardRef<PosDiagnosisListPageHandle>(function DiagnosisListPage
         }
     };
 
-    /* ─── Pagination ─── */
+    /* â”€â”€â”€ Pagination â”€â”€â”€ */
     const [page, setPage] = useState(1);
     const pageSize = 20;
     const totalPages = Math.ceil(items.length / pageSize);
     const pagedItems = items.slice((page - 1) * pageSize, page * pageSize);
 
-    /* ─── Render ─── */
+    /* â”€â”€â”€ Render â”€â”€â”€ */
     return (
         <div className="w-full max-w-5xl space-y-5">
             <Toast open={toastOpen} message={toastMessage} type={toastType} onClose={hideToast} />
@@ -384,4 +384,5 @@ export default forwardRef<PosDiagnosisListPageHandle>(function DiagnosisListPage
             />
         </div>
     );
-});
+}
+

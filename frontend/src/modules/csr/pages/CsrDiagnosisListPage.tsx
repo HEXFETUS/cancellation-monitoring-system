@@ -1,13 +1,11 @@
-import { useState, useEffect } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
 import {
-    Plus,
     Edit,
     Trash2,
     X,
     Save,
     AlertTriangle,
     RefreshCw,
-    Stethoscope,
 } from "lucide-react";
 import {
     listDiagnoses,
@@ -117,7 +115,11 @@ function FormModal({ mode, initialName = "", onClose, onSave, saving, error }: F
 }
 
 /* ─── Main Page ─── */
-export default function CsrDiagnosisListPage() {
+export interface CsrDiagnosisListPageHandle {
+    openCreate: () => void;
+}
+
+export default forwardRef<CsrDiagnosisListPageHandle>(function CsrDiagnosisListPage(_props, ref) {
     const [items, setItems] = useState<DiagnosisItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -171,6 +173,8 @@ export default function CsrDiagnosisListPage() {
         setFormError(null);
         setShowForm(true);
     };
+
+    useImperativeHandle(ref, () => ({ openCreate: handleCreate }), [handleCreate]);
 
     /* ─── Edit ─── */
     const handleEdit = (item: DiagnosisItem) => {
@@ -239,42 +243,6 @@ export default function CsrDiagnosisListPage() {
     /* ─── Render ─── */
     return (
         <div className="w-full max-w-5xl space-y-5">
-            {/* Header */}
-            <div className="relative rounded-2xl p-5 border border-white/50 backdrop-blur-xl bg-white/30 shadow-lg overflow-hidden">
-                <div
-                    className="absolute -top-10 -right-10 w-40 h-40 rounded-full opacity-15 blur-3xl pointer-events-none"
-                    style={{ background: teal }}
-                />
-                <div className="relative flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                    <span
-                        className="inline-flex h-10 w-10 items-center justify-center rounded-xl"
-                        style={{ background: "rgba(146,199,207,0.15)", color: teal }}
-                    >
-                        <Stethoscope className="h-5 w-5" />
-                    </span>
-                    <div>
-                        <h2 className="text-lg font-bold text-ink">Diagnosis List</h2>
-                        <p className="text-sm text-ink-muted">
-                            Manage diagnosis names used across the system
-                        </p>
-                    </div>
-                </div>
-                <button
-                    type="button"
-                    onClick={handleCreate}
-                    className="group inline-flex shrink-0 h-10 items-center gap-2 rounded-xl px-5 text-sm font-semibold text-white transition-all duration-200 hover:shadow-xl hover:scale-[1.03] active:scale-[0.97]"
-                    style={{
-                        background: `linear-gradient(135deg, ${teal}, #AAD7D9)`,
-                        boxShadow: "0 4px 16px rgba(146,199,207,0.30)",
-                    }}
-                >
-                    <Plus className="h-4 w-4 transition-transform duration-200 group-hover:scale-110" />
-                    New Diagnosis
-                </button>
-                </div>
-            </div>
-
             <Toast open={toastOpen} message={toastMessage} type={toastType} onClose={hideToast} />
 
             {/* Table */}
@@ -414,4 +382,4 @@ export default function CsrDiagnosisListPage() {
             />
         </div>
     );
-}
+});
