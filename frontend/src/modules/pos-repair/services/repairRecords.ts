@@ -209,6 +209,21 @@ export async function releaseRepairRecord(
     return res.json();
 }
 
+export async function bulkUpdateForReleaseBillingCode(recordIds: number[], billingCode: string): Promise<RepairRecord[]> {
+    const res = await fetch(apiUrl("/api/repair-records/bulk/billing-code"), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ record_ids: recordIds, billing_code: billingCode }),
+    });
+
+    if (!res.ok) {
+        throw new Error(await getErrorMessage(res, "Failed to update billing codes"));
+    }
+
+    const payload = await res.json();
+    return Array.isArray(payload) ? payload : payload.data ?? payload.rows ?? [];
+}
+
 export async function proceedRepairRecord(id: number, diagnosisId?: number): Promise<RepairRecord> {
     const res = await fetch(apiUrl(`/api/repair-records/${id}`), {
         method: "PUT",

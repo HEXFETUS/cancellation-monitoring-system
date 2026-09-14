@@ -154,7 +154,10 @@ export function BatchReceivedPosModal({
     const selectedOperators = Array.from(new Set(selectedRecords.map((r) => r.operator_name || "")));
     const hasDifferentOperators = selectedOperators.length > 1;
     const selectedOperatorId = selectedRecords.length > 0 && !hasDifferentOperators ? selectedRecords[0].operator_id : null;
-    const canProceed = selectedRecords.length > 0 && !hasDifferentOperators && selectedRecords.every((r) => (remarksById[r.id] || "").trim());
+    const hasNonHexaSelected = selectedRecords.some((r) => (r.repaired_by || "").trim().toLowerCase() !== "hexa it");
+    const billingCodeRequired = hasNonHexaSelected;
+    const billingCodeValid = !billingCodeRequired || billingCode.trim().length > 0;
+    const canProceed = selectedRecords.length > 0 && !hasDifferentOperators && selectedRecords.every((r) => (remarksById[r.id] || "").trim()) && billingCodeValid;
 
     useEffect(() => {
         let ignore = false;
@@ -180,8 +183,8 @@ export function BatchReceivedPosModal({
             <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
                 <div className="flex items-center gap-3"><label className="text-sm font-semibold text-ink">Filter by Operator:</label><select value={operator} onChange={(e) => setOperator(e.target.value)} className="rounded-lg border border-warm bg-card px-3 py-2 text-sm"><option value="">All</option>{operators.map((item) => <option key={item} value={item}>{item}</option>)}</select></div>
                 <div className="flex items-center gap-3">
-                    <label className="text-sm font-semibold text-ink">Billing Code:</label>
-                    <input value={billingCode} onChange={(e) => setBillingCode(e.target.value)} list="batch-billing-code-options" placeholder="Enter or select billing code" className="rounded-lg border border-warm bg-card px-3 py-2 text-sm" />
+                    <label className="text-sm font-semibold text-ink">Billing Code:{billingCodeRequired && <span className="text-rose-500"> *</span>}</label>
+                    <input value={billingCode} onChange={(e) => setBillingCode(e.target.value)} list="batch-billing-code-options" placeholder="Enter or select billing code" className={`rounded-lg border bg-card px-3 py-2 text-sm ${billingCodeRequired && !billingCodeValid ? "border-rose-300" : "border-warm"}`} />
                     <datalist id="batch-billing-code-options">
                         {billingCodeOptions.map((option) => (
                             <option key={`${option.billing_code}-${option.operator_id ?? "none"}`} value={option.billing_code}>
@@ -191,6 +194,11 @@ export function BatchReceivedPosModal({
                     </datalist>
                 </div>
             </div>
+            {billingCodeRequired && !billingCodeValid && (
+                <div className="mb-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-semibold text-rose-700">
+                    Billing Code is required for this batch.
+                </div>
+            )}
             <div className="overflow-hidden rounded-xl border border-warm">
                 <table className="w-full text-sm">
                     <thead><tr className="border-b border-warm bg-cream text-xs font-semibold uppercase tracking-wider text-ink-muted"><th className="w-16 px-4 py-3 text-center"><input type="checkbox" checked={selectedRecords.length === visibleRecords.length && visibleRecords.length > 0} onChange={(e) => setSelectedIds(e.target.checked ? new Set(visibleRecords.map((r) => r.id)) : new Set())} /></th><th className="px-4 py-3">POS</th><th className="px-4 py-3">Serial</th><th className="px-4 py-3">Operator</th><th className="px-4 py-3">Remarks</th><th className="px-4 py-3 text-center">Unrepairable</th></tr></thead>

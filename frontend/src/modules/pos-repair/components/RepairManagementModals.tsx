@@ -183,6 +183,9 @@ export function ReceivedModal({ record, loading, onCancel, onProceed }: Received
     const [unrepairableRetired, setUnrepairableRetired] = useState(false);
     const [showConfirm, setShowConfirm] = useState(false);
     const remarksValid = remarks.trim().length > 0;
+    const isHexaItRepair = (record.repaired_by || "").trim().toLowerCase() === "hexa it";
+    const billingCodeRequired = !isHexaItRepair;
+    const billingCodeValid = !billingCodeRequired || billingCode.trim().length > 0;
 
     useEffect(() => {
         let ignore = false;
@@ -204,7 +207,7 @@ export function ReceivedModal({ record, loading, onCancel, onProceed }: Received
     }, [record.operator_id]);
 
     const handleProceed = () => {
-        if (!remarksValid) return;
+        if (!remarksValid || !billingCodeValid) return;
         onProceed({ billingCode, remarks, unrepairableRetired });
     };
 
@@ -219,8 +222,8 @@ export function ReceivedModal({ record, loading, onCancel, onProceed }: Received
                     </div>
                     <div className="space-y-4">
                         <div>
-                            <label className="mb-1.5 block text-sm font-semibold text-ink">Billing Code</label>
-                            <input value={billingCode} onChange={(e) => setBillingCode(e.target.value)} disabled={loading} list={`billing-code-options-${record.id}`} className="w-full rounded-xl border border-warm bg-card px-4 py-3 text-sm text-ink focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20 disabled:cursor-not-allowed disabled:opacity-70" placeholder="Enter or select billing code" />
+                            <label className="mb-1.5 block text-sm font-semibold text-ink">Billing Code{billingCodeRequired && <span className="text-rose-500"> *</span>}</label>
+                            <input value={billingCode} onChange={(e) => setBillingCode(e.target.value)} disabled={loading} list={`billing-code-options-${record.id}`} className={`w-full rounded-xl border bg-card px-4 py-3 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-teal/20 disabled:cursor-not-allowed disabled:opacity-70 ${billingCodeRequired && !billingCodeValid ? "border-rose-300" : "border-warm focus:border-teal"}`} placeholder="Enter or select billing code" />
                             <datalist id={`billing-code-options-${record.id}`}>
                                 {billingCodeOptions.map((option) => (
                                     <option key={`${option.billing_code}-${option.operator_id ?? "none"}`} value={option.billing_code}>
@@ -228,6 +231,9 @@ export function ReceivedModal({ record, loading, onCancel, onProceed }: Received
                                     </option>
                                 ))}
                             </datalist>
+                            {billingCodeRequired && !billingCodeValid && (
+                                <p className="mt-1 text-xs font-semibold text-rose-600">Billing Code is required.</p>
+                            )}
                         </div>
                         <div>
                             <label className="mb-1.5 block text-sm font-semibold text-ink">Remarks <span className="text-rose-500">*</span></label>
@@ -240,7 +246,7 @@ export function ReceivedModal({ record, loading, onCancel, onProceed }: Received
                     </div>
                     <div className="mt-6 flex justify-end gap-3 border-t border-warm/60 pt-4">
                         <button onClick={onCancel} disabled={loading} className="rounded-xl border-2 border-gray-200 px-6 py-2.5 text-sm font-semibold text-gray-600 transition-all hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50">Cancel</button>
-                        <button onClick={() => setShowConfirm(true)} disabled={loading || !remarksValid} className="rounded-xl bg-gradient-to-r from-teal to-teal-dark px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-teal/25 transition-all hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-50">{loading ? "Proceeding..." : "Proceed"}</button>
+                        <button onClick={() => setShowConfirm(true)} disabled={loading || !remarksValid || !billingCodeValid} className="rounded-xl bg-gradient-to-r from-teal to-teal-dark px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-teal/25 transition-all hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-50">{loading ? "Proceeding..." : "Proceed"}</button>
                     </div>
                 </div>
             </div>
