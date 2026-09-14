@@ -960,6 +960,157 @@ router.patch("/:id/received", async (req, res) => {
 });
 
 /* =========================
+   BULK UPDATE FOR-RELEASE BILLING CODES
+   Sets the billing_code on the latest billing_transmittal of each selected
+   For Release record WITHOUT releasing it. All selected records must belong
+   to the same operator, and the code must not already belong to another
+   operator (mirrors the single-record release guards).
+========================= */
+router.patch("/bulk/billing-code", async (req, res) => {
+    const client = await pool.connect();
+
+    try {
+        const { billing_code, record_ids } = req.body;
+        const providedBillingCode = billing_code?.trim() || "";
+        const ids = Array.isArray(record_ids)
+            ? Array.from(new Set(record_ids.map((value) => Number(value)).filter((n) => Number.isInteger(n) && n > 0)))
+            : [];
+
+        if (!providedBillingCode) {
+            return res.status(400).json({ error: "Billing Code is required" });
+        }
+        if (ids.length === 0) {
+            return res.status(400).json({ error: "No records selected" });
+        }
+
+        await client.query("BEGIN");
+
+        const recordsResult = await client.query(
+            `
+            SELECT rr.id, rr.operator_id
+            FROM repair_records rr
+            WHERE rr.id = ANY($1::int[])
+              AND rr.status = 'For Release'
+            FOR UPDATE OF rr
+            `,
+            [ids]
+        );
+
+        if (recordsResult.rows.length !== ids.length) {
+            await client.query("ROLLBACK");
+            return res.status(400).json({ error: "One or more selected records are not in For Release status." });
+        }
+
+        const records = recordsResult.rows;
+
+        // A single billing code groups one operator's units only.
+        const operatorIds = Array.from(new Set(records.map((row) => row.operator_id)));
+        if (operatorIds.length > 1) {
+            await client.query("ROLLBACK");
+            return res.status(400).json({ error: "Select POS from the same operator only." });
+        }
+
+        // The billing code must not already belong to another operator.
+        const billingOperatorConflict = await client.query(
+            `
+            SELECT rr.id, ${operatorDisplay("ol", "parent_ol")} AS operator_name
+            FROM billing_transmittals bt
+            JOIN repair_records rr ON rr.id = bt.repair_record_id
+            LEFT JOIN operator_list ol ON rr.operator_id = ol.id
+            LEFT JOIN operator_list parent_ol ON parent_ol.id = ol.parent_operator_id
+            WHERE LOWER(TRIM(bt.billing_code)) = LOWER($1)
+              AND NOT (rr.id = ANY($2::int[]))
+              AND rr.operator_id IS DISTINCT FROM $3::int
+            LIMIT 1
+            `,
+            [providedBillingCode, ids, records[0].operator_id]
+        );
+
+        if (billingOperatorConflict.rows.length > 0) {
+            await client.query("ROLLBACK");
+            return res.status(400).json({
+                error: `Billing Code already belongs to another operator (${billingOperatorConflict.rows[0].operator_name || "Unknown"}).`,
+            });
+        }
+
+        for (const record of records) {
+            const billingResult = await client.query(
+                `
+                SELECT id
+                FROM billing_transmittals
+                WHERE repair_record_id = $1::int
+                ORDER BY id DESC
+                LIMIT 1
+                FOR UPDATE
+                `,
+                [record.id]
+            );
+
+            if (billingResult.rows.length > 0) {
+                await client.query(
+                    `
+                    UPDATE billing_transmittals SET
+                        billing_code = $1,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = $2::int
+                    `,
+                    [providedBillingCode, billingResult.rows[0].id]
+                );
+            } else {
+                const diagnosisLogResult = await client.query(
+                    `
+                    SELECT id
+                    FROM diagnosis_logs
+                    WHERE repair_record_id = $1::int
+                    ORDER BY id DESC
+                    LIMIT 1
+                    `,
+                    [record.id]
+                );
+
+                if (diagnosisLogResult.rows.length === 0) {
+                    await client.query("ROLLBACK");
+                    return res.status(400).json({ error: `Diagnosis log not found for repair record ${record.id}` });
+                }
+
+                await client.query(
+                    `
+                    INSERT INTO billing_transmittals (
+                        billing_code,
+                        diagnosis_log_id,
+                        received_by,
+                        user_id,
+                        repair_record_id,
+                        created_at,
+                        updated_at
+                    ) VALUES (
+                        $1,
+                        $2,
+                        NULL,
+                        NULL,
+                        $3,
+                        CURRENT_TIMESTAMP,
+                        CURRENT_TIMESTAMP
+                    )
+                    `,
+                    [providedBillingCode, diagnosisLogResult.rows[0].id, record.id]
+                );
+            }
+        }
+
+        const full = await client.query(`${REPAIR_SELECT} WHERE rr.id = ANY($1::int[]) ORDER BY rr.id DESC`, [ids]);
+        await client.query("COMMIT");
+        res.json(full.rows);
+    } catch (err) {
+        await client.query("ROLLBACK");
+        console.error("PATCH repair_record/bulk-billing-code error:", err.message);
+        res.status(500).json({ error: "Failed to update billing codes" });
+    } finally {
+        client.release();
+    }
+});
+
+/* =========================
    RELEASE REPAIR RECORD + CREATE RELEASED LOG
 ========================= */
 router.patch("/:id/release", async (req, res) => {

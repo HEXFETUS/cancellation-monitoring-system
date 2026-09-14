@@ -18,7 +18,7 @@ import {
     X,
 } from "lucide-react";
 import { useAuth } from "../../../context/AuthContext";
-import { listRepairRecords, updateRepairRecord, clearRepairRecord, proceedRepairRecord, moveRepairRecordToForRelease, moveRepairRecordToUndergoingRepair, receiveRepairRecord } from "../services/repairRecords";
+import { listRepairRecords, updateRepairRecord, clearRepairRecord, proceedRepairRecord, moveRepairRecordToForRelease, moveRepairRecordToUndergoingRepair, receiveRepairRecord, bulkUpdateForReleaseBillingCode } from "../services/repairRecords";
 import type { RepairRecord } from "../services/repairRecords";
 import { listDiagnoses, type DiagnosisItem } from "../services/diagnosisList";
 import RepairConfirmationModal from "../components/RepairConfirmationModal";
@@ -26,6 +26,7 @@ import TransmittalModal from "../components/TransmittalModal";
 import { EditModal, FinalDiagnosisModal, ReceivedModal, TechnicianModal } from "../components/RepairManagementModals";
 import { BatchCheckedPosModal, BatchForRepairModal, BatchReceivedPosModal } from "../components/BatchProcessingModals";
 import CsrBatchForReleaseModal from "../../csr/components/CsrBatchForReleaseModal";
+import BulkEditBillingCodeModal from "../components/BulkEditBillingCodeModal";
 import { Toast } from "../../../shared/components";
 
 const teal = "#92C7CF";
@@ -134,6 +135,7 @@ export default function RepairManagementPage() {
     const [showTransmittal, setShowTransmittal] = useState(false);
     const [expandedReleasedIds, setExpandedReleasedIds] = useState<Set<number>>(new Set());
     const [batchModal, setBatchModal] = useState<"for-repair" | "checked" | "received" | "release" | null>(null);
+    const [showBulkBillingCode, setShowBulkBillingCode] = useState(false);
     const [batchProcessing, setBatchProcessing] = useState(false);
     const [remarksRecord, setRemarksRecord] = useState<RepairRecord | null>(null);
     const [bubblePos, setBubblePos] = useState<{ bottom: number; left: number } | null>(null);
@@ -359,6 +361,21 @@ export default function RepairManagementPage() {
         setBatchReleasePreview({ records: selectedRecords, billingCode, receivedBy });
     };
 
+    const handleBulkBillingCode = async ({ billingCode, recordIds }: { billingCode: string; recordIds: number[] }) => {
+        setBatchProcessing(true);
+        try {
+            const updatedRecords = await bulkUpdateForReleaseBillingCode(recordIds, billingCode);
+            setRecords((prev) => prev.map((record) => updatedRecords.find((updated) => updated.id === record.id) ?? record));
+            setShowBulkBillingCode(false);
+            showToast(`Billing code ${billingCode} applied to ${updatedRecords.length} POS unit(s).`, "success");
+        } catch (err) {
+            console.error("Failed to update billing codes:", err);
+            showToast(err instanceof Error ? err.message : "Failed to update billing codes", "error");
+        } finally {
+            setBatchProcessing(false);
+        }
+    };
+
     const toggleReleasedGroup = (id: number) => {
         setExpandedReleasedIds((prev) => {
             const next = new Set(prev);
@@ -454,6 +471,16 @@ export default function RepairManagementPage() {
                             <ListChecks className="h-4 w-4" />
                             Process Batch
                         </button>
+                        {activeStatusTab === "for-release" && (
+                            <button
+                                onClick={() => setShowBulkBillingCode(true)}
+                                disabled={filteredRecords.length === 0 || batchProcessing}
+                                className="inline-flex h-10 items-center gap-2 rounded-xl border border-warm bg-white px-4 text-sm font-semibold text-ink shadow-sm transition hover:bg-surface disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
+                            >
+                                <CreditCard className="h-4 w-4" />
+                                Edit Billing Codes
+                            </button>
+                        )}
                     </div>
                 )}
             </div>
@@ -734,6 +761,14 @@ export default function RepairManagementPage() {
                     loading={batchProcessing}
                     onCancel={() => setBatchModal(null)}
                     onProceed={handleBatchRelease}
+                />
+            )}
+            {showBulkBillingCode && (
+                <BulkEditBillingCodeModal
+                    records={filterRecordsByTab(records, "for-release")}
+                    loading={batchProcessing}
+                    onCancel={() => setShowBulkBillingCode(false)}
+                    onProceed={handleBulkBillingCode}
                 />
             )}
 
