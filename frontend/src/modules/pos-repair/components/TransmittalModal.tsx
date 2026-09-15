@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { ChevronDown, Printer, X } from "lucide-react";
 import logoOnly from "../../../assets/LogoOnly.webp";
 import logoWithName from "../../../assets/LogoWithName.webp";
@@ -42,6 +43,103 @@ function escapeHtml(value: string) {
 
 function getOperatorKey(value: number | string | null | undefined) {
     return value == null ? "none" : String(value);
+}
+
+interface ReleaseTransmittalSheetProps {
+    record: RepairRecord;
+    records: RepairRecord[];
+    billingCode: string;
+    receivedBy: string;
+    issuedBy: string;
+    date: string;
+}
+
+/**
+ * Transmittal sheet (ORIGINAL COPY + COPY OF ORIGINAL) shared by the on-screen
+ * release preview and the print-only copy that is portaled to <body>. Printing
+ * from a plain <body> child keeps the print output away from the modal's
+ * fixed/scrollable container, which otherwise clips the printed form.
+ */
+function ReleaseTransmittalSheet({ record, records, billingCode, receivedBy, issuedBy, date }: ReleaseTransmittalSheetProps) {
+    return (
+        <div className="mx-auto w-[7.25in] bg-white text-black">
+            {["ORIGINAL COPY", "COPY OF ORIGINAL"].map((copyLabel) => (
+                <div key={copyLabel} className="release-copy relative flex min-h-[5.13in] flex-col border border-gray-400 bg-white">
+                    <img src={logoOnly} className="pointer-events-none absolute left-1/2 top-1/2 h-60 w-60 -translate-x-1/2 -translate-y-1/2 object-contain opacity-10" />
+                    <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
+                        <span className="absolute left-1/2 top-1/2 block -translate-x-1/2 -translate-y-1/2 -rotate-45 select-none whitespace-nowrap text-4xl font-extrabold uppercase tracking-[0.35em] text-black opacity-10">{copyLabel}</span>
+                    </div>
+                    <div className="release-copy-content relative z-10 flex min-h-[5.13in] flex-col">
+                        <div className="flex items-center justify-center gap-3 border-b border-gray-400 pb-2 pt-2">
+                            <img src={logoOnly} className="h-6 w-6 object-contain" />
+                            <h1 className="text-lg font-bold">HEXAPRIME INC.</h1>
+                        </div>
+                        <div className="py-2 text-center">
+                            <h2 className="text-base font-bold">POS TRANSMITTAL FORM</h2>
+                            <p className="text-xs italic">(Repaired POS Released)</p>
+                        </div>
+                        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-8 px-2 pb-3 text-xs">
+                            <div className="min-w-0">
+                                <p><span className="font-bold">OPERATORS CODE:</span> {record.operator_name || "-"}</p>
+                                <p><span className="font-bold">AREA:</span> {record.area || "-"}</p>
+                            </div>
+                            <div className="w-[2.35in] justify-self-end pr-2 text-left">
+                                <p className="break-words"><span className="font-bold">BILLING CODE:</span> {billingCode}</p>
+                                <p className="break-words"><span className="font-bold">TOTAL # OF POS RELEASED:</span> {records.length} Unit/s</p>
+                            </div>
+                        </div>
+                        <table className="w-full border-collapse text-xs">
+                            <thead>
+                                <tr>
+                                    <th className="border border-gray-300 px-2 py-1.5">BILLING #</th>
+                                    <th className="border border-gray-300 px-2 py-1.5">SERIAL NO.</th>
+                                    <th className="border border-gray-300 px-2 py-1.5">POS NO.</th>
+                                    <th className="border border-gray-300 px-2 py-1.5">REMARKS</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {records.map((item) => (
+                                    <tr key={`${copyLabel}-${item.id}`}>
+                                        <td className="border border-gray-300 px-2 py-1.5 text-center">{billingCode}</td>
+                                        <td className="border border-gray-300 px-2 py-1.5 text-center">{item.serial_number || "-"}</td>
+                                        <td className="border border-gray-300 px-2 py-1.5 text-center">{item.device_no || "-"}</td>
+                                        <td className="border border-gray-300 px-2 py-1.5 text-center">{item.remarks || "-"}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                        <div className="mt-auto grid grid-cols-2 gap-16 px-16 pb-4 pt-4 text-xs">
+                            <div className="mx-auto w-full max-w-[2.6in]">
+                                <div className="grid grid-cols-[max-content_minmax(0,1fr)] items-end gap-x-2 gap-y-0">
+                                    <span>Issued by:</span>
+                                    <span className="block h-px border-t border-black" />
+                                    <span />
+                                    <div className="text-center font-bold uppercase leading-tight">{issuedBy}</div>
+                                    <span />
+                                    <p className="-mt-0.5 text-center leading-tight">Date Released: {date}</p>
+                                </div>
+                            </div>
+                            <div className="mx-auto w-full max-w-[2.6in]">
+                                <div className="grid grid-cols-[max-content_minmax(0,1fr)] items-end gap-x-2 gap-y-0">
+                                    <span>Received by:</span>
+                                    <span className="block h-px border-t border-black" />
+                                    <span />
+                                    <div className="text-center font-bold uppercase leading-tight break-words">{receivedBy}</div>
+                                    <span />
+                                    <p className="-mt-0.5 text-center leading-tight">Date Received: {date}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="border-t border-black py-2 text-center text-[11px] leading-snug text-slate-700">
+                            3F VLC Tower 1 Pueblo de Oro Business Park,<br />
+                            Upper Carmen, Cagayan de Oro 9000<br />
+                            hexaprimeinc@gmail.com
+                        </div>
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
 }
 
 export default function TransmittalModal({
@@ -562,116 +660,68 @@ export default function TransmittalModal({
 
                 {showReleasePreview && releaseRecord && (
                     <div className="fixed inset-0 z-[70] overflow-y-auto bg-black/45 px-4 py-8 backdrop-blur-sm">
-                        <style>{`
-                            @media print {
-                                body * { visibility: hidden; }
-                                #release-transmittal-print, #release-transmittal-print * { visibility: visible; }
-                                #release-transmittal-print {
-                                    position: absolute;
-                                    left: 0;
-                                    right: 0;
-                                    top: 0;
-                                    width: 7.25in;
-                                    margin: 0 auto;
-                                    transform: none;
-                                    box-shadow: none !important;
-                                }
-                                .release-copy {
-                                    height: 5.13in !important;
-                                    min-height: 5.13in !important;
-                                    border: 1px solid #111827 !important;
-                                    page-break-inside: avoid;
-                                    overflow: hidden;
-                                }
-                                .release-copy + .release-copy { margin-top: 0.04in; }
-                                .release-copy-content {
-                                    height: 5.13in !important;
-                                    min-height: 5.13in !important;
-                                }
-                                .release-copy table th,
-                                .release-copy table td {
-                                    border-color: #9ca3af !important;
-                                }
-                                .release-print-actions { display: none !important; }
-                                @page { size: A4; margin: 0.3in; }
-                            }
-                        `}</style>
+                        {createPortal(
+                            <div id="release-print-root" className="hidden">
+                                <style>{`
+                                    #release-print-root { display: none; }
+
+                                    @media print {
+                                        html, body, .dark body {
+                                            height: auto !important;
+                                            overflow: visible !important;
+                                            margin: 0 !important;
+                                            padding: 0 !important;
+                                            background: #fff !important;
+                                        }
+                                        body > * { display: none !important; }
+                                        #release-print-root { display: block !important; }
+
+                                        #release-print-root .release-copy {
+                                            position: relative;
+                                            width: 7.25in;
+                                            height: 5.13in;
+                                            min-height: 5.13in;
+                                            margin: 0 auto;
+                                            border: 1px solid #111827;
+                                            overflow: hidden;
+                                            break-inside: avoid;
+                                            page-break-inside: avoid;
+                                        }
+                                        #release-print-root .release-copy + .release-copy { margin-top: 0.04in; }
+                                        #release-print-root .release-copy-content {
+                                            height: 5.13in;
+                                            min-height: 5.13in;
+                                        }
+                                        #release-print-root .release-copy table th,
+                                        #release-print-root .release-copy table td {
+                                            border-color: #9ca3af !important;
+                                        }
+
+                                        /* A4 portrait: 2 copies of 5.13in fit one sheet */
+                                        @page { size: A4 portrait; margin: 0.3in; }
+                                    }
+                                `}</style>
+                                <ReleaseTransmittalSheet
+                                    record={releaseRecord}
+                                    records={releaseRecords}
+                                    billingCode={billingCode}
+                                    receivedBy={receivedBy}
+                                    issuedBy={releaseIssuedBy}
+                                    date={releaseDate}
+                                />
+                            </div>,
+                            document.body
+                        )}
+
                         <div className="mx-auto max-w-[8.27in] bg-white p-3 shadow-2xl">
-                            <div id="release-transmittal-print" className="mx-auto w-[7.25in] bg-white text-black">
-                                {["ORIGINAL COPY", "COPY OF ORIGINAL"].map((copyLabel) => (
-                                    <div key={copyLabel} className="release-copy relative flex min-h-[5.13in] flex-col border border-gray-400 bg-white">
-                                        <img src={logoOnly} className="pointer-events-none absolute left-1/2 top-1/2 h-60 w-60 -translate-x-1/2 -translate-y-1/2 object-contain opacity-10" />
-                                        <div className="release-copy-content relative z-10 flex min-h-[5.13in] flex-col">
-                                            <p className="px-2 pt-1 text-sm">{copyLabel}</p>
-                                            <div className="flex items-center justify-center gap-3 border-b border-gray-400 pb-2 pt-2">
-                                                <img src={logoOnly} className="h-6 w-6 object-contain" />
-                                                <h1 className="text-lg font-bold">HEXAPRIME INC.</h1>
-                                            </div>
-                                            <div className="py-2 text-center">
-                                                <h2 className="text-base font-bold">POS TRANSMITTAL FORM</h2>
-                                                <p className="text-xs italic">(Repaired POS Released)</p>
-                                            </div>
-                                            <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-8 px-2 pb-3 text-xs">
-                                                <div className="min-w-0">
-                                                    <p><span className="font-bold">OPERATORS CODE:</span> {releaseRecord.operator_name || "-"}</p>
-                                                    <p><span className="font-bold">AREA:</span> {releaseRecord.area || "-"}</p>
-                                                </div>
-                                                <div className="w-[2.35in] justify-self-end pr-2 text-left">
-                                                    <p className="break-words"><span className="font-bold">BILLING CODE:</span> {billingCode}</p>
-                                                    <p className="break-words"><span className="font-bold">TOTAL # OF POS RELEASED:</span> {releaseRecords.length} Unit/s</p>
-                                                </div>
-                                            </div>
-                                            <table className="w-full border-collapse text-xs">
-                                                <thead>
-                                                    <tr>
-                                                        <th className="border border-gray-300 px-2 py-1.5">BILLING #</th>
-                                                        <th className="border border-gray-300 px-2 py-1.5">SERIAL NO.</th>
-                                                        <th className="border border-gray-300 px-2 py-1.5">POS NO.</th>
-                                                        <th className="border border-gray-300 px-2 py-1.5">REMARKS</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {releaseRecords.map((item) => (
-                                                        <tr key={`${copyLabel}-${item.id}`}>
-                                                            <td className="border border-gray-300 px-2 py-1.5 text-center">{billingCode}</td>
-                                                            <td className="border border-gray-300 px-2 py-1.5 text-center">{item.serial_number || "-"}</td>
-                                                            <td className="border border-gray-300 px-2 py-1.5 text-center">{item.device_no || "-"}</td>
-                                                            <td className="border border-gray-300 px-2 py-1.5 text-center">{item.remarks || "-"}</td>
-                                                        </tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
-                                            <div className="mt-auto grid grid-cols-2 gap-16 px-16 pb-4 pt-4 text-xs">
-                                                <div className="mx-auto w-full max-w-[2.6in]">
-                                                    <div className="grid grid-cols-[max-content_minmax(0,1fr)] items-end gap-x-2 gap-y-0">
-                                                        <span>Issued by:</span>
-                                                        <span className="block h-px border-t border-black" />
-                                                        <span />
-                                                        <div className="text-center font-bold uppercase leading-tight">{releaseIssuedBy}</div>
-                                                        <span />
-                                                        <p className="-mt-0.5 text-center leading-tight">Date Released: {releaseDate}</p>
-                                                    </div>
-                                                </div>
-                                                <div className="mx-auto w-full max-w-[2.6in]">
-                                                    <div className="grid grid-cols-[max-content_minmax(0,1fr)] items-end gap-x-2 gap-y-0">
-                                                        <span>Received by:</span>
-                                                        <span className="block h-px border-t border-black" />
-                                                        <span />
-                                                        <div className="text-center font-bold uppercase leading-tight break-words">{receivedBy}</div>
-                                                        <span />
-                                                        <p className="-mt-0.5 text-center leading-tight">Date Received: {releaseDate}</p>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div className="border-t border-black py-2 text-center text-[11px] leading-snug text-slate-700">
-                                                3F VLC Tower 1 Pueblo de Oro Business Park,<br />
-                                                Upper Carmen, Cagayan de Oro 9000<br />
-                                                hexaprimeinc@gmail.com
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
+                            <ReleaseTransmittalSheet
+                                record={releaseRecord}
+                                records={releaseRecords}
+                                billingCode={billingCode}
+                                receivedBy={receivedBy}
+                                issuedBy={releaseIssuedBy}
+                                date={releaseDate}
+                            />
                             <div className="release-print-actions mt-6 flex justify-end gap-3">
                                 <button onClick={onClose} className="rounded-md bg-gray-200 px-5 py-2.5 font-semibold text-ink transition hover:bg-gray-300">Close</button>
                                 {savedRelease ? (
